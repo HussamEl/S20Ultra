@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="channel_route">Active route</string>
+    <string name="channel_alerts">Navigation alerts</string>
+    <string name="notif_next_stop">Next stop: %1$s</string>
+    <string name="notif_remaining">Remaining: %1$d</string>
+    <string name="notif_open_maps_title">Open Maps for the next leg</string>
+    <string name="notif_open_maps_text">Tap to start navigation to the next stops</string>
+    <string name="overlay_description">Next stop button</string>
+
+    <string name="back">Back</string>
+    <string name="cancel">Cancel</string>
+    <string name="save">Save</string>
+    <string name="delete">Delete</string>
+    <string name="edit">Edit</string>
+    <string name="next_step">Next</string>
+    <string name="skip">Skip</string>
+    <string name="allow">Allow</string>
+    <string name="undo">Undo</string>
+
+    <string name="home_subtitle">Read addresses from screenshots, order the stops and start navigation with Swedish announcements.</string>
+    <string name="home_import">Import screenshots</string>
+    <string name="home_resume">Resume route</string>
+    <string name="home_resume_draft">Continue reviewing the list</string>
+    <string name="home_clear">Clear</string>
+    <string name="home_settings">Settings</string>
+    <string name="home_help">Help</string>
+    <string name="home_share_hint">You can also share a screenshot from any app directly to Nästa Stopp.</string>
+    <string name="tts_missing_banner">Swedish voice missing – tap here</string>
+    <string name="importing">Reading image %1$d of %2$d…</string>
+    <string name="import_result">Addresses added: %1$d</string>
+    <string name="import_none">No addresses found in the images</string>
+    <string name="import_failed">Images that could not be read: %1$d</string>
+    <string name="confirm_clear_title">Clear all data?</string>
+    <string name="confirm_clear_text">The address list will be permanently deleted.</string>
+
+    <string name="review_title">Review stops</string>
+    <string name="review_hint">Drag ☰ to reorder • swipe to delete • tap to edit • long-press for more</string>
+    <string name="review_empty">No addresses yet.</string>
+    <string name="review_add_manual">Add address manually</string>
+    <string name="review_add_screens">Add from another screenshot</string>
+    <string name="review_start">Start route · Starta rutt</string>
+    <string name="review_back_to_route">Back to route</string>
+    <string name="review_count">Stops: %1$d</string>
+    <string name="menu_delete_above">Delete all above</string>
+    <string name="menu_retry">Locate again</string>
+    <string name="stop_located">Located</string>
+    <string name="stop_not_located">Not located – manual advance only</string>
+    <string name="stop_locating">Locating…</string>
+    <string name="spoken_label">Announced: %1$s</string>
+    <string name="dialog_edit_title">Edit address</string>
+    <string name="dialog_add_title">New address</string>
+    <string name="invalid_address">Text too short</string>
+    <string name="deleted_stop">Stop deleted</string>
+    <string name="deleted_many">Stops deleted: %1$d</string>
+
+    <string name="active_next_label">Next stop</string>
+    <string name="active_then_label">Then</string>
+    <string name="active_counts">Done: %1$d · Left: %2$d</string>
+    <string name="btn_next">Next · Nästa</string>
+    <string name="btn_repeat">Repeat · Upprepa</string>
+    <string name="btn_open_maps">Open Maps</string>
+    <string name="btn_end">End · Avsluta</string>
+    <string name="btn_edit_list">Edit list</string>
+    <string name="confirm_end_title">End the route?</string>
+    <string name="confirm_end_text">All addresses will be deleted from the phone.</string>
+    <string name="status_arrived">Arrived – the next stop is announced when you drive off</string>
+    <string name="status_distance">Distance to stop: %1$d m</string>
+    <string name="status_manual_only">Manual advance for this stop (tap Next)</string>
+    <string name="status_no_location">No location permission – use Next</string>
+    <string name="status_waiting_gps">Waiting for GPS…</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="settings_language">App language</string>
+    <string name="settings_detail">Announcement detail</string>
+    <string name="detail_district">District when available</string>
+    <string name="detail_town">Town only</string>
+    <string name="settings_english">Repeat the announcement in English</string>
+    <string name="settings_rate">Speech rate: %1$s</string>
+    <string name="settings_radius">Arrival radius: %1$d m</string>
+    <string name="settings_test_voice">Test voice</string>
+    <string name="settings_permissions">Permissions and system</string>
+    <string name="settings_location">Location</string>
+    <string name="settings_notifications">Notifications</string>
+    <string name="settings_overlay">Floating button over Maps</string>
+    <string name="settings_battery">Battery optimization exemption</string>
+    <string name="settings_voice">Swedish voice</string>
+    <string name="perm_granted">On ✓</string>
+    <string name="perm_tap">Off – tap to allow</string>
+    <string name="voice_ready">Ready ✓</string>
+    <string name="voice_missing">Missing – tap to install</string>
+    <string name="voice_checking">Checking…</string>
+    <string name="settings_privacy_note">Privacy: the app has no internet permission. Images are read on the phone only and never stored. Addresses are deleted when the route ends, when you clear, or automatically after 12 hours.</string>
+    <string name="settings_version">Version %1$s · %2$s</string>
+
+    <string name="help_title">Help</string>
+    <string name="help_battery_title">Samsung battery: \"Never sleeping apps\"</string>
+    <string name="help_battery_body">So that Samsung does not stop the app while driving:\n\n1. Open Settings → Battery and device care → Battery.\n2. Choose Background usage limits.\n3. Open \"Never sleeping apps\", tap + and pick Nästa Stopp.\n4. Turn off \"Put unused apps to sleep\" or make sure the app is not listed as sleeping / deep sleeping.\n5. In App info → Battery choose Unrestricted.\n6. You can also lock the app in the recent apps list.</string>
+    <string name="help_battery_button">Open app settings</string>
+    <string name="help_battery_request">Request battery optimization exemption</string>
+    <string name="help_voice_title">Install the Swedish voice</string>
+    <string name="help_voice_body">Announcements are always in Swedish.\n\n1. Tap \"Install Swedish voice\", choose Swedish (Sweden) and download it.\n2. On Samsung: Settings → General management → Text-to-speech → Preferred engine → choose Speech Services by Google.\n3. Come back and tap \"Test voice\" in Settings.</string>
+    <string name="help_voice_button">Install Swedish voice</string>
+    <string name="help_tts_settings_button">Text-to-speech settings</string>
+    <string name="help_share_title">Share a screenshot to the app</string>
+    <string name="help_share_body">1. Take a screenshot of the page with the addresses (any app: dispatch app, SMS, email, web page). Use scroll capture for long lists.\n2. Tap Share in the screenshot toolbar or in the gallery and pick Nästa Stopp. Several images are fine; they are added in order.\n3. Or open the app and tap \"Import screenshots\".\n4. Review the list and tap \"Start route\". Google Maps opens with the stops (up to 10 at a time).</string>
+    <string name="help_overlay_title">Floating button</string>
+    <string name="help_overlay_body">If you allow \"display over other apps\", a big yellow button is shown over Google Maps during the route:\n• Tap = next stop + announcement.\n• Long-press = repeat the announcement.\n• Drag to move it.\nWithout it everything works from the notification.</string>
+    <string name="help_how_title">How announcements work</string>
+    <string name="help_how_body">When you drive off from a stop (after arriving) the app announces the next stop and the one after it in Swedish, e.g. \"Nästa stopp: Skoghall. Därefter: Kil.\"\nOnly the district or town is said – never street names, numbers or names.</string>
+    <string name="help_privacy_title">Privacy</string>
+
+    <string name="onb_step">Step %1$d of %2$d</string>
+    <string name="onb_welcome_title">Welcome to Nästa Stopp</string>
+    <string name="onb_welcome_body">The app reads addresses from screenshots – on the phone only – builds a list of stops, opens Google Maps and announces the next stop and the one after it in Swedish so passengers know the order.\n\nThe app does not use the internet, stores no images and deletes the addresses when the route is done.\n\nWe will now ask for the permissions one at a time.</string>
+    <string name="onb_location_title">Location permission</string>
+    <string name="onb_location_body">Location is only used during a route to detect when you arrive at a stop and drive off, so the next stop can be announced automatically.\n\nYour location is never sent anywhere. Choose \"While using the app\" and precise location.</string>
+    <string name="onb_notif_title">Notifications</string>
+    <string name="onb_notif_body">During a route a notification shows the next stop with the buttons Nästa, Upprepa and Avsluta that you can use from inside Google Maps.</string>
+    <string name="onb_battery_title">Battery</string>
+    <string name="onb_battery_body">Allow the app to ignore battery optimization so the system does not stop it while driving.\n\nOn Samsung also add the app to \"Never sleeping apps\" (see Help).</string>
+    <string name="onb_overlay_title">Floating button (optional)</string>
+    <string name="onb_overlay_body">A big yellow button over Google Maps: tap = next stop, long-press = repeat.\n\nTurn on \"Allow display over other apps\" for Nästa Stopp on the next screen. Without it everything works from the notification.</string>
+    <string name="onb_voice_title">Swedish voice</string>
+    <string name="onb_voice_body">Announcements are always in Swedish so the passengers understand, whatever the app language.</string>
+    <string name="onb_granted">Allowed ✓</string>
+    <string name="onb_finish">Start</string>
+
+    <string name="tts_missing_title">Swedish voice missing</string>
+    <string name="tts_missing_body">Announcements need Swedish voice data.\n\nTap \"Install\", choose Swedish and download it. On Samsung, preferably choose Speech Services by Google as the preferred engine under Text-to-speech.\n\nThen tap \"Check again\".</string>
+    <string name="tts_install">Install</string>
+    <string name="tts_recheck">Check again</string>
+</resources>

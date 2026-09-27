@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Default UI language: Arabic (RTL). -->
+<resources>
+    <string name="channel_route">المسار الحالي</string>
+    <string name="channel_alerts">تنبيهات الملاحة</string>
+    <string name="notif_next_stop">المحطة التالية: %1$s</string>
+    <string name="notif_remaining">المتبقي: %1$d</string>
+    <string name="notif_open_maps_title">افتح الخرائط للجزء التالي</string>
+    <string name="notif_open_maps_text">اضغط هنا لبدء الملاحة إلى المحطات التالية</string>
+    <string name="overlay_description">زر المحطة التالية</string>
+
+    <string name="back">رجوع</string>
+    <string name="cancel">إلغاء</string>
+    <string name="save">حفظ</string>
+    <string name="delete">حذف</string>
+    <string name="edit">تعديل</string>
+    <string name="next_step">التالي</string>
+    <string name="skip">تخطي</string>
+    <string name="allow">سماح</string>
+    <string name="undo">تراجع</string>
+
+    <string name="home_subtitle">اقرأ العناوين من لقطات الشاشة، رتّب المحطات، وابدأ الملاحة مع إعلان صوتي بالسويدية.</string>
+    <string name="home_import">استيراد لقطات الشاشة</string>
+    <string name="home_resume">متابعة المسار</string>
+    <string name="home_resume_draft">متابعة مراجعة القائمة</string>
+    <string name="home_clear">مسح البيانات</string>
+    <string name="home_settings">الإعدادات</string>
+    <string name="home_help">المساعدة</string>
+    <string name="home_share_hint">يمكنك أيضاً مشاركة لقطة شاشة من أي تطبيق مباشرةً إلى «Nästa Stopp».</string>
+    <string name="tts_missing_banner">الصوت السويدي غير مثبت — اضغط هنا</string>
+    <string name="importing">جارٍ قراءة الصورة %1$d من %2$d…</string>
+    <string name="import_result">عناوين مضافة: %1$d</string>
+    <string name="import_none">لم يتم العثور على عناوين في الصور</string>
+    <string name="import_failed">صور تعذرت قراءتها: %1$d</string>
+    <string name="confirm_clear_title">مسح كل البيانات؟</string>
+    <string name="confirm_clear_text">سيتم حذف قائمة العناوين نهائياً.</string>
+
+    <string name="review_title">مراجعة المحطات</string>
+    <string name="review_hint">اسحب ☰ لتغيير الترتيب • اسحب الصف جانباً للحذف • اضغط للتعديل • اضغط مطولاً لخيارات أكثر</string>
+    <string name="review_empty">لا توجد عناوين بعد.</string>
+    <string name="review_add_manual">إضافة عنوان يدوياً</string>
+    <string name="review_add_screens">إضافة من لقطة شاشة أخرى</string>
+    <string name="review_start">ابدأ المسار · Starta rutt</string>
+    <string name="review_back_to_route">العودة إلى المسار</string>
+    <string name="review_count">عدد المحطات: %1$d</string>
+    <string name="menu_delete_above">حذف كل ما فوقه</string>
+    <string name="menu_retry">إعادة تحديد الموقع</string>
+    <string name="stop_located">تم تحديد الموقع</string>
+    <string name="stop_not_located">لم يُحدَّد الموقع — التقدم يدوي فقط</string>
+    <string name="stop_locating">جارٍ تحديد الموقع…</string>
+    <string name="spoken_label">يُعلَن: %1$s</string>
+    <string name="dialog_edit_title">تعديل العنوان</string>
+    <string name="dialog_add_title">عنوان جديد</string>
+    <string name="invalid_address">النص قصير جداً</string>
+    <string name="deleted_stop">تم حذف المحطة</string>
+    <string name="deleted_many">تم حذف المحطات: %1$d</string>
+
+    <string name="active_next_label">المحطة التالية</string>
+    <string name="active_then_label">بعد ذلك</string>
+    <string name="active_counts">المنجز: %1$d · المتبقي: %2$d</string>
+    <string name="btn_next">التالي · Nästa</string>
+    <string name="btn_repeat">إعادة · Upprepa</string>
+    <string name="btn_open_maps">الخرائط · Öppna Maps</string>
+    <string name="btn_end">إنهاء · Avsluta</string>
+    <string name="btn_edit_list">تعديل القائمة</string>
+    <string name="confirm_end_title">إنهاء المسار؟</string>
+    <string name="confirm_end_text">سيتم حذف جميع العناوين من الهاتف.</string>
+    <string name="status_arrived">وصلت إلى المحطة — سيُعلَن التالي عند المغادرة</string>
+    <string name="status_distance">المسافة إلى المحطة: %1$d م</string>
+    <string name="status_manual_only">التقدم يدوي لهذه المحطة (اضغط «التالي»)</string>
+    <string name="status_no_location">لا يوجد إذن للموقع — استخدم زر «التالي»</string>
+    <string name="status_waiting_gps">بانتظار إشارة GPS…</string>
+
+    <string name="settings_title">الإعدادات</string>
+    <string name="settings_language">لغة الواجهة</string>
+    <string name="settings_detail">تفاصيل الإعلان الصوتي</string>
+    <string name="detail_district">الحي عند توفره</string>
+    <string name="detail_town">المدينة فقط</string>
+    <string name="settings_english">تكرار الإعلان بالإنجليزية بعد السويدية</string>
+    <string name="settings_rate">سرعة الكلام: %1$s</string>
+    <string name="settings_radius">نطاق الوصول: %1$d م</string>
+    <string name="settings_test_voice">اختبار الصوت</string>
+    <string name="settings_permissions">الأذونات والنظام</string>
+    <string name="settings_location">الموقع</string>
+    <string name="settings_notifications">الإشعارات</string>
+    <string name="settings_overlay">الزر العائم فوق الخرائط</string>
+    <string name="settings_battery">استثناء من تحسين البطارية</string>
+    <string name="settings_voice">الصوت السويدي</string>
+    <string name="perm_granted">مفعّل ✓</string>
+    <string name="perm_tap">غير مفعّل — اضغط للسماح</string>
+    <string name="voice_ready">جاهز ✓</string>
+    <string name="voice_missing">غير مثبت — اضغط للتثبيت</string>
+    <string name="voice_checking">جارٍ التحقق…</string>
+    <string name="settings_privacy_note">الخصوصية: لا يملك التطبيق إذن الإنترنت. تُقرأ الصور على الهاتف فقط ولا تُحفظ. تُحذف العناوين عند انتهاء المسار أو عند المسح أو تلقائياً بعد 12 ساعة.</string>
+    <string name="settings_version">الإصدار %1$s · %2$s</string>
+
+    <string name="help_title">المساعدة</string>
+    <string name="help_battery_title">بطارية سامسونج: «التطبيقات التي لا تنام أبداً»</string>
+    <string name="help_battery_body">حتى لا يوقف هاتف سامسونج التطبيق أثناء القيادة:\n\n1. افتح «الإعدادات» ← «العناية بالبطارية والجهاز» ← «البطارية».\n2. اختر «حدود استخدام الخلفية».\n3. افتح «التطبيقات التي لا تنام أبداً» واضغط «+» ثم اختر «Nästa Stopp».\n4. أوقف خيار «وضع التطبيقات غير المستخدمة في وضع السكون» أو تأكد أن التطبيق ليس في قائمة «التطبيقات النائمة» أو «التطبيقات النائمة بعمق».\n5. من «معلومات التطبيق» ← «البطارية» اختر «غير مقيد».\n6. يمكنك أيضاً قفل التطبيق في قائمة التطبيقات الأخيرة (اضغط على أيقونته ← «إبقاء مفتوحاً»).</string>
+    <string name="help_battery_button">فتح إعدادات التطبيق</string>
+    <string name="help_battery_request">طلب تجاهل تحسين البطارية</string>
+    <string name="help_voice_title">تثبيت الصوت السويدي</string>
+    <string name="help_voice_body">الإعلانات تُقال دائماً بالسويدية.\n\n1. اضغط «تثبيت الصوت السويدي» واختر «Svenska (Sverige)» ثم حمّله.\n2. على هواتف سامسونج: الإعدادات ← الإدارة العامة ← تحويل النص إلى كلام ← المحرك المفضل ← اختر «خدمات Google للكلام» (Speech Services by Google).\n3. عد إلى التطبيق واضغط «اختبار الصوت» في الإعدادات.</string>
+    <string name="help_voice_button">تثبيت الصوت السويدي</string>
+    <string name="help_tts_settings_button">إعدادات تحويل النص إلى كلام</string>
+    <string name="help_share_title">كيف تشارك لقطة شاشة مع التطبيق</string>
+    <string name="help_share_body">1. خذ لقطة شاشة للصفحة التي فيها العناوين (من أي تطبيق: تطبيق الطلبات، رسالة SMS، بريد، موقع ويب). يمكن استخدام «لقطة التمرير» للقوائم الطويلة.\n2. اضغط «مشاركة» في شريط لقطة الشاشة أو من المعرض، واختر «Nästa Stopp». يمكنك اختيار عدة صور مرة واحدة؛ تُضاف بالترتيب.\n3. أو افتح التطبيق واضغط «استيراد لقطات الشاشة».\n4. راجع القائمة، ثم اضغط «ابدأ المسار». تفتح خرائط Google مع كل المحطات (حتى 10 في كل مرة).</string>
+    <string name="help_overlay_title">الزر العائم</string>
+    <string name="help_overlay_body">إذا سمحت بـ«الظهور فوق التطبيقات الأخرى» يظهر زر أصفر كبير فوق خرائط Google أثناء المسار:\n• ضغطة = المحطة التالية + إعلان.\n• ضغطة مطولة = إعادة الإعلان.\n• اسحبه لتغيير مكانه.\nبدونه يعمل كل شيء من الإشعار.</string>
+    <string name="help_how_title">كيف يعمل الإعلان</string>
+    <string name="help_how_body">عند مغادرة المحطة (بعد الوصول إليها) يعلن التطبيق بالسويدية المحطة التالية والتي بعدها، مثل: «Nästa stopp: Skoghall. Därefter: Kil.»\nيُذكر اسم الحي أو المدينة فقط — لا أسماء شوارع ولا أرقام ولا أسماء أشخاص.</string>
+    <string name="help_privacy_title">الخصوصية</string>
+
+    <string name="onb_step">الخطوة %1$d من %2$d</string>
+    <string name="onb_welcome_title">مرحباً بك في Nästa Stopp</string>
+    <string name="onb_welcome_body">يقرأ التطبيق العناوين من لقطات الشاشة على هاتفك فقط، ويبني قائمة المحطات، ويفتح خرائط Google، ويعلن بالسويدية المحطة التالية والتي بعدها حتى يعرف الركاب الترتيب.\n\nلا يتصل التطبيق بالإنترنت، ولا يحفظ الصور، ويحذف العناوين بعد انتهاء المسار.\n\nسنطلب الآن الأذونات واحداً تلو الآخر.</string>
+    <string name="onb_location_title">إذن الموقع</string>
+    <string name="onb_location_body">يُستخدم الموقع أثناء المسار فقط، لمعرفة متى وصلت إلى المحطة ومتى غادرتها، ثم يعلن التطبيق المحطة التالية تلقائياً.\n\nلا يُرسل الموقع إلى أي مكان. اختر «أثناء استخدام التطبيق» والموقع الدقيق.</string>
+    <string name="onb_notif_title">إذن الإشعارات</string>
+    <string name="onb_notif_body">أثناء المسار يظهر إشعار دائم فيه المحطة التالية وأزرار Nästa و Upprepa و Avsluta، لتستخدمها وأنت في خرائط Google.</string>
+    <string name="onb_battery_title">البطارية</string>
+    <string name="onb_battery_body">حتى لا يوقف النظام التطبيق أثناء القيادة، اسمح له بتجاهل تحسين البطارية.\n\nفي هواتف سامسونج أضفه أيضاً إلى «التطبيقات التي لا تنام أبداً» (الطريقة في صفحة المساعدة).</string>
+    <string name="onb_overlay_title">الزر العائم (اختياري)</string>
+    <string name="onb_overlay_body">زر أصفر كبير فوق خرائط Google: ضغطة = المحطة التالية، ضغطة مطولة = إعادة الإعلان.\n\nفي الشاشة التالية فعّل «السماح بالظهور فوق التطبيقات الأخرى» لـ Nästa Stopp. إذا لم تفعّله يعمل كل شيء عبر الإشعار.</string>
+    <string name="onb_voice_title">الصوت السويدي</string>
+    <string name="onb_voice_body">الإعلانات تُقال دائماً بالسويدية حتى يفهمها الركاب، مهما كانت لغة الواجهة.</string>
+    <string name="onb_granted">تم السماح ✓</string>
+    <string name="onb_finish">ابدأ</string>
+
+    <string name="tts_missing_title">الصوت السويدي غير متوفر</string>
+    <string name="tts_missing_body">لقراءة الإعلانات تحتاج إلى بيانات الصوت السويدي.\n\nاضغط «تثبيت» واختر «Svenska» وحمّلها. على هواتف سامسونج يُفضَّل اختيار «خدمات Google للكلام» كمحرك مفضل من إعدادات تحويل النص إلى كلام.\n\nبعد التثبيت اضغط «إعادة الفحص».</string>
+    <string name="tts_install">تثبيت</string>
+    <string name="tts_recheck">إعادة الفحص</string>
+</resources>

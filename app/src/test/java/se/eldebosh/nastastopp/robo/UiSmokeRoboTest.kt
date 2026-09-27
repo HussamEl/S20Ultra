@@ -1,0 +1,164 @@
+package se.eldebosh.nastastopp.robo
+
+import android.os.Looper
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.performScrollTo
+import androidx.test.core.app.ActivityScenario
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
+import se.eldebosh.nastastopp.App
+import se.eldebosh.nastastopp.BuildConfig
+import se.eldebosh.nastastopp.MainActivity
+import se.eldebosh.nastastopp.R
+
+/**
+ * Smoke-tests the Compose screens in the Arabic UI on Android 13 (like the S20 Ultra).
+ * Robolectric does not apply per-app locales, so the "ar" qualifier stands in for them here.
+ * (Screen-size qualifiers are left out: with them Robolectric never idles once a TextField is shown.)
+ */
+@RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [33], qualifiers = "ar")
+class UiSmokeRoboTest {
+
+    @get:Rule
+    val compose = createEmptyComposeRule()
+
+    private lateinit var app: App
+
+    @Before
+    fun setUp() {
+        app = ApplicationProvider.getApplicationContext()
+        app.graph.controller.clear()
+        shadowOf(Looper.getMainLooper()).idle()
+    }
+
+    /** Strings as the activity sees them (the in-app UI language, Arabic by default). */
+    private var activityContext: android.content.Context? = null
+    /** Robolectric's Geocoder never answers: advance virtual time until every lookup timed out. */
+    private fun settleGeocoding() {
+        repeat(600) {
+            val pending = app.graph.controller.route.value?.stops?.any { it.geoStatus == se.eldebosh.nastastopp.route.model.GeoStatus.PENDING } == true
+            if (!pending) return
+            shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
+        }
+    }
+
+    private fun s(id: Int, vararg args: Any) = (activityContext ?: app).getString(id, *args)
+
+    /** Waits for the (single) compose root, then asserts that [text] is shown. */
+    private fun waitText(text: String) {
+        compose.waitForIdle()
+        compose.onNodeWithText(text).assertExists()
+    }
+
+    private fun launch(): ActivityScenario<MainActivity> =
+        ActivityScenario.launch(MainActivity::class.java).also { sc ->
+            shadowOf(Looper.getMainLooper()).idle()
+            sc.onActivity { activityContext = it }
+        }
+
+    @Test
+    fun onboardingThenHomeSettingsAndHelp() {
+        app.graph.settings.update { it.copy(onboardingDone = false) }
+        launch().use {
+            waitText(s(R.string.onb_welcome_title))
+            // Arabic is the default UI language.
+            assertEquals("مرحباً بك في Nästa Stopp", s(R.string.onb_welcome_title))
+            compose.onNodeWithText(s(R.string.next_step)).performScrollTo().performClick()
+            compose.onNodeWithText(s(R.string.onb_location_title)).assertExists()
+            // Skip through the permission steps one at a time.
+            repeat(4) {
+                compose.onNode(hasText(s(R.string.skip)).or(hasText(s(R.string.next_step)))).performScrollTo().performClick()
+            }
+            compose.onNodeWithText(s(R.string.onb_voice_title)).assertExists()
+            compose.onNodeWithText(s(R.string.onb_finish)).performScrollTo().performClick()
+
+            compose.onNodeWithText(s(R.string.home_import)).assertExists()
+            assertTrue(app.graph.settings.current.onboardingDone)
+
+            compose.onNodeWithText(s(R.string.home_settings)).performClick()
+            compose.onNodeWithText(s(R.string.settings_version, BuildConfig.VERSION_NAME, BuildConfig.BUILD_DATE))
+                .performScrollTo().assertExists()
+            compose.onNodeWithText(s(R.string.detail_district)).assertExists()
+            it.onActivity { a ->
+                assertEquals(android.util.LayoutDirection.RTL, a.resources.configuration.layoutDirection)
+            }
+            compose.onNodeWithContentDescription(s(R.string.back)).performClick()
+            compose.onNodeWithText(s(R.string.home_help)).performClick()
+            compose.onNodeWithText(s(R.string.help_battery_title)).assertExists()
+            compose.onNodeWithText(s(R.string.help_share_title)).performScrollTo().assertExists()
+        }
+    }
+
+    @Test
+    fun reviewAndActiveRouteScreens() {
+        app.graph.settings.update { it.copy(onboardingDone = true) }
+        app.graph.controller.addManual("Storgatan 14, 65224 Karlstad")
+        app.graph.controller.addManual("Järnvägsgatan 3B, 68830 Storfors")
+        app.graph.controller.addManual("Björkvägen 7, 66341 Hammarö")
+        settleGeocoding()
+        launch().use {
+            waitText(s(R.string.home_resume_draft))
+            compose.onNodeWithText(s(R.string.home_resume_draft)).performClick()
+            compose.onNodeWithText(s(R.string.review_title)).assertExists()
+            compose.onNodeWithText("1.  Storgatan 14, 652 24 Karlstad").assertExists()
+            compose.onNodeWithText(s(R.string.review_add_manual)).assertExists()
+            compose.onNodeWithText(s(R.string.review_add_screens)).assertExists()
+            // Tap a row → edit dialog with the address; save a new text → re-parsed and re-geocoded.
+            compose.onNodeWithText("2.  Järnvägsgatan 3B, 688 30 Storfors").performClick()
+            compose.onNodeWithText(s(R.string.dialog_edit_title)).assertExists()
+            compose.onNodeWithText("Järnvägsgatan 3B, 688 30 Storfors").performTextReplacement("kungsgatan 5 65224 karlstad")
+            compose.onNodeWithText(s(R.string.save)).performClick()
+            assertEquals("Kungsgatan 5, 652 24 Karlstad", app.graph.controller.route.value!!.stops[1].displayText)
+            settleGeocoding()
+            // Add manually.
+            compose.onNodeWithText(s(R.string.review_add_manual)).performClick()
+            compose.onNodeWithText(s(R.string.dialog_add_title)).assertExists()
+            compose.onNodeWithText(s(R.string.cancel)).performClick()
+            // Long-press menu → delete all above → undo snackbar.
+            compose.onNodeWithText("2.  Kungsgatan 5, 652 24 Karlstad").performTouchInput { longClick() }
+            compose.onNodeWithText(s(R.string.menu_delete_above)).performClick()
+            assertEquals(2, app.graph.controller.route.value!!.stops.size)
+            compose.onNodeWithText(s(R.string.undo)).performClick()
+            assertEquals(3, app.graph.controller.route.value!!.stops.size)
+            compose.onNodeWithText(s(R.string.review_start)).assertExists()
+        }
+    }
+
+    @Test
+    fun activeRouteNextButtonAdvances() {
+        app.graph.settings.update { it.copy(onboardingDone = true) }
+        app.graph.controller.addManual("Storgatan 14, 65224 Karlstad")
+        app.graph.controller.addManual("Järnvägsgatan 3B, 68830 Storfors")
+        settleGeocoding()
+        app.graph.controller.start()
+        shadowOf(Looper.getMainLooper()).idle()
+        launch().use {
+            waitText(s(R.string.btn_next))
+            compose.onNodeWithText("Karlstad").assertExists()
+            compose.onNodeWithText(s(R.string.active_counts, 0, 2)).assertExists()
+            compose.onNodeWithText(s(R.string.btn_next)).performClick()
+            compose.waitForIdle()
+            assertEquals(1, app.graph.controller.route.value!!.stops.size)
+            compose.onNodeWithText(s(R.string.active_counts, 1, 1)).assertExists()
+        }
+        app.graph.controller.end()
+    }
+}

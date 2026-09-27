@@ -1,0 +1,254 @@
+package se.eldebosh.nastastopp.ui
+
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import se.eldebosh.nastastopp.R
+import se.eldebosh.nastastopp.core.route.Announcements
+import se.eldebosh.nastastopp.route.model.Stop
+import se.eldebosh.nastastopp.ui.screens.ActiveRouteScreen
+import se.eldebosh.nastastopp.ui.screens.HelpScreen
+import se.eldebosh.nastastopp.ui.screens.HomeScreen
+import se.eldebosh.nastastopp.ui.screens.OnboardingScreen
+import se.eldebosh.nastastopp.ui.screens.PermissionStatus
+import se.eldebosh.nastastopp.ui.screens.ReviewScreen
+import se.eldebosh.nastastopp.ui.screens.SettingsScreen
+import se.eldebosh.nastastopp.ui.screens.TtsMissingScreen
+import se.eldebosh.nastastopp.util.LocaleHelper
+import se.eldebosh.nastastopp.util.SystemIntents
+
+private const val MAX_PICK = 30
+
+@Composable
+fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
+    val context = LocalContext.current
+    val resources = LocalResources.current
+    val graph = vm.graph
+    val controller = graph.controller
+    val stack by vm.stack.collectAsStateWithLifecycle()
+    val route by controller.route.collectAsStateWithLifecycle()
+    val tracking by controller.tracking.collectAsStateWithLifecycle()
+    val settings by graph.settings.state.collectAsStateWithLifecycle()
+    val ttsStatus by graph.announcer.status.collectAsStateWithLifecycle()
+    val importState by vm.importState.collectAsStateWithLifecycle()
+    val importing = importState is ImportUi.Running
+    val snackbar = remember { SnackbarHostState() }
+    var resumeTick by remember { mutableIntStateOf(0) }
+    val screen = stack.last()
+
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { resumeTick++ }
+
+    // Snackbar messages (with optional undo).
+    LaunchedEffect(Unit) {
+        vm.messages.collect { msg ->
+            val text = if (msg.arg != null) resources.getString(msg.text, msg.arg) else resources.getString(msg.text)
+            val result = snackbar.showSnackbar(
+                message = text,
+                actionLabel = if (msg.undo != null) resources.getString(R.string.undo) else null,
+                duration = if (msg.undo != null) SnackbarDuration.Long else SnackbarDuration.Short,
+            )
+            if (result == SnackbarResult.ActionPerformed) msg.undo?.invoke()
+        }
+    }
+
+    // The route may end from the notification / overlay while the Active screen is shown.
+    LaunchedEffect(route?.active, screen) {
+        if (screen == Screen.ACTIVE && route?.active != true) vm.resetTo(Screen.HOME)
+    }
+
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(MAX_PICK)) { uris ->
+        vm.importImages(uris)
+    }
+    fun pickImages() = picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+
+    fun startRoute() {
+        if (controller.start()) vm.resetTo(Screen.HOME, Screen.ACTIVE)
+    }
+    val startPermissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { startRoute() }
+    fun requestStart() {
+        val needed = buildList {
+            if (!SystemIntents.hasLocation(context)) {
+                add(Manifest.permission.ACCESS_FINE_LOCATION)
+                add(Manifest.permission.ACCESS_COARSE_LOCATION)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !SystemIntents.hasNotifications(context)) {
+                add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+        if (needed.isEmpty()) startRoute() else startPermissions.launch(needed.toTypedArray())
+    }
+    val locationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        controller.ensureServiceRunning()
+        resumeTick++
+    }
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { resumeTick++ }
+
+    val spokenName: (Stop) -> String = { controller.spokenName(it) }
+    fun testVoice() = graph.announcer.speak(Announcements.nextStops("Karlstad", "Hammarö", settings.englishRepeat))
+
+    BackHandler(enabled = stack.size > 1) { vm.back() }
+
+    Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+            Column(Modifier.fillMaxSize()) {
+                if (importState is ImportUi.Running) {
+                    val s = importState as ImportUi.Running
+                    Text(
+                        stringResource(R.string.importing, (s.done + 1).coerceAtMost(s.total), s.total),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                    )
+                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                }
+                Box(Modifier.weight(1f)) {
+                    when (screen) {
+                        Screen.ONBOARDING -> OnboardingScreen(
+                            resumeTick = resumeTick,
+                            ttsStatus = ttsStatus,
+                            onTestVoice = ::testVoice,
+                            onVoiceMissing = { vm.navigate(Screen.TTS_MISSING) },
+                            onFinish = { vm.finishOnboarding() },
+                        )
+                        Screen.HOME -> HomeScreen(
+                            route = route,
+                            ttsStatus = ttsStatus,
+                            importing = importing,
+                            onImport = ::pickImages,
+                            onResume = { controller.ensureServiceRunning(); vm.navigate(Screen.ACTIVE) },
+                            onReview = { vm.navigate(Screen.REVIEW) },
+                            onClear = { controller.clear() },
+                            onSettings = { vm.navigate(Screen.SETTINGS) },
+                            onHelp = { vm.navigate(Screen.HELP) },
+                            onTtsMissing = { vm.navigate(Screen.TTS_MISSING) },
+                        )
+                        Screen.REVIEW -> ReviewScreen(
+                            route = route,
+                            spokenName = spokenName,
+                            importing = importing,
+                            onBack = { vm.back() },
+                            onMove = { from, to -> controller.move(from, to) },
+                            onDelete = { stop ->
+                                val before = route?.stops.orEmpty()
+                                controller.delete(stop.id)
+                                vm.message(UiMessage(R.string.deleted_stop, undo = { controller.restoreStops(before) }))
+                            },
+                            onDeleteAbove = { stop ->
+                                val before = route?.stops.orEmpty()
+                                val count = before.indexOfFirst { it.id == stop.id }
+                                controller.deleteAllAbove(stop.id)
+                                vm.message(UiMessage(R.string.deleted_many, count, undo = { controller.restoreStops(before) }))
+                            },
+                            onEdit = { stop, text -> controller.editText(stop.id, text) },
+                            onRetry = { stop -> controller.retryLocate(stop.id) },
+                            onAddManual = { text -> controller.addManual(text) },
+                            onAddScreenshots = ::pickImages,
+                            onStart = ::requestStart,
+                            onBackToRoute = { vm.leaveReviewToActive() },
+                        )
+                        Screen.ACTIVE -> route?.takeIf { it.active }?.let { r ->
+                            ActiveRouteScreen(
+                                route = r,
+                                tracking = tracking,
+                                hasLocationPermission = remember(resumeTick) { SystemIntents.hasLocation(context) },
+                                spokenName = spokenName,
+                                onBack = { if (!vm.back()) vm.resetTo(Screen.HOME) },
+                                onNext = { controller.next(auto = false) },
+                                onRepeat = { controller.repeat() },
+                                onOpenMaps = { controller.openMaps() },
+                                onEdit = { vm.navigate(Screen.REVIEW) },
+                                onEnd = { controller.end() },
+                            )
+                        }
+                        Screen.SETTINGS -> SettingsScreen(
+                            settings = settings,
+                            permissions = remember(resumeTick) {
+                                PermissionStatus(
+                                    location = SystemIntents.hasLocation(context),
+                                    notifications = SystemIntents.hasNotifications(context),
+                                    overlay = SystemIntents.canDrawOverlays(context),
+                                    battery = SystemIntents.isIgnoringBatteryOptimizations(context),
+                                )
+                            },
+                            ttsStatus = ttsStatus,
+                            onBack = { vm.back() },
+                            onUpdate = { graph.settings.update(it) },
+                            onLanguage = { code ->
+                                if (code != settings.uiLanguage) {
+                                    graph.settings.update { it.copy(uiLanguage = code) }
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                        LocaleHelper.applyAppLocale(context, code) // system recreates the activity
+                                    } else {
+                                        onRecreate()
+                                    }
+                                }
+                            },
+                            onTestVoice = ::testVoice,
+                            onLocation = {
+                                if (SystemIntents.hasLocation(context)) SystemIntents.openAppDetails(context)
+                                else locationPermission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                            },
+                            onNotifications = {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !SystemIntents.hasNotifications(context)) {
+                                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                } else {
+                                    SystemIntents.openAppDetails(context)
+                                }
+                            },
+                            onOverlay = { SystemIntents.openOverlaySettings(context) },
+                            onBattery = { SystemIntents.requestIgnoreBatteryOptimizations(context) },
+                            onVoice = {
+                                if (ttsStatus == se.eldebosh.nastastopp.tts.TtsStatus.READY) testVoice() else vm.navigate(Screen.TTS_MISSING)
+                            },
+                        )
+                        Screen.HELP -> HelpScreen(
+                            onBack = { vm.back() },
+                            onAppSettings = { SystemIntents.openAppDetails(context) },
+                            onBatteryRequest = { SystemIntents.requestIgnoreBatteryOptimizations(context) },
+                            onInstallVoice = { SystemIntents.installTtsData(context) },
+                            onTtsSettings = { SystemIntents.openTtsSettings(context) },
+                        )
+                        Screen.TTS_MISSING -> TtsMissingScreen(
+                            onBack = { vm.back() },
+                            onInstall = { SystemIntents.installTtsData(context) },
+                            onRecheck = { graph.announcer.recheck() },
+                            onTtsSettings = { SystemIntents.openTtsSettings(context) },
+                        )
+                    }
+                }
+            }
+            SnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 180.dp))
+        }
+    }
+}

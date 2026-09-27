@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="channel_route">Pågående rutt</string>
+    <string name="channel_alerts">Navigeringsaviseringar</string>
+    <string name="notif_next_stop">Nästa stopp: %1$s</string>
+    <string name="notif_remaining">Kvar: %1$d</string>
+    <string name="notif_open_maps_title">Öppna Maps för nästa etapp</string>
+    <string name="notif_open_maps_text">Tryck för att starta navigeringen till nästa stopp</string>
+    <string name="overlay_description">Knapp för nästa stopp</string>
+
+    <string name="back">Tillbaka</string>
+    <string name="cancel">Avbryt</string>
+    <string name="save">Spara</string>
+    <string name="delete">Ta bort</string>
+    <string name="edit">Redigera</string>
+    <string name="next_step">Nästa</string>
+    <string name="skip">Hoppa över</string>
+    <string name="allow">Tillåt</string>
+    <string name="undo">Ångra</string>
+
+    <string name="home_subtitle">Läs adresser från skärmdumpar, ordna stoppen och starta navigeringen med svenska utrop.</string>
+    <string name="home_import">Importera skärmdumpar</string>
+    <string name="home_resume">Fortsätt rutten</string>
+    <string name="home_resume_draft">Fortsätt granska listan</string>
+    <string name="home_clear">Rensa</string>
+    <string name="home_settings">Inställningar</string>
+    <string name="home_help">Hjälp</string>
+    <string name="home_share_hint">Du kan också dela en skärmdump från valfri app direkt till Nästa Stopp.</string>
+    <string name="tts_missing_banner">Svensk röst saknas – tryck här</string>
+    <string name="importing">Läser bild %1$d av %2$d…</string>
+    <string name="import_result">Tillagda adresser: %1$d</string>
+    <string name="import_none">Inga adresser hittades i bilderna</string>
+    <string name="import_failed">Bilder som inte kunde läsas: %1$d</string>
+    <string name="confirm_clear_title">Rensa all data?</string>
+    <string name="confirm_clear_text">Adresslistan raderas permanent.</string>
+
+    <string name="review_title">Granska stopp</string>
+    <string name="review_hint">Dra i ☰ för att flytta • svep för att ta bort • tryck för att redigera • håll inne för fler val</string>
+    <string name="review_empty">Inga adresser ännu.</string>
+    <string name="review_add_manual">Lägg till adress manuellt</string>
+    <string name="review_add_screens">Lägg till från en till skärmdump</string>
+    <string name="review_start">Starta rutt</string>
+    <string name="review_back_to_route">Tillbaka till rutten</string>
+    <string name="review_count">Antal stopp: %1$d</string>
+    <string name="menu_delete_above">Ta bort alla ovanför</string>
+    <string name="menu_retry">Sök platsen igen</string>
+    <string name="stop_located">Hittad på kartan</string>
+    <string name="stop_not_located">Ej hittad – endast manuell växling</string>
+    <string name="stop_locating">Söker…</string>
+    <string name="spoken_label">Utrop: %1$s</string>
+    <string name="dialog_edit_title">Redigera adress</string>
+    <string name="dialog_add_title">Ny adress</string>
+    <string name="invalid_address">För kort text</string>
+    <string name="deleted_stop">Stoppet togs bort</string>
+    <string name="deleted_many">Borttagna stopp: %1$d</string>
+
+    <string name="active_next_label">Nästa stopp</string>
+    <string name="active_then_label">Därefter</string>
+    <string name="active_counts">Klara: %1$d · Kvar: %2$d</string>
+    <string name="btn_next">Nästa</string>
+    <string name="btn_repeat">Upprepa</string>
+    <string name="btn_open_maps">Öppna Maps</string>
+    <string name="btn_end">Avsluta</string>
+    <string name="btn_edit_list">Redigera listan</string>
+    <string name="confirm_end_title">Avsluta rutten?</string>
+    <string name="confirm_end_text">Alla adresser raderas från telefonen.</string>
+    <string name="status_arrived">Framme – nästa stopp ropas ut när du kör vidare</string>
+    <string name="status_distance">Avstånd till stoppet: %1$d m</string>
+    <string name="status_manual_only">Manuell växling för detta stopp (tryck Nästa)</string>
+    <string name="status_no_location">Ingen platsbehörighet – använd Nästa</string>
+    <string name="status_waiting_gps">Väntar på GPS…</string>
+
+    <string name="settings_title">Inställningar</string>
+    <string name="settings_language">Språk i appen</string>
+    <string name="settings_detail">Detaljnivå i utropen</string>
+    <string name="detail_district">Stadsdel när den finns</string>
+    <string name="detail_town">Endast ort</string>
+    <string name="settings_english">Upprepa utropet på engelska</string>
+    <string name="settings_rate">Talhastighet: %1$s</string>
+    <string name="settings_radius">Ankomstradie: %1$d m</string>
+    <string name="settings_test_voice">Testa rösten</string>
+    <string name="settings_permissions">Behörigheter och system</string>
+    <string name="settings_location">Plats</string>
+    <string name="settings_notifications">Aviseringar</string>
+    <string name="settings_overlay">Flytande knapp över Maps</string>
+    <string name="settings_battery">Undantag från batterioptimering</string>
+    <string name="settings_voice">Svensk röst</string>
+    <string name="perm_granted">På ✓</string>
+    <string name="perm_tap">Av – tryck för att tillåta</string>
+    <string name="voice_ready">Klar ✓</string>
+    <string name="voice_missing">Saknas – tryck för att installera</string>
+    <string name="voice_checking">Kontrollerar…</string>
+    <string name="settings_privacy_note">Integritet: appen har ingen internetbehörighet. Bilderna läses bara i telefonen och sparas aldrig. Adresserna raderas när rutten avslutas, när du rensar eller automatiskt efter 12 timmar.</string>
+    <string name="settings_version">Version %1$s · %2$s</string>
+
+    <string name="help_title">Hjälp</string>
+    <string name="help_battery_title">Samsung-batteri: \"Appar som aldrig sover\"</string>
+    <string name="help_battery_body">Så att Samsung inte stänger appen under körning:\n\n1. Öppna Inställningar → Batteri och enhetsvård → Batteri.\n2. Välj Begränsningar för bakgrundsanvändning.\n3. Öppna \"Appar som aldrig sover\", tryck + och välj Nästa Stopp.\n4. Stäng av \"Sätt oanvända appar i viloläge\" eller kontrollera att appen inte finns bland sovande appar.\n5. Under Appinformation → Batteri: välj Obegränsad.\n6. Lås gärna appen i listan över senaste appar.</string>
+    <string name="help_battery_button">Öppna appinställningar</string>
+    <string name="help_battery_request">Begär undantag från batterioptimering</string>
+    <string name="help_voice_title">Installera svensk röst</string>
+    <string name="help_voice_body">Utropen är alltid på svenska.\n\n1. Tryck \"Installera svensk röst\", välj Svenska (Sverige) och ladda ner.\n2. På Samsung: Inställningar → Allmän hantering → Text till tal → Önskad motor → välj Talfunktioner från Google.\n3. Gå tillbaka och tryck \"Testa rösten\" i inställningarna.</string>
+    <string name="help_voice_button">Installera svensk röst</string>
+    <string name="help_tts_settings_button">Inställningar för text till tal</string>
+    <string name="help_share_title">Dela en skärmdump till appen</string>
+    <string name="help_share_body">1. Ta en skärmdump av sidan med adresserna (från valfri app: beställningsapp, sms, mejl, webbsida). Använd rullande skärmdump för långa listor.\n2. Tryck Dela i skärmdumpsverktyget eller i galleriet och välj Nästa Stopp. Flera bilder går bra; de läggs till i ordning.\n3. Eller öppna appen och tryck \"Importera skärmdumpar\".\n4. Granska listan och tryck \"Starta rutt\". Google Maps öppnas med stoppen (upp till 10 åt gången).</string>
+    <string name="help_overlay_title">Flytande knapp</string>
+    <string name="help_overlay_body">Om du tillåter \"visa ovanpå andra appar\" visas en stor gul knapp över Google Maps under rutten:\n• Tryck = nästa stopp + utrop.\n• Håll inne = upprepa utropet.\n• Dra för att flytta den.\nUtan den fungerar allt via aviseringen.</string>
+    <string name="help_how_title">Så fungerar utropen</string>
+    <string name="help_how_body">När du kör från ett stopp (efter att ha kommit fram) ropar appen ut nästa stopp och stoppet därefter, t.ex. \"Nästa stopp: Skoghall. Därefter: Kil.\"\nBara stadsdel eller ort nämns – aldrig gatunamn, nummer eller namn.</string>
+    <string name="help_privacy_title">Integritet</string>
+
+    <string name="onb_step">Steg %1$d av %2$d</string>
+    <string name="onb_welcome_title">Välkommen till Nästa Stopp</string>
+    <string name="onb_welcome_body">Appen läser adresser från skärmdumpar – bara i telefonen – bygger en lista med stopp, öppnar Google Maps och ropar ut nästa stopp och stoppet därefter på svenska så att passagerarna vet ordningen.\n\nAppen använder inte internet, sparar inga bilder och raderar adresserna när rutten är klar.\n\nNu ber vi om behörigheterna en i taget.</string>
+    <string name="onb_location_title">Platsbehörighet</string>
+    <string name="onb_location_body">Platsen används bara under rutten för att se när du kommit fram till ett stopp och kör vidare, så att nästa stopp kan ropas ut automatiskt.\n\nPlatsen skickas aldrig någonstans. Välj \"Medan appen används\" och exakt plats.</string>
+    <string name="onb_notif_title">Aviseringar</string>
+    <string name="onb_notif_body">Under rutten visas en avisering med nästa stopp och knapparna Nästa, Upprepa och Avsluta som du kan använda inifrån Google Maps.</string>
+    <string name="onb_battery_title">Batteri</string>
+    <string name="onb_battery_body">Tillåt appen att ignorera batterioptimering så att systemet inte stänger den under körning.\n\nPå Samsung: lägg också till appen bland \"Appar som aldrig sover\" (se Hjälp).</string>
+    <string name="onb_overlay_title">Flytande knapp (valfritt)</string>
+    <string name="onb_overlay_body">En stor gul knapp över Google Maps: tryck = nästa stopp, håll inne = upprepa.\n\nSlå på \"Tillåt visning ovanpå andra appar\" för Nästa Stopp på nästa skärm. Utan den fungerar allt via aviseringen.</string>
+    <string name="onb_voice_title">Svensk röst</string>
+    <string name="onb_voice_body">Utropen är alltid på svenska så att passagerarna förstår, oavsett appens språk.</string>
+    <string name="onb_granted">Tillåtet ✓</string>
+    <string name="onb_finish">Börja</string>
+
+    <string name="tts_missing_title">Svensk röst saknas</string>
+    <string name="tts_missing_body">För utropen behövs svensk röstdata.\n\nTryck \"Installera\", välj Svenska och ladda ner. På Samsung: välj gärna Talfunktioner från Google som önskad motor under Text till tal.\n\nTryck sedan \"Kontrollera igen\".</string>
+    <string name="tts_install">Installera</string>
+    <string name="tts_recheck">Kontrollera igen</string>
+</resources>

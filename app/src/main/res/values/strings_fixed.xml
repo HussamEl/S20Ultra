@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Not translated: app name and the Swedish action words (same in every UI language). -->
+    <string name="app_name" translatable="false">Nästa Stopp</string>
+    <string name="action_next_sv" translatable="false">Nästa</string>
+    <string name="action_repeat_sv" translatable="false">Upprepa</string>
+    <string name="action_end_sv" translatable="false">Avsluta</string>
+    <string name="lang_ar" translatable="false">العربية</string>
+    <string name="lang_sv" translatable="false">Svenska</string>
+    <string name="lang_en" translatable="false">English</string>
+    <string name="dialog_address_hint" translatable="false">Storgatan 14, 652 24 Karlstad</string>
+</resources>
