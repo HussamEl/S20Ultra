@@ -6,6 +6,7 @@ import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,6 +45,7 @@ class Announcer(context: Context, private val settings: SettingsStore) {
 
     private var tts: TextToSpeech? = null
     private var pending: Announcement? = null
+    private var pendingAtMs = 0L
     private val counter = AtomicInteger()
     @Volatile private var lastUtteranceId: String? = null
     private var triedGoogleEngine = false
@@ -83,7 +85,8 @@ class Announcer(context: Context, private val settings: SettingsStore) {
         _status.value = TtsStatus.READY
         pending?.let {
             pending = null
-            speak(it)
+            // Only speak a queued announcement if it is still current (engine start-up delay).
+            if (SystemClock.elapsedRealtime() - pendingAtMs < PENDING_MAX_AGE_MS) speak(it)
         }
     }
 
@@ -110,6 +113,7 @@ class Announcer(context: Context, private val settings: SettingsStore) {
         val t = tts
         if (t == null || _status.value != TtsStatus.READY) {
             pending = announcement
+            pendingAtMs = SystemClock.elapsedRealtime()
             return
         }
         val s = settings.current
@@ -167,5 +171,6 @@ class Announcer(context: Context, private val settings: SettingsStore) {
 
     companion object {
         const val GOOGLE_TTS = "com.google.android.tts"
+        private const val PENDING_MAX_AGE_MS = 20_000L
     }
 }

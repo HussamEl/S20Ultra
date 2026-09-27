@@ -10,7 +10,7 @@ required it. Each one says **what** was chosen and **why**.
 | 1 | The project lives at the root of the Git repository `HussamEl/S20Ultra` (branch `claude/nasta-stopp-android-app-soeru7`). `~/NastaStopp` is a **symlink** to it, so every path in the spec (`~/NastaStopp/dist/NastaStopp.apk`, …) works. | The work ran in an ephemeral cloud container: only what is committed and pushed survives. A separate `~/NastaStopp` repo would have been lost. |
 | 2 | OS detected: **Linux x86_64** (cloud container). Installed Android cmdline-tools 23.0, platform-tools 37.0.1, `platforms;android-37.0`, `build-tools;37.0.0`, with licences accepted. SDK in `/root/android-sdk`. The container already had JDK 21 (≥ 17). | Required by the spec. |
 | 3 | `adb devices` showed **no device**: the phone is not connected to a cloud container. The APK was **not** installed; it is ready in `dist/`. | Spec: "If not, just finish with the APK ready." |
-| 4 | No emulator: the container has no `/dev/kvm`. Runtime behaviour was instead verified with **Robolectric** tests (Android 13 / SDK 33, like the S20 Ultra). They cover the real `RouteController`, TTS phrases, Maps intents and batching, arrival/departure, expiry and the Compose screens. | This is the closest thing to a device available here. |
+| 4 | No emulator: the container has no `/dev/kvm`. Runtime behaviour was instead verified with **Robolectric** tests (Android 13 / SDK 33, like the S20 Ultra). They cover the real `RouteController`, TTS phrases, Maps intents and batching, arrival/departure, expiry and the Compose screens. Two Robolectric limitations are worked around in the tests only: it ignores locale changes made with `createConfigurationContext` (so the UI test uses the `ar` resource qualifier), and it never idles with a TextField when a screen-size qualifier is forced. | This is the closest thing to a device available here. |
 
 ## Versions (verified against Google Maven / Maven Central on 2026-09-27)
 
@@ -93,6 +93,7 @@ No fallback to an older version was needed: every latest stable version built.
 
 - If the default engine (often Samsung's) lacks Swedish but **Google's TTS engine is installed, the app switches to Google's engine automatically**.
 - English repeat uses `en-US`, only if that voice is available.
+- An announcement requested while the TTS engine is still starting is spoken once it is ready, but only if it is less than 20 s old (never a stale announcement).
 - "Upprepa" rebuilds the announcement from the current state, so it respects the current settings.
 - "Avsluta" stops speech and says nothing. Finishing the last stop says "Rutten är klar.".
 
