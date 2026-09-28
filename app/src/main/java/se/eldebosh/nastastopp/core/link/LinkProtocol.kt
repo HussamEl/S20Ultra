@@ -43,8 +43,14 @@ object LinkProtocol {
     const val ROLE_CONTROLLER = "controller"
     const val ROLE_DISPLAY = "display"
 
-    /** Bluetooth RFCOMM service of this app (random, fixed). */
+    /** Bluetooth RFCOMM service of this app (random, fixed): secure (authenticated) channel. */
     val SERVICE_UUID: UUID = UUID.fromString("7d3f2a91-5c4e-4b8a-9e61-2f0c8d4b6a15")
+
+    /**
+     * Fallback channel without link-key authentication (still encrypted on Bluetooth 2.1+). Some
+     * devices fail the secure RFCOMM handshake; the server only accepts paired devices here too.
+     */
+    val SERVICE_UUID_INSECURE: UUID = UUID.fromString("7d3f2a91-5c4e-4b8a-9e61-2f0c8d4b6a16")
     const val SERVICE_NAME = "NastaStopp display"
 
     /** A line longer than this is treated as a broken connection (protects memory). */

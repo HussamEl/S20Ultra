@@ -145,3 +145,15 @@ No fallback to an older version was needed: every latest stable version built.
 | 13 | Version **1.1.0 (versionCode 3)**, the same signing key, so it installs over 1.0.x. | |
 
 Not testable here: the Bluetooth radio itself (no devices in the build container). The protocol, the display state, the role switching and the screens are covered by unit and Robolectric tests. The first real run between the phone and a tablet should be checked by hand.
+
+## Fix in 1.1.1: phone stays on "Waiting for the display…"
+
+- **Report:** the devices were paired, but the driver's phone (now a Galaxy S25 Ultra) kept showing "waiting".
+- **Likely causes, all addressed:**
+  1. The display only connected after a device was chosen manually. **The display now searches automatically**: the chosen or last-used device first, then paired phones, then tablets/computers, then uncategorised devices. Headsets, car kits and watches are skipped unless chosen. The device that answers is remembered.
+  2. Roles could be confused (the link switched on on both devices). The phone's link card now says plainly what to do on the tablet and shows the phone's Bluetooth name.
+  3. Only the secure RFCOMM channel was used. The server now also listens on a **fallback channel without link-key authentication** (a second UUID; still encrypted on Bluetooth 2.1+). The client tries secure, then fallback. On both channels **only devices paired with the phone are served**; others are disconnected at once.
+  4. There was no diagnostics. The display shows the device it is trying and **the last connection error**.
+- Saving the answering device as "preferred" never restarts a working link (`start` vs `choose`).
+- New tests: device ordering (pure), automatic connection to the paired phone and not to a headset (Robolectric Bluetooth shadows), and the controller listening state. The real radio still needs checking on the two devices.
+- Version **1.1.1 (versionCode 4)**.

@@ -46,6 +46,7 @@ import se.eldebosh.nastastopp.ui.screens.DisplayRoleScreen
 import se.eldebosh.nastastopp.ui.screens.PassengerDisplayScreen
 import se.eldebosh.nastastopp.link.Bluetooth
 import se.eldebosh.nastastopp.link.LinkAvailability
+import se.eldebosh.nastastopp.link.DisplayLinkClient
 import se.eldebosh.nastastopp.settings.DeviceRole
 import androidx.compose.runtime.DisposableEffect
 import se.eldebosh.nastastopp.ui.screens.HelpScreen
@@ -244,8 +245,9 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             val link by client.state.collectAsStateWithLifecycle()
                             val remote by client.snapshot.collectAsStateWithLifecycle()
                             val address = settings.displayControllerAddress
+                            val availability = remember(resumeTick, link.status) { Bluetooth.availability(context) }
                             // Connect while this screen is shown; retry after returning from settings.
-                            LaunchedEffect(address, resumeTick) { if (address != null) client.start(address) }
+                            LaunchedEffect(address, resumeTick) { client.start(address) }
                             DisposableEffect(Unit) { onDispose { client.stop() } }
                             // Optionally speak the controller's announcements here too.
                             LaunchedEffect(settings.displaySpeaks) {
@@ -256,10 +258,20 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 link = link,
                                 snapshot = remote,
                                 paired = remember(resumeTick, link.status) { Bluetooth.pairedDevices(context) },
+                                bluetoothReady = availability == LinkAvailability.OK,
+                                availabilityStatus = when (availability) {
+                                    LinkAvailability.NO_PERMISSION -> DisplayLinkClient.Status.NO_PERMISSION
+                                    LinkAvailability.BLUETOOTH_OFF -> DisplayLinkClient.Status.BLUETOOTH_OFF
+                                    LinkAvailability.NO_BLUETOOTH -> DisplayLinkClient.Status.NO_BLUETOOTH
+                                    LinkAvailability.OK -> DisplayLinkClient.Status.IDLE
+                                },
                                 onRequestPermission = { Bluetooth.permission?.let { bluetoothPermission.launch(it) } },
                                 onEnableBluetooth = { SystemIntents.requestEnableBluetooth(context) },
                                 onOpenBluetoothSettings = { SystemIntents.openBluetoothSettings(context) },
-                                onChoose = { device -> graph.settings.update { it.copy(displayControllerAddress = device.address) } },
+                                onChoose = { address ->
+                                    graph.settings.update { it.copy(displayControllerAddress = address) }
+                                    client.choose(address)
+                                },
                                 onSpeak = { remote?.announcement?.let { graph.announcer.speak(it) } },
                                 onToggleSpeaks = { v -> graph.settings.update { it.copy(displaySpeaks = v) } },
                                 onSwitchToController = { vm.setRole(DeviceRole.CONTROLLER) },

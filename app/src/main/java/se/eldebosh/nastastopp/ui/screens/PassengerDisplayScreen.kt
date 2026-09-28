@@ -72,6 +72,7 @@ fun PassengerDisplayScreen(
     onSpeak: () -> Unit,
     onExit: () -> Unit,
     extraActions: @Composable () -> Unit = {},
+    detail: String? = null,
 ) {
     KeepScreenOnFullscreen()
     Column(
@@ -97,6 +98,16 @@ fun PassengerDisplayScreen(
             Spacer(Modifier.weight(1f))
             extraActions()
             Clock(Modifier.padding(start = 12.dp))
+        }
+        if (detail != null) {
+            Text(
+                detail,
+                style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Content),
+                color = Color.White.copy(alpha = 0.5f),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 12.dp),
+            )
         }
 
         val current = snapshot?.current

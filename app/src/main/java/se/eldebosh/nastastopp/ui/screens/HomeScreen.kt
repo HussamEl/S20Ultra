@@ -181,6 +181,12 @@ fun LinkCard(link: DisplayLinkServer.State, onToggle: (Boolean) -> Unit, onFix: 
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (needsFix) NotLocated else MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (link.status == DisplayLinkServer.Status.WAITING) {
+                Text(stringResource(R.string.link_waiting_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                link.localName?.let {
+                    Text(stringResource(R.string.link_device_name, it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
         }
         Switch(checked = on, onCheckedChange = onToggle)
     }

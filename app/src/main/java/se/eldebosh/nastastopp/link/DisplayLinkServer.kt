@@ -23,13 +23,14 @@ import se.eldebosh.nastastopp.route.RouteController
 import se.eldebosh.nastastopp.settings.DeviceRole
 import se.eldebosh.nastastopp.settings.SettingsStore
 import se.eldebosh.nastastopp.util.DebugLog
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Controller side of the passenger display link: a secure Bluetooth RFCOMM server (paired
- * devices only, encrypted by Bluetooth; no internet). Every connected display gets the current
- * [se.eldebosh.nastastopp.core.display.DisplaySnapshot] on connect and on each change, plus the
- * announcements as they are spoken.
+ * Controller side of the passenger display link: Bluetooth RFCOMM servers (no internet) on the
+ * secure channel and on a fallback channel. Only devices paired with this one are served. Every
+ * connected display gets the current [se.eldebosh.nastastopp.core.display.DisplaySnapshot] on
+ * connect and on each change, plus the announcements as they are spoken.
  */
 class DisplayLinkServer(
     private val context: Context,
@@ -39,13 +40,21 @@ class DisplayLinkServer(
 ) {
     enum class Status { OFF, NO_PERMISSION, NO_BLUETOOTH, BLUETOOTH_OFF, WAITING, CONNECTED }
 
-    data class State(val status: Status = Status.OFF, val clients: List<String> = emptyList())
+    /**
+     * @property clients names of connected displays.
+     * @property localName this device's Bluetooth name (to pick on the tablet if needed).
+     */
+    data class State(
+        val status: Status = Status.OFF,
+        val clients: List<String> = emptyList(),
+        val localName: String? = null,
+    )
 
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state.asStateFlow()
 
-    private var acceptJob: Job? = null
-    @Volatile private var serverSocket: BluetoothServerSocket? = null
+    private val acceptJobs = mutableListOf<Job>()
+    private val serverSockets = ConcurrentHashMap.newKeySet<BluetoothServerSocket>()
     private val sockets = ConcurrentHashMap<BluetoothSocket, String>()
 
     private val enabled: Boolean
@@ -66,37 +75,16 @@ class DisplayLinkServer(
             _state.value = State(Status.OFF)
             return
         }
+        val name = Bluetooth.localName(context)
         when (Bluetooth.availability(context)) {
             LinkAvailability.NO_BLUETOOTH -> _state.value = State(Status.NO_BLUETOOTH)
             LinkAvailability.NO_PERMISSION -> _state.value = State(Status.NO_PERMISSION)
-            LinkAvailability.BLUETOOTH_OFF -> _state.value = State(Status.BLUETOOTH_OFF)
-            LinkAvailability.OK -> startListening()
-        }
-    }
-
-    @SuppressLint("MissingPermission") // checked in refresh()
-    private fun startListening() {
-        val adapter = Bluetooth.adapter(context) ?: return
-        _state.value = State(Status.WAITING)
-        acceptJob = scope.launch(Dispatchers.IO) {
-            val server = try {
-                adapter.listenUsingRfcommWithServiceRecord(LinkProtocol.SERVICE_NAME, LinkProtocol.SERVICE_UUID)
-            } catch (e: Exception) {
-                DebugLog.w(e) { "listen failed" }
-                _state.value = State(Status.BLUETOOTH_OFF)
-                return@launch
+            LinkAvailability.BLUETOOTH_OFF -> _state.value = State(Status.BLUETOOTH_OFF, localName = name)
+            LinkAvailability.OK -> {
+                _state.value = State(Status.WAITING, localName = name)
+                listen(secure = true, LinkProtocol.SERVICE_UUID)
+                listen(secure = false, LinkProtocol.SERVICE_UUID_INSECURE)
             }
-            serverSocket = server
-            while (isActive) {
-                val socket = try {
-                    server.accept()
-                } catch (_: Exception) {
-                    break // closed by stop() or Bluetooth turned off
-                }
-                launch { serve(socket) }
-            }
-            // Not stopped by us: Bluetooth was probably turned off.
-            if (isActive) _state.value = State(Status.BLUETOOTH_OFF)
         }
     }
 
@@ -106,20 +94,51 @@ class DisplayLinkServer(
         if (s != Status.WAITING && s != Status.CONNECTED) refresh()
     }
 
-    fun stop() {
-        acceptJob?.cancel()
-        acceptJob = null
-        try {
-            serverSocket?.close()
-        } catch (_: Exception) {
-        }
-        serverSocket = null
-        sockets.keys.forEach { s ->
-            try {
-                s.close()
-            } catch (_: Exception) {
+    @SuppressLint("MissingPermission") // checked in refresh()
+    private fun listen(secure: Boolean, uuid: UUID) {
+        val adapter = Bluetooth.adapter(context) ?: return
+        acceptJobs += scope.launch(Dispatchers.IO) {
+            val server = try {
+                if (secure) {
+                    adapter.listenUsingRfcommWithServiceRecord(LinkProtocol.SERVICE_NAME, uuid)
+                } else {
+                    adapter.listenUsingInsecureRfcommWithServiceRecord(LinkProtocol.SERVICE_NAME, uuid)
+                }
+            } catch (e: Exception) {
+                DebugLog.w(e) { "listen failed (secure=$secure)" }
+                return@launch
             }
+            serverSockets += server
+            while (isActive) {
+                val socket = try {
+                    server.accept()
+                } catch (_: Exception) {
+                    break // closed by stop() or Bluetooth turned off
+                }
+                // Only devices paired with this one (the fallback channel is not authenticated).
+                val address = try {
+                    socket.remoteDevice?.address
+                } catch (_: Exception) {
+                    null
+                }
+                if (address == null || !Bluetooth.isBonded(context, address)) {
+                    runCatching { socket.close() }
+                    continue
+                }
+                launch { serve(socket) }
+            }
+            serverSockets -= server
+            // Not stopped by us: Bluetooth was probably turned off.
+            if (isActive && serverSockets.isEmpty()) _state.value = State(Status.BLUETOOTH_OFF, localName = _state.value.localName)
         }
+    }
+
+    fun stop() {
+        acceptJobs.forEach { it.cancel() }
+        acceptJobs.clear()
+        serverSockets.forEach { s -> runCatching { s.close() } }
+        serverSockets.clear()
+        sockets.keys.forEach { s -> runCatching { s.close() } }
         sockets.clear()
     }
 
@@ -143,7 +162,10 @@ class DisplayLinkServer(
             }
         }
         val jobs = listOf(
-            io { session.send(LinkMessage.Hello(LinkProtocol.VERSION, LinkProtocol.ROLE_CONTROLLER)); controller.display.collect { session.send(LinkMessage.State(it)) } },
+            io {
+                session.send(LinkMessage.Hello(LinkProtocol.VERSION, LinkProtocol.ROLE_CONTROLLER))
+                controller.display.collect { session.send(LinkMessage.State(it)) }
+            },
             io { controller.announcements.collect { session.send(LinkMessage.Announce(it.swedish, it.english)) } },
             io {
                 while (true) {
@@ -159,10 +181,7 @@ class DisplayLinkServer(
         )
         done.await()
         jobs.forEach { it.cancel() }
-        try {
-            socket.close()
-        } catch (_: Exception) {
-        }
+        runCatching { socket.close() }
         session.close()
         sockets.remove(socket)
         publishClients()
@@ -170,9 +189,9 @@ class DisplayLinkServer(
 
     private fun publishClients() {
         val names = sockets.values.toList()
-        val current = _state.value.status
-        if (current == Status.WAITING || current == Status.CONNECTED) {
-            _state.value = State(if (names.isEmpty()) Status.WAITING else Status.CONNECTED, names)
+        val current = _state.value
+        if (current.status == Status.WAITING || current.status == Status.CONNECTED) {
+            _state.value = current.copy(status = if (names.isEmpty()) Status.WAITING else Status.CONNECTED, clients = names)
         }
     }
 

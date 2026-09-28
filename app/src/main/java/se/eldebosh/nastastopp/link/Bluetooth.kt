@@ -3,11 +3,14 @@ package se.eldebosh.nastastopp.link
 import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.ContextCompat
+import se.eldebosh.nastastopp.core.link.DeviceKind
+import se.eldebosh.nastastopp.core.link.LinkCandidate
 
 /** A paired device that can be chosen as the controller. */
 data class PairedDevice(val name: String, val address: String)
@@ -33,27 +36,59 @@ object Bluetooth {
         return if (adapter.isEnabled) LinkAvailability.OK else LinkAvailability.BLUETOOTH_OFF
     }
 
-    /** Devices already paired in the system Bluetooth settings (no scanning needed). */
     @SuppressLint("MissingPermission") // checked by hasPermission()
-    fun pairedDevices(context: Context): List<PairedDevice> {
+    private fun bonded(context: Context): List<BluetoothDevice> {
         if (!hasPermission(context)) return emptyList()
         val adapter = adapter(context) ?: return emptyList()
         return try {
-            adapter.bondedDevices.orEmpty()
-                .map { PairedDevice(it.name?.takeIf { n -> n.isNotBlank() } ?: it.address, it.address) }
-                .sortedBy { it.name.lowercase() }
+            adapter.bondedDevices.orEmpty().toList()
         } catch (_: SecurityException) {
             emptyList()
         }
     }
 
     @SuppressLint("MissingPermission")
+    private fun BluetoothDevice.displayName(): String =
+        try {
+            name?.takeIf { it.isNotBlank() } ?: address
+        } catch (_: SecurityException) {
+            address
+        }
+
+    /** Devices already paired in the system Bluetooth settings (no scanning needed). */
+    fun pairedDevices(context: Context): List<PairedDevice> =
+        bonded(context).map { PairedDevice(it.displayName(), it.address) }.sortedBy { it.name.lowercase() }
+
+    /** Paired devices with their kind, for automatic search of the driver's device. */
+    fun linkCandidates(context: Context): List<LinkCandidate> = bonded(context).map { d ->
+        val major = try {
+            d.bluetoothClass?.majorDeviceClass ?: 0x1F00
+        } catch (_: SecurityException) {
+            0x1F00
+        }
+        LinkCandidate(d.address, d.displayName(), DeviceKind.fromMajorClass(major))
+    }
+
+    fun isBonded(context: Context, address: String): Boolean = bonded(context).any { it.address == address }
+
+    @SuppressLint("MissingPermission")
     fun deviceName(context: Context, address: String): String {
         if (!hasPermission(context)) return address
         return try {
-            adapter(context)?.getRemoteDevice(address)?.name?.takeIf { it.isNotBlank() } ?: address
+            adapter(context)?.getRemoteDevice(address)?.displayName() ?: address
         } catch (_: Exception) {
             address
+        }
+    }
+
+    /** This device's Bluetooth name (what the other device shows in its paired list). */
+    @SuppressLint("MissingPermission")
+    fun localName(context: Context): String? {
+        if (!hasPermission(context)) return null
+        return try {
+            adapter(context)?.name?.takeIf { it.isNotBlank() }
+        } catch (_: SecurityException) {
+            null
         }
     }
 }

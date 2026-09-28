@@ -172,4 +172,9 @@
     <string name="turn_on_bluetooth">Turn on Bluetooth</string>
     <string name="help_display_title">Passenger display on a tablet</string>
     <string name="help_display_body">1. Install the app on the tablet too.\n2. Pair the phone and the tablet once in Bluetooth settings.\n3. On the driver\'s device: Settings → \"Passenger display via Bluetooth\" → on.\n4. On the tablet: choose \"Passenger display\", then the driver\'s device in the list.\n5. When the route starts, the tablet shows the next destination in large text, with one previous trip above and three upcoming trips below. The speaker button repeats the announcement.\nThe link is direct Bluetooth between the devices, no internet. The passenger display can also be opened on the phone itself from the route screen.</string>
+    <string name="display_auto">Automatic – finds the driver\'s device among paired devices</string>
+    <string name="display_searching">Looking for the driver\'s device…</string>
+    <string name="display_last_error">Last attempt: %1$s</string>
+    <string name="link_waiting_hint">On the tablet: open Nästa Stopp and choose \"Passenger display\" – it finds this device automatically. Leave this off on the tablet.</string>
+    <string name="link_device_name">This device\'s Bluetooth name: %1$s</string>
 </resources>

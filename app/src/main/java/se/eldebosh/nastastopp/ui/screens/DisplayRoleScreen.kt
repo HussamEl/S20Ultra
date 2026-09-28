@@ -52,30 +52,38 @@ fun DisplayRoleScreen(
     link: DisplayLinkClient.State,
     snapshot: DisplaySnapshot?,
     paired: List<PairedDevice>,
+    /** Checked synchronously by the caller, so the right screen shows before the link loop runs. */
+    bluetoothReady: Boolean,
     onRequestPermission: () -> Unit,
     onEnableBluetooth: () -> Unit,
     onOpenBluetoothSettings: () -> Unit,
-    onChoose: (PairedDevice) -> Unit,
+    /** A paired device's address, or null for automatic search. */
+    onChoose: (String?) -> Unit,
     onSpeak: () -> Unit,
     onToggleSpeaks: (Boolean) -> Unit,
     onSwitchToController: () -> Unit,
+    availabilityStatus: DisplayLinkClient.Status = DisplayLinkClient.Status.IDLE,
 ) {
     var showSetup by remember { mutableStateOf(false) }
-    val blocked = link.status == DisplayLinkClient.Status.NO_PERMISSION ||
+    val blocked = !bluetoothReady || paired.isEmpty() ||
+        link.status == DisplayLinkClient.Status.NO_PERMISSION ||
         link.status == DisplayLinkClient.Status.BLUETOOTH_OFF ||
-        link.status == DisplayLinkClient.Status.NO_BLUETOOTH
-    if (settings.displayControllerAddress != null && !showSetup && !blocked) {
-        val name = link.deviceName ?: settings.displayControllerAddress
+        link.status == DisplayLinkClient.Status.NO_BLUETOOTH ||
+        link.status == DisplayLinkClient.Status.NO_DEVICES
+    // The display searches for the driver's device by itself: no device has to be chosen first.
+    if (!showSetup && !blocked) {
+        val connected = link.status == DisplayLinkClient.Status.CONNECTED
         PassengerDisplayScreen(
             snapshot = snapshot,
-            status = if (link.status == DisplayLinkClient.Status.CONNECTED) {
-                stringResource(R.string.display_connected, name)
-            } else {
-                stringResource(R.string.display_connecting, name)
+            status = when {
+                connected -> stringResource(R.string.display_connected, link.deviceName.orEmpty())
+                link.deviceName != null -> stringResource(R.string.display_connecting, link.deviceName)
+                else -> stringResource(R.string.display_searching)
             },
-            connected = link.status == DisplayLinkClient.Status.CONNECTED,
+            connected = connected,
             onSpeak = onSpeak,
             onExit = { showSetup = true },
+            detail = if (!connected) link.lastError?.let { stringResource(R.string.display_last_error, it) } else null,
         )
         return
     }
@@ -83,14 +91,14 @@ fun DisplayRoleScreen(
     Column(Modifier.fillMaxSize()) {
         TopBar(
             stringResource(R.string.role_display),
-            onBack = if (settings.displayControllerAddress != null && !blocked) ({ showSetup = false }) else null,
+            onBack = if (!blocked) ({ showSetup = false }) else null,
         )
         Column(
             Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Paragraph(stringResource(R.string.link_hint))
-            when (link.status) {
+            when (if (bluetoothReady) link.status else availabilityStatus) {
                 DisplayLinkClient.Status.NO_PERMISSION ->
                     BigButton(stringResource(R.string.allow_bluetooth), onRequestPermission, Modifier.fillMaxWidth(), icon = R.drawable.ic_bluetooth)
                 DisplayLinkClient.Status.BLUETOOTH_OFF ->
@@ -100,28 +108,22 @@ fun DisplayRoleScreen(
                 else -> Unit
             }
 
+            link.lastError?.let {
+                Text(stringResource(R.string.display_last_error, it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+
             SectionTitle(stringResource(R.string.display_choose_device))
+            DeviceRow(stringResource(R.string.display_auto), settings.displayControllerAddress == null) {
+                showSetup = false
+                onChoose(null)
+            }
             if (paired.isEmpty()) {
                 Paragraph(stringResource(R.string.display_no_paired))
             }
             paired.forEach { device ->
-                val selected = device.address == settings.displayControllerAddress
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = TouchTarget)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer)
-                        .clickable {
-                            showSetup = false
-                            onChoose(device)
-                        }
-                        .padding(horizontal = 16.dp),
-                ) {
-                    Icon(painterResource(R.drawable.ic_bluetooth), contentDescription = null, tint = if (selected) Amber else MaterialTheme.colorScheme.onSurface)
-                    Spacer(Modifier.width(12.dp))
-                    Text(device.name, style = MaterialTheme.typography.titleMedium)
+                DeviceRow(device.name, device.address == settings.displayControllerAddress) {
+                    showSetup = false
+                    onChoose(device.address)
                 }
             }
             BigButton(stringResource(R.string.open_bt_settings), onOpenBluetoothSettings, Modifier.fillMaxWidth(), icon = R.drawable.ic_settings, primary = false)
@@ -137,5 +139,23 @@ fun DisplayRoleScreen(
             BigButton(stringResource(R.string.switch_to_controller), onSwitchToController, Modifier.fillMaxWidth(), icon = R.drawable.ic_navigation, primary = false)
             Spacer(Modifier.size(24.dp))
         }
+    }
+}
+
+@Composable
+private fun DeviceRow(name: String, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = TouchTarget)
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Icon(painterResource(R.drawable.ic_bluetooth), contentDescription = null, tint = if (selected) Amber else MaterialTheme.colorScheme.onSurface)
+        Spacer(Modifier.width(12.dp))
+        Text(name, style = MaterialTheme.typography.titleMedium)
     }
 }

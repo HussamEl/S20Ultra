@@ -5,6 +5,7 @@ import android.content.Context
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import se.eldebosh.nastastopp.core.parse.AddressExtractor
 import se.eldebosh.nastastopp.core.parse.Localities
 import se.eldebosh.nastastopp.geo.Geocoding
@@ -41,7 +42,16 @@ class AppGraph(app: Application) {
     val displayServer = DisplayLinkServer(app, controller, settings, scope)
 
     /** Display role: Bluetooth client towards the driver's device. */
-    val displayClient by lazy { DisplayLinkClient(app, scope) }
+    val displayClient by lazy {
+        DisplayLinkClient(app, scope) { address ->
+            // Remember the device that answered, so it is tried first next time.
+            scope.launch {
+                if (settings.current.displayControllerAddress != address) {
+                    settings.update { it.copy(displayControllerAddress = address) }
+                }
+            }
+        }
+    }
 }
 
 class App : Application() {
