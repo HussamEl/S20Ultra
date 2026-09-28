@@ -137,7 +137,8 @@ class OverlayManager(
         val r = controller.route.value ?: return
         val current = r.stops.firstOrNull() ?: return
         val info = street.state.value
-        v.street?.text = info?.street ?: info?.area ?: ui.getString(R.string.street_unknown)
+        // No location (the driver's choice): the circle shows the next stop's area instead.
+        v.street?.text = info?.street ?: info?.area ?: controller.spokenName(current)
         v.area?.apply {
             val area = info?.area.takeIf { info?.street != null }
             text = area.orEmpty()
@@ -507,8 +508,9 @@ class OverlayManager(
     // ------------------------------------------------------------------------------------------
     // Actions
 
+    /** Says the current street when it is known, otherwise repeats the next-stop announcement. */
     private fun speakStreet() {
-        if (!controller.speakStreet(street.state.value)) toast(R.string.street_unknown)
+        if (!controller.speakStreet(street.state.value)) controller.repeat()
     }
 
     private fun toast(text: Int) = Toast.makeText(ui, text, Toast.LENGTH_SHORT).show()

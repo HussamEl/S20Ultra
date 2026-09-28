@@ -249,3 +249,19 @@ Not verifiable here: the logged-in YouDrive page (private to the driver's accoun
   - Trip-change notifications open this window directly. "Add all trips" opens the list review for a new list.
 - Version **1.4.4 (versionCode 11)**.
 
+## Version 1.4.5: no location permission at all
+
+- **Driver's decision:** "I never want to give location permission to the app, nor to the YouDrive login page; only to Google Maps."
+- **App:**
+  - `ACCESS_FINE/COARSE/BACKGROUND_LOCATION` and `FOREGROUND_SERVICE_LOCATION` are removed from the merged manifest (`tools:node="remove"`), so Android can never grant them.
+  - The location foreground service (`RouteService`) and the `play-services-location` library are deleted.
+  - The location step is gone from onboarding, as are the Location row and the arrival-radius slider in Settings.
+- **What changes for the driver:**
+  - The next stop comes only with **Next**: in the app, on the floating button or in the notification.
+  - Automatic arrival / departure detection, the current street name (the "You are on" bar), the distance and the waiting timer no longer appear. The floating panel's big circle shows the next stop's area, and its speaker repeats the announcement.
+  - The route status line says location is off by choice.
+  - The detection code (`ArrivalDetector`, `CurrentStreet`) stays in the source, unused, so it could come back if the driver ever changes their mind.
+- **YouDrive page:** the WebView has geolocation disabled (`setGeolocationEnabled(false)`) in addition to refusing every prompt. YouDrive's web code only asks for a position when its own map "centre on me" button is tapped, and it ignores the refusal. The location text the driver saw is YouDrive's own information notice (Cordova-oriented background-location disclosure). It is shown once per page storage.
+- Google Maps navigation is unchanged (Maps has its own permission).
+- Version **1.4.5 (versionCode 12)**.
+

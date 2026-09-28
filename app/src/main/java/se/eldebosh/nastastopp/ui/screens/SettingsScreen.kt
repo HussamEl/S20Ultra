@@ -46,7 +46,6 @@ import java.util.Locale
 import kotlin.math.roundToInt
 
 data class PermissionStatus(
-    val location: Boolean,
     val notifications: Boolean,
     val overlay: Boolean,
     val battery: Boolean,
@@ -61,7 +60,6 @@ fun SettingsScreen(
     onUpdate: ((AppSettings) -> AppSettings) -> Unit,
     onLanguage: (String) -> Unit,
     onTestVoice: () -> Unit,
-    onLocation: () -> Unit,
     onNotifications: () -> Unit,
     onOverlay: () -> Unit,
     onBattery: () -> Unit,
@@ -119,17 +117,6 @@ fun SettingsScreen(
                 steps = 9,
             )
 
-            var radius by remember(settings.arrivalRadiusM) { mutableFloatStateOf(settings.arrivalRadiusM.toFloat()) }
-            SectionTitle(stringResource(R.string.settings_radius, radius.roundToInt()))
-            Slider(
-                modifier = Modifier.ref(110),
-                value = radius,
-                onValueChange = { radius = ((it / 5f).roundToInt() * 5).toFloat() },
-                onValueChangeFinished = { onUpdate { it.copy(arrivalRadiusM = radius.roundToInt()) } },
-                valueRange = 25f..150f,
-                steps = 24,
-            )
-
             Spacer(Modifier.height(8.dp))
             BigButton(stringResource(R.string.settings_test_voice), onTestVoice, Modifier.ref(111).fillMaxWidth(), icon = R.drawable.ic_speaker)
 
@@ -151,7 +138,6 @@ fun SettingsScreen(
             }
 
             SectionTitle(stringResource(R.string.settings_permissions))
-            StatusRow(stringResource(R.string.settings_location), permissions.location, 119, onLocation)
             StatusRow(stringResource(R.string.settings_notifications), permissions.notifications, 120, onNotifications)
             StatusRow(stringResource(R.string.settings_overlay), permissions.overlay, 121, onOverlay)
             StatusRow(stringResource(R.string.settings_battery), permissions.battery, 122, onBattery)

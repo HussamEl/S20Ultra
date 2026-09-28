@@ -61,8 +61,6 @@ class MainActivity : ComponentActivity() {
         val graph = App.from(this).graph
         graph.controller.clearIfExpired()
         graph.history.prune()
-        // Restart tracking after process death (only possible while we are in the foreground).
-        graph.controller.ensureServiceRunning()
         graph.overlay.refresh()
         // Watching YouDrive: (re)start its service while we are in the foreground.
         if (graph.settings.current.youDriveWatch) YouDriveService.start(this)

@@ -41,7 +41,6 @@ import se.eldebosh.nastastopp.util.SystemIntents
 
 private enum class Step(@StringRes val title: Int, @StringRes val body: Int, @DrawableRes val icon: Int) {
     WELCOME(R.string.onb_welcome_title, R.string.onb_welcome_body, R.drawable.ic_pin),
-    LOCATION(R.string.onb_location_title, R.string.onb_location_body, R.drawable.ic_navigation),
     NOTIFICATIONS(R.string.onb_notif_title, R.string.onb_notif_body, R.drawable.ic_next),
     BATTERY(R.string.onb_battery_title, R.string.onb_battery_body, R.drawable.ic_settings),
     OVERLAY(R.string.onb_overlay_title, R.string.onb_overlay_body, R.drawable.ic_hand),
@@ -66,14 +65,12 @@ fun OnboardingScreen(
         if (index >= steps.lastIndex) onFinish() else index++
     }
 
-    val locationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { advance() }
     val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { advance() }
 
     // Re-read the permission state after returning from a system settings screen (resumeTick).
     val granted: Boolean? = remember(step, resumeTick, ttsStatus) {
         when (step) {
         Step.WELCOME -> null
-        Step.LOCATION -> SystemIntents.hasLocation(context)
         Step.NOTIFICATIONS -> SystemIntents.hasNotifications(context)
         Step.BATTERY -> SystemIntents.isIgnoringBatteryOptimizations(context)
         Step.OVERLAY -> SystemIntents.canDrawOverlays(context)
@@ -122,9 +119,6 @@ fun OnboardingScreen(
                         stringResource(R.string.allow),
                         {
                             when (step) {
-                                Step.LOCATION -> locationLauncher.launch(
-                                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
-                                )
                                 Step.NOTIFICATIONS -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                                     notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                                 }

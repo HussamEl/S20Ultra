@@ -114,6 +114,7 @@ class YouDriveWatcher(
             useWideViewPort = true
             loadWithOverviewMode = true
             textZoom = 100
+            setGeolocationEnabled(false) // the page never gets the phone's position
         }
         CookieManager.getInstance().apply {
             setAcceptCookie(true)

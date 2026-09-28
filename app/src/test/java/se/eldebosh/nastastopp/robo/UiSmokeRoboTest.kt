@@ -86,9 +86,8 @@ class UiSmokeRoboTest {
             assertEquals("en", app.graph.settings.current.uiLanguage)
             assertTrue(app.graph.settings.current.explanationsArabic)
             compose.onNodeWithText(s(R.string.role_controller)).performScrollTo().performClick()
-            compose.onNodeWithText(s(R.string.onb_location_title)).assertExists()
-            // Skip through the permission steps one at a time.
-            repeat(4) {
+            // No location step (the app never asks for location). Skip through the permission steps.
+            repeat(3) {
                 compose.onNode(hasText(s(R.string.skip)).or(hasText(s(R.string.next_step)))).performScrollTo().performClick()
             }
             compose.onNodeWithText(s(R.string.onb_voice_title)).assertExists()
@@ -233,8 +232,7 @@ class UiSmokeRoboTest {
     }
 
     @Test
-    fun activeRouteShowsCurrentStreetAndTimeStatus() {
-        shadowOf(app).grantPermissions(android.Manifest.permission.ACCESS_FINE_LOCATION)
+    fun activeRouteShowsTimeStatusWithoutLocation() {
         app.graph.settings.update { it.copy(onboardingDone = true) }
         val now = java.time.LocalTime.now().plusMinutes(30)
         app.graph.controller.addManual("Storgatan 14, 65224 Karlstad", String.format(java.util.Locale.ROOT, "%02d:%02d", now.hour, now.minute))
@@ -242,9 +240,10 @@ class UiSmokeRoboTest {
         app.graph.controller.start()
         shadowOf(Looper.getMainLooper()).idle()
         launch().use {
-            waitText(s(R.string.street_label))
-            compose.onNodeWithText(s(R.string.street_unknown)).assertExists()
-            assertTrue("route screen asks for the street", app.graph.street.isWanted)
+            waitText(s(R.string.btn_next))
+            // Manual mode: no street bar, a clear hint to tap Next.
+            compose.onNodeWithText(s(R.string.street_label)).assertDoesNotExist()
+            compose.onNodeWithText(s(R.string.status_no_location)).assertExists()
             // 30 min ahead (29 if a minute boundary passed meanwhile).
             val shown = listOf(30, 29).any { m -> compose.onAllNodesWithText(s(R.string.time_in_min, m.toString())).fetchSemanticsNodes().isNotEmpty() }
             assertTrue("time status shown", shown)

@@ -69,7 +69,7 @@
     <string name="status_arrived">Arrived – the next stop is announced when you drive off</string>
     <string name="status_distance">Distance to stop: %1$d m</string>
     <string name="status_manual_only">Manual advance for this stop (tap Next)</string>
-    <string name="status_no_location">No location permission – use Next</string>
+    <string name="status_no_location">Location is off (your choice) – tap Next when you leave a stop</string>
     <string name="status_waiting_gps">Waiting for GPS…</string>
 
     <string name="settings_title">Settings</string>
@@ -79,10 +79,8 @@
     <string name="detail_town">Town only</string>
     <string name="settings_english">Repeat the announcement in English</string>
     <string name="settings_rate">Speech rate: %1$s</string>
-    <string name="settings_radius">Arrival radius: %1$d m</string>
     <string name="settings_test_voice">Test voice</string>
     <string name="settings_permissions">Permissions and system</string>
-    <string name="settings_location">Location</string>
     <string name="settings_notifications">Notifications</string>
     <string name="settings_overlay">Floating button over Maps</string>
     <string name="settings_battery">Battery optimization exemption</string>
@@ -107,22 +105,20 @@
     <string name="help_share_title">Share a screenshot to the app</string>
     <string name="help_share_body">1. Take a screenshot of the page with the addresses (any app: dispatch app, SMS, email, web page). Use scroll capture for long lists.\n2. Tap Share in the screenshot toolbar or in the gallery and pick Nästa Stopp. Several images are fine; they are added in order.\n3. Or open the app and tap \"Import screenshots\".\n4. Review the list and tap \"Start route\". Google Maps opens with the stops (up to 10 at a time).</string>
     <string name="help_overlay_title">Floating button</string>
-    <string name="help_overlay_body">If you allow \"display over other apps\", a floating panel is shown over Google Maps during the route:\n• The big circle = the street you are on now (tap it, or the small speaker under it, to hear the name).\n• \"Next\" = next stop + announcement (long-press = repeat the announcement).\n• \"Back\" = undo the last \"Next\".\n• Below: the clock, the trip number, the next trip\'s time (green = plenty of time, yellow = soon, red = late), distance, address and the waiting time after arrival.\n• \"–\" = minimise to a small bubble (tap it to expand). \"×\" = close; bring it back from the notification or the Quick Settings tile.\n• Drag to move it.\nWithout it everything works from the notification.</string>
+    <string name="help_overlay_body">If you allow \"display over other apps\", a floating panel is shown over Google Maps during the route:\n• The big circle = the next stop\'s area (tap it, or the small speaker under it, to repeat the announcement).\n• \"Next\" = next stop + announcement (long-press = repeat the announcement).\n• \"Back\" = undo the last \"Next\".\n• Below: the clock, the trip number, the next trip\'s time (green = plenty of time, yellow = soon, red = late) and the address.\n• \"–\" = minimise to a small bubble (tap it to expand). \"×\" = close; bring it back from the notification or the Quick Settings tile.\n• Drag to move it.\nWithout it everything works from the notification.</string>
     <string name="help_how_title">How announcements work</string>
-    <string name="help_how_body">When you drive off from a stop (after arriving) the app announces the next stop and the one after it in Swedish, e.g. \"Nästa stopp: Skoghall. Därefter: Kil.\"\nOnly the district or town is said – never street names, numbers or names.</string>
+    <string name="help_how_body">When you tap Next (in the app, on the floating button or in the notification) the app announces the next stop and the one after it in Swedish, e.g. \"Nästa stopp: Skoghall. Därefter: Kil.\"\nOnly the district or town is said – never street names, numbers or names.\nThe app never uses the phone\'s location; only Google Maps does.</string>
     <string name="help_privacy_title">Privacy</string>
 
     <string name="onb_step">Step %1$d of %2$d</string>
     <string name="onb_welcome_title">Welcome to Nästa Stopp</string>
     <string name="onb_welcome_body">The app reads addresses from screenshots – on the phone only – builds a list of stops, opens Google Maps and announces the next stop and the one after it in Swedish so passengers know the order.\n\nThe app does not use the internet, stores no images and deletes the addresses when the route is done.\n\nWe will now ask for the permissions one at a time.</string>
-    <string name="onb_location_title">Location permission</string>
-    <string name="onb_location_body">Location is only used during a route to detect when you arrive at a stop and drive off, so the next stop can be announced automatically.\n\nYour location is never sent anywhere. Choose \"While using the app\" and precise location.</string>
     <string name="onb_notif_title">Notifications</string>
     <string name="onb_notif_body">During a route a notification shows the next stop with the buttons Nästa, Upprepa and Avsluta that you can use from inside Google Maps.</string>
     <string name="onb_battery_title">Battery</string>
     <string name="onb_battery_body">Allow the app to ignore battery optimization so the system does not stop it while driving.\n\nOn Samsung also add the app to \"Never sleeping apps\" (see Help).</string>
     <string name="onb_overlay_title">Floating button (optional)</string>
-    <string name="onb_overlay_body">A floating panel over Google Maps: \"Next\" and \"Back\", the street you are on and the next trip\'s time.\n\nTurn on \"Allow display over other apps\" for Nästa Stopp on the next screen. Without it everything works from the notification.</string>
+    <string name="onb_overlay_body">A floating panel over Google Maps: \"Next\" and \"Back\", the next stop and its time.\n\nTurn on \"Allow display over other apps\" for Nästa Stopp on the next screen. Without it everything works from the notification.</string>
     <string name="onb_voice_title">Swedish voice</string>
     <string name="onb_voice_body">Announcements are always in Swedish so the passengers understand, whatever the app language.</string>
     <string name="onb_granted">Allowed ✓</string>

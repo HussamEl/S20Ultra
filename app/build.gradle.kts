@@ -30,8 +30,8 @@ android {
         applicationId = "se.eldebosh.nastastopp"
         minSdk = 29
         targetSdk = 37
-        versionCode = 11
-        versionName = "1.4.4"
+        versionCode = 12
+        versionName = "1.4.5"
         buildConfigField("String", "BUILD_DATE", "\"$buildDate\"")
     }
 
@@ -131,7 +131,6 @@ dependencies {
 
     // Bundled on-device OCR model (NOT the play-services unbundled variant).
     implementation(libs.mlkit.text.recognition)
-    implementation(libs.play.services.location)
 
     testImplementation(libs.junit)
     // Robolectric smoke tests (no emulator/device needed): UI screens + route controller.

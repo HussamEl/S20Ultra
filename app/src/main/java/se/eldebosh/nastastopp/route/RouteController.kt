@@ -42,7 +42,6 @@ import se.eldebosh.nastastopp.route.model.GeoPoint
 import se.eldebosh.nastastopp.route.model.GeoStatus
 import se.eldebosh.nastastopp.route.model.RouteData
 import se.eldebosh.nastastopp.route.model.Stop
-import se.eldebosh.nastastopp.service.RouteService
 import se.eldebosh.nastastopp.settings.SettingsStore
 import se.eldebosh.nastastopp.tts.Announcer
 
@@ -321,13 +320,7 @@ class RouteController(
         set(r.copy(active = true, batchStartStopId = batch.first().id, batchEndStopId = batch.last().id))
         speak(announcementFor(r.stops))
         maps.launch(batch.map { it.navigationText })
-        ensureServiceRunning()
         return true
-    }
-
-    /** Starts the foreground service if a route is active (call while the app is in the foreground). */
-    fun ensureServiceRunning() {
-        if (isActive && RouteService.hasLocationPermission(context)) RouteService.start(context)
     }
 
     /** Marks the current stop done, advances and announces. Automatic or manual ("Nästa"). */
@@ -438,7 +431,6 @@ class RouteController(
         geocodeJob = null
         editBaseline = null
         set(null)
-        RouteService.stop(context)
         maps.cancelOpenMapsNotification()
     }
 

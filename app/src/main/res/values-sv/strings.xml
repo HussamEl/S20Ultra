@@ -69,7 +69,7 @@
     <string name="status_arrived">Framme – nästa stopp ropas ut när du kör vidare</string>
     <string name="status_distance">Avstånd till stoppet: %1$d m</string>
     <string name="status_manual_only">Manuell växling för detta stopp (tryck Nästa)</string>
-    <string name="status_no_location">Ingen platsbehörighet – använd Nästa</string>
+    <string name="status_no_location">Platsen är av (ditt val) – tryck Nästa när du lämnar ett stopp</string>
     <string name="status_waiting_gps">Väntar på GPS…</string>
 
     <string name="settings_title">Inställningar</string>
@@ -79,10 +79,8 @@
     <string name="detail_town">Endast ort</string>
     <string name="settings_english">Upprepa utropet på engelska</string>
     <string name="settings_rate">Talhastighet: %1$s</string>
-    <string name="settings_radius">Ankomstradie: %1$d m</string>
     <string name="settings_test_voice">Testa rösten</string>
     <string name="settings_permissions">Behörigheter och system</string>
-    <string name="settings_location">Plats</string>
     <string name="settings_notifications">Aviseringar</string>
     <string name="settings_overlay">Flytande knapp över Maps</string>
     <string name="settings_battery">Undantag från batterioptimering</string>
@@ -107,22 +105,20 @@
     <string name="help_share_title">Dela en skärmdump till appen</string>
     <string name="help_share_body">1. Ta en skärmdump av sidan med adresserna (från valfri app: beställningsapp, sms, mejl, webbsida). Använd rullande skärmdump för långa listor.\n2. Tryck Dela i skärmdumpsverktyget eller i galleriet och välj Nästa Stopp. Flera bilder går bra; de läggs till i ordning.\n3. Eller öppna appen och tryck \"Importera skärmdumpar\".\n4. Granska listan och tryck \"Starta rutt\". Google Maps öppnas med stoppen (upp till 10 åt gången).</string>
     <string name="help_overlay_title">Flytande knapp</string>
-    <string name="help_overlay_body">Om du tillåter \"visa ovanpå andra appar\" visas en flytande panel över Google Maps under rutten:\n• Den stora cirkeln = gatan du är på nu (tryck på den eller på den lilla högtalaren under för att höra namnet).\n• \"Nästa\" = nästa stopp + utrop (håll inne = upprepa utropet).\n• \"Bakåt\" = ångra senaste \"Nästa\".\n• Under: klockan, resans nummer, nästa resas tid (grön = gott om tid, gul = snart, röd = sen), avstånd, adress och väntetid vid framkomst.\n• \"–\" = minimera till en liten bubbla (tryck för att förstora). \"×\" = stäng; visa igen via aviseringen eller snabbinställningsrutan.\n• Dra för att flytta den.\nUtan den fungerar allt via aviseringen.</string>
+    <string name="help_overlay_body">Om du tillåter \"visa ovanpå andra appar\" visas en flytande panel över Google Maps under rutten:\n• Den stora cirkeln = nästa stopps område (tryck på den eller på den lilla högtalaren under för att upprepa utropet).\n• \"Nästa\" = nästa stopp + utrop (håll inne = upprepa utropet).\n• \"Bakåt\" = ångra senaste \"Nästa\".\n• Under: klockan, resans nummer, nästa resas tid (grön = gott om tid, gul = snart, röd = sen) och adressen.\n• \"–\" = minimera till en liten bubbla (tryck för att förstora). \"×\" = stäng; visa igen via aviseringen eller snabbinställningsrutan.\n• Dra för att flytta den.\nUtan den fungerar allt via aviseringen.</string>
     <string name="help_how_title">Så fungerar utropen</string>
-    <string name="help_how_body">När du kör från ett stopp (efter att ha kommit fram) ropar appen ut nästa stopp och stoppet därefter, t.ex. \"Nästa stopp: Skoghall. Därefter: Kil.\"\nBara stadsdel eller ort nämns – aldrig gatunamn, nummer eller namn.</string>
+    <string name="help_how_body">När du trycker på Nästa (i appen, på den flytande knappen eller i aviseringen) ropar appen ut nästa stopp och stoppet därefter, t.ex. \"Nästa stopp: Skoghall. Därefter: Kil.\"\nBara stadsdel eller ort nämns – aldrig gatunamn, nummer eller namn.\nAppen använder aldrig telefonens plats; bara Google Maps gör det.</string>
     <string name="help_privacy_title">Integritet</string>
 
     <string name="onb_step">Steg %1$d av %2$d</string>
     <string name="onb_welcome_title">Välkommen till Nästa Stopp</string>
     <string name="onb_welcome_body">Appen läser adresser från skärmdumpar – bara i telefonen – bygger en lista med stopp, öppnar Google Maps och ropar ut nästa stopp och stoppet därefter på svenska så att passagerarna vet ordningen.\n\nAppen använder inte internet, sparar inga bilder och raderar adresserna när rutten är klar.\n\nNu ber vi om behörigheterna en i taget.</string>
-    <string name="onb_location_title">Platsbehörighet</string>
-    <string name="onb_location_body">Platsen används bara under rutten för att se när du kommit fram till ett stopp och kör vidare, så att nästa stopp kan ropas ut automatiskt.\n\nPlatsen skickas aldrig någonstans. Välj \"Medan appen används\" och exakt plats.</string>
     <string name="onb_notif_title">Aviseringar</string>
     <string name="onb_notif_body">Under rutten visas en avisering med nästa stopp och knapparna Nästa, Upprepa och Avsluta som du kan använda inifrån Google Maps.</string>
     <string name="onb_battery_title">Batteri</string>
     <string name="onb_battery_body">Tillåt appen att ignorera batterioptimering så att systemet inte stänger den under körning.\n\nPå Samsung: lägg också till appen bland \"Appar som aldrig sover\" (se Hjälp).</string>
     <string name="onb_overlay_title">Flytande knapp (valfritt)</string>
-    <string name="onb_overlay_body">En flytande panel över Google Maps: \"Nästa\" och \"Bakåt\", gatan du är på och nästa resas tid.\n\nSlå på \"Tillåt visning ovanpå andra appar\" för Nästa Stopp på nästa skärm. Utan den fungerar allt via aviseringen.</string>
+    <string name="onb_overlay_body">En flytande panel över Google Maps: \"Nästa\" och \"Bakåt\", nästa stopp och dess tid.\n\nSlå på \"Tillåt visning ovanpå andra appar\" för Nästa Stopp på nästa skärm. Utan den fungerar allt via aviseringen.</string>
     <string name="onb_voice_title">Svensk röst</string>
     <string name="onb_voice_body">Utropen är alltid på svenska så att passagerarna förstår, oavsett appens språk.</string>
     <string name="onb_granted">Tillåtet ✓</string>
