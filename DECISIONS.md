@@ -200,3 +200,14 @@ Checked by rendering the panel on Robolectric (native graphics, Arabic): long st
 
 Not verifiable here: the logged-in YouDrive page (private to the driver's account), BankID login inside the WebView, and whether YouDrive allows a second session next to Chrome. The parser is the one proven on the driver's YouDrive screenshots. If trips are missed, a screenshot of the page is enough to adjust it.
 
+## Fix in 1.4.1: YouDrive login page hidden / cut off
+
+- **Report:** the YouDrive area showed an empty "Settings" page and not the whole login form, while the status said "Logged out".
+- **Cause (from YouDrive's public bundle):** the login form is only shown when the page path is not `/settings`. The page had navigated to its Settings screen, which stays empty while logged out, and our Back key left the whole screen instead of going back inside the page. The page cannot scroll (`body { overflow: hidden }`), so in the half-height area under our controls the login form was cut off.
+- **Fix:**
+  - The phone's Back key goes back inside the page first, using `canGoBack`, which is updated from `doUpdateVisitedHistory` because YouDrive is a single-page app.
+  - A **start page** button (153) loads the YouDrive root.
+  - The page is shown **full screen** while no trips have been found (logging in), with a one-line status; the controls come back when trips are found, and button **154** switches either way.
+  - The monitoring hint is hidden once watching is on.
+- Version **1.4.1 (versionCode 8)**.
+

@@ -88,6 +88,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
     val history by graph.history.entries.collectAsStateWithLifecycle()
     val street by graph.street.state.collectAsStateWithLifecycle()
     val youDrive by graph.youDrive.state.collectAsStateWithLifecycle()
+    val youDriveCanGoBack by graph.youDrive.canGoBack.collectAsStateWithLifecycle()
     val importing = importState is ImportUi.Running
     val snackbar = remember { SnackbarHostState() }
     var resumeTick by remember { mutableIntStateOf(0) }
@@ -235,6 +236,9 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             watching = settings.youDriveWatch,
                             webView = { ctx -> graph.youDrive.attach(ctx) },
                             onReleaseWebView = { graph.youDrive.detach() },
+                            canGoBack = youDriveCanGoBack,
+                            onPageBack = { graph.youDrive.goBack() },
+                            onStartPage = { graph.youDrive.openStart() },
                             onBack = { vm.back() },
                             onWatch = { on ->
                                 if (on && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !SystemIntents.hasNotifications(context)) {

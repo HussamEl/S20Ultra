@@ -20,7 +20,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -61,6 +63,9 @@ fun YouDriveScreen(
     watching: Boolean,
     webView: (android.content.Context) -> WebView,
     onReleaseWebView: () -> Unit,
+    canGoBack: Boolean,
+    onPageBack: () -> Unit,
+    onStartPage: () -> Unit,
     onBack: () -> Unit,
     onWatch: (Boolean) -> Unit,
     onReload: () -> Unit,
@@ -71,26 +76,54 @@ fun YouDriveScreen(
     onLogout: () -> Unit,
 ) {
     var confirmLogout by remember { mutableStateOf(false) }
+    // Full page while logging in / finding the trips page (the page cannot scroll, so it needs the
+    // room); the controls come back once trips are found. The driver can switch either way (154).
+    var fullPageChoice by rememberSaveable { mutableStateOf<Boolean?>(null) }
+    val fullPage = fullPageChoice ?: (state.status != YouDriveWatcher.Status.WATCHING && state.changes.isEmpty())
+    // The phone's Back key goes back inside the page first (e.g. from its Settings to the login).
+    BackHandler(enabled = canGoBack, onBack = onPageBack)
     Column(Modifier.fillMaxSize()) {
         TopBar(stringResource(R.string.youdrive_title), onBack = onBack, backRef = 140) {
+            IconButton(onClick = onStartPage, modifier = Modifier.ref(153).size(TouchTarget)) {
+                Icon(painterResource(R.drawable.ic_home), contentDescription = stringResource(R.string.youdrive_start_page), modifier = Modifier.size(28.dp))
+            }
             IconButton(onClick = onReload, modifier = Modifier.ref(141).size(TouchTarget)) {
                 Icon(painterResource(R.drawable.ic_repeat), contentDescription = stringResource(R.string.youdrive_reload), modifier = Modifier.size(28.dp))
+            }
+            IconButton(onClick = { fullPageChoice = !fullPage }, modifier = Modifier.ref(154).size(TouchTarget)) {
+                Icon(
+                    painterResource(if (fullPage) R.drawable.ic_fullscreen_exit else R.drawable.ic_fullscreen),
+                    contentDescription = stringResource(if (fullPage) R.string.youdrive_show_controls else R.string.youdrive_full_page),
+                    modifier = Modifier.size(28.dp),
+                )
             }
             IconButton(onClick = { confirmLogout = true }, modifier = Modifier.ref(152).size(TouchTarget)) {
                 Icon(painterResource(R.drawable.ic_delete), contentDescription = stringResource(R.string.youdrive_logout), modifier = Modifier.size(28.dp))
             }
         }
-        Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            WatchRow(state, watching, onWatch)
-            state.changes.asReversed().forEach { ChangeRow(it, onApply, onDismiss) }
-            ButtonRow {
-                BigButton(
-                    stringResource(R.string.youdrive_import_all, state.trips.size), onImportAll, Modifier.ref(148).weight(1f),
-                    icon = R.drawable.ic_add, primary = false, enabled = state.trips.isNotEmpty(), minHeight = 52.dp,
-                )
-                BigButton(stringResource(R.string.youdrive_read_now), onReadNow, Modifier.ref(149).weight(1f), icon = R.drawable.ic_schedule, primary = false, minHeight = 52.dp)
+        if (fullPage) {
+            // One line of status; tap it for the controls.
+            Text(
+                youDriveStatus(state),
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (state.status == YouDriveWatcher.Status.LOGGED_OUT) NotLocated else MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.ref(143).fillMaxWidth().clickable { fullPageChoice = false }.padding(horizontal = 16.dp, vertical = 4.dp),
+            )
+        } else {
+            Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                WatchRow(state, watching, onWatch)
+                state.changes.asReversed().forEach { ChangeRow(it, onApply, onDismiss) }
+                ButtonRow {
+                    BigButton(
+                        stringResource(R.string.youdrive_import_all, state.trips.size), onImportAll, Modifier.ref(148).weight(1f),
+                        icon = R.drawable.ic_add, primary = false, enabled = state.trips.isNotEmpty(), minHeight = 48.dp,
+                    )
+                    BigButton(stringResource(R.string.youdrive_read_now), onReadNow, Modifier.ref(149).weight(1f), icon = R.drawable.ic_schedule, primary = false, minHeight = 48.dp)
+                }
+                if (!watching) Hint(R.string.youdrive_hint, Modifier.ref(150).fillMaxWidth())
             }
-            Hint(R.string.youdrive_hint, Modifier.ref(150).fillMaxWidth())
         }
         // The YouDrive page itself (the same WebView keeps running while watching).
         AndroidView(

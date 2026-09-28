@@ -67,6 +67,10 @@ class YouDriveWatcher(
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state.asStateFlow()
 
+    /** The page has history to go back to (the phone's Back key goes back inside the page first). */
+    private val _canGoBack = MutableStateFlow(false)
+    val canGoBack: StateFlow<Boolean> = _canGoBack.asStateFlow()
+
     private val loop = object : Runnable {
         override fun run() {
             val now = System.currentTimeMillis()
@@ -101,7 +105,13 @@ class YouDriveWatcher(
                 openExternally(request.url)
 
             override fun onPageFinished(view: WebView, url: String?) {
+                _canGoBack.value = view.canGoBack()
                 handler.postDelayed({ readNow() }, PAGE_SETTLE_MS)
+            }
+
+            // YouDrive is a single-page app: its screens change the history without new pages.
+            override fun doUpdateVisitedHistory(view: WebView, url: String?, isReload: Boolean) {
+                _canGoBack.value = view.canGoBack()
             }
         }
         // A size, so the page lays out while it is not on screen.
@@ -139,6 +149,7 @@ class YouDriveWatcher(
         stopLoop()
         webView?.destroy()
         webView = null
+        _canGoBack.value = false
         watch.reset()
         _state.value = _state.value.copy(status = Status.OFF)
     }
@@ -166,6 +177,19 @@ class YouDriveWatcher(
             DebugLog.w(e) { "link blocked" }
         }
         return true
+    }
+
+    /** Back inside the page (e.g. from its Settings screen to the login). */
+    fun goBack() {
+        val web = webView ?: return
+        if (web.canGoBack()) web.goBack()
+        _canGoBack.value = web.canGoBack()
+    }
+
+    /** Opens YouDrive's start page (login, or the trips when logged in). */
+    fun openStart() {
+        lastReloadMs = System.currentTimeMillis()
+        webView?.loadUrl(URL) ?: webView()
     }
 
     fun reload() {
