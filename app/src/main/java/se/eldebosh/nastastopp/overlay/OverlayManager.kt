@@ -271,7 +271,7 @@ class OverlayManager(
             maxLines = 3
             ellipsize = TextUtils.TruncateAt.END
             textDirection = View.TEXT_DIRECTION_FIRST_STRONG
-            setAutoSizeTextTypeUniformWithConfiguration(11, 20, 1, TypedValue.COMPLEX_UNIT_SP)
+            setAutoSizeTextTypeUniformWithConfiguration(10, 18, 1, TypedValue.COMPLEX_UNIT_SP)
         }
         val areaView = text(11f, 0xCCFFFFFF.toInt()).apply {
             maxLines = 1
@@ -401,7 +401,7 @@ class OverlayManager(
 
     private fun text(sp: Float, color: Int, bold: Boolean = false) = TextView(ui).apply {
         setTextColor(color)
-        setTextSize(TypedValue.COMPLEX_UNIT_SP, sp)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, sp * FONT_SCALE)
         gravity = Gravity.CENTER
         if (bold) paint.isFakeBoldText = true
     }
@@ -635,6 +635,9 @@ class OverlayManager(
         private const val WANT_KEY = "overlay"
         private const val CIRCLE_DP = 120f
         private const val REF_TEXT_PAD_DP = 17f
+
+        /** All panel texts 10 % smaller than first designed (driver's request). */
+        private const val FONT_SCALE = 0.9f
         private const val YELLOW = 0xF0FFC400.toInt()
         private const val WHITE = 0xFFFFFFFF.toInt()
         private const val BLACK = 0xFF000000.toInt()

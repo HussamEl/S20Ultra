@@ -1,4 +1,5 @@
 [versions]
+webkit = "1.17.1"
 agp = "9.4.1"
 kotlin = "2.4.20"
 composeBom = "2026.09.00"
@@ -14,6 +15,7 @@ androidxTestCore = "1.7.0"
 androidxTestExtJunit = "1.3.0"
 
 [libraries]
+androidx-webkit = { group = "androidx.webkit", name = "webkit", version.ref = "webkit" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 androidx-lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycle" }

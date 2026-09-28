@@ -117,10 +117,33 @@ class YouDriveRoboTest {
         w.onPageText(page(karlstad, grums), nowTime = noon)
         assertEquals(1, w.state.value.changes.size)
         assertTrue("no notification when watching is off", notifications().none { it.channelId == Notifications.CHANNEL_TRIPS })
-        w.onPageText("Logga in\nBankID", nowTime = noon)
+        // A reloading page shows its login for a moment: the status only changes when it stays.
+        val t0 = 1_000_000L
+        w.onPageText("Logga in\nBankID", nowMs = t0, nowTime = noon)
+        assertEquals(YouDriveWatcher.Status.WATCHING, w.state.value.status)
+        w.onPageText("Logga in\nBankID", nowMs = t0 + 30_000, nowTime = noon)
         assertEquals(YouDriveWatcher.Status.LOGGED_OUT, w.state.value.status)
         assertEquals("trips kept while logged out", 2, w.state.value.trips.size)
         w.dismissAll()
+    }
+
+    @Test
+    fun anotherViewOrDayRaisesNoAlerts() {
+        graph.settings.update { it.copy(youDriveWatch = true) }
+        val w = graph.youDrive
+        w.onPageText(page(karlstad, storfors, grums), nowTime = noon)
+        // The driver opens tomorrow's list (or one trip's details): none of today's trips is left.
+        val tomorrow = page("08:15" to "Kyrkogatan 2, 65224 Karlstad", "09:30" to "Skolgatan 5, 66430 Grums")
+        w.onPageText(tomorrow, nowTime = noon)
+        w.onPageText(tomorrow, nowTime = noon)
+        assertTrue(w.state.value.changes.isEmpty())
+        assertEquals(2, w.state.value.trips.size)
+        // Back to today: again no alerts.
+        w.onPageText(page(karlstad, storfors, grums), nowTime = noon)
+        w.onPageText(page(karlstad, storfors, grums), nowTime = noon)
+        assertTrue(w.state.value.changes.isEmpty())
+        assertTrue(notifications().none { it.channelId == Notifications.CHANNEL_TRIPS })
+        graph.settings.update { it.copy(youDriveWatch = false) }
     }
 
     @Test

@@ -87,4 +87,20 @@ class TripWatchTest {
         assertTrue(TripWatch.looksLoggedOut("Username\nPassword"))
         assertFalse(TripWatch.looksLoggedOut("12:48 Storgatan 14, Karlstad"))
     }
+
+    @Test
+    fun anotherViewOrDayIsANewListNotChanges() {
+        val d = t("14:10", "Kyrkogatan 2, 652 24 Karlstad")
+        val e = t("15:00", "Skolgatan 5, 664 30 Grums")
+        // Single trips added / cancelled are real changes.
+        assertFalse(TripWatch.isNewList(listOf(a, b, c), listOf(a, c, d), 2))
+        assertFalse("one trip in the list", TripWatch.isNewList(listOf(a), listOf(d), 2))
+        // None of the earlier trips left: another view or day.
+        assertTrue(TripWatch.isNewList(listOf(a, b), listOf(d), 3))
+        assertTrue(TripWatch.isNewList(listOf(a, b, c), listOf(d, e), 5))
+        // Many changes at once: more than 3 and more than half the list.
+        val many = (0 until 10).map { t("0$it:00".takeLast(5), "Gata $it, 652 24 Karlstad") }
+        assertTrue(TripWatch.isNewList(many, many.take(4), 6))
+        assertFalse(TripWatch.isNewList(many, many.take(7), 3))
+    }
 }

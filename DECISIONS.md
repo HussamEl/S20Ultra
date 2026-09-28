@@ -265,3 +265,37 @@ Not verifiable here: the logged-in YouDrive page (private to the driver's accoun
 - Google Maps navigation is unchanged (Maps has its own permission).
 - Version **1.4.5 (versionCode 12)**.
 
+## Version 1.4.6: Chrome identity, nothing appears unexpectedly, smaller text
+
+- **Driver's request:**
+  - Remove the "wv" marker.
+  - Keep the 5-minute reload as is, with no setting.
+  - Check that nothing appears unexpectedly.
+  - Make the text a little smaller.
+- **Browser identity:**
+  - The WebView's user agent is Chrome's reduced Android user agent (`BrowserIdentity.chromeUserAgent`: `Android 10; K`, `Chrome/<major>.0.0.0`, no `; wv`, no `Version/4.0`). The Chrome major version is the installed WebView's, which is the same engine.
+  - UA client hints: the "Android WebView" brand is replaced by "Google Chrome" (`WebSettingsCompat.setUserAgentMetadata`, when supported).
+  - X-Requested-With: current WebView no longer sends this header. The androidx switch for it (`REQUESTED_WITH_HEADER_ALLOW_LIST`) is deprecated and restricted in webkit 1.17, so it is not used.
+  - Reading stays passive: only the page's visible text, no requests of our own to YouDrive's servers.
+- **Review for things that appear unexpectedly (and fixes):**
+  - *Another view or day in YouDrive* (tomorrow, a trip's details) produced "added / cancelled" alerts. Now `TripWatch.isNewList` treats the reading as a new list, taken over silently, when either:
+    - none of the earlier trips is left (with at least 2 before), or
+    - more than 3 and more than half of the list changed at once.
+    Single changes still alert.
+  - *Reload while in use:* the 5-minute reload runs only while YouDrive's window is closed. It is a constant (`RELOAD_MS`), and the unused setting was removed.
+  - *Status flicker:* during a reload the page shows its login or nothing for a moment. The status leaves WATCHING only after 20 s without trips, so the ongoing notification no longer flashes "Logged out".
+  - *Problem line:* only failures of the page itself are shown: main-frame network error, main-frame HTTP ≥ 400, certificate. Sub-request errors, the page's script errors and the login-form repair go to the debug log only (debug builds).
+  - *Background page:* opens no other app (intent / BankID links) and shows no JS dialogs unless the window is shown. Media again needs a user gesture (the WebView default).
+  - *Orphan notification:* `YouDriveService` cancels its status observers before removing the foreground notification, and cancels it in `onDestroy`, so "Watching YouDrive" cannot be re-posted after watching is switched off. The notification is only re-posted when its text changes.
+  - *Renderer crash / OOM:* `onRenderProcessGone` throws the page away and opens a new one (in the window if shown, otherwise in the background while watching) instead of the app crashing. The page storage login is kept.
+  - Checked and left as is:
+    - Route announcements and Maps launches happen only on the driver's actions (Start, Next, Back, edits of an active route).
+    - The "Open Maps" notification appears only when Android blocks a background start at a batch change.
+    - The floating-button reminder appears only when the driver hid the button during a route.
+    - Every dialog and toast follows a tap.
+- **Smaller text:**
+  - The Compose typography is scaled by 0.9 (font size and line height).
+  - The floating panel's texts are scaled by 0.9, and the street circle auto-sizes between 10 and 18 sp.
+  - Touch targets are unchanged.
+- Version **1.4.6 (versionCode 13)**.
+

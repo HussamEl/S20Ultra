@@ -2,36 +2,43 @@ package se.eldebosh.nastastopp.youdrive
 
 import android.annotation.SuppressLint
 import android.app.Activity
-import android.net.http.SslError
-import android.webkit.ConsoleMessage
-import android.webkit.GeolocationPermissions
-import android.webkit.JsPromptResult
-import android.webkit.JsResult
-import android.webkit.SslErrorHandler
-import android.webkit.WebChromeClient
-import android.webkit.WebResourceError
-import android.webkit.WebResourceResponse
-import kotlinx.serialization.Serializable
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.MutableContextWrapper
+import android.graphics.Bitmap
 import android.net.Uri
+import android.net.http.SslError
 import android.os.Handler
 import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
+import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
+import android.webkit.GeolocationPermissions
+import android.webkit.JsPromptResult
+import android.webkit.JsResult
+import android.webkit.RenderProcessGoneDetail
+import android.webkit.SslErrorHandler
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebSettings
 import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.core.net.toUri
+import androidx.webkit.UserAgentMetadata
+import androidx.webkit.WebSettingsCompat
+import androidx.webkit.WebViewFeature
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import se.eldebosh.nastastopp.core.parse.AddressExtractor
+import se.eldebosh.nastastopp.core.youdrive.BrowserIdentity
 import se.eldebosh.nastastopp.core.youdrive.TripChange
 import se.eldebosh.nastastopp.core.youdrive.TripWatch
 import se.eldebosh.nastastopp.core.youdrive.WatchedTrip
@@ -64,7 +71,7 @@ class YouDriveWatcher(
         val lastReadMs: Long? = null,
         /** Changes the driver has not handled yet (newest last). */
         val changes: List<PendingChange> = emptyList(),
-        /** Last problem of the page (load / HTTP / certificate / script error), shown to the driver. */
+        /** Why the page could not be opened (network / HTTP / certificate), shown to the driver. */
         val problem: String? = null,
     )
 
@@ -78,6 +85,10 @@ class YouDriveWatcher(
     private var lastReloadMs = 0L
     private var fastReads = false
     private var loadedHidden = false
+    private var noTripsSinceMs: Long? = null
+
+    /** Set by YouDrive's window: puts a new page on screen after the old one had to be thrown away. */
+    var onPageReplaced: (() -> Unit)? = null
 
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state.asStateFlow()
@@ -88,9 +99,9 @@ class YouDriveWatcher(
 
     private val loop = object : Runnable {
         override fun run() {
-            val now = System.currentTimeMillis()
-            val reloadMs = settings.current.youDriveReloadMin * 60_000L
-            if (reloadMs > 0 && now - lastReloadMs >= reloadMs) reload() else readNow()
+            // Reloaded every 5 minutes, only in the background: never while the driver is looking
+            // at or typing in the page.
+            if (!fastReads && System.currentTimeMillis() - lastReloadMs >= RELOAD_MS) reload() else readNow()
             handler.postDelayed(this, if (fastReads) FAST_READ_MS else READ_MS)
         }
     }
@@ -108,59 +119,37 @@ class YouDriveWatcher(
             domStorageEnabled = true // it keeps its login in page storage
             allowFileAccess = false
             allowContentAccess = false
-            mediaPlaybackRequiresUserGesture = false // YouDrive's own alert sound
             setSupportMultipleWindows(false)
+            // Identify like Chrome on Android (same engine), not as a browser inside an app.
+            userAgentString = BrowserIdentity.chromeUserAgent(WebSettings.getDefaultUserAgent(appContext))
             // Behave like Chrome: the page's own viewport and 100 % text (not the system font scale).
             useWideViewPort = true
             loadWithOverviewMode = true
             textZoom = 100
             setGeolocationEnabled(false) // the page never gets the phone's position
         }
+        // Client hints like Chrome's too (the "Android WebView" brand becomes "Google Chrome").
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.USER_AGENT_METADATA)) {
+            val meta = WebSettingsCompat.getUserAgentMetadata(web.settings)
+            val brands = meta.brandVersionList.map { b ->
+                if (b.brand != BrowserIdentity.WEBVIEW_BRAND) b
+                else UserAgentMetadata.BrandVersion.Builder(b).setBrand(BrowserIdentity.CHROME_BRAND).build()
+            }
+            WebSettingsCompat.setUserAgentMetadata(web.settings, UserAgentMetadata.Builder(meta).setBrandVersionList(brands).build())
+        }
         CookieManager.getInstance().apply {
             setAcceptCookie(true)
             setAcceptThirdPartyCookies(web, true) // BankID / Region Värmland login
         }
-        web.webViewClient = object : WebViewClient() {
-            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
-                openExternally(request.url)
-
-            override fun onPageFinished(view: WebView, url: String?) {
-                _canGoBack.value = view.canGoBack()
-                handler.postDelayed({ readNow() }, PAGE_QUICK_MS) // early, to repair a hidden login form
-                handler.postDelayed({ readNow() }, PAGE_SETTLE_MS)
-            }
-
-            // YouDrive is a single-page app: its screens change the history without new pages.
-            override fun doUpdateVisitedHistory(view: WebView, url: String?, isReload: Boolean) {
-                _canGoBack.value = view.canGoBack()
-            }
-
-            override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
-                if (request.isForMainFrame || isYouDrive(request.url)) {
-                    problem("${error.errorCode} ${error.description} (${request.url.host})")
-                }
-            }
-
-            override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, response: WebResourceResponse) {
-                if (response.statusCode >= 400 && (request.isForMainFrame || request.url.host == API_HOST)) {
-                    problem("HTTP ${response.statusCode} ${request.url.host}${request.url.path.orEmpty().take(40)}")
-                }
-            }
-
-            @SuppressLint("WebViewClientOnReceivedSslError") // shown to the driver, then cancelled as usual
-            override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) {
-                problem("certificate ${error.primaryError} (${error.url.toUri().host})")
-                handler.cancel()
-            }
-        }
+        web.webViewClient = PageClient()
         web.webChromeClient = object : WebChromeClient() {
+            // The page's own script messages are never shown to the driver nor written to the
+            // system log (debug builds only, for troubleshooting).
             override fun onConsoleMessage(message: ConsoleMessage): Boolean {
-                val source = message.sourceId().substringAfterLast('/')
-                // appTag.js / cordova.js are the app-only files YouDrive also requests in Chrome (harmless).
-                if (message.messageLevel() == ConsoleMessage.MessageLevel.ERROR && source !in HARMLESS_SCRIPTS) {
-                    problem("script: ${message.message().take(120)} ($source:${message.lineNumber()})")
+                if (message.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
+                    DebugLog.d { "youdrive script: ${message.message().take(120)} (${message.sourceId().substringAfterLast('/')}:${message.lineNumber()})" }
                 }
-                return true // never written to the system log
+                return true
             }
 
             // Page dialogs need an activity: without one (page in the background) they are dismissed.
@@ -192,6 +181,70 @@ class YouDriveWatcher(
         }
         if (_state.value.status == Status.OFF) _state.value = _state.value.copy(status = Status.LOADING)
         return web
+    }
+
+    /**
+     * Page events: links, errors, a stopped renderer. (onRenderProcessGone is implemented below;
+     * the lint check also flags the Kotlin super-constructor call `WebViewClient()` itself.)
+     */
+    @SuppressLint("MissingOnRenderProcessGone")
+    private inner class PageClient : WebViewClient() {
+        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
+            openExternally(request.url)
+
+        override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
+            if (_state.value.problem != null) _state.value = _state.value.copy(problem = null) // old problems go
+        }
+
+        override fun onPageFinished(view: WebView, url: String?) {
+            _canGoBack.value = view.canGoBack()
+            handler.postDelayed({ readNow() }, PAGE_QUICK_MS) // early, to repair a hidden login form
+            handler.postDelayed({ readNow() }, PAGE_SETTLE_MS)
+        }
+
+        // YouDrive is a single-page app: its screens change the history without new pages.
+        override fun doUpdateVisitedHistory(view: WebView, url: String?, isReload: Boolean) {
+            _canGoBack.value = view.canGoBack()
+        }
+
+        // Only when the page itself cannot be opened (no network, server down). Errors of
+        // the page's own requests come and go and are not shown (the page handles them).
+        override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+            if (request.isForMainFrame) problem("${error.errorCode} ${error.description} (${request.url.host})")
+            else DebugLog.d { "youdrive request error ${error.errorCode} ${request.url.host}" }
+        }
+
+        override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, response: WebResourceResponse) {
+            if (response.statusCode < 400) return
+            if (request.isForMainFrame) problem("HTTP ${response.statusCode} (${request.url.host})")
+            else DebugLog.d { "youdrive HTTP ${response.statusCode} ${request.url.host}" }
+        }
+
+        // The page's renderer was stopped (low memory or a crash): a new page is opened instead
+        // of the whole app closing. The login in the page storage is kept.
+        override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+            DebugLog.w { "youdrive renderer gone (crash=${detail.didCrash()})" }
+            (view.parent as? ViewGroup)?.removeView(view)
+            view.destroy()
+            if (webView !== view) return true
+            webView = null
+            loadedHidden = false
+            _canGoBack.value = false
+            handler.post {
+                val shown = onPageReplaced
+                when {
+                    wrapper.baseContext is Activity && shown != null -> shown()
+                    settings.current.youDriveWatch -> webView()
+                }
+            }
+            return true
+        }
+
+        @SuppressLint("WebViewClientOnReceivedSslError") // shown to the driver, then cancelled as usual
+        override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) {
+            problem("certificate ${error.primaryError} (${error.url.toUri().host})")
+            handler.cancel()
+        }
     }
 
     private fun load(web: WebView) {
@@ -233,6 +286,7 @@ class YouDriveWatcher(
         webView?.destroy()
         webView = null
         _canGoBack.value = false
+        noTripsSinceMs = null
         watch.reset()
         _state.value = _state.value.copy(status = Status.OFF)
     }
@@ -241,6 +295,8 @@ class YouDriveWatcher(
     private fun openExternally(uri: Uri): Boolean {
         val scheme = uri.scheme?.lowercase()
         if (scheme == "http" || scheme == "https") return false
+        // Only while YouDrive's window is shown: the page in the background never opens other apps.
+        if (wrapper.baseContext !is Activity) return true
         val intent = if (scheme == "intent") {
             runCatching { Intent.parseUri(uri.toString(), Intent.URI_INTENT_SCHEME) }.getOrNull()?.apply {
                 // Only let the link open apps the normal way (no explicit component).
@@ -296,6 +352,7 @@ class YouDriveWatcher(
             web?.destroy()
             if (webView === web) webView = null
             loadedHidden = false
+            noTripsSinceMs = null
             _canGoBack.value = false
             watch.reset()
             _state.value = State(status = Status.OFF)
@@ -303,8 +360,6 @@ class YouDriveWatcher(
         }
         if (web == null) finish() else web.evaluateJavascript(CLEAR_STORAGE_JS) { finish() }
     }
-
-    private fun isYouDrive(uri: Uri) = uri.host == API_HOST || uri.host == URL.toUri().host
 
     private fun problem(text: String) {
         _state.value = _state.value.copy(problem = text)
@@ -336,7 +391,7 @@ class YouDriveWatcher(
         web.evaluateJavascript(READ_PAGE_JS) { result ->
             // {"t": visible text, "p": a login form (password field) is shown, "f": what was repaired}
             val page = runCatching { json.decodeFromString<PageReading>(json.decodeFromString<String?>(result ?: "null") ?: "{}") }.getOrNull()
-            if (!page?.f.isNullOrBlank()) problem("login form was off screen (${page.f.trim().take(60)}), moved back")
+            if (!page?.f.isNullOrBlank()) DebugLog.d { "login form moved back on screen (${page.f.trim().take(60)})" }
             onPageText(page?.t.orEmpty(), loginForm = page?.p ?: false)
         }
     }
@@ -349,17 +404,26 @@ class YouDriveWatcher(
         loginForm: Boolean = TripWatch.looksLoggedOut(text),
     ) {
         val trips = TripWatch.tripsIn(text, extractor)
-        val changes = watch.onReading(trips, nowTime.hour * 60 + nowTime.minute)
+        val before = watch.baseline.orEmpty()
+        var changes = watch.onReading(trips, nowTime.hour * 60 + nowTime.minute)
+        // Another view or day was opened in YouDrive, or a new day's list came: the new list is
+        // simply taken over; nothing is announced as added or cancelled.
+        if (changes.isNotEmpty() && TripWatch.isNewList(before, trips, changes.size)) changes = emptyList()
+        val current = _state.value
+        // A page that is reloading shows its login or an empty screen for a moment: the status
+        // only changes when there are still no trips a little later (no flicker in the notification).
+        if (trips.isNotEmpty()) noTripsSinceMs = null else if (noTripsSinceMs == null) noTripsSinceMs = nowMs
+        val settling = trips.isEmpty() && current.status == Status.WATCHING && nowMs - (noTripsSinceMs ?: nowMs) < STATUS_GRACE_MS
         val status = when {
-            trips.isNotEmpty() -> Status.WATCHING
+            trips.isNotEmpty() || settling -> Status.WATCHING
             loginForm -> Status.LOGGED_OUT
             text.isBlank() -> Status.LOADING
             else -> Status.NO_TRIPS
         }
-        val current = _state.value
         val shownTrips = if (trips.isNotEmpty()) watch.baseline ?: trips else current.trips
         val pending = changes.map { PendingChange(nextChangeId++, it, nowMs) }
         _state.value = current.copy(
+            problem = if (trips.isNotEmpty()) null else current.problem,
             status = status,
             trips = shownTrips,
             lastReadMs = nowMs,
@@ -378,9 +442,6 @@ class YouDriveWatcher(
 
     companion object {
         const val URL = "https://youdrive.regionvarmland.se/"
-        private const val API_HOST = "youapi.regionvarmland.se"
-
-        private val HARMLESS_SCRIPTS = setOf("appTag.js", "cordova.js")
 
         /**
          * Reads the visible text and whether a password field (the login form) is shown. If the
@@ -411,10 +472,12 @@ class YouDriveWatcher(
         """.trimIndent()
         private const val CLEAR_STORAGE_JS = "(function(){try{sessionStorage.clear();localStorage.clear();}catch(e){}return 1;})()"
         private const val READ_MS = 60_000L
+        private const val RELOAD_MS = 5 * 60_000L
         private const val FAST_READ_MS = 15_000L
         private const val PAGE_SETTLE_MS = 3_000L
         private const val PAGE_QUICK_MS = 1_200L
         private const val MAX_PENDING = 30
+        private const val STATUS_GRACE_MS = 20_000L
         private const val OFFSCREEN_W = 1080
         private const val OFFSCREEN_H = 2200
     }

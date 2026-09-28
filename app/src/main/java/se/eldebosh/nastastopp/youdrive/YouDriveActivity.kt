@@ -67,6 +67,10 @@ class YouDriveActivity : ComponentActivity() {
         }
         setContentView(root)
         showPage()
+        graph.youDrive.onPageReplaced = {
+            web?.let { holder.removeView(it) }
+            if (!isFinishing && !isDestroyed) showPage()
+        }
         // Back goes back inside the page first (e.g. from its Settings to the login).
         onBackPressedDispatcher.addCallback(
             this,
@@ -154,6 +158,7 @@ class YouDriveActivity : ComponentActivity() {
     private fun toast(text: String) = Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
 
     override fun onDestroy() {
+        graph.youDrive.onPageReplaced = null
         web?.let { holder.removeView(it) }
         web = null
         graph.youDrive.detach()

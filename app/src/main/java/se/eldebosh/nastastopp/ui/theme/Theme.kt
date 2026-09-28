@@ -6,6 +6,9 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.unit.sp
 
 val Amber = Color(0xFFFFC400)
@@ -42,21 +45,35 @@ private val DrivingColors = darkColorScheme(
 
 private val Base = Typography()
 
-/** Large text throughout (read at a glance while driving). */
+/**
+ * Large text (read at a glance while driving), 10 % smaller than the first design (driver's
+ * request in 1.4.6); the line height shrinks with it.
+ */
+private fun TextStyle.smaller(fontSize: TextUnit, lineHeight: TextUnit = TextUnit.Unspecified, fontWeight: FontWeight? = null): TextStyle {
+    val height = if (lineHeight.isSpecified) lineHeight else this.lineHeight
+    return copy(
+        fontSize = fontSize * TEXT_SCALE,
+        lineHeight = if (height.isSpecified) height * TEXT_SCALE else height,
+        fontWeight = fontWeight ?: this.fontWeight,
+    )
+}
+
+private const val TEXT_SCALE = 0.9f
+
 private val DrivingTypography = Typography(
-    displaySmall = Base.displaySmall.copy(fontSize = 40.sp, lineHeight = 46.sp, fontWeight = FontWeight.Bold),
-    headlineLarge = Base.headlineLarge.copy(fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Bold),
-    headlineMedium = Base.headlineMedium.copy(fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.Bold),
-    headlineSmall = Base.headlineSmall.copy(fontSize = 26.sp, lineHeight = 32.sp, fontWeight = FontWeight.SemiBold),
-    titleLarge = Base.titleLarge.copy(fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.SemiBold),
-    titleMedium = Base.titleMedium.copy(fontSize = 21.sp, lineHeight = 27.sp, fontWeight = FontWeight.SemiBold),
-    titleSmall = Base.titleSmall.copy(fontSize = 18.sp, lineHeight = 24.sp),
-    bodyLarge = Base.bodyLarge.copy(fontSize = 20.sp, lineHeight = 28.sp),
-    bodyMedium = Base.bodyMedium.copy(fontSize = 18.sp, lineHeight = 25.sp),
-    bodySmall = Base.bodySmall.copy(fontSize = 16.sp, lineHeight = 22.sp),
-    labelLarge = Base.labelLarge.copy(fontSize = 20.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold),
-    labelMedium = Base.labelMedium.copy(fontSize = 16.sp),
-    labelSmall = Base.labelSmall.copy(fontSize = 14.sp),
+    displaySmall = Base.displaySmall.smaller(fontSize = 40.sp, lineHeight = 46.sp, fontWeight = FontWeight.Bold),
+    headlineLarge = Base.headlineLarge.smaller(fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Bold),
+    headlineMedium = Base.headlineMedium.smaller(fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.Bold),
+    headlineSmall = Base.headlineSmall.smaller(fontSize = 26.sp, lineHeight = 32.sp, fontWeight = FontWeight.SemiBold),
+    titleLarge = Base.titleLarge.smaller(fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.SemiBold),
+    titleMedium = Base.titleMedium.smaller(fontSize = 21.sp, lineHeight = 27.sp, fontWeight = FontWeight.SemiBold),
+    titleSmall = Base.titleSmall.smaller(fontSize = 18.sp, lineHeight = 24.sp),
+    bodyLarge = Base.bodyLarge.smaller(fontSize = 20.sp, lineHeight = 28.sp),
+    bodyMedium = Base.bodyMedium.smaller(fontSize = 18.sp, lineHeight = 25.sp),
+    bodySmall = Base.bodySmall.smaller(fontSize = 16.sp, lineHeight = 22.sp),
+    labelLarge = Base.labelLarge.smaller(fontSize = 20.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold),
+    labelMedium = Base.labelMedium.smaller(fontSize = 16.sp),
+    labelSmall = Base.labelSmall.smaller(fontSize = 14.sp),
 )
 
 @Composable

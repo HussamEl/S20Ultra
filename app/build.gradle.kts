@@ -30,8 +30,8 @@ android {
         applicationId = "se.eldebosh.nastastopp"
         minSdk = 29
         targetSdk = 37
-        versionCode = 12
-        versionName = "1.4.5"
+        versionCode = 13
+        versionName = "1.4.6"
         buildConfigField("String", "BUILD_DATE", "\"$buildDate\"")
     }
 
@@ -112,6 +112,7 @@ kotlin {
 }
 
 dependencies {
+    implementation(libs.androidx.webkit)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)

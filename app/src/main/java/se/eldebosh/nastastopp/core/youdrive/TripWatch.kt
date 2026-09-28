@@ -86,6 +86,17 @@ class TripWatch(private val confirmReadings: Int = 2, private val doneGraceMin: 
             return (added + cancelled).sortedBy { TripTimes.minutes(it.trip.time) }
         }
 
+        /**
+         * The page shows another list, not single trips added or cancelled: many changes at once
+         * (more than 3 and more than half the list), or none of the earlier trips is left (another
+         * view or day was opened in YouDrive, or a new day's list came).
+         */
+        fun isNewList(before: List<WatchedTrip>, after: List<WatchedTrip>, changes: Int): Boolean {
+            if (changes > maxOf(3, before.size / 2)) return true
+            val keys = after.mapTo(HashSet()) { it.key }
+            return before.size >= 2 && after.isNotEmpty() && before.none { it.key in keys }
+        }
+
         /** Trips on the page: the visible text is parsed like screenshot text (times + addresses only). */
         fun tripsIn(pageText: String, extractor: AddressExtractor): List<WatchedTrip> {
             val lines = pageText.lines().map { it.trim() }.filter { it.isNotEmpty() }

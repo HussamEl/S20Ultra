@@ -10,6 +10,7 @@ import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -31,7 +32,7 @@ import java.time.format.DateTimeFormatter
 class YouDriveService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private var observing = false
+    private var observers: List<Job> = emptyList()
     private val timeFormat = DateTimeFormatter.ofPattern("HH:mm")
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -53,16 +54,18 @@ class YouDriveService : Service() {
             return START_NOT_STICKY
         }
         graph.youDrive.sync()
-        if (!observing) {
-            observing = true
-            scope.launch {
-                graph.settings.state.map { it.youDriveWatch }.distinctUntilChanged().collect { on -> if (!on) stopEverything() }
-            }
-            scope.launch {
-                graph.youDrive.state.collect {
-                    Notifications.post(this@YouDriveService, Notifications.ID_YOUDRIVE, Notifications.buildYouDriveWatch(this@YouDriveService, statusText()))
-                }
-            }
+        if (observers.isEmpty()) {
+            observers = listOf(
+                scope.launch {
+                    graph.settings.state.map { it.youDriveWatch }.distinctUntilChanged().collect { on -> if (!on) stopEverything() }
+                },
+                // Only the status text changes (silent, no pop-up; the same line as in YouDrive's window).
+                scope.launch {
+                    graph.youDrive.state.map { statusText() }.distinctUntilChanged().collect { text ->
+                        Notifications.post(this@YouDriveService, Notifications.ID_YOUDRIVE, Notifications.buildYouDriveWatch(this@YouDriveService, text))
+                    }
+                },
+            )
         }
         return START_NOT_STICKY
     }
@@ -78,13 +81,18 @@ class YouDriveService : Service() {
         }
     }
 
+    /** Stops updating first, so the notification cannot be posted again after it was removed. */
     private fun stopEverything() {
+        observers.forEach { it.cancel() }
+        observers = emptyList()
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        Notifications.cancel(this, Notifications.ID_YOUDRIVE)
         stopSelf()
     }
 
     override fun onDestroy() {
         scope.cancel()
+        Notifications.cancel(this, Notifications.ID_YOUDRIVE)
         super.onDestroy()
     }
 
