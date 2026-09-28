@@ -4,7 +4,12 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
+import android.graphics.Canvas
+import android.graphics.ColorFilter
+import android.graphics.Paint
 import android.graphics.PixelFormat
+import android.graphics.RectF
+import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
@@ -113,7 +118,7 @@ class OverlayManager(
             return
         }
         street.want(WANT_KEY, !s.overlayMinimized)
-        val key = "${s.overlayMinimized}|${s.uiLanguage}"
+        val key = "${s.overlayMinimized}|${s.uiLanguage}|${s.showRefNumbers}"
         if (root == null || key != layoutKey) {
             hide()
             show(s.overlayMinimized)
@@ -243,6 +248,7 @@ class OverlayManager(
             val m = dp(4f)
             addView(bubble, FrameLayout.LayoutParams(dp(68f), dp(68f)).apply { setMargins(m, m, m, m) })
         }
+        bubble.ref(17)
         bubble.setOnClickListener { settings.update { it.copy(overlayMinimized = false) } }
         bubble.setOnTouchListener(TouchHandler(lp, frame, onLongPress = null))
         v.bubbleMain = main
@@ -343,6 +349,24 @@ class OverlayManager(
             LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(2f) },
         )
 
+        // Reference numbers 1–16 (listed in the README), so the driver can name each part.
+        back.ref(1)
+        circle.ref(2)
+        areaView.ref(3)
+        speaker.ref(4)
+        next.ref(5)
+        minimize.ref(6, padText = false)
+        close.ref(7, padText = false)
+        clockView.ref(8)
+        progressView.ref(9)
+        timeView.ref(10)
+        statusView.ref(11)
+        distanceView.ref(12)
+        addressView.ref(13)
+        waitView.ref(14)
+        repeat.ref(15)
+        info.ref(16, bottomEnd = true)
+
         next.setOnClickListener { controller.next(auto = false) }
         drag(next) { controller.repeat() }
         back.setOnClickListener { if (!controller.back()) toast(R.string.overlay_no_previous) }
@@ -432,6 +456,47 @@ class OverlayManager(
         contentDescription = ui.getString(description)
     }
 
+    /**
+     * Small translucent reference number in the top-start (or bottom-end) corner of [this]
+     * (setting). Texts get a little start padding so the number does not cover them.
+     */
+    private fun View.ref(n: Int, bottomEnd: Boolean = false, padText: Boolean = true) {
+        if (!settings.current.showRefNumbers) return
+        if (padText && this is TextView) setPaddingRelative(maxOf(paddingStart, dp(REF_TEXT_PAD_DP)), paddingTop, paddingEnd, paddingBottom)
+        val rtl = ui.resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_RTL
+        val badge = RefBadge(n.toString(), rtl, bottomEnd)
+        addOnLayoutChangeListener { _, l, t, r, b, _, _, _, _ -> badge.setBounds(0, 0, r - l, b - t) }
+        overlay.add(badge)
+    }
+
+    private inner class RefBadge(private val text: String, private val rtl: Boolean, private val bottomEnd: Boolean) : Drawable() {
+        private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xCCFFFFFF.toInt()
+            textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 9f, context.resources.displayMetrics)
+            isFakeBoldText = true
+        }
+        private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x59000000 }
+
+        override fun draw(canvas: Canvas) {
+            val pad = dp(3f).toFloat()
+            val w = textPaint.measureText(text) + 2 * pad
+            val h = textPaint.textSize + pad
+            val inset = dp(2f).toFloat()
+            val atLeft = rtl == bottomEnd // top-start or bottom-end, in either direction
+            val x = if (atLeft) inset else bounds.width() - w - inset
+            val y = if (bottomEnd) bounds.height() - h - inset else inset
+            canvas.drawRoundRect(RectF(x, y, x + w, y + h), pad, pad, bgPaint)
+            canvas.drawText(text, x + pad, y + h - pad * 0.9f - textPaint.descent() / 2, textPaint)
+        }
+
+        override fun setAlpha(alpha: Int) = Unit
+
+        override fun setColorFilter(colorFilter: ColorFilter?) = Unit
+
+        @Deprecated("Deprecated in Java")
+        override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
+    }
+
     private fun smallControl(symbol: String, description: Int) = text(18f, WHITE, bold = true).apply {
         text = symbol
         background = oval(0xE0202020.toInt(), WHITE, 1.5f)
@@ -450,7 +515,8 @@ class OverlayManager(
 
     private fun hideByUser() {
         settings.update { it.copy(overlayHidden = true) }
-        Toast.makeText(ui, R.string.overlay_hidden_toast, Toast.LENGTH_LONG).show()
+        val explain = LocaleHelper.explanationContext(ui, settings.current.uiLanguage, settings.current.explanationsArabic)
+        Toast.makeText(ui, explain.getString(R.string.overlay_hidden_toast), Toast.LENGTH_LONG).show()
     }
 
     private fun openApp() {
@@ -566,6 +632,7 @@ class OverlayManager(
     companion object {
         private const val WANT_KEY = "overlay"
         private const val CIRCLE_DP = 120f
+        private const val REF_TEXT_PAD_DP = 17f
         private const val YELLOW = 0xF0FFC400.toInt()
         private const val WHITE = 0xFFFFFFFF.toInt()
         private const val BLACK = 0xFF000000.toInt()

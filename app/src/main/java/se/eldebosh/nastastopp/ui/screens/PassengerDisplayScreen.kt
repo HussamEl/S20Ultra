@@ -48,6 +48,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import kotlinx.coroutines.delay
 import se.eldebosh.nastastopp.R
+import se.eldebosh.nastastopp.ui.ref
 import se.eldebosh.nastastopp.core.display.DisplayItem
 import se.eldebosh.nastastopp.core.display.DisplaySnapshot
 import se.eldebosh.nastastopp.ui.TouchTarget
@@ -83,7 +84,7 @@ fun PassengerDisplayScreen(
     ) {
         // Top: exit, connection status, clock.
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            IconButton(onClick = onExit, modifier = Modifier.size(TouchTarget)) {
+            IconButton(onClick = onExit, modifier = Modifier.ref(86).size(TouchTarget)) {
                 Icon(painterResource(R.drawable.ic_stop), contentDescription = stringResource(R.string.display_exit), tint = Color.White.copy(alpha = 0.6f))
             }
             if (status != null) {
@@ -93,11 +94,18 @@ fun PassengerDisplayScreen(
                         .background(if (connected) Located else NotLocated, CircleShape),
                 )
                 Spacer(Modifier.width(8.dp))
-                Text(status, style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.6f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    status,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.6f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.ref(87),
+                )
             }
             Spacer(Modifier.weight(1f))
             extraActions()
-            Clock(Modifier.padding(start = 12.dp))
+            Clock(Modifier.ref(88).padding(start = 12.dp))
         }
         if (detail != null) {
             Text(
@@ -106,7 +114,7 @@ fun PassengerDisplayScreen(
                 color = Color.White.copy(alpha = 0.5f),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 12.dp),
+                modifier = Modifier.ref(95).padding(start = 12.dp),
             )
         }
 
@@ -124,7 +132,7 @@ fun PassengerDisplayScreen(
         }
 
         // One previous trip: small and faded.
-        snapshot.previous?.let { TripLine(it, fontSize = 22, alpha = 0.4f, modifier = Modifier.padding(top = 4.dp)) }
+        snapshot.previous?.let { TripLine(it, fontSize = 22, alpha = 0.4f, modifier = Modifier.ref(89).padding(top = 4.dp)) }
 
         // Next destination: as large as the screen allows.
         Column(
@@ -137,6 +145,7 @@ fun PassengerDisplayScreen(
                 color = Amber,
                 fontSize = 30.sp,
                 fontWeight = FontWeight.Bold,
+                modifier = Modifier.ref(90),
             )
             BasicText(
                 text = current.title,
@@ -148,7 +157,7 @@ fun PassengerDisplayScreen(
                 ),
                 maxLines = 2,
                 autoSize = TextAutoSize.StepBased(minFontSize = 32.sp, maxFontSize = 280.sp, stepSize = 4.sp),
-                modifier = Modifier.weight(1f, fill = false).fillMaxWidth(),
+                modifier = Modifier.ref(91).weight(1f, fill = false).fillMaxWidth(),
             )
             current.subtitle?.let {
                 Text(
@@ -159,12 +168,13 @@ fun PassengerDisplayScreen(
                     style = MaterialTheme.typography.titleLarge.copy(textDirection = TextDirection.Content),
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.ref(92),
                 )
             }
             Spacer(Modifier.height(12.dp))
             FilledIconButton(
                 onClick = onSpeak,
-                modifier = Modifier.size(96.dp),
+                modifier = Modifier.ref(93).size(96.dp),
                 colors = IconButtonDefaults.filledIconButtonColors(containerColor = Amber, contentColor = Color.Black),
             ) {
                 Icon(painterResource(R.drawable.ic_speaker), contentDescription = stringResource(R.string.display_repeat), modifier = Modifier.size(52.dp))
@@ -172,7 +182,7 @@ fun PassengerDisplayScreen(
         }
 
         // Three upcoming trips: small.
-        snapshot.upcoming.forEach { TripLine(it, fontSize = 24, alpha = 0.85f, modifier = Modifier.padding(vertical = 2.dp)) }
+        snapshot.upcoming.forEach { TripLine(it, fontSize = 24, alpha = 0.85f, modifier = Modifier.ref(94).padding(vertical = 2.dp)) }
         Spacer(Modifier.height(8.dp))
     }
 }

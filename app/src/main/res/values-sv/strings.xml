@@ -92,7 +92,7 @@
     <string name="voice_ready">Klar ✓</string>
     <string name="voice_missing">Saknas – tryck för att installera</string>
     <string name="voice_checking">Kontrollerar…</string>
-    <string name="settings_privacy_note">Integritet: appen har ingen internetbehörighet. Bilderna läses bara i telefonen och sparas aldrig. Ruttlistan raderas när rutten avslutas, när du rensar eller efter 12 timmar. Avslutade resor finns kvar i historiken på startsidan under den valda tiden (standard 12 timmar) och raderas sedan automatiskt; de kan rensas när som helst.</string>
+    <string name="settings_privacy_note">Integritet: bilderna läses bara i telefonen och sparas aldrig. Bara tider och adresser sparas; ruttlistan raderas när rutten avslutas, när du rensar eller efter 12 timmar, och avslutade resor finns kvar i historiken under den valda tiden (standard 12 timmar). Appen använder internet bara för att visa din YouDrive-sida och skickar själv inga data någonstans; ingen analys. Inloggningen till YouDrive stannar i telefonen och kan raderas.</string>
     <string name="settings_version">Version %1$s · %2$s</string>
 
     <string name="help_title">Hjälp</string>
@@ -158,8 +158,8 @@
     <string name="link_bt_off">Bluetooth är av – tryck för att slå på</string>
     <string name="link_no_bt">Enheten saknar Bluetooth</string>
     <string name="link_hint">Parkoppla telefonen och surfplattan en gång i Bluetooth-inställningarna. Slå på det här på förarens enhet och välj den sedan på surfplattan.</string>
-    <string name="display_full_address">Visa hela adressen på passagerarskärmen</string>
-    <string name="display_full_address_hint">Av = bara området visas (passagerarnas integritet).</string>
+    <string name="display_full_address">Visa gatuadressen på passagerarskärmen</string>
+    <string name="display_full_address_hint">Gatan med husnummer visas stort och området under. Av = bara området visas.</string>
     <string name="display_speaks">Läs upp utropen även på den här enheten</string>
     <string name="display_choose_device">Välj förarens enhet</string>
     <string name="display_no_paired">Inga parkopplade enheter. Parkoppla enheterna i Bluetooth-inställningarna först.</string>
@@ -220,4 +220,42 @@
     <string name="home_overlay_add_tile">Lägg till rutan \"Flytande knapp\" i snabbinställningarna</string>
     <string name="home_overlay_tile_added">Rutan är tillagd – dra ner aviseringspanelen för att hitta den</string>
     <string name="home_overlay_restore_hint">Visa knappen snabbt igen efter att du stängt den: tryck på aviseringen \"Den flytande knappen är stängd\", på rutan i snabbinställningarna eller på den här brytaren.</string>
+    <string name="settings_explain_arabic">Förklaringar på arabiska</string>
+    <string name="settings_explain_arabic_hint">Knapparna på engelska, förklaringar och instruktioner på arabiska. Stäng av när inställningen är klar.</string>
+    <string name="settings_ref_numbers">Referensnummer på knapparna</string>
+    <string name="settings_ref_numbers_hint">Ett litet genomskinligt nummer på varje knapp, brytare och uppgift (i appen och på den flytande knappen), så att du kan hänvisa till numret. Hela listan finns i README.</string>
+    <string name="help_refs_title">Referensnummer</string>
+    <string name="help_refs_body">Varje knapp, brytare och uppgift har ett litet genomskinligt nummer i hörnet. Ange bara numret när något ska ändras, t.ex. \"ändra 78\".\n• 1–17: den flytande knappen.\n• 20–39: startsidan.\n• 40–60: granska listan.\n• 61–84: ruttskärmen.\n• 86–95: passagerarskärmen.\n• 100–125: inställningar.\n• 140–152: YouDrive.\n• 160–179: hjälp och röst.\n• 180–190: första start.\n• 191–199: surfplattan som passagerarskärm.\nNumren kan döljas i inställningarna (105).</string>
+    <string name="help_youdrive_title">YouDrive-aviseringar</string>
+    <string name="help_youdrive_body">1. Tryck på kortet \"YouDrive\" (25) på startsidan.\n2. Logga in i YouDrive i appen en gång (BankID eller lösenord) och öppna sidan med resorna.\n3. Slå på bevakningen (142).\nAppen läser sidan varje minut (bara tider och adresser, inga namn) och laddar om den var 5:e minut. När en resa läggs till eller avbokas får du en avisering med ljud och vibration, även när Maps är framme. Tryck på aviseringen och välj \"Lägg till\" eller \"Ta bort\" för att uppdatera listan.\nEn resa som försvinner mer än 5 minuter efter sin tid räknas som klar, inte avbokad.\nOm du loggas ut från YouDrive syns det på kortet och i aviseringen; öppna sidan och logga in igen.</string>
+    <string name="channel_trips">Ändrade resor (YouDrive)</string>
+    <string name="channel_watch">Bevakning av YouDrive</string>
+    <string name="youdrive_watching_title">Bevakar YouDrive</string>
+    <string name="youdrive_status_off">Bevakningen är av</string>
+    <string name="youdrive_status_loading">Öppnar sidan…</string>
+    <string name="youdrive_status_watching">Resor: %1$d · kontrollerad %2$s</string>
+    <string name="youdrive_status_no_trips">Inga resor på sidan · kontrollerad %1$s</string>
+    <string name="youdrive_status_logged_out">Utloggad – öppna YouDrive och logga in</string>
+    <string name="trip_added_title">Ny resa %1$s</string>
+    <string name="trip_cancelled_title">Avbokad resa %1$s</string>
+    <string name="trip_added_short">YouDrive: ny resa</string>
+    <string name="trip_cancelled_short">YouDrive: avbokad resa</string>
+    <string name="trip_changes_many">Ändringar i YouDrive: %1$d</string>
+    <string name="youdrive_title">YouDrive</string>
+    <string name="youdrive_reload">Ladda om sidan</string>
+    <string name="youdrive_logout">Logga ut från YouDrive</string>
+    <string name="youdrive_logout_text">Inloggningen till YouDrive och allt sidan har sparat raderas från telefonen.</string>
+    <string name="youdrive_watch">Bevaka nya och avbokade resor</string>
+    <string name="youdrive_import_all">Lägg till alla resor (%1$d)</string>
+    <string name="youdrive_read_now">Kontrollera nu</string>
+    <string name="youdrive_hint">Logga in här en gång och öppna sidan med resorna, slå sedan på brytaren. Appen läser bara tider och adresser varje minut och varnar med ljud när en resa läggs till eller avbokas, även när Maps är framme.</string>
+    <string name="youdrive_add">Lägg till</string>
+    <string name="youdrive_remove">Ta bort</string>
+    <string name="youdrive_dismiss">Ignorera</string>
+    <string name="youdrive_card_title">YouDrive – aviseringar om resor</string>
+    <string name="youdrive_card_off">Av – tryck för att öppna YouDrive</string>
+    <string name="youdrive_card_changes">Ändringar att granska: %1$d</string>
+    <string name="youdrive_nothing_new">Alla resor finns redan i listan</string>
+    <string name="youdrive_applied">Listan är uppdaterad</string>
+    <string name="youdrive_not_in_list">Resan finns inte i listan</string>
 </resources>

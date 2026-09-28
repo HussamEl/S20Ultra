@@ -130,7 +130,11 @@ class RouteController(
             active = r.active,
             completed = r.completed,
             remaining = r.stops,
-            item = { s -> DisplayItem(time = s.time, title = spokenName(s), subtitle = if (full) s.displayText else null) },
+            item = { s ->
+                // The street address with the house number (the driver's choice), the area under it.
+                if (full) DisplayItem(time = s.time, title = DisplayItem.streetPart(s.displayText), subtitle = spokenName(s))
+                else DisplayItem(time = s.time, title = spokenName(s))
+            },
             announcement = if (r.active && r.stops.isNotEmpty()) announcementFor(r.stops) else null,
         )
     }
@@ -219,6 +223,62 @@ class RouteController(
     fun restoreStops(previous: List<Stop>) {
         update { r -> r.copy(stops = previous) }
         ensureGeocoding()
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // YouDrive (trips added / cancelled on the dispatch page)
+
+    /** True if [e] (time + address) is already one of the remaining trips. */
+    fun hasTrip(e: ExtractedStop): Boolean = findTrip(e) != null
+
+    private fun findTrip(e: ExtractedStop): Stop? =
+        _route.value?.stops?.firstOrNull { it.time == e.time && extractor.isSameAddress(it.toExtracted(), e) }
+
+    /**
+     * Adds a trip from YouDrive in time order among the remaining trips (the current trip of an
+     * active route stays first). Re-announces / re-launches Maps if the next trips changed.
+     * Returns false if the trip is already in the list.
+     */
+    fun insertTrip(e: ExtractedStop): Boolean = importTrips(listOf(e)) == 1
+
+    /**
+     * Adds every YouDrive trip that is not in the list yet, each in time order. Announces and
+     * re-launches Maps at most once. Returns how many were added.
+     */
+    fun importTrips(trips: List<ExtractedStop>): Int {
+        beginEdit()
+        var added = 0
+        for (e in trips) {
+            if (hasTrip(e)) continue
+            val base = _route.value ?: newRoute()
+            val list = base.stops.toMutableList()
+            val first = if (base.active) minOf(1, list.size) else 0
+            val t = TripTimes.minutes(e.time)
+            var index = list.size
+            if (e.time != null) {
+                for (i in first until list.size) {
+                    if (TripTimes.minutes(list[i].time) > t) {
+                        index = i
+                        break
+                    }
+                }
+            }
+            list.add(index, e.toStop(base.nextId))
+            set(base.copy(stops = list, nextId = base.nextId + 1))
+            added++
+        }
+        if (added > 0) ensureGeocoding()
+        finishEdit()
+        return added
+    }
+
+    /** Removes a trip YouDrive reported as cancelled. Returns false if it is not in the list. */
+    fun removeTrip(e: ExtractedStop): Boolean {
+        val stop = findTrip(e) ?: return false
+        beginEdit()
+        update { r -> r.copy(stops = r.stops.filterNot { it.id == stop.id }) }
+        finishEdit()
+        return true
     }
 
     /** Deletes all route data (the "Clear" button). */

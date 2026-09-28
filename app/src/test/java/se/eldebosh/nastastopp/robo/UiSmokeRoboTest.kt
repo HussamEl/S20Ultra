@@ -4,6 +4,8 @@ import android.os.Looper
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.hasScrollToNodeAction
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.longClick
@@ -80,8 +82,9 @@ class UiSmokeRoboTest {
         app.graph.settings.update { it.copy(onboardingDone = false) }
         launch().use {
             waitText(s(R.string.onb_welcome_title))
-            // Arabic is the default UI language.
-            assertEquals("مرحباً بك في Nästa Stopp", s(R.string.onb_welcome_title))
+            // English is the default UI language since 1.4.0 (explanations stay Arabic while setting up).
+            assertEquals("en", app.graph.settings.current.uiLanguage)
+            assertTrue(app.graph.settings.current.explanationsArabic)
             compose.onNodeWithText(s(R.string.role_controller)).performScrollTo().performClick()
             compose.onNodeWithText(s(R.string.onb_location_title)).assertExists()
             // Skip through the permission steps one at a time.
@@ -98,9 +101,11 @@ class UiSmokeRoboTest {
             compose.onNodeWithText(s(R.string.settings_version, BuildConfig.VERSION_NAME, BuildConfig.BUILD_DATE))
                 .performScrollTo().assertExists()
             compose.onNodeWithText(s(R.string.detail_district)).assertExists()
-            it.onActivity { a ->
-                assertEquals(android.util.LayoutDirection.RTL, a.resources.configuration.layoutDirection)
-            }
+            compose.onNodeWithText(s(R.string.settings_explain_arabic)).assertExists()
+            compose.onNodeWithText(s(R.string.settings_ref_numbers)).performScrollTo().performClick()
+            assertEquals(false, app.graph.settings.current.showRefNumbers)
+            compose.onNodeWithText(s(R.string.settings_ref_numbers)).performClick()
+            assertEquals(true, app.graph.settings.current.showRefNumbers)
             compose.onNodeWithContentDescription(s(R.string.back)).performClick()
             compose.onNodeWithText(s(R.string.home_help)).performScrollTo().performClick()
             compose.onNodeWithText(s(R.string.help_battery_title)).assertExists()
@@ -123,6 +128,7 @@ class UiSmokeRoboTest {
             compose.onNodeWithText(s(R.string.review_add_manual)).assertExists()
             compose.onNodeWithText(s(R.string.review_add_screens)).assertExists()
             // Tap a row → edit dialog with the address; save a new text → re-parsed and re-geocoded.
+            compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("2.  Järnvägsgatan 3B, 688 30 Storfors"))
             compose.onNodeWithText("2.  Järnvägsgatan 3B, 688 30 Storfors").performClick()
             compose.onNodeWithText(s(R.string.dialog_edit_title)).assertExists()
             compose.onNodeWithText("Järnvägsgatan 3B, 688 30 Storfors").performTextReplacement("kungsgatan 5 65224 karlstad")
@@ -134,6 +140,7 @@ class UiSmokeRoboTest {
             compose.onNodeWithText(s(R.string.dialog_add_title)).assertExists()
             compose.onNodeWithText(s(R.string.cancel)).performClick()
             // Long-press menu → delete all above → undo snackbar.
+            compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("2.  Kungsgatan 5, 652 24 Karlstad"))
             compose.onNodeWithText("2.  Kungsgatan 5, 652 24 Karlstad").performTouchInput { longClick() }
             compose.onNodeWithText(s(R.string.menu_delete_above)).performClick()
             assertEquals(2, app.graph.controller.route.value!!.stops.size)
@@ -205,6 +212,19 @@ class UiSmokeRoboTest {
             compose.onNodeWithText(s(R.string.active_counts, 0, 2)).assertExists()
         }
         app.graph.controller.end()
+    }
+
+    @Test
+    fun youDriveScreenOpensFromHome() {
+        app.graph.settings.update { it.copy(onboardingDone = true) }
+        launch().use {
+            waitText(s(R.string.youdrive_card_title))
+            compose.onNodeWithText(s(R.string.youdrive_card_title)).performScrollTo().performClick()
+            compose.onNodeWithText(s(R.string.youdrive_watch)).assertExists()
+            compose.onNodeWithText(s(R.string.youdrive_read_now)).assertExists()
+            compose.onNodeWithContentDescription(s(R.string.back)).performClick()
+            compose.onNodeWithText(s(R.string.home_import)).assertExists()
+        }
     }
 
     @Test

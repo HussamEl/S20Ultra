@@ -9,7 +9,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.core.content.IntentCompat
+import se.eldebosh.nastastopp.service.Notifications
 import se.eldebosh.nastastopp.settings.SettingsStore
+import se.eldebosh.nastastopp.youdrive.YouDriveService
 import se.eldebosh.nastastopp.ui.AppRoot
 import se.eldebosh.nastastopp.ui.MainViewModel
 import se.eldebosh.nastastopp.ui.theme.NastaTheme
@@ -26,7 +28,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        if (savedInstanceState == null) handleShareIntent(intent)
+        if (savedInstanceState == null) {
+            handleShareIntent(intent)
+            handleOpenIntent(intent)
+        }
         setContent {
             NastaTheme {
                 AppRoot(vm, onRecreate = { recreate() })
@@ -38,6 +43,14 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleShareIntent(intent)
+        handleOpenIntent(intent)
+    }
+
+    /** A trip-change notification opens the YouDrive screen. */
+    private fun handleOpenIntent(intent: Intent?) {
+        if (intent?.getStringExtra(Notifications.EXTRA_OPEN) != Notifications.OPEN_YOUDRIVE) return
+        intent.removeExtra(Notifications.EXTRA_OPEN)
+        vm.openYouDrive()
     }
 
     override fun onResume() {
@@ -48,6 +61,8 @@ class MainActivity : ComponentActivity() {
         // Restart tracking after process death (only possible while we are in the foreground).
         graph.controller.ensureServiceRunning()
         graph.overlay.refresh()
+        // Watching YouDrive: (re)start its service while we are in the foreground.
+        if (graph.settings.current.youDriveWatch) YouDriveService.start(this)
     }
 
     /** ACTION_SEND / ACTION_SEND_MULTIPLE with an image MIME type: images are processed in the order received. */

@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import se.eldebosh.nastastopp.R
+import se.eldebosh.nastastopp.ui.ref
 import se.eldebosh.nastastopp.core.geo.StreetInfo
 import se.eldebosh.nastastopp.core.parse.TripTimes
 import se.eldebosh.nastastopp.core.route.DetectorPhase
@@ -106,12 +107,14 @@ fun ActiveRouteScreen(
         TopBar(
             title = stringResource(R.string.active_counts, route.completedCount, route.stops.size),
             onBack = onBack,
+            backRef = 61,
+            titleRef = 62,
             actions = {
-                IconButton(onClick = onOpenDisplay, modifier = Modifier.size(TouchTarget)) {
+                IconButton(onClick = onOpenDisplay, modifier = Modifier.ref(63).size(TouchTarget)) {
                     Icon(painterResource(R.drawable.ic_display), contentDescription = stringResource(R.string.open_display), modifier = Modifier.size(30.dp))
                 }
                 if (overlayAvailable) {
-                    IconButton(onClick = onToggleOverlay, modifier = Modifier.size(TouchTarget)) {
+                    IconButton(onClick = onToggleOverlay, modifier = Modifier.ref(64).size(TouchTarget)) {
                         Icon(
                             painterResource(if (overlayHidden) R.drawable.ic_visibility_off else R.drawable.ic_visibility),
                             contentDescription = stringResource(if (overlayHidden) R.string.overlay_show else R.string.overlay_hide),
@@ -141,7 +144,7 @@ fun ActiveRouteScreen(
                         stringResource(R.string.active_then_label),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 8.dp),
+                        modifier = Modifier.ref(75).padding(start = 4.dp, end = 4.dp, top = 8.dp),
                     )
                 }
             }
@@ -152,19 +155,19 @@ fun ActiveRouteScreen(
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             ButtonRow {
                 BigButton(
-                    stringResource(R.string.overlay_back), onPreviousTrip, Modifier.weight(1f),
+                    stringResource(R.string.overlay_back), onPreviousTrip, Modifier.ref(77).weight(1.3f),
                     icon = R.drawable.ic_previous, primary = false, enabled = route.completed.isNotEmpty(), minHeight = 96.dp,
                 )
-                BigButton(stringResource(R.string.btn_next), onNext, Modifier.weight(2f), icon = R.drawable.ic_next, minHeight = 96.dp)
+                BigButton(stringResource(R.string.btn_next), onNext, Modifier.ref(78).weight(2f), icon = R.drawable.ic_next, minHeight = 96.dp)
             }
             ButtonRow {
-                BigButton(stringResource(R.string.btn_repeat), onRepeat, Modifier.weight(1f), icon = R.drawable.ic_repeat, primary = false)
-                BigButton(stringResource(R.string.btn_open_maps), onOpenMaps, Modifier.weight(1f), icon = R.drawable.ic_navigation, primary = false)
+                BigButton(stringResource(R.string.btn_repeat), onRepeat, Modifier.ref(79).weight(1f), icon = R.drawable.ic_repeat, primary = false)
+                BigButton(stringResource(R.string.btn_open_maps), onOpenMaps, Modifier.ref(80).weight(1f), icon = R.drawable.ic_navigation, primary = false)
             }
             ButtonRow {
-                BigButton(stringResource(R.string.btn_edit_list), onEdit, Modifier.weight(1f), icon = R.drawable.ic_edit, primary = false)
+                BigButton(stringResource(R.string.btn_edit_list), onEdit, Modifier.ref(81).weight(1f), icon = R.drawable.ic_edit, primary = false)
                 BigButton(
-                    stringResource(R.string.btn_end), { confirmEnd = true }, Modifier.weight(1f),
+                    stringResource(R.string.btn_end), { confirmEnd = true }, Modifier.ref(82).weight(1f),
                     icon = R.drawable.ic_stop, primary = false, contentColor = MaterialTheme.colorScheme.error,
                 )
             }
@@ -175,8 +178,8 @@ fun ActiveRouteScreen(
             onDismissRequest = { confirmEnd = false },
             title = { Text(stringResource(R.string.confirm_end_title)) },
             text = { Text(stringResource(R.string.confirm_end_text)) },
-            confirmButton = { TextButton(onClick = { confirmEnd = false; onEnd() }) { Text(stringResource(R.string.btn_end)) } },
-            dismissButton = { TextButton(onClick = { confirmEnd = false }) { Text(stringResource(R.string.cancel)) } },
+            confirmButton = { TextButton(onClick = { confirmEnd = false; onEnd() }, modifier = Modifier.ref(83)) { Text(stringResource(R.string.btn_end)) } },
+            dismissButton = { TextButton(onClick = { confirmEnd = false }, modifier = Modifier.ref(84)) { Text(stringResource(R.string.cancel)) } },
         )
     }
 }
@@ -186,7 +189,7 @@ fun ActiveRouteScreen(
 private fun CompletedRow(stop: Stop, area: String) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().alpha(0.45f).padding(horizontal = 6.dp, vertical = 2.dp),
+        modifier = Modifier.ref(67).fillMaxWidth().alpha(0.45f).padding(horizontal = 6.dp, vertical = 2.dp),
     ) {
         Icon(painterResource(R.drawable.ic_located), contentDescription = null, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(6.dp))
@@ -212,6 +215,7 @@ private fun StreetBar(street: StreetInfo?, onSpeak: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
+            .ref(65)
             .clip(RoundedCornerShape(14.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .padding(start = 14.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
@@ -232,7 +236,7 @@ private fun StreetBar(street: StreetInfo?, onSpeak: () -> Unit) {
                 Text(street.area, style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Content), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        IconButton(onClick = onSpeak, enabled = street?.spoken != null, modifier = Modifier.size(TouchTarget)) {
+        IconButton(onClick = onSpeak, enabled = street?.spoken != null, modifier = Modifier.ref(66).size(TouchTarget)) {
             Icon(painterResource(R.drawable.ic_speaker), contentDescription = stringResource(R.string.overlay_speak_street_desc), modifier = Modifier.size(28.dp))
         }
     }
@@ -265,7 +269,7 @@ private fun TimeStatusChip(time: String, nowMs: Long) {
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.Bold,
         color = Color.Black,
-        modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(color).padding(horizontal = 10.dp, vertical = 2.dp),
+        modifier = Modifier.ref(70).clip(RoundedCornerShape(10.dp)).background(color).padding(horizontal = 10.dp, vertical = 2.dp),
     )
 }
 
@@ -274,6 +278,7 @@ private fun CurrentCard(current: Stop, area: String, status: String, arrivedAtMs
     val nowMs = rememberNowMs()
     Column(
         Modifier
+            .ref(68)
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
             .background(MaterialTheme.colorScheme.primaryContainer)
@@ -281,7 +286,7 @@ private fun CurrentCard(current: Stop, area: String, status: String, arrivedAtMs
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (current.time != null) {
-                Text(current.time, style = MaterialTheme.typography.headlineMedium, color = Amber)
+                Text(current.time, style = MaterialTheme.typography.headlineMedium, color = Amber, modifier = Modifier.ref(69))
                 Spacer(Modifier.width(12.dp))
             }
             Text(
@@ -296,6 +301,7 @@ private fun CurrentCard(current: Stop, area: String, status: String, arrivedAtMs
             area,
             style = MaterialTheme.typography.displaySmall.copy(textDirection = TextDirection.Content),
             color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.ref(71),
         )
         Spacer(Modifier.height(4.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -310,16 +316,18 @@ private fun CurrentCard(current: Stop, area: String, status: String, arrivedAtMs
                 current.displayText,
                 style = MaterialTheme.typography.titleLarge.copy(textDirection = TextDirection.Content),
                 color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.ref(72),
             )
         }
         Spacer(Modifier.height(6.dp))
-        Text(status, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+        Text(status, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.ref(73))
         if (arrivedAtMs != null) {
             Text(
                 stringResource(R.string.wait_at_stop, TimeLabels.duration(nowMs - arrivedAtMs)),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = Amber,
+                modifier = Modifier.ref(74),
             )
         }
     }
@@ -330,6 +338,7 @@ private fun UpcomingRow(index: Int, stop: Stop, area: String) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
+            .ref(76)
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(MaterialTheme.colorScheme.surfaceContainer)

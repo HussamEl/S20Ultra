@@ -65,9 +65,11 @@ class DisplayFeaturesRoboTest {
         assertTrue(d.active)
         assertNull(d.previous)
         assertEquals("12:30", d.current?.time)
-        assertEquals("Karlstad", d.current?.title)
-        assertEquals(listOf("Storfors", "Hammarö", "Kil"), d.upcoming.map { it.title })
-        assertNull("area only by default", d.current?.subtitle)
+        // Street address with the house number (default since 1.4.0), the area under it.
+        assertEquals("Storgatan 14", d.current?.title)
+        assertEquals("Karlstad", d.current?.subtitle)
+        assertEquals(listOf("Järnvägsgatan 3B", "Björkvägen 7", "Kungsgatan 5"), d.upcoming.map { it.title })
+        assertEquals(listOf("Storfors", "Hammarö", "Kil"), d.upcoming.map { it.subtitle })
         assertEquals("Nästa stopp: Karlstad. Därefter: Storfors.", d.announcementSv)
 
         c.next()
@@ -75,15 +77,16 @@ class DisplayFeaturesRoboTest {
         val r = c.route.value!!
         assertEquals(listOf("12:30"), r.completed.map { it.time })
         d = c.display.value
-        assertEquals("Karlstad", d.previous?.title)
+        assertEquals("Storgatan 14", d.previous?.title)
         assertEquals("12:30", d.previous?.time)
-        assertEquals("Storfors", d.current?.title)
-        assertEquals(listOf("Hammarö", "Kil", "Grums"), d.upcoming.map { it.title })
+        assertEquals("Järnvägsgatan 3B", d.current?.title)
+        assertEquals(listOf("Björkvägen 7", "Kungsgatan 5", "Lindvägen 9"), d.upcoming.map { it.title })
 
-        app.graph.settings.update { it.copy(displayFullAddress = true) }
-        idle()
-        assertEquals("Järnvägsgatan 3B, 688 30 Storfors", c.display.value.current?.subtitle)
+        // Area only, when the driver turns the address off.
         app.graph.settings.update { it.copy(displayFullAddress = false) }
+        idle()
+        assertEquals("Storfors", c.display.value.current?.title)
+        assertNull(c.display.value.current?.subtitle)
         c.end()
     }
 

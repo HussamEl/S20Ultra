@@ -92,7 +92,7 @@
     <string name="voice_ready">Ready ✓</string>
     <string name="voice_missing">Missing – tap to install</string>
     <string name="voice_checking">Checking…</string>
-    <string name="settings_privacy_note">Privacy: the app has no internet permission. Images are read on the phone only and never stored. The route list is deleted when the route ends, when you clear, or after 12 hours. Finished trips stay in the history on the Home screen for the chosen time (12 hours by default) and are then deleted automatically; you can clear them any time.</string>
+    <string name="settings_privacy_note">Privacy: images are read on the phone only and never stored. Only times and addresses are kept; the route list is deleted when the route ends, when you clear, or after 12 hours, and finished trips stay in the history for the chosen time (12 hours by default). The app uses the internet only to show your YouDrive page and sends no data anywhere itself; no analytics. The YouDrive login stays on this phone and can be deleted.</string>
     <string name="settings_version">Version %1$s · %2$s</string>
 
     <string name="help_title">Help</string>
@@ -158,8 +158,8 @@
     <string name="link_bt_off">Bluetooth is off – tap to turn on</string>
     <string name="link_no_bt">This device has no Bluetooth</string>
     <string name="link_hint">Pair the phone and the tablet once in Bluetooth settings. Enable this on the driver\'s device, then choose it on the tablet.</string>
-    <string name="display_full_address">Show the full address on the passenger display</string>
-    <string name="display_full_address_hint">Off = only the area is shown (passenger privacy).</string>
+    <string name="display_full_address">Show the street address on the passenger display</string>
+    <string name="display_full_address_hint">The street with the house number is shown large, the area under it. Off = only the area.</string>
     <string name="display_speaks">Also speak announcements on this device</string>
     <string name="display_choose_device">Choose the driver\'s device</string>
     <string name="display_no_paired">No paired devices. Pair the devices in Bluetooth settings first.</string>
@@ -220,4 +220,42 @@
     <string name="home_overlay_add_tile">Add the \"Floating button\" tile to Quick Settings</string>
     <string name="home_overlay_tile_added">Tile added – pull down the notification shade to find it</string>
     <string name="home_overlay_restore_hint">To bring the button back quickly after closing it: tap the \"Floating button closed\" notification, the Quick Settings tile, or this switch.</string>
+    <string name="settings_explain_arabic">Explanations in Arabic</string>
+    <string name="settings_explain_arabic_hint">Buttons in English, explanations and instructions in Arabic. Turn off when set-up is finished.</string>
+    <string name="settings_ref_numbers">Reference numbers on buttons</string>
+    <string name="settings_ref_numbers_hint">A small translucent number on every button, switch and piece of information (in the app and on the floating button), so you can refer to it by number. The full list is in the README.</string>
+    <string name="help_refs_title">Reference numbers</string>
+    <string name="help_refs_body">Every button, switch and piece of information has a small translucent number in its corner. To ask for a change, just give the number, e.g. \"change 78\".\n• 1–17: the floating button.\n• 20–39: Home.\n• 40–60: review list.\n• 61–84: route screen.\n• 86–95: passenger display.\n• 100–125: Settings.\n• 140–152: YouDrive.\n• 160–179: help and voice.\n• 180–190: first start.\n• 191–199: tablet as passenger display.\nThe numbers can be hidden in Settings (105).</string>
+    <string name="help_youdrive_title">YouDrive trip alerts</string>
+    <string name="help_youdrive_body">1. On Home tap the \"YouDrive\" card (25).\n2. Log in to YouDrive inside the app once (BankID or password) and open the trips page.\n3. Switch on watching (142).\nThe app reads the page every minute (times and addresses only, no names) and reloads it every 5 minutes. When a trip is added or cancelled you get a notification with sound and vibration, also while Maps is in front. Tap it and choose \"Add to list\" or \"Remove from list\" to update the route.\nA trip that disappears more than 5 minutes after its time counts as done, not cancelled.\nIf YouDrive logs you out, the card and the notification say so; open the page and log in again.</string>
+    <string name="channel_trips">Trip changes (YouDrive)</string>
+    <string name="channel_watch">YouDrive watching</string>
+    <string name="youdrive_watching_title">Watching YouDrive</string>
+    <string name="youdrive_status_off">Not watching</string>
+    <string name="youdrive_status_loading">Opening the page…</string>
+    <string name="youdrive_status_watching">Trips: %1$d · checked %2$s</string>
+    <string name="youdrive_status_no_trips">No trips on the page · checked %1$s</string>
+    <string name="youdrive_status_logged_out">Logged out – open YouDrive and log in</string>
+    <string name="trip_added_title">New trip %1$s</string>
+    <string name="trip_cancelled_title">Trip cancelled %1$s</string>
+    <string name="trip_added_short">YouDrive: new trip</string>
+    <string name="trip_cancelled_short">YouDrive: trip cancelled</string>
+    <string name="trip_changes_many">Changes in YouDrive: %1$d</string>
+    <string name="youdrive_title">YouDrive</string>
+    <string name="youdrive_reload">Reload the page</string>
+    <string name="youdrive_logout">Log out of YouDrive</string>
+    <string name="youdrive_logout_text">The YouDrive login and everything the page stored are deleted from this phone.</string>
+    <string name="youdrive_watch">Watch for added / cancelled trips</string>
+    <string name="youdrive_import_all">Add all trips (%1$d)</string>
+    <string name="youdrive_read_now">Check now</string>
+    <string name="youdrive_hint">Log in here once and open the trips page, then switch on watching. The app reads only times and addresses every minute and alerts you with a sound when a trip is added or cancelled, also while Maps is in front.</string>
+    <string name="youdrive_add">Add to list</string>
+    <string name="youdrive_remove">Remove from list</string>
+    <string name="youdrive_dismiss">Dismiss</string>
+    <string name="youdrive_card_title">YouDrive – trip alerts</string>
+    <string name="youdrive_card_off">Off – tap to open YouDrive</string>
+    <string name="youdrive_card_changes">Changes to check: %1$d</string>
+    <string name="youdrive_nothing_new">All trips are already in the list</string>
+    <string name="youdrive_applied">List updated</string>
+    <string name="youdrive_not_in_list">That trip is not in the list</string>
 </resources>

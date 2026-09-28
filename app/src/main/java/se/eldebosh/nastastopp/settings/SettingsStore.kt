@@ -18,8 +18,12 @@ enum class DeviceRole {
 }
 
 data class AppSettings(
-    /** "ar" (default), "sv" or "en". */
-    val uiLanguage: String = "ar",
+    /** "en" (default since 1.4.0), "ar" or "sv". */
+    val uiLanguage: String = "en",
+    /** Explanations (hints, help, onboarding) in Arabic whatever the UI language (during set-up). */
+    val explanationsArabic: Boolean = true,
+    /** Small reference numbers on every control, so the driver can point at one by number. */
+    val showRefNumbers: Boolean = true,
     val detail: AnnouncementDetail = AnnouncementDetail.DISTRICT,
     val englishRepeat: Boolean = false,
     val speechRate: Float = 0.9f,
@@ -28,8 +32,8 @@ data class AppSettings(
     val role: DeviceRole = DeviceRole.CONTROLLER,
     /** Controller: accept passenger displays over Bluetooth. */
     val displayLinkEnabled: Boolean = false,
-    /** Passenger display shows the full address under the area name (off = area only, private). */
-    val displayFullAddress: Boolean = false,
+    /** Passenger display shows the street address with the house number (off = area only). */
+    val displayFullAddress: Boolean = true,
     /** Display role: also speak announcements on this device. */
     val displaySpeaks: Boolean = false,
     /** Display role: Bluetooth address of the controller device to connect to. */
@@ -40,11 +44,15 @@ data class AppSettings(
     val overlayMinimized: Boolean = false,
     /** How long finished trips stay in the history on the Home screen (12 h, 24 h or 7 days). */
     val historyRetentionHours: Int = 12,
+    /** Keep the YouDrive page open in the background and alert when trips are added or cancelled. */
+    val youDriveWatch: Boolean = false,
+    /** Reload the YouDrive page every N minutes while watching (0 = never). */
+    val youDriveReloadMin: Int = 5,
 )
 
 /** Small settings store on SharedPreferences (no addresses are ever stored here). */
 class SettingsStore(context: Context) {
-    private val prefs: SharedPreferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private val prefs: SharedPreferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).also { migrate(it) }
     private val _state = MutableStateFlow(read())
     val state: StateFlow<AppSettings> = _state.asStateFlow()
     val current: AppSettings get() = _state.value
@@ -66,6 +74,10 @@ class SettingsStore(context: Context) {
             putBoolean(K_OVERLAY_HIDDEN, next.overlayHidden)
             putBoolean(K_OVERLAY_MIN, next.overlayMinimized)
             putInt(K_HISTORY_HOURS, next.historyRetentionHours)
+            putBoolean(K_EXPLAIN_AR, next.explanationsArabic)
+            putBoolean(K_REF_NUMBERS, next.showRefNumbers)
+            putBoolean(K_YD_WATCH, next.youDriveWatch)
+            putInt(K_YD_RELOAD, next.youDriveReloadMin)
         }
         _state.value = next
     }
@@ -78,7 +90,11 @@ class SettingsStore(context: Context) {
     fun setOverlayPosition(x: Int, y: Int) = prefs.edit { putInt(K_OX, x); putInt(K_OY, y) }
 
     private fun read() = AppSettings(
-        uiLanguage = prefs.getString(K_LANG, "ar") ?: "ar",
+        uiLanguage = prefs.getString(K_LANG, DEFAULT_LANGUAGE) ?: DEFAULT_LANGUAGE,
+        explanationsArabic = prefs.getBoolean(K_EXPLAIN_AR, true),
+        showRefNumbers = prefs.getBoolean(K_REF_NUMBERS, true),
+        youDriveWatch = prefs.getBoolean(K_YD_WATCH, false),
+        youDriveReloadMin = prefs.getInt(K_YD_RELOAD, 5),
         detail = runCatching { AnnouncementDetail.valueOf(prefs.getString(K_DETAIL, null) ?: "") }
             .getOrDefault(AnnouncementDetail.DISTRICT),
         englishRepeat = prefs.getBoolean(K_EN, false),
@@ -87,7 +103,7 @@ class SettingsStore(context: Context) {
         onboardingDone = prefs.getBoolean(K_ONBOARD, false),
         role = runCatching { DeviceRole.valueOf(prefs.getString(K_ROLE, null) ?: "") }.getOrDefault(DeviceRole.CONTROLLER),
         displayLinkEnabled = prefs.getBoolean(K_LINK, false),
-        displayFullAddress = prefs.getBoolean(K_FULL_ADDR, false),
+        displayFullAddress = prefs.getBoolean(K_FULL_ADDR, true),
         displaySpeaks = prefs.getBoolean(K_DISPLAY_SPEAKS, false),
         displayControllerAddress = prefs.getString(K_CONTROLLER, null),
         overlayHidden = prefs.getBoolean(K_OVERLAY_HIDDEN, false),
@@ -113,9 +129,43 @@ class SettingsStore(context: Context) {
         private const val K_HISTORY_HOURS = "history_retention_hours"
         private const val K_OX = "overlay_x"
         private const val K_OY = "overlay_y"
+        private const val K_EXPLAIN_AR = "explanations_arabic"
+        private const val K_REF_NUMBERS = "show_ref_numbers"
+        private const val K_YD_WATCH = "youdrive_watch"
+        private const val K_YD_RELOAD = "youdrive_reload_min"
+        private const val K_SCHEMA = "settings_schema"
+        private const val SCHEMA = 2
+        private const val DEFAULT_LANGUAGE = "en"
+
+        /**
+         * True when this process switched the stored language to English (1.4.0 upgrade), so the
+         * app replaces the old per-app system language instead of adopting it.
+         */
+        @Volatile
+        var languageMigrated = false
+            private set
+
+        /**
+         * 1.4.0: the app UI becomes English (the driver's request; explanations stay Arabic via
+         * [AppSettings.explanationsArabic]) and the passenger display shows the street address.
+         */
+        @Synchronized
+        private fun migrate(prefs: SharedPreferences) {
+            if (prefs.getInt(K_SCHEMA, 0) >= SCHEMA) return
+            val existing = prefs.contains(K_LANG)
+            prefs.edit(commit = true) {
+                putString(K_LANG, DEFAULT_LANGUAGE)
+                putBoolean(K_FULL_ADDR, true)
+                putInt(K_SCHEMA, SCHEMA)
+            }
+            languageMigrated = existing
+        }
 
         /** Read synchronously in attachBaseContext (before the Application graph is needed). */
-        fun readLanguage(context: Context): String =
-            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(K_LANG, "ar") ?: "ar"
+        fun readLanguage(context: Context): String {
+            val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            migrate(prefs)
+            return prefs.getString(K_LANG, DEFAULT_LANGUAGE) ?: DEFAULT_LANGUAGE
+        }
     }
 }

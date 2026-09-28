@@ -8,7 +8,8 @@ import android.os.LocaleList
 import java.util.Locale
 
 /**
- * In-app UI language (Arabic by default, RTL) regardless of the phone's language.
+ * In-app UI language (English by default since 1.4.0; Arabic RTL and Swedish available)
+ * regardless of the phone's language.
  * Android 13+: per-app language via LocaleManager (covers activities, services, notifications).
  * In addition (and on Android 10–12) the Application and Activity base contexts are wrapped with
  * the same language, which is a no-op when the system already applied it.
@@ -16,7 +17,7 @@ import java.util.Locale
 object LocaleHelper {
     val SUPPORTED = listOf("ar", "sv", "en")
 
-    private fun normalize(language: String) = language.takeIf { it in SUPPORTED } ?: "ar"
+    private fun normalize(language: String) = language.takeIf { it in SUPPORTED } ?: "en"
 
     fun wrap(base: Context, language: String): Context {
         // Android 13+: a per-app locale chosen in system settings (or set by us) wins.
@@ -24,6 +25,19 @@ object LocaleHelper {
         val locale = Locale.forLanguageTag(lang)
         val current = base.resources.configuration.locales[0]
         if (current != null && current.language == locale.language) return base
+        val config = Configuration(base.resources.configuration)
+        config.setLocale(locale)
+        config.setLayoutDirection(locale)
+        return base.createConfigurationContext(config)
+    }
+
+    /** Explanation texts are shown in Arabic while the app is being set up (setting). */
+    fun explanationContext(base: Context, uiLanguage: String, explanationsArabic: Boolean): Context =
+        if (explanationsArabic && uiLanguage != "ar") localized(base, "ar") else base
+
+    /** A context with [language] resources, whatever the app language. */
+    fun localized(base: Context, language: String): Context {
+        val locale = Locale.forLanguageTag(language)
         val config = Configuration(base.resources.configuration)
         config.setLocale(locale)
         config.setLayoutDirection(locale)

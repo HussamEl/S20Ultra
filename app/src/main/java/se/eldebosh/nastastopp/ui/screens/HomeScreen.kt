@@ -22,6 +22,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import se.eldebosh.nastastopp.R
+import androidx.compose.runtime.ReadOnlyComposable
+import se.eldebosh.nastastopp.ui.ref
+import se.eldebosh.nastastopp.ui.explain
+import se.eldebosh.nastastopp.ui.Hint
 import se.eldebosh.nastastopp.route.model.RouteData
 import se.eldebosh.nastastopp.route.HistoryEntry
 import se.eldebosh.nastastopp.ui.SectionTitle
@@ -76,6 +80,8 @@ fun HomeScreen(
     history: List<HistoryEntry>,
     historyRetentionHours: Int,
     onClearHistory: () -> Unit,
+    /** The YouDrive card (trip-change alerts), number 25. */
+    youDrive: @Composable () -> Unit = {},
 ) {
     var confirmClear by remember { mutableStateOf(false) }
     var confirmClearHistory by remember { mutableStateOf(false) }
@@ -85,7 +91,7 @@ fun HomeScreen(
     ) {
         Spacer(Modifier.height(12.dp))
         Text(stringResource(R.string.app_name), style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.primary)
-        Text(stringResource(R.string.home_subtitle), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Hint(R.string.home_subtitle, Modifier.ref(20), style = MaterialTheme.typography.bodyLarge)
         Spacer(Modifier.height(8.dp))
 
         if (ttsStatus == TtsStatus.MISSING_DATA || ttsStatus == TtsStatus.NOT_SUPPORTED || ttsStatus == TtsStatus.ERROR) {
@@ -94,7 +100,7 @@ fun HomeScreen(
                 onClick = onTtsMissing,
                 icon = R.drawable.ic_speaker,
                 containerColor = NotLocated,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.ref(21).fillMaxWidth(),
             )
         }
 
@@ -103,7 +109,7 @@ fun HomeScreen(
                 text = stringResource(R.string.home_resume),
                 onClick = onResume,
                 icon = R.drawable.ic_navigation,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.ref(22).fillMaxWidth(),
                 minHeight = 80.dp,
             )
         } else if (route != null && route.stops.isNotEmpty()) {
@@ -111,7 +117,7 @@ fun HomeScreen(
                 text = stringResource(R.string.home_resume_draft),
                 onClick = onReview,
                 icon = R.drawable.ic_edit,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.ref(22).fillMaxWidth(),
                 minHeight = 80.dp,
             )
         }
@@ -122,24 +128,25 @@ fun HomeScreen(
             icon = R.drawable.ic_images,
             enabled = !importing,
             primary = route == null || route.stops.isEmpty(),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.ref(23).fillMaxWidth(),
             minHeight = 80.dp,
         )
-        Text(stringResource(R.string.home_share_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Hint(R.string.home_share_hint, Modifier.ref(24), style = MaterialTheme.typography.bodyMedium)
 
-        LinkCard(link, onToggleLink, onFixLink)
+        youDrive()
+        LinkCard(link, onToggleLink, onFixLink, cardRef = 26, switchRef = 27)
         OverlayCard(overlayPermission, overlayHidden, onOverlayVisible, onOverlayPermission, onAddTile)
 
         ButtonRow {
-            BigButton(stringResource(R.string.home_settings), onSettings, Modifier.weight(1f), icon = R.drawable.ic_settings, primary = false)
-            BigButton(stringResource(R.string.home_help), onHelp, Modifier.weight(1f), icon = R.drawable.ic_help, primary = false)
+            BigButton(stringResource(R.string.home_settings), onSettings, Modifier.ref(31).weight(1f), icon = R.drawable.ic_settings, primary = false)
+            BigButton(stringResource(R.string.home_help), onHelp, Modifier.ref(32).weight(1f), icon = R.drawable.ic_help, primary = false)
         }
         BigButton(
             text = stringResource(R.string.switch_to_display),
             onClick = onUseAsDisplay,
             icon = R.drawable.ic_display,
             primary = false,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.ref(33).fillMaxWidth(),
         )
         if (route != null) {
             BigButton(
@@ -148,7 +155,7 @@ fun HomeScreen(
                 icon = R.drawable.ic_delete,
                 primary = false,
                 contentColor = MaterialTheme.colorScheme.error,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.ref(34).fillMaxWidth(),
             )
         }
 
@@ -180,7 +187,7 @@ fun HomeScreen(
 
 /** Passenger display link (Bluetooth): on/off switch and its status. */
 @Composable
-fun LinkCard(link: DisplayLinkServer.State, onToggle: (Boolean) -> Unit, onFix: () -> Unit) {
+fun LinkCard(link: DisplayLinkServer.State, onToggle: (Boolean) -> Unit, onFix: () -> Unit, cardRef: Int, switchRef: Int) {
     val on = link.status != DisplayLinkServer.Status.OFF
     val needsFix = link.status == DisplayLinkServer.Status.NO_PERMISSION || link.status == DisplayLinkServer.Status.BLUETOOTH_OFF
     val status = when (link.status) {
@@ -194,6 +201,7 @@ fun LinkCard(link: DisplayLinkServer.State, onToggle: (Boolean) -> Unit, onFix: 
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
+            .ref(cardRef)
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
             .background(MaterialTheme.colorScheme.surfaceContainer)
@@ -215,13 +223,13 @@ fun LinkCard(link: DisplayLinkServer.State, onToggle: (Boolean) -> Unit, onFix: 
                 color = if (needsFix) NotLocated else MaterialTheme.colorScheme.onSurfaceVariant,
             )
             if (link.status == DisplayLinkServer.Status.WAITING) {
-                Text(stringResource(R.string.link_waiting_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Hint(R.string.link_waiting_hint)
                 link.localName?.let {
                     Text(stringResource(R.string.link_device_name, it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
-        Switch(checked = on, onCheckedChange = onToggle)
+        Switch(checked = on, onCheckedChange = onToggle, modifier = Modifier.ref(switchRef))
     }
 }
 
@@ -238,20 +246,16 @@ fun OverlayCard(permission: Boolean, hidden: Boolean, onVisible: (Boolean) -> Un
     }
     Column(
         Modifier
+            .ref(28)
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
             .background(MaterialTheme.colorScheme.surfaceContainer),
     ) {
         OverlaySwitchRow(permission, hidden, status, onVisible, onPermission)
         if (permission) {
-            Text(
-                stringResource(R.string.home_overlay_restore_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp),
-            )
+            Hint(R.string.home_overlay_restore_hint, Modifier.padding(horizontal = 16.dp))
             if (onAddTile != null) {
-                TextButton(onClick = onAddTile, modifier = Modifier.padding(horizontal = 6.dp).heightIn(min = TouchTarget)) {
+                TextButton(onClick = onAddTile, modifier = Modifier.ref(30).padding(horizontal = 6.dp).heightIn(min = TouchTarget)) {
                     Icon(painterResource(R.drawable.ic_tile), contentDescription = null)
                     Spacer(Modifier.width(8.dp))
                     Text(stringResource(R.string.home_overlay_add_tile))
@@ -283,12 +287,13 @@ private fun OverlaySwitchRow(permission: Boolean, hidden: Boolean, status: Strin
             Text(stringResource(R.string.home_overlay_title), style = MaterialTheme.typography.titleMedium)
             Text(status, style = MaterialTheme.typography.bodyMedium, color = if (!permission) NotLocated else MaterialTheme.colorScheme.onSurfaceVariant)
             if (!permission) {
-                Text(stringResource(R.string.home_overlay_restricted_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Hint(R.string.home_overlay_restricted_hint)
             }
         }
         Switch(
             checked = permission && !hidden,
             onCheckedChange = { on -> if (!permission) onPermission() else onVisible(on) },
+            modifier = Modifier.ref(29),
         )
     }
 }
@@ -298,9 +303,10 @@ private fun OverlaySwitchRow(permission: Boolean, hidden: Boolean, status: Strin
 private fun HistorySection(history: List<HistoryEntry>, retentionHours: Int, onClear: () -> Unit) {
     SectionTitle(stringResource(R.string.history_title))
     Text(
-        stringResource(R.string.history_retention_note, retentionLabel(retentionHours)),
-        style = MaterialTheme.typography.bodySmall,
+        explain(R.string.history_retention_note, explainRetention(retentionHours)),
+        style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Content),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.ref(35),
     )
     if (history.isEmpty()) {
         Text(stringResource(R.string.history_empty), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -316,6 +322,7 @@ private fun HistorySection(history: List<HistoryEntry>, retentionHours: Int, onC
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
+                    .ref(36)
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
                     .background(MaterialTheme.colorScheme.surfaceContainer)
@@ -326,6 +333,7 @@ private fun HistorySection(history: List<HistoryEntry>, retentionHours: Int, onC
                     e.time ?: "--:--",
                     style = MaterialTheme.typography.titleMedium,
                     color = if (e.time != null) Amber else MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.ref(37),
                 )
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
@@ -343,6 +351,7 @@ private fun HistorySection(history: List<HistoryEntry>, retentionHours: Int, onC
                     if (e.done) "✓ $finished" else stringResource(R.string.history_not_completed),
                     style = MaterialTheme.typography.labelMedium,
                     color = if (e.done) Located else NotLocated,
+                    modifier = Modifier.ref(38),
                 )
             }
         }
@@ -353,8 +362,17 @@ private fun HistorySection(history: List<HistoryEntry>, retentionHours: Int, onC
         icon = R.drawable.ic_delete,
         primary = false,
         contentColor = MaterialTheme.colorScheme.error,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.ref(39).fillMaxWidth(),
     )
+}
+
+/** Retention period in the explanation language (see [explain]). */
+@Composable
+@ReadOnlyComposable
+private fun explainRetention(hours: Int): String = when (hours) {
+    24 -> explain(R.string.retention_24h)
+    168 -> explain(R.string.retention_7d)
+    else -> explain(R.string.retention_12h)
 }
 
 @Composable

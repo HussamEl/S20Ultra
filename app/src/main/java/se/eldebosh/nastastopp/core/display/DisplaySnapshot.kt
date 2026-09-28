@@ -8,16 +8,21 @@ import se.eldebosh.nastastopp.core.route.Announcement
 data class DisplayItem(
     /** Scheduled time ("12:48") or null. */
     val time: String? = null,
-    /** Area / town name (the same name that is spoken). */
+    /** Street address with the house number ("Storgatan 14"), or the area name if the driver turned that off. */
     val title: String,
-    /** Full address, only when the driver allows it (setting); otherwise null. */
+    /** Area / town name under the address (null when the title already is the area). */
     val subtitle: String? = null,
-)
+) {
+    companion object {
+        /** "Storgatan 14, 652 24 Karlstad" → "Storgatan 14" (the part before the first comma). */
+        fun streetPart(address: String): String = address.substringBefore(',').trim().ifEmpty { address.trim() }
+    }
+}
 
 /**
  * Everything the passenger display shows — and the only route data that is ever sent to a
- * second device: one previous trip, the next destination, three upcoming trips and the current
- * announcement text (area names only).
+ * second device: one previous trip, the next destination, three upcoming trips (address and
+ * area) and the current announcement text (area names only).
  */
 @Serializable
 data class DisplaySnapshot(

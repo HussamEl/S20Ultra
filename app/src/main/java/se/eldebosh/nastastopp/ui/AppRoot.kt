@@ -59,6 +59,10 @@ import se.eldebosh.nastastopp.ui.screens.TtsMissingScreen
 import se.eldebosh.nastastopp.util.LocaleHelper
 import se.eldebosh.nastastopp.util.SystemIntents
 import se.eldebosh.nastastopp.overlay.OverlayTileService
+import se.eldebosh.nastastopp.ui.screens.YouDriveCard
+import se.eldebosh.nastastopp.ui.screens.YouDriveScreen
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
 import android.widget.Toast
 
 private const val MAX_PICK = 30
@@ -83,6 +87,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
     val linkServer by graph.displayServer.state.collectAsStateWithLifecycle()
     val history by graph.history.entries.collectAsStateWithLifecycle()
     val street by graph.street.state.collectAsStateWithLifecycle()
+    val youDrive by graph.youDrive.state.collectAsStateWithLifecycle()
     val importing = importState is ImportUi.Running
     val snackbar = remember { SnackbarHostState() }
     var resumeTick by remember { mutableIntStateOf(0) }
@@ -159,6 +164,14 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
 
     BackHandler(enabled = stack.size > 1) { vm.back() }
 
+    // Reference numbers on/off; explanation texts in Arabic while the app is being set up.
+    SideEffect { RefNumbers.enabled = settings.showRefNumbers }
+    val explainResources = remember(settings.explanationsArabic, settings.uiLanguage, resources) {
+        LocaleHelper.explanationContext(context, settings.uiLanguage, settings.explanationsArabic)
+            .takeIf { it !== context }?.resources
+    }
+
+    CompositionLocalProvider(LocalExplainResources provides explainResources) {
     Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize().safeDrawingPadding()) {
             Column(Modifier.fillMaxSize()) {
@@ -215,6 +228,26 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             history = history,
                             historyRetentionHours = settings.historyRetentionHours,
                             onClearHistory = { graph.history.clear() },
+                            youDrive = { YouDriveCard(youDrive, settings.youDriveWatch) { vm.openYouDrive() } },
+                        )
+                        Screen.YOUDRIVE -> YouDriveScreen(
+                            state = youDrive,
+                            watching = settings.youDriveWatch,
+                            webView = { ctx -> graph.youDrive.attach(ctx) },
+                            onReleaseWebView = { graph.youDrive.detach() },
+                            onBack = { vm.back() },
+                            onWatch = { on ->
+                                if (on && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !SystemIntents.hasNotifications(context)) {
+                                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                }
+                                vm.setYouDriveWatch(on)
+                            },
+                            onReload = { graph.youDrive.reload() },
+                            onReadNow = { graph.youDrive.readNow() },
+                            onImportAll = { vm.importYouDriveTrips() },
+                            onApply = { vm.applyYouDriveChange(it) },
+                            onDismiss = { graph.youDrive.dismiss(it.id) },
+                            onLogout = { graph.youDrive.logout() },
                         )
                         Screen.REVIEW -> ReviewScreen(
                             route = route,
@@ -390,12 +423,13 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             modifier = Modifier.padding(top = 10.dp),
                         )
                     }
-                    Text(stringResource(R.string.import_failed_hint), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 10.dp))
+                    Hint(R.string.import_failed_hint, Modifier.padding(top = 10.dp), style = MaterialTheme.typography.bodyMedium)
                 }
             },
             confirmButton = {
                 TextButton(onClick = { vm.dismissImportError() }) { Text(stringResource(R.string.ok)) }
             },
         )
+    }
     }
 }

@@ -24,6 +24,7 @@ import se.eldebosh.nastastopp.service.RouteNotifier
 import se.eldebosh.nastastopp.settings.SettingsStore
 import se.eldebosh.nastastopp.tts.Announcer
 import se.eldebosh.nastastopp.util.LocaleHelper
+import se.eldebosh.nastastopp.youdrive.YouDriveWatcher
 
 /** Manual dependency graph (no DI framework). Created once per process. */
 class AppGraph(app: Application) {
@@ -59,6 +60,11 @@ class AppGraph(app: Application) {
         }
     }
 
+    /** The driver's YouDrive page, watched for added / cancelled trips (alerts as notifications). */
+    val youDrive = YouDriveWatcher(app, settings, extractor) { changes ->
+        Notifications.postTripChanges(app, changes.map { it.id to it.change })
+    }
+
     init {
         // The current street is only kept while a route is active.
         scope.launch { controller.route.collect { if (it?.active != true) street.reset() } }
@@ -77,9 +83,12 @@ class App : Application() {
         super.onCreate()
         instance = this
         graph = AppGraph(this)
-        // Keep the stored UI language in sync with a per-app language chosen in system settings.
-        LocaleHelper.systemPerAppLanguage(this)?.let { sys ->
-            if (sys != graph.settings.current.uiLanguage) graph.settings.update { it.copy(uiLanguage = sys) }
+        // Keep the stored UI language in sync with a per-app language chosen in system settings
+        // (except right after the 1.4.0 switch to English, which replaces the old system choice).
+        if (!SettingsStore.languageMigrated) {
+            LocaleHelper.systemPerAppLanguage(this)?.let { sys ->
+                if (sys != graph.settings.current.uiLanguage) graph.settings.update { it.copy(uiLanguage = sys) }
+            }
         }
         LocaleHelper.applyAppLocale(this, graph.settings.current.uiLanguage)
         Notifications.createChannels(this)

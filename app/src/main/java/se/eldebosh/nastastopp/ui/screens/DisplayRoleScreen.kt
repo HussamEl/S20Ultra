@@ -31,6 +31,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import se.eldebosh.nastastopp.R
+import se.eldebosh.nastastopp.ui.ref
+import se.eldebosh.nastastopp.ui.explain
 import se.eldebosh.nastastopp.core.display.DisplaySnapshot
 import se.eldebosh.nastastopp.link.DisplayLinkClient
 import se.eldebosh.nastastopp.link.PairedDevice
@@ -92,61 +94,63 @@ fun DisplayRoleScreen(
         TopBar(
             stringResource(R.string.role_display),
             onBack = if (!blocked) ({ showSetup = false }) else null,
+            backRef = 191,
         )
         Column(
             Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Paragraph(stringResource(R.string.link_hint))
+            Paragraph(explain(R.string.link_hint), Modifier.ref(192))
             when (if (bluetoothReady) link.status else availabilityStatus) {
                 DisplayLinkClient.Status.NO_PERMISSION ->
-                    BigButton(stringResource(R.string.allow_bluetooth), onRequestPermission, Modifier.fillMaxWidth(), icon = R.drawable.ic_bluetooth)
+                    BigButton(stringResource(R.string.allow_bluetooth), onRequestPermission, Modifier.ref(193).fillMaxWidth(), icon = R.drawable.ic_bluetooth)
                 DisplayLinkClient.Status.BLUETOOTH_OFF ->
-                    BigButton(stringResource(R.string.turn_on_bluetooth), onEnableBluetooth, Modifier.fillMaxWidth(), icon = R.drawable.ic_bluetooth)
+                    BigButton(stringResource(R.string.turn_on_bluetooth), onEnableBluetooth, Modifier.ref(193).fillMaxWidth(), icon = R.drawable.ic_bluetooth)
                 DisplayLinkClient.Status.NO_BLUETOOTH ->
                     Text(stringResource(R.string.link_no_bt), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error)
                 else -> Unit
             }
 
             link.lastError?.let {
-                Text(stringResource(R.string.display_last_error, it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.display_last_error, it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.ref(194))
             }
 
             SectionTitle(stringResource(R.string.display_choose_device))
-            DeviceRow(stringResource(R.string.display_auto), settings.displayControllerAddress == null) {
+            DeviceRow(stringResource(R.string.display_auto), settings.displayControllerAddress == null, 195) {
                 showSetup = false
                 onChoose(null)
             }
             if (paired.isEmpty()) {
-                Paragraph(stringResource(R.string.display_no_paired))
+                Paragraph(explain(R.string.display_no_paired))
             }
             paired.forEach { device ->
-                DeviceRow(device.name, device.address == settings.displayControllerAddress) {
+                DeviceRow(device.name, device.address == settings.displayControllerAddress, 196) {
                     showSetup = false
                     onChoose(device.address)
                 }
             }
-            BigButton(stringResource(R.string.open_bt_settings), onOpenBluetoothSettings, Modifier.fillMaxWidth(), icon = R.drawable.ic_settings, primary = false)
+            BigButton(stringResource(R.string.open_bt_settings), onOpenBluetoothSettings, Modifier.ref(197).fillMaxWidth(), icon = R.drawable.ic_settings, primary = false)
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().heightIn(min = TouchTarget).clickable { onToggleSpeaks(!settings.displaySpeaks) },
+                modifier = Modifier.ref(198).fillMaxWidth().heightIn(min = TouchTarget).clickable { onToggleSpeaks(!settings.displaySpeaks) },
             ) {
                 Text(stringResource(R.string.display_speaks), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                 Switch(checked = settings.displaySpeaks, onCheckedChange = onToggleSpeaks)
             }
             Spacer(Modifier.size(8.dp))
-            BigButton(stringResource(R.string.switch_to_controller), onSwitchToController, Modifier.fillMaxWidth(), icon = R.drawable.ic_navigation, primary = false)
+            BigButton(stringResource(R.string.switch_to_controller), onSwitchToController, Modifier.ref(199).fillMaxWidth(), icon = R.drawable.ic_navigation, primary = false)
             Spacer(Modifier.size(24.dp))
         }
     }
 }
 
 @Composable
-private fun DeviceRow(name: String, selected: Boolean, onClick: () -> Unit) {
+private fun DeviceRow(name: String, selected: Boolean, ref: Int, onClick: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
+            .ref(ref)
             .fillMaxWidth()
             .heightIn(min = TouchTarget)
             .clip(RoundedCornerShape(14.dp))

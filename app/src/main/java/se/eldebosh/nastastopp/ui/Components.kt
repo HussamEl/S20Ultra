@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -81,15 +82,24 @@ fun BigButton(
     }
 }
 
-/** Simple top bar (back button + title); mirrored automatically in RTL. */
+/** Simple top bar (back button + title); mirrored automatically in RTL. [backRef] numbers the back arrow. */
 @Composable
-fun TopBar(title: String, onBack: (() -> Unit)?, actions: @Composable RowScope.() -> Unit = {}) {
+fun TopBar(
+    title: String,
+    onBack: (() -> Unit)?,
+    backRef: Int? = null,
+    titleRef: Int? = null,
+    actions: @Composable RowScope.() -> Unit = {},
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().heightIn(min = TouchTarget).padding(horizontal = 4.dp),
     ) {
         if (onBack != null) {
-            IconButton(onClick = onBack, modifier = Modifier.sizeIn(minWidth = TouchTarget, minHeight = TouchTarget)) {
+            IconButton(
+                onClick = onBack,
+                modifier = (if (backRef != null) Modifier.ref(backRef) else Modifier).sizeIn(minWidth = TouchTarget, minHeight = TouchTarget),
+            ) {
                 Icon(painterResource(R.drawable.ic_back), contentDescription = stringResource(R.string.back), modifier = Modifier.size(30.dp))
             }
         } else {
@@ -98,7 +108,7 @@ fun TopBar(title: String, onBack: (() -> Unit)?, actions: @Composable RowScope.(
         Text(
             title,
             style = MaterialTheme.typography.headlineSmall,
-            modifier = Modifier.weight(1f),
+            modifier = (if (titleRef != null) Modifier.ref(titleRef) else Modifier).weight(1f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -124,9 +134,14 @@ fun ButtonRow(content: @Composable RowScope.() -> Unit) {
 @Composable
 fun ColumnGap() = Spacer(Modifier.padding(6.dp))
 
+/** A paragraph of explanation; its direction follows the text (Arabic explanations read right-to-left). */
 @Composable
 fun Paragraph(text: String, modifier: Modifier = Modifier) {
     Column(modifier) {
-        Text(text, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            text,
+            style = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Content),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }

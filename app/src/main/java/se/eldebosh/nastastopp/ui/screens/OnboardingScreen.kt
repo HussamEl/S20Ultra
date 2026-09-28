@@ -32,6 +32,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import se.eldebosh.nastastopp.R
+import se.eldebosh.nastastopp.ui.ref
+import se.eldebosh.nastastopp.ui.Hint
 import se.eldebosh.nastastopp.tts.TtsStatus
 import se.eldebosh.nastastopp.ui.BigButton
 import se.eldebosh.nastastopp.ui.theme.Located
@@ -46,7 +48,7 @@ private enum class Step(@StringRes val title: Int, @StringRes val body: Int, @Dr
     VOICE(R.string.onb_voice_title, R.string.onb_voice_body, R.drawable.ic_speaker),
 }
 
-/** First-run permissions, explained one at a time (Arabic by default). */
+/** First-run permissions, explained one at a time (explanations in Arabic while setting up). */
 @Composable
 fun OnboardingScreen(
     resumeTick: Int,
@@ -83,17 +85,18 @@ fun OnboardingScreen(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text(stringResource(R.string.onb_step, index + 1, steps.size), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(R.string.onb_step, index + 1, steps.size), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.ref(180))
         LinearProgressIndicator(progress = { (index + 1f) / steps.size }, modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(8.dp))
         Icon(painterResource(step.icon), contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(64.dp))
-        Text(stringResource(step.title), style = MaterialTheme.typography.headlineMedium)
-        Text(stringResource(step.body), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(step.title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.ref(181))
+        Hint(step.body, Modifier.ref(182).fillMaxWidth(), style = MaterialTheme.typography.bodyLarge)
         if (granted == true) {
             Text(
                 if (step == Step.VOICE) stringResource(R.string.voice_ready) else stringResource(R.string.onb_granted),
                 style = MaterialTheme.typography.titleMedium,
                 color = Located,
+                modifier = Modifier.ref(183),
             )
         }
         Spacer(Modifier.height(8.dp))
@@ -101,17 +104,17 @@ fun OnboardingScreen(
         when (step) {
             Step.WELCOME -> {
                 // Role: this device controls the route (default) or is a passenger display.
-                BigButton(stringResource(R.string.role_controller), { advance() }, Modifier.fillMaxWidth(), icon = R.drawable.ic_navigation, minHeight = 76.dp)
-                BigButton(stringResource(R.string.role_display), onChooseDisplay, Modifier.fillMaxWidth(), icon = R.drawable.ic_display, primary = false)
-                Text(stringResource(R.string.role_display_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                BigButton(stringResource(R.string.role_controller), { advance() }, Modifier.ref(184).fillMaxWidth(), icon = R.drawable.ic_navigation, minHeight = 76.dp)
+                BigButton(stringResource(R.string.role_display), onChooseDisplay, Modifier.ref(185).fillMaxWidth(), icon = R.drawable.ic_display, primary = false)
+                Hint(R.string.role_display_hint, Modifier.ref(186).fillMaxWidth(), style = MaterialTheme.typography.bodyMedium)
             }
             Step.VOICE -> {
                 if (granted == true) {
-                    BigButton(stringResource(R.string.settings_test_voice), onTestVoice, Modifier.fillMaxWidth(), icon = R.drawable.ic_speaker, primary = false)
+                    BigButton(stringResource(R.string.settings_test_voice), onTestVoice, Modifier.ref(189).fillMaxWidth(), icon = R.drawable.ic_speaker, primary = false)
                 } else {
-                    BigButton(stringResource(R.string.help_voice_button), onVoiceMissing, Modifier.fillMaxWidth(), icon = R.drawable.ic_speaker)
+                    BigButton(stringResource(R.string.help_voice_button), onVoiceMissing, Modifier.ref(189).fillMaxWidth(), icon = R.drawable.ic_speaker)
                 }
-                BigButton(stringResource(R.string.onb_finish), onFinish, Modifier.fillMaxWidth(), minHeight = 76.dp, primary = granted == true)
+                BigButton(stringResource(R.string.onb_finish), onFinish, Modifier.ref(190).fillMaxWidth(), minHeight = 76.dp, primary = granted == true)
             }
             else -> {
                 if (granted != true) {
@@ -129,14 +132,14 @@ fun OnboardingScreen(
                                 Step.OVERLAY -> SystemIntents.openOverlaySettings(context)
                             }
                         },
-                        Modifier.fillMaxWidth(),
+                        Modifier.ref(187).fillMaxWidth(),
                         minHeight = 76.dp,
                     )
                 }
                 BigButton(
                     stringResource(if (granted == true) R.string.next_step else R.string.skip),
                     { advance() },
-                    Modifier.fillMaxWidth(),
+                    Modifier.ref(188).fillMaxWidth(),
                     primary = granted == true,
                 )
             }

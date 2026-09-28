@@ -15,6 +15,8 @@ import kotlinx.coroutines.launch
 import se.eldebosh.nastastopp.App
 import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.settings.DeviceRole
+import se.eldebosh.nastastopp.youdrive.YouDriveService
+import se.eldebosh.nastastopp.youdrive.YouDriveWatcher
 
 enum class Screen {
     ONBOARDING, HOME, REVIEW, ACTIVE, SETTINGS, HELP, TTS_MISSING,
@@ -24,6 +26,9 @@ enum class Screen {
 
     /** This device is a passenger display for another device (Bluetooth). */
     DISPLAY_ROLE,
+
+    /** The driver's YouDrive page, watched for added / cancelled trips. */
+    YOUDRIVE,
 }
 
 sealed interface ImportUi {
@@ -132,6 +137,37 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
             if ((graph.controller.route.value?.stops?.size ?: 0) > 0) showReview()
         }
+    }
+
+    /** Opens the YouDrive screen (from a trip-change notification or the Home card). */
+    fun openYouDrive() {
+        if (graph.settings.current.role != DeviceRole.CONTROLLER) return
+        if (current == Screen.ONBOARDING) resetTo(Screen.HOME)
+        navigate(Screen.YOUDRIVE)
+    }
+
+    /** Switches watching the YouDrive page on or off (the service keeps it running in the background). */
+    fun setYouDriveWatch(on: Boolean) {
+        graph.settings.update { it.copy(youDriveWatch = on) }
+        val app = getApplication<Application>()
+        if (on) YouDriveService.start(app) else YouDriveService.stop(app)
+        graph.youDrive.sync()
+    }
+
+    /** Adds all YouDrive trips that are not in the list yet. */
+    fun importYouDriveTrips() {
+        val stops = graph.youDrive.state.value.trips.mapNotNull { it.stop }
+        val added = graph.controller.importTrips(stops)
+        message(if (added > 0) UiMessage(R.string.import_result, added) else UiMessage(R.string.youdrive_nothing_new))
+        if (added > 0 && !graph.controller.isActive) navigate(Screen.REVIEW)
+    }
+
+    /** Applies one reported change to the list: add the new trip, or remove the cancelled one. */
+    fun applyYouDriveChange(change: YouDriveWatcher.PendingChange) {
+        val stop = change.change.trip.stop ?: return
+        val done = if (change.change.added) graph.controller.insertTrip(stop) else graph.controller.removeTrip(stop)
+        message(UiMessage(if (done) R.string.youdrive_applied else R.string.youdrive_not_in_list))
+        graph.youDrive.dismiss(change.id)
     }
 
     private fun showReview() {
