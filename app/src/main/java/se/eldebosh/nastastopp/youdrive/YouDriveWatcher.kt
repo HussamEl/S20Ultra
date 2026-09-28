@@ -124,6 +124,7 @@ class YouDriveWatcher(
 
             override fun onPageFinished(view: WebView, url: String?) {
                 _canGoBack.value = view.canGoBack()
+                handler.postDelayed({ readNow() }, PAGE_QUICK_MS) // early, to repair a hidden login form
                 handler.postDelayed({ readNow() }, PAGE_SETTLE_MS)
             }
 
@@ -152,8 +153,10 @@ class YouDriveWatcher(
         }
         web.webChromeClient = object : WebChromeClient() {
             override fun onConsoleMessage(message: ConsoleMessage): Boolean {
-                if (message.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
-                    problem("script: ${message.message().take(120)} (${message.sourceId().substringAfterLast('/')}:${message.lineNumber()})")
+                val source = message.sourceId().substringAfterLast('/')
+                // appTag.js / cordova.js are the app-only files YouDrive also requests in Chrome (harmless).
+                if (message.messageLevel() == ConsoleMessage.MessageLevel.ERROR && source !in HARMLESS_SCRIPTS) {
+                    problem("script: ${message.message().take(120)} ($source:${message.lineNumber()})")
                 }
                 return true // never written to the system log
             }
@@ -190,6 +193,7 @@ class YouDriveWatcher(
         (web.parent as? ViewGroup)?.removeView(web)
         fastReads = true
         restartLoop()
+        handler.postDelayed({ readNow() }, PAGE_QUICK_MS)
         return web
     }
 
@@ -305,8 +309,9 @@ class YouDriveWatcher(
     fun readNow() {
         val web = webView ?: return
         web.evaluateJavascript(READ_PAGE_JS) { result ->
-            // {"t": visible text, "p": a login form (password field) is shown}
+            // {"t": visible text, "p": a login form (password field) is shown, "f": what was repaired}
             val page = runCatching { json.decodeFromString<PageReading>(json.decodeFromString<String?>(result ?: "null") ?: "{}") }.getOrNull()
+            if (!page?.f.isNullOrBlank()) problem("login form was off screen (${page.f.trim().take(60)}), moved back")
             onPageText(page?.t.orEmpty(), loginForm = page?.p ?: false)
         }
     }
@@ -350,14 +355,40 @@ class YouDriveWatcher(
         const val URL = "https://youdrive.regionvarmland.se/"
         private const val API_HOST = "youapi.regionvarmland.se"
 
-        /** Visible text, and whether a password field is visible (the login form). */
-        private const val READ_PAGE_JS = "(function(){var p=Array.prototype.some.call(" +
-            "document.querySelectorAll('input[type=password]'),function(e){return e.offsetParent!==null;});" +
-            "return JSON.stringify({t:document.body?document.body.innerText:'',p:p});})()"
+        private val HARMLESS_SCRIPTS = setOf("appTag.js", "cordova.js")
+
+        /**
+         * Reads the visible text and whether a password field (the login form) is shown. If the
+         * login form is drawn off screen or hidden by a stuck slide animation (seen in the app's
+         * WebView, never in Chrome), its containers are put back in place.
+         */
+        private val READ_PAGE_JS = """
+            (function(){
+              var fixed = '';
+              var pw = document.querySelector('input[type=password]');
+              if (pw) {
+                var r = pw.getBoundingClientRect();
+                var off = r.width === 0 || r.right <= 0 || r.left >= innerWidth || r.bottom <= 0 || r.top >= innerHeight;
+                for (var n = pw.parentElement; n && n !== document.body; n = n.parentElement) {
+                  var cs = getComputedStyle(n);
+                  var hidden = cs.visibility === 'hidden' || cs.opacity === '0';
+                  if ((off && cs.transform !== 'none') || hidden) {
+                    fixed += cs.transform + ' ';
+                    n.style.transition = 'none';
+                    n.style.transform = 'none';
+                    n.style.visibility = 'visible';
+                    n.style.opacity = '1';
+                  }
+                }
+              }
+              return JSON.stringify({ t: document.body ? document.body.innerText : '', p: !!pw && pw.offsetParent !== null, f: fixed });
+            })()
+        """.trimIndent()
         private const val CLEAR_STORAGE_JS = "(function(){try{sessionStorage.clear();localStorage.clear();}catch(e){}return 1;})()"
         private const val READ_MS = 60_000L
         private const val FAST_READ_MS = 15_000L
         private const val PAGE_SETTLE_MS = 3_000L
+        private const val PAGE_QUICK_MS = 1_200L
         private const val MAX_PENDING = 30
         private const val OFFSCREEN_W = 1080
         private const val OFFSCREEN_H = 2200
@@ -366,4 +397,4 @@ class YouDriveWatcher(
 
 /** What the page reading script returns. */
 @Serializable
-private data class PageReading(val t: String = "", val p: Boolean = false)
+private data class PageReading(val t: String = "", val p: Boolean = false, val f: String = "")

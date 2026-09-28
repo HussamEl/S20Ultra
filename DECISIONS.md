@@ -222,3 +222,18 @@ Not verifiable here: the logged-in YouDrive page (private to the driver's accoun
   - **Page problems** are shown in the status line (143): main-frame or API load errors, HTTP ≥ 400 from the YouDrive hosts, certificate errors (still cancelled) and script errors. The page's console is never written to the system log. This gives the exact cause if the form still does not appear.
 - Version **1.4.2 (versionCode 9)**.
 
+## Fix in 1.4.3: hidden YouDrive login form; the page gets the whole screen
+
+- **Report (with a Chrome screenshot for comparison):** in the app the YouDrive frame showed but not the "Credentials" form that Chrome shows, and the screen layout was cramped.
+- **Findings:**
+  - The line-143 error `appTag.js: Unexpected token '<'` is harmless: YouDrive requests its app-only files (`appTag.js`, `cordova.js`) in Chrome too and gets the page HTML back.
+  - A local copy of the public page renders the login form in a phone-sized browser, with or without the API.
+  - In the app the form's text was present in the page (the earlier "Logged out" came from it) but not visible, which points to the form's slide-in container being left off screen in the WebView.
+- **Fix:**
+  - Each reading (first ~1 s after a page load or opening the screen, then every 15 s) checks the password field. If it is off screen or hidden, the transform, visibility and opacity of its containers are reset. Only then; normal pages are not touched.
+  - The repair is reported in line 143, so the cause is visible.
+  - Script errors from `appTag.js` / `cordova.js` are ignored.
+- **Layout:** the YouDrive screen is now one slim bar: back, status (143), watch bell (142), start page (153), reload (141) and a ⋮ menu (155) with Add all trips (148), Check now (149) and Log out (152). The page gets the rest of the screen, and trip changes appear above the page only when there are any. The full-screen toggle (154) and the on-screen hint (150) are gone; the help text explains the screen.
+- **Credentials:** the driver offered their YouDrive username and password. They were not used or stored: the build environment cannot reach the logged-in site, and a work login should stay with its owner. The driver was advised to change the password, because it appeared in a screenshot in the chat.
+- Version **1.4.3 (versionCode 10)**.
+

@@ -220,12 +220,12 @@ class UiSmokeRoboTest {
         launch().use {
             waitText(s(R.string.youdrive_card_title))
             compose.onNodeWithText(s(R.string.youdrive_card_title)).performScrollTo().performClick()
-            // Full page while no trips are found yet (logging in); the controls are one tap away.
-            compose.onNodeWithText(s(R.string.youdrive_watch)).assertDoesNotExist()
+            // One slim bar: watch bell, start page, reload and a menu; the page gets the rest.
+            compose.onNodeWithContentDescription(s(R.string.youdrive_watch)).assertExists()
             compose.onNodeWithContentDescription(s(R.string.youdrive_start_page)).assertExists()
-            compose.onNodeWithContentDescription(s(R.string.youdrive_show_controls)).performClick()
-            compose.onNodeWithText(s(R.string.youdrive_watch)).assertExists()
+            compose.onNodeWithContentDescription(s(R.string.youdrive_more)).performClick()
             compose.onNodeWithText(s(R.string.youdrive_read_now)).assertExists()
+            compose.onNodeWithText(s(R.string.youdrive_read_now)).performClick()
             compose.onNodeWithContentDescription(s(R.string.back)).performClick()
             compose.onNodeWithText(s(R.string.home_import)).assertExists()
         }

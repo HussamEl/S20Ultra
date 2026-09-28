@@ -225,9 +225,9 @@
     <string name="settings_ref_numbers">Reference numbers on buttons</string>
     <string name="settings_ref_numbers_hint">A small translucent number on every button, switch and piece of information (in the app and on the floating button), so you can refer to it by number. The full list is in the README.</string>
     <string name="help_refs_title">Reference numbers</string>
-    <string name="help_refs_body">Every button, switch and piece of information has a small translucent number in its corner. To ask for a change, just give the number, e.g. \"change 78\".\n• 1–17: the floating button.\n• 20–39: Home.\n• 40–60: review list.\n• 61–84: route screen.\n• 86–95: passenger display.\n• 100–125: Settings.\n• 140–154: YouDrive.\n• 160–179: help and voice.\n• 180–190: first start.\n• 191–199: tablet as passenger display.\nThe numbers can be hidden in Settings (105).</string>
+    <string name="help_refs_body">Every button, switch and piece of information has a small translucent number in its corner. To ask for a change, just give the number, e.g. \"change 78\".\n• 1–17: the floating button.\n• 20–39: Home.\n• 40–60: review list.\n• 61–84: route screen.\n• 86–95: passenger display.\n• 100–125: Settings.\n• 140–155: YouDrive.\n• 160–179: help and voice.\n• 180–190: first start.\n• 191–199: tablet as passenger display.\nThe numbers can be hidden in Settings (105).</string>
     <string name="help_youdrive_title">YouDrive trip alerts</string>
-    <string name="help_youdrive_body">1. On Home tap the \"YouDrive\" card (25).\n2. Log in to YouDrive inside the app once (BankID or password) and open the trips page.\n3. Switch on watching (142).\nIf another page shows instead of the login (e.g. Settings), tap the home button (153) or the phone\'s Back key. While logging in the page is shown full screen; button 154 switches between full screen and the watch controls.\nThe app reads the page every minute (times and addresses only, no names) and reloads it every 5 minutes. When a trip is added or cancelled you get a notification with sound and vibration, also while Maps is in front. Tap it and choose \"Add to list\" or \"Remove from list\" to update the route.\nA trip that disappears more than 5 minutes after its time counts as done, not cancelled.\nIf YouDrive logs you out, the card and the notification say so; open the page and log in again.</string>
+    <string name="help_youdrive_body">1. On Home tap the \"YouDrive\" card (25).\n2. Log in to YouDrive inside the app once (BankID or password) and open the trips page.\n3. Tap the bell (142) to switch on watching; it turns green.\nIf another page shows instead of the login (e.g. Settings), tap the home button (153) or the phone\'s Back key. \"Add all trips\", \"Check now\" and \"Log out\" are in the ⋮ menu (155).\nThe app reads the page every minute (times and addresses only, no names) and reloads it every 5 minutes. When a trip is added or cancelled you get a notification with sound and vibration, also while Maps is in front. Tap it and choose \"Add to list\" or \"Remove from list\" to update the route.\nA trip that disappears more than 5 minutes after its time counts as done, not cancelled.\nIf YouDrive logs you out, the card and the notification say so; open the page and log in again.</string>
     <string name="channel_trips">Trip changes (YouDrive)</string>
     <string name="channel_watch">YouDrive watching</string>
     <string name="youdrive_watching_title">Watching YouDrive</string>
@@ -248,7 +248,6 @@
     <string name="youdrive_watch">Watch for added / cancelled trips</string>
     <string name="youdrive_import_all">Add all trips (%1$d)</string>
     <string name="youdrive_read_now">Check now</string>
-    <string name="youdrive_hint">Log in here once and open the trips page, then switch on watching. The app reads only times and addresses every minute and alerts you with a sound when a trip is added or cancelled, also while Maps is in front.</string>
     <string name="youdrive_add">Add to list</string>
     <string name="youdrive_remove">Remove from list</string>
     <string name="youdrive_dismiss">Dismiss</string>
@@ -259,7 +258,6 @@
     <string name="youdrive_applied">List updated</string>
     <string name="youdrive_not_in_list">That trip is not in the list</string>
     <string name="youdrive_start_page">YouDrive start page</string>
-    <string name="youdrive_full_page">Show the page full screen</string>
-    <string name="youdrive_show_controls">Show the watch controls</string>
     <string name="youdrive_problem">Page problem: %1$s</string>
+    <string name="youdrive_more">More</string>
 </resources>

@@ -1,8 +1,10 @@
 package se.eldebosh.nastastopp.ui.screens
 
+import android.webkit.WebView
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,15 +16,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,10 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import se.eldebosh.nastastopp.R
-import se.eldebosh.nastastopp.ui.BigButton
-import se.eldebosh.nastastopp.ui.ButtonRow
 import se.eldebosh.nastastopp.ui.Hint
-import se.eldebosh.nastastopp.ui.TopBar
 import se.eldebosh.nastastopp.ui.TouchTarget
 import se.eldebosh.nastastopp.ui.ref
 import se.eldebosh.nastastopp.ui.theme.Amber
@@ -51,11 +49,11 @@ import se.eldebosh.nastastopp.youdrive.YouDriveWatcher
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import android.webkit.WebView
 
 /**
- * The driver's YouDrive page inside the app: log in once, switch on "Watch for changes", and the
- * app alerts when a trip is added or cancelled. Changes can be applied to the route list here.
+ * The driver's YouDrive page inside the app, taking almost the whole screen like in Chrome. One
+ * slim bar on top: back, status, watch bell, start page, reload and a menu (add all trips, check
+ * now, log out). Added / cancelled trips appear above the page with "add / remove" buttons.
  */
 @Composable
 fun YouDriveScreen(
@@ -76,60 +74,72 @@ fun YouDriveScreen(
     onLogout: () -> Unit,
 ) {
     var confirmLogout by remember { mutableStateOf(false) }
-    // Full page while logging in / finding the trips page (the page cannot scroll, so it needs the
-    // room); the controls come back once trips are found. The driver can switch either way (154).
-    var fullPageChoice by rememberSaveable { mutableStateOf<Boolean?>(null) }
-    val fullPage = fullPageChoice ?: (state.status != YouDriveWatcher.Status.WATCHING && state.changes.isEmpty())
+    var menu by remember { mutableStateOf(false) }
     // The phone's Back key goes back inside the page first (e.g. from its Settings to the login).
     BackHandler(enabled = canGoBack, onBack = onPageBack)
     Column(Modifier.fillMaxSize()) {
-        TopBar(stringResource(R.string.youdrive_title), onBack = onBack, backRef = 140) {
-            IconButton(onClick = onStartPage, modifier = Modifier.ref(153).size(TouchTarget)) {
-                Icon(painterResource(R.drawable.ic_home), contentDescription = stringResource(R.string.youdrive_start_page), modifier = Modifier.size(28.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(end = 2.dp),
+        ) {
+            IconButton(onClick = onBack, modifier = Modifier.ref(140).size(52.dp)) {
+                Icon(painterResource(R.drawable.ic_back), contentDescription = stringResource(R.string.back), modifier = Modifier.size(26.dp))
             }
-            IconButton(onClick = onReload, modifier = Modifier.ref(141).size(TouchTarget)) {
-                Icon(painterResource(R.drawable.ic_repeat), contentDescription = stringResource(R.string.youdrive_reload), modifier = Modifier.size(28.dp))
-            }
-            IconButton(onClick = { fullPageChoice = !fullPage }, modifier = Modifier.ref(154).size(TouchTarget)) {
-                Icon(
-                    painterResource(if (fullPage) R.drawable.ic_fullscreen_exit else R.drawable.ic_fullscreen),
-                    contentDescription = stringResource(if (fullPage) R.string.youdrive_show_controls else R.string.youdrive_full_page),
-                    modifier = Modifier.size(28.dp),
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.youdrive_title), style = MaterialTheme.typography.titleMedium, maxLines = 1)
+                Text(
+                    youDriveStatus(state),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (state.status == YouDriveWatcher.Status.LOGGED_OUT || state.problem != null) NotLocated else MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.ref(143),
                 )
             }
-            IconButton(onClick = { confirmLogout = true }, modifier = Modifier.ref(152).size(TouchTarget)) {
-                Icon(painterResource(R.drawable.ic_delete), contentDescription = stringResource(R.string.youdrive_logout), modifier = Modifier.size(28.dp))
+            IconButton(onClick = { onWatch(!watching) }, modifier = Modifier.ref(142).size(52.dp)) {
+                Icon(
+                    painterResource(if (watching) R.drawable.ic_bell else R.drawable.ic_bell_off),
+                    contentDescription = stringResource(R.string.youdrive_watch),
+                    tint = if (watching) Located else MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(26.dp),
+                )
             }
-        }
-        if (fullPage) {
-            // One line of status; tap it for the controls.
-            Text(
-                youDriveStatus(state),
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (state.status == YouDriveWatcher.Status.LOGGED_OUT || state.problem != null) NotLocated else MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.ref(143).fillMaxWidth().clickable { fullPageChoice = false }.padding(horizontal = 16.dp, vertical = 4.dp),
-            )
-        } else {
-            Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                WatchRow(state, watching, onWatch)
-                state.changes.asReversed().forEach { ChangeRow(it, onApply, onDismiss) }
-                ButtonRow {
-                    BigButton(
-                        stringResource(R.string.youdrive_import_all, state.trips.size), onImportAll, Modifier.ref(148).weight(1f),
-                        icon = R.drawable.ic_add, primary = false, enabled = state.trips.isNotEmpty(), minHeight = 48.dp,
-                    )
-                    BigButton(stringResource(R.string.youdrive_read_now), onReadNow, Modifier.ref(149).weight(1f), icon = R.drawable.ic_schedule, primary = false, minHeight = 48.dp)
+            IconButton(onClick = onStartPage, modifier = Modifier.ref(153).size(52.dp)) {
+                Icon(painterResource(R.drawable.ic_home), contentDescription = stringResource(R.string.youdrive_start_page), modifier = Modifier.size(26.dp))
+            }
+            IconButton(onClick = onReload, modifier = Modifier.ref(141).size(52.dp)) {
+                Icon(painterResource(R.drawable.ic_repeat), contentDescription = stringResource(R.string.youdrive_reload), modifier = Modifier.size(26.dp))
+            }
+            Box {
+                IconButton(onClick = { menu = true }, modifier = Modifier.ref(155).size(52.dp)) {
+                    Icon(painterResource(R.drawable.ic_more), contentDescription = stringResource(R.string.youdrive_more), modifier = Modifier.size(26.dp))
                 }
-                if (!watching) Hint(R.string.youdrive_hint, Modifier.ref(150).fillMaxWidth())
+                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.youdrive_import_all, state.trips.size)) },
+                        onClick = { menu = false; onImportAll() },
+                        enabled = state.trips.isNotEmpty(),
+                        modifier = Modifier.ref(148).heightIn(min = TouchTarget),
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.youdrive_read_now)) },
+                        onClick = { menu = false; onReadNow() },
+                        modifier = Modifier.ref(149).heightIn(min = TouchTarget),
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.youdrive_logout), color = MaterialTheme.colorScheme.error) },
+                        onClick = { menu = false; confirmLogout = true },
+                        modifier = Modifier.ref(152).heightIn(min = TouchTarget),
+                    )
+                }
             }
         }
+        state.changes.asReversed().forEach { ChangeRow(it, onApply, onDismiss) }
         // The YouDrive page itself (the same WebView keeps running while watching).
         AndroidView(
             factory = { context -> webView(context) },
             onRelease = { onReleaseWebView() },
-            modifier = Modifier.ref(151).weight(1f).fillMaxWidth().padding(top = 6.dp),
+            modifier = Modifier.ref(151).weight(1f).fillMaxWidth(),
         )
     }
     if (confirmLogout) {
@@ -140,32 +150,6 @@ fun YouDriveScreen(
             confirmButton = { TextButton(onClick = { confirmLogout = false; onLogout() }) { Text(stringResource(R.string.delete)) } },
             dismissButton = { TextButton(onClick = { confirmLogout = false }) { Text(stringResource(R.string.cancel)) } },
         )
-    }
-}
-
-/** "Watch for changes" switch with the page status (trips read, last check). */
-@Composable
-private fun WatchRow(state: YouDriveWatcher.State, watching: Boolean, onWatch: (Boolean) -> Unit) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .clickable { onWatch(!watching) }
-            .heightIn(min = TouchTarget)
-            .padding(horizontal = 14.dp, vertical = 6.dp),
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(stringResource(R.string.youdrive_watch), style = MaterialTheme.typography.titleMedium)
-            Text(
-                youDriveStatus(state),
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (state.status == YouDriveWatcher.Status.LOGGED_OUT) NotLocated else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.ref(143),
-            )
-        }
-        Switch(checked = watching, onCheckedChange = onWatch, modifier = Modifier.ref(142))
     }
 }
 
@@ -200,6 +184,7 @@ private fun ChangeRow(
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
+            .padding(horizontal = 8.dp, vertical = 2.dp)
             .ref(144)
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
