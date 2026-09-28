@@ -1,6 +1,7 @@
 package se.eldebosh.nastastopp.robo
 
 import android.os.Looper
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -96,7 +97,7 @@ class UiSmokeRoboTest {
             compose.onNodeWithText(s(R.string.home_import)).assertExists()
             assertTrue(app.graph.settings.current.onboardingDone)
 
-            compose.onNodeWithText(s(R.string.home_settings)).performScrollTo().performClick()
+            compose.onNodeWithContentDescription(s(R.string.home_settings)).performClick()
             compose.onNodeWithText(s(R.string.settings_version, BuildConfig.VERSION_NAME, BuildConfig.BUILD_DATE))
                 .performScrollTo().assertExists()
             compose.onNodeWithText(s(R.string.detail_district)).assertExists()
@@ -106,7 +107,7 @@ class UiSmokeRoboTest {
             compose.onNodeWithText(s(R.string.settings_ref_numbers)).performClick()
             assertEquals(true, app.graph.settings.current.showRefNumbers)
             compose.onNodeWithContentDescription(s(R.string.back)).performClick()
-            compose.onNodeWithText(s(R.string.home_help)).performScrollTo().performClick()
+            compose.onNodeWithContentDescription(s(R.string.home_help)).performClick()
             compose.onNodeWithText(s(R.string.help_battery_title)).assertExists()
             compose.onNodeWithText(s(R.string.help_share_title)).performScrollTo().assertExists()
         }
@@ -123,14 +124,14 @@ class UiSmokeRoboTest {
             waitText(s(R.string.home_resume_draft))
             compose.onNodeWithText(s(R.string.home_resume_draft)).performScrollTo().performClick()
             compose.onNodeWithText(s(R.string.review_title)).assertExists()
-            compose.onNodeWithText("1.  Storgatan 14, 652 24 Karlstad").assertExists()
+            compose.onNodeWithText("Storgatan 14, 652 24 Karlstad").assertExists()
             compose.onNodeWithText(s(R.string.review_add_manual)).assertExists()
             compose.onNodeWithText(s(R.string.review_add_screens)).assertExists()
             // Tap a row → edit dialog with the address; save a new text → re-parsed and re-geocoded.
-            compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("2.  Järnvägsgatan 3B, 688 30 Storfors"))
-            compose.onNodeWithText("2.  Järnvägsgatan 3B, 688 30 Storfors").performClick()
+            compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Järnvägsgatan 3B, 688 30 Storfors"))
+            compose.onNodeWithText("Järnvägsgatan 3B, 688 30 Storfors").performClick()
             compose.onNodeWithText(s(R.string.dialog_edit_title)).assertExists()
-            compose.onNodeWithText("Järnvägsgatan 3B, 688 30 Storfors").performTextReplacement("kungsgatan 5 65224 karlstad")
+            compose.onNode(hasText("Järnvägsgatan 3B, 688 30 Storfors") and hasSetTextAction()).performTextReplacement("kungsgatan 5 65224 karlstad")
             compose.onNodeWithText(s(R.string.save)).performClick()
             assertEquals("Kungsgatan 5, 652 24 Karlstad", app.graph.controller.route.value!!.stops[1].displayText)
             settleGeocoding()
@@ -139,8 +140,8 @@ class UiSmokeRoboTest {
             compose.onNodeWithText(s(R.string.dialog_add_title)).assertExists()
             compose.onNodeWithText(s(R.string.cancel)).performClick()
             // Long-press menu → delete all above → undo snackbar.
-            compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("2.  Kungsgatan 5, 652 24 Karlstad"))
-            compose.onNodeWithText("2.  Kungsgatan 5, 652 24 Karlstad").performTouchInput { longClick() }
+            compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Kungsgatan 5, 652 24 Karlstad"))
+            compose.onNodeWithText("Kungsgatan 5, 652 24 Karlstad").performTouchInput { longClick() }
             compose.onNodeWithText(s(R.string.menu_delete_above)).performClick()
             assertEquals(2, app.graph.controller.route.value!!.stops.size)
             compose.onNodeWithText(s(R.string.undo)).performClick()
@@ -218,10 +219,11 @@ class UiSmokeRoboTest {
         app.graph.settings.update { it.copy(onboardingDone = true) }
         ActivityScenario.launch(se.eldebosh.nastastopp.youdrive.YouDriveActivity::class.java).use {
             shadowOf(Looper.getMainLooper()).idle()
-            // One slim bar: watch bell, start page, reload and a menu; the page gets the rest.
+            // One slim bar: watch bell and a menu (start page, reload, …); the page gets the rest.
             compose.onNodeWithContentDescription(s(R.string.youdrive_watch)).assertExists()
-            compose.onNodeWithContentDescription(s(R.string.youdrive_start_page)).assertExists()
             compose.onNodeWithContentDescription(s(R.string.youdrive_more)).performClick()
+            compose.onNodeWithText(s(R.string.youdrive_start_page)).assertExists()
+            compose.onNodeWithText(s(R.string.youdrive_reload)).assertExists()
             compose.onNodeWithText(s(R.string.youdrive_read_now)).performClick()
             compose.onNodeWithContentDescription(s(R.string.youdrive_more)).performClick()
             compose.onNodeWithText(s(R.string.youdrive_logout)).performClick()

@@ -1,22 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- App icon: a white stop pin with a "next" chevron, and a short route line under it. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     <group
-        android:translateX="30"
-        android:translateY="28"
-        android:scaleX="2"
-        android:scaleY="2">
+        android:translateX="27"
+        android:translateY="22"
+        android:scaleX="2.25"
+        android:scaleY="2.25">
         <path
-            android:fillColor="#FFFFC400"
+            android:fillColor="#FFFFFFFF"
             android:pathData="M12,2C8.13,2 5,5.13 5,9c0,5.25 7,13 7,13s7,-7.75 7,-13c0,-3.87 -3.13,-7 -7,-7z" />
         <path
-            android:fillColor="#FF111111"
-            android:pathData="M9.5,9a2.5,2.5 0,1 0,5 0a2.5,2.5 0,1 0,-5 0z" />
+            android:fillColor="#00000000"
+            android:strokeColor="#FF1E4BB8"
+            android:strokeWidth="1.7"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M10.7,6.3L13.4,9L10.7,11.7" />
     </group>
     <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M38,76h32v3h-32z" />
+        android:fillColor="#B3FFFFFF"
+        android:pathData="M42,76.5h24a1.5,1.5 0,0 1,0 3h-24a1.5,1.5 0,0 1,0 -3z" />
 </vector>

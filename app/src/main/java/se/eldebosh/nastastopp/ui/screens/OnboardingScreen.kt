@@ -6,7 +6,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,10 +27,10 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -32,10 +38,12 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import se.eldebosh.nastastopp.R
+import se.eldebosh.nastastopp.ui.HelpDot
 import se.eldebosh.nastastopp.ui.ref
-import se.eldebosh.nastastopp.ui.Hint
+import se.eldebosh.nastastopp.ui.refCorner
+import se.eldebosh.nastastopp.ui.theme.Brand
 import se.eldebosh.nastastopp.tts.TtsStatus
-import se.eldebosh.nastastopp.ui.BigButton
+import se.eldebosh.nastastopp.ui.AppButton
 import se.eldebosh.nastastopp.ui.theme.Located
 import se.eldebosh.nastastopp.util.SystemIntents
 
@@ -79,15 +87,27 @@ fun OnboardingScreen(
     }
 
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(stringResource(R.string.onb_step, index + 1, steps.size), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.ref(180))
-        LinearProgressIndicator(progress = { (index + 1f) / steps.size }, modifier = Modifier.fillMaxWidth())
-        Spacer(Modifier.height(8.dp))
-        Icon(painterResource(step.icon), contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(64.dp))
-        Text(stringResource(step.title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.ref(181))
-        Hint(step.body, Modifier.ref(182).fillMaxWidth(), style = MaterialTheme.typography.bodyLarge)
+        Text(stringResource(R.string.onb_step, index + 1, steps.size), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.ref(180))
+        LinearProgressIndicator(
+            progress = { (index + 1f) / steps.size },
+            modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(50)),
+            trackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            drawStopIndicator = {},
+        )
+        Spacer(Modifier.height(20.dp))
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.size(72.dp).clip(RoundedCornerShape(22.dp)).background(Brand.copy(alpha = 0.14f)),
+        ) {
+            Icon(painterResource(step.icon), contentDescription = null, tint = Brand, modifier = Modifier.size(36.dp))
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(step.title), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.ref(181).weight(1f, fill = false))
+            HelpDot(step.body, Modifier.refCorner(182), title = stringResource(step.title))
+        }
         if (granted == true) {
             Text(
                 if (step == Step.VOICE) stringResource(R.string.voice_ready) else stringResource(R.string.onb_granted),
@@ -96,26 +116,28 @@ fun OnboardingScreen(
                 modifier = Modifier.ref(183),
             )
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(12.dp))
 
         when (step) {
             Step.WELCOME -> {
                 // Role: this device controls the route (default) or is a passenger display.
-                BigButton(stringResource(R.string.role_controller), { advance() }, Modifier.ref(184).fillMaxWidth(), icon = R.drawable.ic_navigation, minHeight = 76.dp)
-                BigButton(stringResource(R.string.role_display), onChooseDisplay, Modifier.ref(185).fillMaxWidth(), icon = R.drawable.ic_display, primary = false)
-                Hint(R.string.role_display_hint, Modifier.ref(186).fillMaxWidth(), style = MaterialTheme.typography.bodyMedium)
+                AppButton(stringResource(R.string.role_controller), { advance() }, Modifier.ref(184).fillMaxWidth(), icon = R.drawable.ic_navigation, minHeight = 52.dp)
+                Row(verticalAlignment = Alignment.Bottom) {
+                    AppButton(stringResource(R.string.role_display), onChooseDisplay, Modifier.ref(185).weight(1f), icon = R.drawable.ic_display, primary = false)
+                    HelpDot(R.string.role_display_hint, Modifier.refCorner(186).padding(start = 4.dp, bottom = 8.dp), title = stringResource(R.string.role_display))
+                }
             }
             Step.VOICE -> {
                 if (granted == true) {
-                    BigButton(stringResource(R.string.settings_test_voice), onTestVoice, Modifier.ref(189).fillMaxWidth(), icon = R.drawable.ic_speaker, primary = false)
+                    AppButton(stringResource(R.string.settings_test_voice), onTestVoice, Modifier.ref(189).fillMaxWidth(), icon = R.drawable.ic_speaker, primary = false)
                 } else {
-                    BigButton(stringResource(R.string.help_voice_button), onVoiceMissing, Modifier.ref(189).fillMaxWidth(), icon = R.drawable.ic_speaker)
+                    AppButton(stringResource(R.string.help_voice_button), onVoiceMissing, Modifier.ref(189).fillMaxWidth(), icon = R.drawable.ic_speaker)
                 }
-                BigButton(stringResource(R.string.onb_finish), onFinish, Modifier.ref(190).fillMaxWidth(), minHeight = 76.dp, primary = granted == true)
+                AppButton(stringResource(R.string.onb_finish), onFinish, Modifier.ref(190).fillMaxWidth(), minHeight = 52.dp, primary = granted == true)
             }
             else -> {
                 if (granted != true) {
-                    BigButton(
+                    AppButton(
                         stringResource(R.string.allow),
                         {
                             when (step) {
@@ -127,10 +149,10 @@ fun OnboardingScreen(
                             }
                         },
                         Modifier.ref(187).fillMaxWidth(),
-                        minHeight = 76.dp,
+                        minHeight = 52.dp,
                     )
                 }
-                BigButton(
+                AppButton(
                     stringResource(if (granted == true) R.string.next_step else R.string.skip),
                     { advance() },
                     Modifier.ref(188).fillMaxWidth(),

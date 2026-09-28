@@ -299,3 +299,56 @@ Not verifiable here: the logged-in YouDrive page (private to the driver's accoun
   - Touch targets are unchanged.
 - Version **1.4.6 (versionCode 13)**.
 
+
+## Release 1.0: new visual identity, explanations behind "?", project guide
+
+- **Driver's request:**
+  - The UI looked poor, and the numbers at the top of YouDrive did not show which button they belonged to.
+  - Text overlapped the numbers.
+  - Make everything clear and easy on the eyes, with a modern, elegant identity and smaller buttons.
+  - Replace the Arabic explanations with a very small "?".
+  - Write a full project guide and make this release number 1.
+- **Bug behind "numbers without buttons":** YouDrive's Compose bar had no `Surface`, so `LocalContentColor` stayed black. Its icons and title were drawn black on black. The bar is now inside a `Surface` with the theme's content colour.
+- **Visual identity "Night transit"** (`ui/theme/Theme.kt`):
+  - Colours:
+    - Background: dark blue-grey `#0B0F17`.
+    - Surfaces: `#131A26` / `#1A2231`, with hairline borders `#243044`.
+    - Brand: sky blue `#6EA8FF`, for actions.
+    - Times: amber `#FFC56B`.
+    - Status: green `#4ADE80`, amber `#FBBF24`, red `#F87171`.
+  - A compact Material 3 type scale (body 16/14 sp, titles 20/16 sp).
+  - Shapes 10 / 14 / 20 dp.
+  - The time-status colours (`TimeLabels`) and the floating panel's colours follow the same palette.
+- **Components** (`ui/Components.kt`):
+  - `AppButton`: primary (filled) or tonal with a hairline. 48 dp; 52 dp for main actions; 60 dp for Next / Back.
+  - `AppCard` and `ListRow` for grouped settings and cards.
+  - A slimmer `TopBar`, and a small `SectionTitle`.
+- **Explanations:**
+  - Inline hint paragraphs are gone. `HelpDot` is a 16 dp "?" (32 dp touch area) that opens the explanation in a dialog, in Arabic while setting 104 is on.
+  - Help became closed topic cards that open on tap.
+  - Onboarding shows the step title with a "?".
+- **Reference numbers:** they no longer cover anything.
+  - `Modifier.ref(n)` = a draw node plus an 11 dp strip reserved above the element. The draw node comes first, so it draws over the strip.
+  - `centered = true` inside rows.
+  - `refCorner(n)` = a small pill in the empty corner of icon buttons and switches.
+  - Card rows put the number inside their padding (`ListRow(ref = …)`), clear of the rounded corner.
+  - Swipe rows put it outside the swipe box.
+- **Screens:**
+  - Home: header with "?" plus Settings and Help as icons; cards for YouDrive, the display and the floating button; history in one card.
+  - Review: compact stop cards.
+  - Active route:
+    - A gradient card for the current stop.
+    - A slim bottom bar with Back / Next and four small action tiles.
+  - YouDrive: one slim bar (back, title + status dot, bell, ⋮). Start page and Reload moved into the menu with labels.
+  - Passenger display:
+    - Brand colours.
+    - The big title never splits a word: the max size is capped so the widest word fits one line.
+- **App icon:** a white stop pin with a "next" chevron on a blue diagonal gradient, plus a route line. Adaptive, with a monochrome version.
+- **Version:** `versionName "1.0"`. `versionCode` stays increasing (14) so it installs over 1.4.6.
+- **Docs:**
+  - `docs/GUIDE.md`: the whole code explained, in Arabic.
+  - `CLAUDE.md`: working rules loaded in every new conversation.
+  - `README.md`: rewritten as a Release 1.0 manual with updated number tables.
+- **Tests:**
+  - `ScreenshotsRoboTest` renders every screen, the "?" popup and the floating panel to `app/build/screenshots/` for visual checks.
+  - `UiSmokeRoboTest` follows the new layout: icons for Settings / Help, and the YouDrive menu.

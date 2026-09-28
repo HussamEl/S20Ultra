@@ -2,6 +2,7 @@ package se.eldebosh.nastastopp.ui.screens
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -20,7 +21,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -35,10 +35,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,23 +51,24 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import se.eldebosh.nastastopp.R
+import se.eldebosh.nastastopp.ui.HelpDot
 import se.eldebosh.nastastopp.ui.ref
-import se.eldebosh.nastastopp.ui.Hint
+import se.eldebosh.nastastopp.ui.refCorner
 import se.eldebosh.nastastopp.core.parse.TripTimes
 import se.eldebosh.nastastopp.route.model.GeoStatus
 import se.eldebosh.nastastopp.route.model.RouteData
 import se.eldebosh.nastastopp.route.model.Stop
-import se.eldebosh.nastastopp.ui.BigButton
+import se.eldebosh.nastastopp.ui.AppButton
 import se.eldebosh.nastastopp.ui.ButtonRow
 import se.eldebosh.nastastopp.ui.TopBar
 import se.eldebosh.nastastopp.ui.TouchTarget
-import se.eldebosh.nastastopp.ui.theme.Amber
+import se.eldebosh.nastastopp.ui.theme.Hairline
+import se.eldebosh.nastastopp.ui.theme.TimeColor
 import se.eldebosh.nastastopp.ui.theme.Located
 import se.eldebosh.nastastopp.ui.theme.NotLocated
 
@@ -98,19 +99,19 @@ fun ReviewScreen(
 
     Column(Modifier.fillMaxSize()) {
         TopBar(stringResource(R.string.review_title), onBack = onBack, backRef = 40) {
+            HelpDot(R.string.review_hint, Modifier.refCorner(43), title = stringResource(R.string.review_title))
             if (stops.count { it.time != null } >= 2) {
-                IconButton(onClick = onSortByTime, modifier = Modifier.ref(41).size(TouchTarget)) {
-                    Icon(painterResource(R.drawable.ic_schedule), contentDescription = stringResource(R.string.sort_by_time), modifier = Modifier.size(30.dp))
+                IconButton(onClick = onSortByTime, modifier = Modifier.refCorner(41).size(TouchTarget)) {
+                    Icon(painterResource(R.drawable.ic_schedule), contentDescription = stringResource(R.string.sort_by_time), modifier = Modifier.size(22.dp))
                 }
             }
         }
         Text(
             stringResource(R.string.review_count, stops.size),
-            style = MaterialTheme.typography.titleSmall,
+            style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.ref(42).padding(horizontal = 16.dp),
+            modifier = Modifier.ref(42).padding(horizontal = 20.dp),
         )
-        Hint(R.string.review_hint, Modifier.ref(43).fillMaxWidth().padding(horizontal = 16.dp))
         if (stops.isEmpty()) {
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 if (importing) CircularProgressIndicator()
@@ -120,8 +121,8 @@ fun ReviewScreen(
             LazyColumn(
                 state = listState,
                 modifier = Modifier.weight(1f).fillMaxWidth(),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 itemsIndexed(stops, key = { _, s -> s.id }) { index, stop ->
                     val dragging = reorder.draggingKey == stop.id
@@ -146,19 +147,19 @@ fun ReviewScreen(
             }
         }
         Column(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerLow).padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             ButtonRow {
-                BigButton(stringResource(R.string.review_add_manual), { adding = true }, Modifier.ref(50).weight(1f), icon = R.drawable.ic_add, primary = false)
-                BigButton(stringResource(R.string.review_add_screens), onAddScreenshots, Modifier.ref(51).weight(1f), icon = R.drawable.ic_images, primary = false, enabled = !importing)
+                AppButton(stringResource(R.string.review_add_manual), { adding = true }, Modifier.ref(50).weight(1f), icon = R.drawable.ic_add, primary = false)
+                AppButton(stringResource(R.string.review_add_screens), onAddScreenshots, Modifier.ref(51).weight(1f), icon = R.drawable.ic_images, primary = false, enabled = !importing)
             }
             if (active) {
-                BigButton(stringResource(R.string.review_back_to_route), onBackToRoute, Modifier.ref(52).fillMaxWidth(), icon = R.drawable.ic_navigation, minHeight = 76.dp)
+                AppButton(stringResource(R.string.review_back_to_route), onBackToRoute, Modifier.ref(52).fillMaxWidth(), icon = R.drawable.ic_navigation, minHeight = 52.dp)
             } else {
-                BigButton(
+                AppButton(
                     stringResource(R.string.review_start), onStart, Modifier.ref(52).fillMaxWidth(),
-                    icon = R.drawable.ic_navigation, enabled = stops.isNotEmpty(), minHeight = 76.dp,
+                    icon = R.drawable.ic_navigation, enabled = stops.isNotEmpty(), minHeight = 52.dp,
                 )
             }
         }
@@ -200,35 +201,37 @@ private fun SwipeableStopRow(
     val dismissState = rememberSwipeToDismissBoxState()
     var menu by remember { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
-    val shape = RoundedCornerShape(16.dp)
+    val shape = MaterialTheme.shapes.large
     SwipeToDismissBox(
         state = dismissState,
         onDismiss = { value -> if (value != SwipeToDismissBoxValue.Settled) onDelete() },
         gesturesEnabled = !dragging,
+        // The number sits above the whole swipe box, so the red delete background stays behind the card.
+        modifier = Modifier.ref(45),
         backgroundContent = {
             Box(
                 Modifier.fillMaxSize().clip(shape).background(MaterialTheme.colorScheme.errorContainer).padding(horizontal = 24.dp),
                 contentAlignment = Alignment.CenterStart,
             ) {
-                Icon(painterResource(R.drawable.ic_delete), contentDescription = stringResource(R.string.delete), modifier = Modifier.size(32.dp))
+                Icon(painterResource(R.drawable.ic_delete), contentDescription = stringResource(R.string.delete), modifier = Modifier.size(24.dp))
             }
         },
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
-                .ref(45)
                 .fillMaxWidth()
                 .clip(shape)
                 .background(if (dragging) MaterialTheme.colorScheme.surfaceContainerHighest else MaterialTheme.colorScheme.surfaceContainer)
-                .heightIn(min = 84.dp),
+                .border(1.dp, if (dragging) MaterialTheme.colorScheme.primary else Hairline, shape)
+                .heightIn(min = 72.dp),
         ) {
             // Drag handle
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .ref(44)
-                    .size(width = TouchTarget, height = 84.dp)
+                    .refCorner(44)
+                    .size(width = 44.dp, height = 72.dp)
                     .pointerInput(stop.id) {
                         detectDragGestures(
                             onDragStart = {
@@ -244,7 +247,7 @@ private fun SwipeableStopRow(
                         )
                     },
             ) {
-                Icon(painterResource(R.drawable.ic_drag), contentDescription = null, modifier = Modifier.size(32.dp))
+                Icon(painterResource(R.drawable.ic_drag), contentDescription = null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(22.dp))
             }
             Box(Modifier.weight(1f)) {
                 Column(
@@ -257,20 +260,27 @@ private fun SwipeableStopRow(
                                 menu = true
                             },
                         )
-                        .padding(vertical = 10.dp, horizontal = 4.dp),
+                        .padding(vertical = 10.dp, horizontal = 2.dp),
                 ) {
-                    if (stop.time != null) {
-                        Text(stop.time, style = MaterialTheme.typography.titleMedium, color = Amber, fontWeight = FontWeight.Bold, modifier = Modifier.ref(46))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "${index + 1}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        if (stop.time != null) {
+                            Spacer(Modifier.width(8.dp))
+                            Text(stop.time, style = MaterialTheme.typography.labelLarge, color = TimeColor, modifier = Modifier.ref(46, centered = true))
+                        }
                     }
                     Text(
-                        "${index + 1}.  ${stop.displayText}",
-                        style = MaterialTheme.typography.titleMedium.copy(textDirection = TextDirection.Content),
-                        fontWeight = FontWeight.SemiBold,
+                        stop.displayText,
+                        style = MaterialTheme.typography.titleSmall.copy(textDirection = TextDirection.Content),
                         modifier = Modifier.ref(47),
                     )
                     Text(
                         stringResource(R.string.spoken_label, spoken),
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.ref(48),
                     )
@@ -280,44 +290,44 @@ private fun SwipeableStopRow(
                 }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     DropdownMenuItem(
-                        text = { Text(stringResource(R.string.edit), style = MaterialTheme.typography.titleMedium) },
+                        text = { Text(stringResource(R.string.edit), style = MaterialTheme.typography.bodyLarge) },
                         onClick = { menu = false; onClick() },
                         modifier = Modifier.ref(57).heightIn(min = TouchTarget),
                     )
                     if (index > 0) {
                         DropdownMenuItem(
-                            text = { Text(stringResource(R.string.menu_delete_above), style = MaterialTheme.typography.titleMedium) },
+                            text = { Text(stringResource(R.string.menu_delete_above), style = MaterialTheme.typography.bodyLarge) },
                             onClick = { menu = false; onDeleteAbove() },
                             modifier = Modifier.ref(58).heightIn(min = TouchTarget),
                         )
                     }
                     if (stop.geoStatus == GeoStatus.NOT_LOCATED) {
                         DropdownMenuItem(
-                            text = { Text(stringResource(R.string.menu_retry), style = MaterialTheme.typography.titleMedium) },
+                            text = { Text(stringResource(R.string.menu_retry), style = MaterialTheme.typography.bodyLarge) },
                             onClick = { menu = false; onRetry() },
                             modifier = Modifier.ref(59).heightIn(min = TouchTarget),
                         )
                     }
                     DropdownMenuItem(
-                        text = { Text(stringResource(R.string.delete), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error) },
+                        text = { Text(stringResource(R.string.delete), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error) },
                         onClick = { menu = false; onDelete() },
                         modifier = Modifier.ref(60).heightIn(min = TouchTarget),
                     )
                 }
             }
-            Box(Modifier.ref(49).size(width = 56.dp, height = 84.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.refCorner(49).size(width = 44.dp, height = 72.dp), contentAlignment = Alignment.Center) {
                 when (stop.geoStatus) {
                     GeoStatus.PENDING -> {
                         val locating = stringResource(R.string.stop_locating)
-                        CircularProgressIndicator(Modifier.size(28.dp).semantics { contentDescription = locating }, strokeWidth = 3.dp)
+                        CircularProgressIndicator(Modifier.size(20.dp).semantics { contentDescription = locating }, strokeWidth = 2.dp)
                     }
                     GeoStatus.LOCATED -> Icon(
                         painterResource(R.drawable.ic_located), contentDescription = stringResource(R.string.stop_located),
-                        tint = Located, modifier = Modifier.size(32.dp),
+                        tint = Located, modifier = Modifier.size(22.dp),
                     )
                     GeoStatus.NOT_LOCATED -> Icon(
                         painterResource(R.drawable.ic_not_located), contentDescription = stringResource(R.string.stop_not_located),
-                        tint = NotLocated, modifier = Modifier.size(32.dp),
+                        tint = NotLocated, modifier = Modifier.size(22.dp),
                     )
                 }
             }
@@ -349,7 +359,7 @@ private fun AddressDialog(
                     placeholder = { Text(stringResource(R.string.dialog_address_hint)) },
                     isError = error,
                     supportingText = if (error) ({ Text(stringResource(R.string.invalid_address)) }) else null,
-                    textStyle = MaterialTheme.typography.titleMedium.copy(textDirection = TextDirection.Content),
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Content),
                     minLines = 2,
                     modifier = Modifier.ref(53).fillMaxWidth(),
                 )
@@ -361,7 +371,7 @@ private fun AddressDialog(
                     supportingText = if (timeError) ({ Text(stringResource(R.string.invalid_time)) }) else null,
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    textStyle = MaterialTheme.typography.titleMedium.copy(textDirection = TextDirection.Ltr),
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Ltr),
                     modifier = Modifier.ref(54).fillMaxWidth().padding(top = 8.dp),
                 )
             }

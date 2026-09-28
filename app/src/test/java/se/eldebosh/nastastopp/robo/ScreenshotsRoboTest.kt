@@ -1,0 +1,264 @@
+package se.eldebosh.nastastopp.robo
+
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.os.Looper
+import android.view.View
+import android.view.WindowManager
+import androidx.compose.ui.test.isDialog
+import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.performClick
+import androidx.test.core.app.ApplicationProvider
+import org.robolectric.Shadows.shadowOf
+import org.robolectric.shadow.api.Shadow
+import org.robolectric.shadows.ShadowSettings
+import org.robolectric.shadows.ShadowWindowManagerImpl
+import se.eldebosh.nastastopp.App
+import se.eldebosh.nastastopp.ui.screens.OnboardingScreen
+import java.time.Duration
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onRoot
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
+import se.eldebosh.nastastopp.core.display.DisplayItem
+import se.eldebosh.nastastopp.core.display.DisplaySnapshot
+import se.eldebosh.nastastopp.core.youdrive.TripChange
+import se.eldebosh.nastastopp.core.youdrive.WatchedTrip
+import se.eldebosh.nastastopp.link.DisplayLinkServer
+import se.eldebosh.nastastopp.route.HistoryEntry
+import se.eldebosh.nastastopp.route.TrackingState
+import se.eldebosh.nastastopp.route.model.GeoPoint
+import se.eldebosh.nastastopp.route.model.GeoStatus
+import se.eldebosh.nastastopp.route.model.RouteData
+import se.eldebosh.nastastopp.route.model.Stop
+import se.eldebosh.nastastopp.settings.AppSettings
+import se.eldebosh.nastastopp.tts.TtsStatus
+import se.eldebosh.nastastopp.ui.LocalExplainResources
+import se.eldebosh.nastastopp.ui.screens.ActiveRouteScreen
+import se.eldebosh.nastastopp.ui.screens.HelpScreen
+import se.eldebosh.nastastopp.ui.screens.HomeScreen
+import se.eldebosh.nastastopp.ui.screens.PassengerDisplayScreen
+import se.eldebosh.nastastopp.ui.screens.PermissionStatus
+import se.eldebosh.nastastopp.ui.screens.ReviewScreen
+import se.eldebosh.nastastopp.ui.screens.SettingsScreen
+import se.eldebosh.nastastopp.ui.screens.YouDriveBar
+import se.eldebosh.nastastopp.ui.screens.YouDriveCard
+import se.eldebosh.nastastopp.ui.theme.NastaTheme
+import se.eldebosh.nastastopp.util.LocaleHelper
+import se.eldebosh.nastastopp.youdrive.YouDriveWatcher
+import java.io.File
+
+/**
+ * Renders each screen (English UI, Arabic explanations, reference numbers on) with invented trips
+ * to app/build/screenshots/, to check the design without a phone. Only draws; asserts nothing.
+ */
+@RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [33], qualifiers = "en-w412dp-h915dp-xhdpi")
+class ScreenshotsRoboTest {
+
+    @get:Rule
+    val compose = createComposeRule()
+
+    private val now = System.currentTimeMillis()
+
+    private fun stop(id: Long, text: String, time: String?, located: Boolean = true) = Stop(
+        id = id,
+        displayText = text,
+        candidates = listOf(text),
+        geoStatus = if (located) GeoStatus.LOCATED else GeoStatus.NOT_LOCATED,
+        geo = if (located) GeoPoint(59.38, 13.50) else null,
+        time = time,
+    )
+
+    private val stops = listOf(
+        stop(1, "Sjösalagatan 21, 66452 Vålberg", "07:30"),
+        stop(2, "Brattgårdsgatan 4, 66452 Vålberg", "07:36"),
+        stop(3, "Majeldsvägen 10, 66450 Vålberg", "08:00"),
+        stop(4, "Storgatan 14, 65224 Karlstad", "08:25", located = false),
+        stop(5, "Lindvägen 9, 66430 Grums", "09:10"),
+    )
+
+    private fun spoken(s: Stop) = s.displayText.substringAfterLast(' ')
+
+    private fun save(name: String, bitmap: Bitmap) {
+        val dir = File("build/screenshots").apply { mkdirs() }
+        File(dir, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+    }
+
+    private fun shot(name: String, after: () -> Unit = {}, content: @Composable () -> Unit) {
+        compose.setContent {
+            val context = LocalContext.current
+            NastaTheme {
+                Surface(color = MaterialTheme.colorScheme.background) {
+                    CompositionLocalProvider(
+                        LocalExplainResources provides LocaleHelper.explanationContext(context, "en", true).resources,
+                        content = content,
+                    )
+                }
+            }
+        }
+        compose.waitForIdle()
+        after()
+        compose.waitForIdle()
+        // A dialog is its own window: capture it when one is open.
+        val dialogs = compose.onAllNodes(isDialog())
+        val node = if (dialogs.fetchSemanticsNodes().isNotEmpty()) dialogs[0] else compose.onRoot()
+        save(name, node.captureToImage().asAndroidBitmap())
+    }
+
+    private val youDriveState = YouDriveWatcher.State(
+        status = YouDriveWatcher.Status.WATCHING,
+        trips = List(19) { WatchedTrip("08:00", "Gata $it") },
+        lastReadMs = now,
+        changes = listOf(
+            YouDriveWatcher.PendingChange(1, TripChange(WatchedTrip("13:40", "Lindvägen 9, 66430 Grums"), added = true), now),
+        ),
+    )
+
+    @Test
+    @Config(qualifiers = "en-w412dp-h1500dp-xhdpi")
+    fun home() = shot("home") {
+        HomeScreen(
+            route = RouteData(createdAtMs = now, stops = stops),
+            ttsStatus = TtsStatus.READY,
+            importing = false,
+            onImport = {}, onResume = {}, onReview = {}, onClear = {}, onSettings = {}, onHelp = {}, onTtsMissing = {},
+            link = DisplayLinkServer.State(DisplayLinkServer.Status.CONNECTED, clients = listOf("Tab S9+")),
+            onToggleLink = {}, onFixLink = {}, onUseAsDisplay = {},
+            overlayPermission = true, overlayHidden = false, onOverlayVisible = {}, onOverlayPermission = {}, onAddTile = {},
+            history = listOf(
+                HistoryEntry(1, "07:10", "Vålberg", "Kasernhöjden 1, 66452 Vålberg", now - 3_600_000),
+                HistoryEntry(2, "06:45", "Karlstad", "Storgatan 14, 65224 Karlstad", now - 5_000_000, done = false),
+            ),
+            historyRetentionHours = 12,
+            onClearHistory = {},
+            youDrive = { YouDriveCard(youDriveState, watching = true) {} },
+        )
+    }
+
+    @Test
+    fun activeRoute() = shot("active") {
+        ActiveRouteScreen(
+            route = RouteData(createdAtMs = now, active = true, stops = stops.drop(1), completed = stops.take(1)),
+            tracking = TrackingState(),
+            hasLocationPermission = false,
+            spokenName = ::spoken,
+            overlayAvailable = true,
+            overlayHidden = false,
+            street = null,
+            onSpeakStreet = {}, onBack = {}, onNext = {}, onPreviousTrip = {}, onRepeat = {}, onOpenMaps = {},
+            onEdit = {}, onEnd = {}, onOpenDisplay = {}, onToggleOverlay = {},
+        )
+    }
+
+    @Test
+    fun review() = shot("review") {
+        ReviewScreen(
+            route = RouteData(createdAtMs = now, stops = stops),
+            spokenName = ::spoken,
+            importing = false,
+            onBack = {}, onMove = { _, _ -> }, onDelete = {}, onDeleteAbove = {}, onEdit = { _, _, _ -> true }, onRetry = {},
+            onAddManual = { _, _ -> true }, onSortByTime = {}, onAddScreenshots = {}, onStart = {}, onBackToRoute = {},
+        )
+    }
+
+    @Test
+    @Config(qualifiers = "en-w412dp-h1900dp-xhdpi")
+    fun settings() = shot("settings") {
+        SettingsScreen(
+            settings = AppSettings(),
+            permissions = PermissionStatus(notifications = true, overlay = true, battery = false),
+            ttsStatus = TtsStatus.READY,
+            onBack = {}, onUpdate = {}, onLanguage = {}, onTestVoice = {}, onNotifications = {}, onOverlay = {}, onBattery = {}, onVoice = {},
+            link = DisplayLinkServer.State(DisplayLinkServer.Status.WAITING, localName = "Galaxy S20 Ultra"),
+            onToggleLink = {}, onFixLink = {},
+        )
+    }
+
+    @Test
+    fun help() = shot("help") {
+        HelpScreen(onBack = {}, onAppSettings = {}, onBatteryRequest = {}, onInstallVoice = {}, onTtsSettings = {})
+    }
+
+    @Test
+    fun youDriveBar() = shot("youdrive") {
+        YouDriveBar(
+            state = youDriveState, watching = true,
+            onBack = {}, onWatch = {}, onStartPage = {}, onReload = {}, onReadNow = {}, onImportAll = {},
+            onApply = {}, onDismiss = {}, onLogout = {},
+        )
+    }
+
+    @Test
+    fun explanationPopup() = shot("popup", after = {
+        compose.onAllNodesWithContentDescription("Explanation")[0].performClick()
+    }) {
+        SettingsScreen(
+            settings = AppSettings(),
+            permissions = PermissionStatus(notifications = true, overlay = true, battery = true),
+            ttsStatus = TtsStatus.READY,
+            onBack = {}, onUpdate = {}, onLanguage = {}, onTestVoice = {}, onNotifications = {}, onOverlay = {}, onBattery = {}, onVoice = {},
+            link = DisplayLinkServer.State(), onToggleLink = {}, onFixLink = {},
+        )
+    }
+
+    @Test
+    fun onboarding() = shot("onboarding") {
+        OnboardingScreen(resumeTick = 0, ttsStatus = TtsStatus.READY, onTestVoice = {}, onVoiceMissing = {}, onFinish = {}, onChooseDisplay = {})
+    }
+
+    /** The floating panel over Maps (a window of its own): drawn into a bitmap. */
+    @Test
+    fun floatingPanel() {
+        val app = ApplicationProvider.getApplicationContext<App>()
+        val graph = app.graph
+        ShadowSettings.setCanDrawOverlays(true)
+        graph.settings.update { it.copy(overlayHidden = false, overlayMinimized = false) }
+        graph.controller.clear()
+        graph.controller.addManual("Brattgårdsgatan 4, 66452 Vålberg", "07:36")
+        graph.controller.addManual("Majeldsvägen 10, 66450 Vålberg", "08:00")
+        repeat(600) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1)) }
+        graph.controller.start()
+        shadowOf(Looper.getMainLooper()).idle()
+        val wm = Shadow.extract<ShadowWindowManagerImpl>(app.getSystemService(WindowManager::class.java))
+        val panel = wm.views.last() // the compose rule's own window comes first
+        panel.measure(View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+        panel.layout(0, 0, panel.measuredWidth, panel.measuredHeight)
+        val bitmap = Bitmap.createBitmap(panel.measuredWidth + 40, panel.measuredHeight + 40, Bitmap.Config.ARGB_8888)
+        Canvas(bitmap).apply {
+            drawColor(0xFF5A6B57.toInt()) // a map-like background
+            translate(20f, 20f)
+            panel.draw(this)
+        }
+        save("floating", bitmap)
+        graph.controller.end()
+    }
+
+    @Test
+    fun passengerDisplay() = shot("display") {
+        PassengerDisplayScreen(
+            snapshot = DisplaySnapshot(
+                active = true,
+                previous = DisplayItem("07:30", "Sjösalagatan 21", "Vålberg"),
+                current = DisplayItem("07:36", "Brattgårdsgatan 4", "Vålberg"),
+                upcoming = listOf(DisplayItem("08:00", "Majeldsvägen 10", "Vålberg"), DisplayItem("08:25", "Storgatan 14", "Karlstad")),
+            ),
+            status = "Connected: Galaxy S20 Ultra",
+            connected = true,
+            onSpeak = {},
+            onExit = {},
+        )
+    }
+}

@@ -33,6 +33,7 @@
     <string name="import_failed_count">Bilder som inte lästes: %1$d av %2$d.</string>
     <string name="import_failed_hint">Om det händer igen: ta en skärmdump av det här meddelandet och skicka till utvecklaren. Texten ovan innehåller inga adresser.</string>
     <string name="ok">OK</string>
+    <string name="help_dot_desc">Förklaring</string>
     <string name="confirm_clear_title">Rensa all data?</string>
     <string name="confirm_clear_text">Adresslistan raderas permanent.</string>
 
@@ -217,11 +218,11 @@
     <string name="home_overlay_tile_added">Rutan är tillagd – dra ner aviseringspanelen för att hitta den</string>
     <string name="home_overlay_restore_hint">Visa knappen snabbt igen efter att du stängt den: tryck på aviseringen \"Den flytande knappen är stängd\", på rutan i snabbinställningarna eller på den här brytaren.</string>
     <string name="settings_explain_arabic">Förklaringar på arabiska</string>
-    <string name="settings_explain_arabic_hint">Knapparna på engelska, förklaringar och instruktioner på arabiska. Stäng av när inställningen är klar.</string>
+    <string name="settings_explain_arabic_hint">Förklaringarna bakom det lilla ? och i Hjälp visas på arabiska; knapparna följer appens språk. Stäng av när inställningen är klar.</string>
     <string name="settings_ref_numbers">Referensnummer på knapparna</string>
     <string name="settings_ref_numbers_hint">Ett litet genomskinligt nummer på varje knapp, brytare och uppgift (i appen och på den flytande knappen), så att du kan hänvisa till numret. Hela listan finns i README.</string>
     <string name="help_refs_title">Referensnummer</string>
-    <string name="help_refs_body">Varje knapp, brytare och uppgift har ett litet genomskinligt nummer i hörnet. Ange bara numret när något ska ändras, t.ex. \"ändra 78\".\n• 1–17: den flytande knappen.\n• 20–39: startsidan.\n• 40–60: granska listan.\n• 61–84: ruttskärmen.\n• 86–95: passagerarskärmen.\n• 100–125: inställningar.\n• 140–155: YouDrive.\n• 160–179: hjälp och röst.\n• 180–190: första start.\n• 191–199: surfplattan som passagerarskärm.\nNumren kan döljas i inställningarna (105).</string>
+    <string name="help_refs_body">Varje knapp, brytare och uppgift har ett litet nummer precis ovanför (på små ikonknappar: i hörnet). Ange bara numret när något ska ändras, t.ex. \"ändra 78\".\n• 1–17: den flytande knappen.\n• 20–39: startsidan.\n• 40–60: granska listan.\n• 61–84: ruttskärmen.\n• 86–95: passagerarskärmen.\n• 100–125: inställningar.\n• 140–155: YouDrive.\n• 160–179: hjälp och röst.\n• 180–190: första start.\n• 191–199: surfplattan som passagerarskärm.\nNumren kan döljas i inställningarna (105).</string>
     <string name="help_youdrive_title">YouDrive-aviseringar</string>
     <string name="help_youdrive_body">1. Tryck på kortet \"YouDrive\" (25) på startsidan.\n2. Logga in i YouDrive i appen en gång (BankID eller lösenord) och öppna sidan med resorna.\n3. Tryck på klockan (142) för att slå på bevakningen; den blir grön.\nVisas en annan sida i stället för inloggningen (t.ex. Settings), tryck på hemknappen (153) eller telefonens bakåtknapp. \"Add all trips\", \"Check now\" och \"Log out\" finns i menyn ⋮ (155).\nAppen läser sidan varje minut (bara tider och adresser, inga namn) och laddar om den var 5:e minut (bara när fönstret är stängt, aldrig medan du använder den). När en resa läggs till eller avbokas får du en avisering med ljud och vibration, även när Maps är framme. Tryck på aviseringen och välj \"Lägg till\" eller \"Ta bort\" för att uppdatera listan.\nEn resa som försvinner mer än 5 minuter efter sin tid räknas som klar, inte avbokad. Öppnar du en annan dag eller vy i YouDrive räknas den som en ny lista och ingen avisering ges.\nOm du loggas ut från YouDrive syns det på kortet och i aviseringen; öppna sidan och logga in igen.</string>
     <string name="channel_trips">Ändrade resor (YouDrive)</string>

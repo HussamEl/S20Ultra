@@ -12,10 +12,12 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.ComposeView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -55,7 +57,7 @@ class YouDriveActivity : ComponentActivity() {
         holder = FrameLayout(this)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(0xFF000000.toInt())
+            setBackgroundColor(BAR_COLOR) // behind the status bar: the same colour as the bar
             addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             addView(holder, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         }
@@ -99,20 +101,23 @@ class YouDriveActivity : ComponentActivity() {
                 .takeIf { it !== this }?.resources
         }
         NastaTheme {
-            CompositionLocalProvider(LocalExplainResources provides explainResources) {
-                YouDriveBar(
-                    state = state,
-                    watching = settings.youDriveWatch,
-                    onBack = { finish() },
-                    onWatch = ::setWatch,
-                    onStartPage = { graph.youDrive.openStart() },
-                    onReload = { graph.youDrive.reload() },
-                    onReadNow = { graph.youDrive.readNow() },
-                    onImportAll = ::importAll,
-                    onApply = ::apply,
-                    onDismiss = { graph.youDrive.dismiss(it.id) },
-                    onLogout = ::logout,
-                )
+            // Surface: gives the bar's texts and icons the theme's light content colour.
+            Surface(color = MaterialTheme.colorScheme.surfaceContainerLow, contentColor = MaterialTheme.colorScheme.onSurface) {
+                CompositionLocalProvider(LocalExplainResources provides explainResources) {
+                    YouDriveBar(
+                        state = state,
+                        watching = settings.youDriveWatch,
+                        onBack = { finish() },
+                        onWatch = ::setWatch,
+                        onStartPage = { graph.youDrive.openStart() },
+                        onReload = { graph.youDrive.reload() },
+                        onReadNow = { graph.youDrive.readNow() },
+                        onImportAll = ::importAll,
+                        onApply = ::apply,
+                        onDismiss = { graph.youDrive.dismiss(it.id) },
+                        onLogout = ::logout,
+                    )
+                }
             }
         }
     }
@@ -156,6 +161,11 @@ class YouDriveActivity : ComponentActivity() {
     }
 
     private fun toast(text: String) = Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
+
+    private companion object {
+        /** The bar's colour (theme surfaceContainerLow), also behind the status bar. */
+        const val BAR_COLOR = 0xFF0F1520.toInt()
+    }
 
     override fun onDestroy() {
         graph.youDrive.onPageReplaced = null

@@ -12,37 +12,38 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.background
-import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.border
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import se.eldebosh.nastastopp.R
+import se.eldebosh.nastastopp.ui.AppCard
+import se.eldebosh.nastastopp.ui.HelpDot
+import se.eldebosh.nastastopp.ui.IconBadge
+import se.eldebosh.nastastopp.ui.ListRow
 import se.eldebosh.nastastopp.ui.ref
-import se.eldebosh.nastastopp.ui.explain
+import se.eldebosh.nastastopp.ui.refCorner
 import se.eldebosh.nastastopp.core.display.DisplaySnapshot
 import se.eldebosh.nastastopp.link.DisplayLinkClient
 import se.eldebosh.nastastopp.link.PairedDevice
 import se.eldebosh.nastastopp.settings.AppSettings
-import se.eldebosh.nastastopp.ui.BigButton
-import se.eldebosh.nastastopp.ui.Paragraph
+import se.eldebosh.nastastopp.ui.AppButton
 import se.eldebosh.nastastopp.ui.SectionTitle
 import se.eldebosh.nastastopp.ui.TopBar
-import se.eldebosh.nastastopp.ui.TouchTarget
-import se.eldebosh.nastastopp.ui.theme.Amber
+import se.eldebosh.nastastopp.ui.theme.Brand
+import se.eldebosh.nastastopp.ui.theme.Hairline
 
 /**
  * This device is a passenger display: first choose the driver's (paired) device, then show the
@@ -95,17 +96,19 @@ fun DisplayRoleScreen(
             stringResource(R.string.role_display),
             onBack = if (!blocked) ({ showSetup = false }) else null,
             backRef = 191,
-        )
-        Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Paragraph(explain(R.string.link_hint), Modifier.ref(192))
+            HelpDot(R.string.link_hint, Modifier.refCorner(192), title = stringResource(R.string.role_display))
+            Spacer(Modifier.size(8.dp))
+        }
+        Column(
+            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
             when (if (bluetoothReady) link.status else availabilityStatus) {
                 DisplayLinkClient.Status.NO_PERMISSION ->
-                    BigButton(stringResource(R.string.allow_bluetooth), onRequestPermission, Modifier.ref(193).fillMaxWidth(), icon = R.drawable.ic_bluetooth)
+                    AppButton(stringResource(R.string.allow_bluetooth), onRequestPermission, Modifier.ref(193).fillMaxWidth(), icon = R.drawable.ic_bluetooth)
                 DisplayLinkClient.Status.BLUETOOTH_OFF ->
-                    BigButton(stringResource(R.string.turn_on_bluetooth), onEnableBluetooth, Modifier.ref(193).fillMaxWidth(), icon = R.drawable.ic_bluetooth)
+                    AppButton(stringResource(R.string.turn_on_bluetooth), onEnableBluetooth, Modifier.ref(193).fillMaxWidth(), icon = R.drawable.ic_bluetooth)
                 DisplayLinkClient.Status.NO_BLUETOOTH ->
                     Text(stringResource(R.string.link_no_bt), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error)
                 else -> Unit
@@ -115,13 +118,13 @@ fun DisplayRoleScreen(
                 Text(stringResource(R.string.display_last_error, it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.ref(194))
             }
 
-            SectionTitle(stringResource(R.string.display_choose_device))
+            SectionTitle(
+                stringResource(R.string.display_choose_device),
+                help = if (paired.isEmpty()) R.string.display_no_paired else null,
+            )
             DeviceRow(stringResource(R.string.display_auto), settings.displayControllerAddress == null, 195) {
                 showSetup = false
                 onChoose(null)
-            }
-            if (paired.isEmpty()) {
-                Paragraph(explain(R.string.display_no_paired))
             }
             paired.forEach { device ->
                 DeviceRow(device.name, device.address == settings.displayControllerAddress, 196) {
@@ -129,17 +132,17 @@ fun DisplayRoleScreen(
                     onChoose(device.address)
                 }
             }
-            BigButton(stringResource(R.string.open_bt_settings), onOpenBluetoothSettings, Modifier.ref(197).fillMaxWidth(), icon = R.drawable.ic_settings, primary = false)
+            AppButton(stringResource(R.string.open_bt_settings), onOpenBluetoothSettings, Modifier.ref(197).fillMaxWidth(), icon = R.drawable.ic_settings, primary = false)
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.ref(198).fillMaxWidth().heightIn(min = TouchTarget).clickable { onToggleSpeaks(!settings.displaySpeaks) },
-            ) {
-                Text(stringResource(R.string.display_speaks), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                Switch(checked = settings.displaySpeaks, onCheckedChange = onToggleSpeaks)
+            AppCard {
+                ListRow(
+                    title = stringResource(R.string.display_speaks),
+                    onClick = { onToggleSpeaks(!settings.displaySpeaks) },
+                    trailing = { Switch(checked = settings.displaySpeaks, onCheckedChange = onToggleSpeaks, modifier = Modifier.refCorner(198)) },
+                )
             }
             Spacer(Modifier.size(8.dp))
-            BigButton(stringResource(R.string.switch_to_controller), onSwitchToController, Modifier.ref(199).fillMaxWidth(), icon = R.drawable.ic_navigation, primary = false)
+            AppButton(stringResource(R.string.switch_to_controller), onSwitchToController, Modifier.ref(199).fillMaxWidth(), icon = R.drawable.ic_navigation, primary = false)
             Spacer(Modifier.size(24.dp))
         }
     }
@@ -152,14 +155,15 @@ private fun DeviceRow(name: String, selected: Boolean, ref: Int, onClick: () -> 
         modifier = Modifier
             .ref(ref)
             .fillMaxWidth()
-            .heightIn(min = TouchTarget)
-            .clip(RoundedCornerShape(14.dp))
+            .heightIn(min = 56.dp)
+            .clip(MaterialTheme.shapes.large)
             .background(if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer)
+            .border(1.dp, if (selected) Brand else Hairline, MaterialTheme.shapes.large)
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
-        Icon(painterResource(R.drawable.ic_bluetooth), contentDescription = null, tint = if (selected) Amber else MaterialTheme.colorScheme.onSurface)
+        IconBadge(R.drawable.ic_bluetooth, if (selected) Brand else MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.width(12.dp))
-        Text(name, style = MaterialTheme.typography.titleMedium)
+        Text(name, style = MaterialTheme.typography.bodyLarge)
     }
 }

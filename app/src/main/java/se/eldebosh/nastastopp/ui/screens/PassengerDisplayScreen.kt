@@ -4,6 +4,7 @@ import android.app.Activity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,18 +26,20 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
@@ -52,7 +55,9 @@ import se.eldebosh.nastastopp.ui.ref
 import se.eldebosh.nastastopp.core.display.DisplayItem
 import se.eldebosh.nastastopp.core.display.DisplaySnapshot
 import se.eldebosh.nastastopp.ui.TouchTarget
-import se.eldebosh.nastastopp.ui.theme.Amber
+import se.eldebosh.nastastopp.ui.refCorner
+import se.eldebosh.nastastopp.ui.theme.Brand
+import se.eldebosh.nastastopp.ui.theme.TimeColor
 import se.eldebosh.nastastopp.ui.theme.Located
 import se.eldebosh.nastastopp.ui.theme.NotLocated
 import java.time.LocalTime
@@ -79,18 +84,18 @@ fun PassengerDisplayScreen(
     Column(
         Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(Brush.verticalGradient(listOf(Color(0xFF0B0F17), Color(0xFF05070B))))
             .padding(horizontal = 20.dp, vertical = 8.dp),
     ) {
         // Top: exit, connection status, clock.
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            IconButton(onClick = onExit, modifier = Modifier.ref(86).size(TouchTarget)) {
-                Icon(painterResource(R.drawable.ic_stop), contentDescription = stringResource(R.string.display_exit), tint = Color.White.copy(alpha = 0.6f))
+            IconButton(onClick = onExit, modifier = Modifier.refCorner(86).size(TouchTarget)) {
+                Icon(painterResource(R.drawable.ic_stop), contentDescription = stringResource(R.string.display_exit), tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(22.dp))
             }
             if (status != null) {
                 Box(
                     Modifier
-                        .size(12.dp)
+                        .size(10.dp)
                         .background(if (connected) Located else NotLocated, CircleShape),
                 )
                 Spacer(Modifier.width(8.dp))
@@ -140,30 +145,42 @@ fun PassengerDisplayScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Text(
-                listOfNotNull(stringResource(R.string.display_next_label), current.time).joinToString("  ·  "),
-                color = Amber,
-                fontSize = 30.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.ref(90),
-            )
-            BasicText(
-                text = current.title,
-                style = TextStyle(
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.ref(90)) {
+                Text(stringResource(R.string.display_next_label), color = Brand, fontSize = 26.sp, fontWeight = FontWeight.SemiBold)
+                if (current.time != null) {
+                    Spacer(Modifier.width(14.dp))
+                    Text(current.time, color = TimeColor, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            BoxWithConstraints(Modifier.ref(91).weight(1f, fill = false).fillMaxWidth()) {
+                val style = TextStyle(
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
                     textDirection = TextDirection.Content,
-                ),
-                maxLines = 2,
-                autoSize = TextAutoSize.StepBased(minFontSize = 32.sp, maxFontSize = 280.sp, stepSize = 4.sp),
-                modifier = Modifier.ref(91).weight(1f, fill = false).fillMaxWidth(),
-            )
+                )
+                // Never larger than the size at which the longest word still fits on one line,
+                // so a street name is not split in the middle ("Brattgård-sgatan").
+                val measurer = rememberTextMeasurer()
+                val width = constraints.maxWidth
+                val maxSp = remember(current.title, width) {
+                    val widest = current.title.split(' ').filter { it.isNotBlank() }
+                        .maxOfOrNull { measurer.measure(it, style.copy(fontSize = 100.sp)).size.width } ?: 0
+                    if (widest <= 0) MAX_TITLE_SP else (100f * width / widest * 0.97f).coerceIn(MIN_TITLE_SP, MAX_TITLE_SP)
+                }
+                BasicText(
+                    text = current.title,
+                    style = style,
+                    maxLines = 2,
+                    autoSize = TextAutoSize.StepBased(minFontSize = MIN_TITLE_SP.sp, maxFontSize = maxSp.sp, stepSize = 2.sp),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
             current.subtitle?.let {
                 Text(
                     it,
-                    color = Color.White.copy(alpha = 0.85f),
-                    fontSize = 30.sp,
+                    color = Color.White.copy(alpha = 0.75f),
+                    fontSize = 28.sp,
                     textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.titleLarge.copy(textDirection = TextDirection.Content),
                     maxLines = 2,
@@ -174,10 +191,10 @@ fun PassengerDisplayScreen(
             Spacer(Modifier.height(12.dp))
             FilledIconButton(
                 onClick = onSpeak,
-                modifier = Modifier.ref(93).size(96.dp),
-                colors = IconButtonDefaults.filledIconButtonColors(containerColor = Amber, contentColor = Color.Black),
+                modifier = Modifier.refCorner(93).size(80.dp),
+                colors = IconButtonDefaults.filledIconButtonColors(containerColor = Brand, contentColor = Color(0xFF06142B)),
             ) {
-                Icon(painterResource(R.drawable.ic_speaker), contentDescription = stringResource(R.string.display_repeat), modifier = Modifier.size(52.dp))
+                Icon(painterResource(R.drawable.ic_speaker), contentDescription = stringResource(R.string.display_repeat), modifier = Modifier.size(40.dp))
             }
         }
 
@@ -187,12 +204,15 @@ fun PassengerDisplayScreen(
     }
 }
 
+private const val MIN_TITLE_SP = 32f
+private const val MAX_TITLE_SP = 280f
+
 @Composable
 private fun TripLine(item: DisplayItem, fontSize: Int, alpha: Float, modifier: Modifier = Modifier) {
     Column(modifier.fillMaxWidth().alpha(alpha)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (item.time != null) {
-                Text(item.time, color = Amber, fontSize = fontSize.sp, fontWeight = FontWeight.Bold)
+                Text(item.time, color = TimeColor, fontSize = fontSize.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.width(12.dp))
             }
             Text(
@@ -220,7 +240,7 @@ fun Clock(modifier: Modifier = Modifier, fontSize: Int = 26) {
             delay(1_000)
         }
     }
-    Text(now, modifier = modifier, color = Color.White.copy(alpha = 0.7f), fontSize = fontSize.sp, fontWeight = FontWeight.Bold)
+    Text(now, modifier = modifier, color = Color.White.copy(alpha = 0.7f), fontSize = fontSize.sp, fontWeight = FontWeight.SemiBold)
 }
 
 /** Full screen (system bars hidden, swipe to show) and screen always on while visible. */
