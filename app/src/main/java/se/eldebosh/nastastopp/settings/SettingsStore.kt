@@ -36,6 +36,8 @@ data class AppSettings(
     val displayControllerAddress: String? = null,
     /** Floating button hidden by the driver (can be shown again from the app). */
     val overlayHidden: Boolean = false,
+    /** How long finished trips stay in the history on the Home screen (12 h, 24 h or 7 days). */
+    val historyRetentionHours: Int = 12,
 )
 
 /** Small settings store on SharedPreferences (no addresses are ever stored here). */
@@ -60,6 +62,7 @@ class SettingsStore(context: Context) {
             putBoolean(K_DISPLAY_SPEAKS, next.displaySpeaks)
             putString(K_CONTROLLER, next.displayControllerAddress)
             putBoolean(K_OVERLAY_HIDDEN, next.overlayHidden)
+            putInt(K_HISTORY_HOURS, next.historyRetentionHours)
         }
         _state.value = next
     }
@@ -85,6 +88,7 @@ class SettingsStore(context: Context) {
         displaySpeaks = prefs.getBoolean(K_DISPLAY_SPEAKS, false),
         displayControllerAddress = prefs.getString(K_CONTROLLER, null),
         overlayHidden = prefs.getBoolean(K_OVERLAY_HIDDEN, false),
+        historyRetentionHours = prefs.getInt(K_HISTORY_HOURS, 12),
     )
 
     companion object {
@@ -101,6 +105,7 @@ class SettingsStore(context: Context) {
         private const val K_DISPLAY_SPEAKS = "display_speaks"
         private const val K_CONTROLLER = "display_controller_address"
         private const val K_OVERLAY_HIDDEN = "overlay_hidden"
+        private const val K_HISTORY_HOURS = "history_retention_hours"
         private const val K_OX = "overlay_x"
         private const val K_OY = "overlay_y"
 

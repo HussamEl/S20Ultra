@@ -157,3 +157,13 @@ Not testable here: the Bluetooth radio itself (no devices in the build container
 - Saving the answering device as "preferred" never restarts a working link (`start` vs `choose`).
 - New tests: device ordering (pure), automatic connection to the paired phone and not to a headset (Robolectric Bluetooth shadows), and the controller listening state. The real radio still needs checking on the two devices.
 - Version **1.1.1 (versionCode 4)**.
+
+## Version 1.2.0: trip history on Home, floating button can be shown again
+
+| # | Decision | Why |
+|---|----------|-----|
+| 1 | **Trip history kept after "Avsluta"** (Home → "Previous trips"). This deliberately changes the original "route data cleared when a route ends" rule, because the user explicitly asked for it. Only time, area name, address and completion time are stored, in a separate `history.json` in app-private no-backup storage. The route itself (candidates, geo data) is still deleted when the route ends. | Explicit user request. |
+| 2 | **Retention**: each history trip is deleted automatically **12 h** after it was finished by default (the spec's 12 h rule), or after **24 h / 7 days** if chosen in Settings. It is pruned on load, on app resume and by an inexact alarm, and cleared with "Clear history" (with confirmation). | Keeps the health-data privacy rule while giving the driver control. |
+| 3 | Trips still open when "Avsluta" is pressed are recorded as **"not completed"**. Drivers often end the route instead of pressing "Nästa" at the last stop. The route-list "Clear" button (delete everything) does not record history. | |
+| 4 | **Floating button "disappeared"**: the × (new in 1.1.0) sits where the button is grabbed, and a drag that started on it could hide the button; the hidden state was persistent. Now the × only reacts to a real tap (dragging from it moves the button), hiding shows a message saying where to bring it back, and **Home has a "Floating button over Maps" switch**. It also shows when the overlay permission is missing, with the Samsung "Allow restricted settings" hint for side-loaded apps. | User report. |
+| 5 | Version **1.2.0 (versionCode 5)**. | |

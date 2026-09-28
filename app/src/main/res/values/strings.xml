@@ -94,7 +94,7 @@
     <string name="voice_ready">جاهز ✓</string>
     <string name="voice_missing">غير مثبت — اضغط للتثبيت</string>
     <string name="voice_checking">جارٍ التحقق…</string>
-    <string name="settings_privacy_note">الخصوصية: لا يملك التطبيق إذن الإنترنت. تُقرأ الصور على الهاتف فقط ولا تُحفظ. تُحذف العناوين عند انتهاء المسار أو عند المسح أو تلقائياً بعد 12 ساعة.</string>
+    <string name="settings_privacy_note">الخصوصية: لا يملك التطبيق إذن الإنترنت. تُقرأ الصور على الهاتف فقط ولا تُحفظ. قائمة المسار تُحذف عند انتهائه أو عند المسح أو بعد 12 ساعة. الرحلات المنتهية تبقى في سجل الصفحة الرئيسية للمدة المختارة (افتراضياً 12 ساعة) ثم تُحذف تلقائياً، ويمكن مسحها في أي وقت.</string>
     <string name="settings_version">الإصدار %1$s · %2$s</string>
 
     <string name="help_title">المساعدة</string>
@@ -178,4 +178,20 @@
     <string name="display_last_error">آخر محاولة: %1$s</string>
     <string name="link_waiting_hint">في التابلت: افتح Nästa Stopp واختر «شاشة الركاب»، وسيجد هذا الجهاز تلقائياً. لا تفعّل هذا الخيار على التابلت.</string>
     <string name="link_device_name">اسم هذا الجهاز في البلوتوث: %1$s</string>
+    <string name="home_overlay_title">الزر العائم فوق الخرائط</string>
+    <string name="home_overlay_shown">يظهر أثناء المسار</string>
+    <string name="home_overlay_hidden">مخفي — شغّل المفتاح لإظهاره</string>
+    <string name="home_overlay_no_permission">يحتاج إذن «الظهور فوق التطبيقات» — اضغط للسماح</string>
+    <string name="home_overlay_restricted_hint">في سامسونج، إذا كان الخيار رمادياً: معلومات التطبيق ← ⋮ ← «السماح بالإعدادات المقيدة»، ثم فعّله.</string>
+    <string name="overlay_hidden_toast">تم إخفاء الزر العائم. أعِد إظهاره من الصفحة الرئيسية.</string>
+    <string name="history_title">الرحلات السابقة</string>
+    <string name="history_empty">لا توجد رحلات سابقة بعد.</string>
+    <string name="history_retention_note">تُحذف كل رحلة تلقائياً بعد %1$s (يمكن تغييرها من الإعدادات).</string>
+    <string name="history_clear">مسح السجل</string>
+    <string name="history_clear_confirm">حذف كل الرحلات السابقة من الهاتف؟</string>
+    <string name="history_not_completed">لم تكتمل</string>
+    <string name="retention_12h">12 ساعة</string>
+    <string name="retention_24h">24 ساعة</string>
+    <string name="retention_7d">7 أيام</string>
+    <string name="settings_history">مدة حفظ سجل الرحلات</string>
 </resources>

@@ -76,6 +76,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
     val importError by vm.importError.collectAsStateWithLifecycle()
     val display by controller.display.collectAsStateWithLifecycle()
     val linkServer by graph.displayServer.state.collectAsStateWithLifecycle()
+    val history by graph.history.entries.collectAsStateWithLifecycle()
     val importing = importState is ImportUi.Running
     val snackbar = remember { SnackbarHostState() }
     var resumeTick by remember { mutableIntStateOf(0) }
@@ -189,6 +190,16 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             onToggleLink = ::toggleLink,
                             onFixLink = ::fixLink,
                             onUseAsDisplay = { vm.setRole(DeviceRole.DISPLAY) },
+                            overlayPermission = remember(resumeTick) { SystemIntents.canDrawOverlays(context) },
+                            overlayHidden = settings.overlayHidden,
+                            onOverlayVisible = { visible ->
+                                graph.settings.update { it.copy(overlayHidden = !visible) }
+                                graph.overlay.refresh()
+                            },
+                            onOverlayPermission = { SystemIntents.openOverlaySettings(context) },
+                            history = history,
+                            historyRetentionHours = settings.historyRetentionHours,
+                            onClearHistory = { graph.history.clear() },
                         )
                         Screen.REVIEW -> ReviewScreen(
                             route = route,

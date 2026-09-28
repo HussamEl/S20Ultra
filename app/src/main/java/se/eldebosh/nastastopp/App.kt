@@ -17,6 +17,7 @@ import se.eldebosh.nastastopp.ocr.OcrEngine
 import se.eldebosh.nastastopp.overlay.OverlayManager
 import se.eldebosh.nastastopp.route.RouteController
 import se.eldebosh.nastastopp.route.RouteRepository
+import se.eldebosh.nastastopp.route.TripHistory
 import se.eldebosh.nastastopp.service.Notifications
 import se.eldebosh.nastastopp.service.RouteNotifier
 import se.eldebosh.nastastopp.settings.SettingsStore
@@ -33,7 +34,8 @@ class AppGraph(app: Application) {
     val maps = MapsLauncher(app)
     val repository = RouteRepository(app)
     val geocoding = Geocoding(app)
-    val controller = RouteController(app, scope, repository, settings, geocoding, announcer, maps, localities, extractor)
+    val history = TripHistory(app, settings, scope)
+    val controller = RouteController(app, scope, repository, settings, geocoding, announcer, maps, localities, extractor, history)
     val notifier = RouteNotifier(app, controller, settings, scope)
     val overlay = OverlayManager(app, controller, settings, scope)
     val importer = ScreenshotImporter(OcrEngine(app), extractor)

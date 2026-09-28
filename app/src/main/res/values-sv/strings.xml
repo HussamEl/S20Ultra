@@ -93,7 +93,7 @@
     <string name="voice_ready">Klar ✓</string>
     <string name="voice_missing">Saknas – tryck för att installera</string>
     <string name="voice_checking">Kontrollerar…</string>
-    <string name="settings_privacy_note">Integritet: appen har ingen internetbehörighet. Bilderna läses bara i telefonen och sparas aldrig. Adresserna raderas när rutten avslutas, när du rensar eller automatiskt efter 12 timmar.</string>
+    <string name="settings_privacy_note">Integritet: appen har ingen internetbehörighet. Bilderna läses bara i telefonen och sparas aldrig. Ruttlistan raderas när rutten avslutas, när du rensar eller efter 12 timmar. Avslutade resor finns kvar i historiken på startsidan under den valda tiden (standard 12 timmar) och raderas sedan automatiskt; de kan rensas när som helst.</string>
     <string name="settings_version">Version %1$s · %2$s</string>
 
     <string name="help_title">Hjälp</string>
@@ -177,4 +177,20 @@
     <string name="display_last_error">Senaste försök: %1$s</string>
     <string name="link_waiting_hint">På surfplattan: öppna Nästa Stopp och välj \"Passagerarskärm\" – den hittar den här enheten automatiskt. Slå inte på det här på surfplattan.</string>
     <string name="link_device_name">Den här enhetens Bluetooth-namn: %1$s</string>
+    <string name="home_overlay_title">Flytande knapp över Maps</string>
+    <string name="home_overlay_shown">Visas under rutten</string>
+    <string name="home_overlay_hidden">Dold – slå på för att visa den</string>
+    <string name="home_overlay_no_permission">Behöver \"Visa ovanpå andra appar\" – tryck för att tillåta</string>
+    <string name="home_overlay_restricted_hint">På Samsung, om reglaget är grått: Appinfo → ⋮ → Tillåt begränsade inställningar, slå sedan på det.</string>
+    <string name="overlay_hidden_toast">Den flytande knappen är dold. Visa den igen från startsidan.</string>
+    <string name="history_title">Tidigare resor</string>
+    <string name="history_empty">Inga tidigare resor ännu.</string>
+    <string name="history_retention_note">Varje resa raderas automatiskt efter %1$s (kan ändras i inställningarna).</string>
+    <string name="history_clear">Rensa historik</string>
+    <string name="history_clear_confirm">Radera alla tidigare resor från telefonen?</string>
+    <string name="history_not_completed">Ej slutförd</string>
+    <string name="retention_12h">12 timmar</string>
+    <string name="retention_24h">24 timmar</string>
+    <string name="retention_7d">7 dagar</string>
+    <string name="settings_history">Spara resehistorik i</string>
 </resources>

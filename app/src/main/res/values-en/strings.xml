@@ -93,7 +93,7 @@
     <string name="voice_ready">Ready ✓</string>
     <string name="voice_missing">Missing – tap to install</string>
     <string name="voice_checking">Checking…</string>
-    <string name="settings_privacy_note">Privacy: the app has no internet permission. Images are read on the phone only and never stored. Addresses are deleted when the route ends, when you clear, or automatically after 12 hours.</string>
+    <string name="settings_privacy_note">Privacy: the app has no internet permission. Images are read on the phone only and never stored. The route list is deleted when the route ends, when you clear, or after 12 hours. Finished trips stay in the history on the Home screen for the chosen time (12 hours by default) and are then deleted automatically; you can clear them any time.</string>
     <string name="settings_version">Version %1$s · %2$s</string>
 
     <string name="help_title">Help</string>
@@ -177,4 +177,20 @@
     <string name="display_last_error">Last attempt: %1$s</string>
     <string name="link_waiting_hint">On the tablet: open Nästa Stopp and choose \"Passenger display\" – it finds this device automatically. Leave this off on the tablet.</string>
     <string name="link_device_name">This device\'s Bluetooth name: %1$s</string>
+    <string name="home_overlay_title">Floating button over Maps</string>
+    <string name="home_overlay_shown">Shown during the route</string>
+    <string name="home_overlay_hidden">Hidden – switch on to show it</string>
+    <string name="home_overlay_no_permission">Needs \"Display over other apps\" – tap to allow</string>
+    <string name="home_overlay_restricted_hint">On Samsung, if the switch is greyed out: App info → ⋮ → Allow restricted settings, then turn it on.</string>
+    <string name="overlay_hidden_toast">Floating button hidden. Show it again from the Home screen.</string>
+    <string name="history_title">Previous trips</string>
+    <string name="history_empty">No previous trips yet.</string>
+    <string name="history_retention_note">Each trip is deleted automatically after %1$s (can be changed in Settings).</string>
+    <string name="history_clear">Clear history</string>
+    <string name="history_clear_confirm">Delete all previous trips from the phone?</string>
+    <string name="history_not_completed">Not completed</string>
+    <string name="retention_12h">12 hours</string>
+    <string name="retention_24h">24 hours</string>
+    <string name="retention_7d">7 days</string>
+    <string name="settings_history">Keep trip history for</string>
 </resources>

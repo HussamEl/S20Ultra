@@ -156,6 +156,24 @@ class UiSmokeRoboTest {
     }
 
     @Test
+    fun homeShowsHiddenFloatingButtonAndPreviousTrips() {
+        org.robolectric.shadows.ShadowSettings.setCanDrawOverlays(true)
+        app.graph.settings.update { it.copy(onboardingDone = true, overlayHidden = true) }
+        app.graph.history.add("12:30", "Karlstad", "Storgatan 14, 652 24 Karlstad", done = true)
+        launch().use {
+            waitText(s(R.string.home_overlay_hidden))
+            // Switching it on brings the floating button back.
+            compose.onNodeWithText(s(R.string.home_overlay_hidden)).performScrollTo().performClick()
+            assertEquals(false, app.graph.settings.current.overlayHidden)
+            compose.onNodeWithText(s(R.string.home_overlay_shown)).assertExists()
+            // Previous trips stay listed on the Home screen.
+            compose.onNodeWithText(s(R.string.history_title)).performScrollTo().assertExists()
+            compose.onNodeWithText("Storgatan 14, 652 24 Karlstad").performScrollTo().assertExists()
+        }
+        app.graph.history.clear()
+    }
+
+    @Test
     fun activeRouteNextButtonAdvances() {
         app.graph.settings.update { it.copy(onboardingDone = true) }
         app.graph.controller.addManual("Storgatan 14, 65224 Karlstad")

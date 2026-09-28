@@ -44,6 +44,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         val graph = App.from(this).graph
         graph.controller.clearIfExpired()
+        graph.history.prune()
         // Restart tracking after process death (only possible while we are in the foreground).
         graph.controller.ensureServiceRunning()
         graph.overlay.refresh()

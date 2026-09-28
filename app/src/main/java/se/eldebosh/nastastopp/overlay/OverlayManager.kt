@@ -18,6 +18,7 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
@@ -127,7 +128,6 @@ class OverlayManager(
                 setStroke(dp(1.5f), 0xFFFFFFFF.toInt())
             }
             elevation = dp(8f).toFloat()
-            setOnClickListener { settings.update { it.copy(overlayHidden = true) } }
         }
         val buttonFrame = FrameLayout(context).apply {
             addView(button, FrameLayout.LayoutParams(size, size))
@@ -180,6 +180,9 @@ class OverlayManager(
         button.setOnClickListener { controller.next(auto = false) }
         button.setOnLongClickListener { controller.repeat(); true }
         button.setOnTouchListener(TouchHandler(lp, container, onLongPress = { controller.repeat() }))
+        // The × only reacts to a real tap: dragging from it moves the button like elsewhere.
+        close.setOnClickListener { hideByUser() }
+        close.setOnTouchListener(TouchHandler(lp, container, onLongPress = null))
         info.setOnClickListener { openApp() }
         info.setOnTouchListener(TouchHandler(lp, container, onLongPress = null))
         try {
@@ -194,6 +197,11 @@ class OverlayManager(
         } catch (_: Exception) {
             root = null
         }
+    }
+
+    private fun hideByUser() {
+        settings.update { it.copy(overlayHidden = true) }
+        Toast.makeText(context, R.string.overlay_hidden_toast, Toast.LENGTH_LONG).show()
     }
 
     private fun openApp() {

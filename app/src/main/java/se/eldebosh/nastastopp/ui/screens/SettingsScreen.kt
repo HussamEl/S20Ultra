@@ -130,6 +130,11 @@ fun SettingsScreen(
                 onUpdate { it.copy(overlayHidden = !v) }
             }
 
+            SectionTitle(stringResource(R.string.settings_history))
+            listOf(12, 24, 168).forEach { h ->
+                RadioRow(retentionLabel(h), settings.historyRetentionHours == h) { onUpdate { it.copy(historyRetentionHours = h) } }
+            }
+
             SectionTitle(stringResource(R.string.settings_permissions))
             StatusRow(stringResource(R.string.settings_location), permissions.location, onLocation)
             StatusRow(stringResource(R.string.settings_notifications), permissions.notifications, onNotifications)

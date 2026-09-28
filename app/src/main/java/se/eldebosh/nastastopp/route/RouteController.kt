@@ -67,6 +67,7 @@ class RouteController(
     private val maps: MapsLauncher,
     private val localities: Localities,
     private val extractor: AddressExtractor,
+    private val history: TripHistory,
 ) {
     private val _route = MutableStateFlow(repo.load())
     val route: StateFlow<RouteData?> = _route.asStateFlow()
@@ -271,6 +272,7 @@ class RouteController(
         if (!r.active) return
         val done = r.stops.firstOrNull()
         val remaining = r.stops.drop(1)
+        if (done != null) record(done, completed = true)
         if (done == null || remaining.isEmpty()) {
             finish()
             return
@@ -307,10 +309,19 @@ class RouteController(
         maps.launch(batch.map { it.navigationText })
     }
 
-    /** "Avsluta": ends the route and deletes its data. */
+    /**
+     * "Avsluta": ends the route and deletes the route data. Trips that were still open are kept in
+     * the history (marked as not completed) so the day's trips stay visible on the Home screen.
+     */
     fun end() {
         announcer.stop()
+        _route.value?.takeIf { it.active }?.stops?.forEach { record(it, completed = false) }
         endInternal()
+    }
+
+    /** Adds a trip of the active route to the history shown on the Home screen. */
+    private fun record(stop: Stop, completed: Boolean) {
+        history.add(stop.time, spokenName(stop), stop.displayText, done = completed)
     }
 
     private fun finish() {

@@ -23,6 +23,16 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.route.model.RouteData
+import se.eldebosh.nastastopp.route.HistoryEntry
+import se.eldebosh.nastastopp.ui.SectionTitle
+import se.eldebosh.nastastopp.ui.theme.Amber
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.text.style.TextOverflow
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import se.eldebosh.nastastopp.tts.TtsStatus
 import se.eldebosh.nastastopp.ui.BigButton
 import se.eldebosh.nastastopp.ui.ButtonRow
@@ -58,8 +68,16 @@ fun HomeScreen(
     onToggleLink: (Boolean) -> Unit,
     onFixLink: () -> Unit,
     onUseAsDisplay: () -> Unit,
+    overlayPermission: Boolean,
+    overlayHidden: Boolean,
+    onOverlayVisible: (Boolean) -> Unit,
+    onOverlayPermission: () -> Unit,
+    history: List<HistoryEntry>,
+    historyRetentionHours: Int,
+    onClearHistory: () -> Unit,
 ) {
     var confirmClear by remember { mutableStateOf(false) }
+    var confirmClearHistory by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -109,6 +127,7 @@ fun HomeScreen(
         Text(stringResource(R.string.home_share_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
         LinkCard(link, onToggleLink, onFixLink)
+        OverlayCard(overlayPermission, overlayHidden, onOverlayVisible, onOverlayPermission)
 
         ButtonRow {
             BigButton(stringResource(R.string.home_settings), onSettings, Modifier.weight(1f), icon = R.drawable.ic_settings, primary = false)
@@ -131,6 +150,19 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
+
+        HistorySection(history, historyRetentionHours) { confirmClearHistory = true }
+    }
+    if (confirmClearHistory) {
+        AlertDialog(
+            onDismissRequest = { confirmClearHistory = false },
+            title = { Text(stringResource(R.string.history_clear)) },
+            text = { Text(stringResource(R.string.history_clear_confirm)) },
+            confirmButton = {
+                TextButton(onClick = { confirmClearHistory = false; onClearHistory() }) { Text(stringResource(R.string.delete)) }
+            },
+            dismissButton = { TextButton(onClick = { confirmClearHistory = false }) { Text(stringResource(R.string.cancel)) } },
+        )
     }
     if (confirmClear) {
         AlertDialog(
@@ -190,4 +222,113 @@ fun LinkCard(link: DisplayLinkServer.State, onToggle: (Boolean) -> Unit, onFix: 
         }
         Switch(checked = on, onCheckedChange = onToggle)
     }
+}
+
+/** Floating button: show it again after "×", or grant the overlay permission. */
+@Composable
+fun OverlayCard(permission: Boolean, hidden: Boolean, onVisible: (Boolean) -> Unit, onPermission: () -> Unit) {
+    val status = when {
+        !permission -> stringResource(R.string.home_overlay_no_permission)
+        hidden -> stringResource(R.string.home_overlay_hidden)
+        else -> stringResource(R.string.home_overlay_shown)
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .clickable { if (!permission) onPermission() else onVisible(hidden) }
+            .heightIn(min = TouchTarget)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+    ) {
+        Icon(
+            painterResource(if (permission && !hidden) R.drawable.ic_visibility else R.drawable.ic_visibility_off),
+            contentDescription = null,
+            tint = if (permission && !hidden) Located else MaterialTheme.colorScheme.onSurface,
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(R.string.home_overlay_title), style = MaterialTheme.typography.titleMedium)
+            Text(status, style = MaterialTheme.typography.bodyMedium, color = if (!permission) NotLocated else MaterialTheme.colorScheme.onSurfaceVariant)
+            if (!permission) {
+                Text(stringResource(R.string.home_overlay_restricted_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Switch(
+            checked = permission && !hidden,
+            onCheckedChange = { on -> if (!permission) onPermission() else onVisible(on) },
+        )
+    }
+}
+
+/** Trips of earlier routes (newest first): time, area and address, kept after "Avsluta". */
+@Composable
+private fun HistorySection(history: List<HistoryEntry>, retentionHours: Int, onClear: () -> Unit) {
+    SectionTitle(stringResource(R.string.history_title))
+    Text(
+        stringResource(R.string.history_retention_note, retentionLabel(retentionHours)),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    if (history.isEmpty()) {
+        Text(stringResource(R.string.history_empty), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        return
+    }
+    val today = remember { LocalDate.now() }
+    val timeFormat = remember { DateTimeFormatter.ofPattern("HH:mm") }
+    val dateFormat = remember { DateTimeFormatter.ofPattern("d/M HH:mm") }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        history.asReversed().forEach { e ->
+            val at = Instant.ofEpochMilli(e.atMs).atZone(ZoneId.systemDefault())
+            val finished = if (at.toLocalDate() == today) at.format(timeFormat) else at.format(dateFormat)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainer)
+                    .alpha(if (e.done) 0.8f else 0.55f)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            ) {
+                Text(
+                    e.time ?: "--:--",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (e.time != null) Amber else MaterialTheme.colorScheme.outline,
+                )
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(e.area, style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        e.displayText,
+                        style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Content),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    if (e.done) "✓ $finished" else stringResource(R.string.history_not_completed),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (e.done) Located else NotLocated,
+                )
+            }
+        }
+    }
+    BigButton(
+        text = stringResource(R.string.history_clear),
+        onClick = onClear,
+        icon = R.drawable.ic_delete,
+        primary = false,
+        contentColor = MaterialTheme.colorScheme.error,
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+@Composable
+fun retentionLabel(hours: Int): String = when (hours) {
+    24 -> stringResource(R.string.retention_24h)
+    168 -> stringResource(R.string.retention_7d)
+    else -> stringResource(R.string.retention_12h)
 }

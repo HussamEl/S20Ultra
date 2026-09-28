@@ -5,9 +5,11 @@ import android.content.Context
 import android.content.Intent
 import se.eldebosh.nastastopp.App
 
-/** Fired by AlarmManager 12 h after a route was created: deletes the route data. */
+/** Fired by AlarmManager when route data or history trips expire: deletes them. */
 class ExpiryReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        App.from(context).graph.controller.clearIfExpired()
+        val graph = App.from(context).graph
+        graph.controller.clearIfExpired()
+        graph.history.prune()
     }
 }
