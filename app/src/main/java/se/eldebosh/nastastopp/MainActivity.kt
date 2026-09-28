@@ -46,11 +46,14 @@ class MainActivity : ComponentActivity() {
         handleOpenIntent(intent)
     }
 
-    /** A trip-change notification opens the YouDrive screen. */
+    /** Opens YouDrive's window, or the list review after trips were added from YouDrive. */
     private fun handleOpenIntent(intent: Intent?) {
-        if (intent?.getStringExtra(Notifications.EXTRA_OPEN) != Notifications.OPEN_YOUDRIVE) return
+        when (intent?.getStringExtra(Notifications.EXTRA_OPEN)) {
+            Notifications.OPEN_YOUDRIVE -> vm.openYouDrive()
+            Notifications.OPEN_REVIEW -> vm.openReview()
+            else -> return
+        }
         intent.removeExtra(Notifications.EXTRA_OPEN)
-        vm.openYouDrive()
     }
 
     override fun onResume() {

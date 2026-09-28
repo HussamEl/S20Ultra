@@ -237,3 +237,15 @@ Not verifiable here: the logged-in YouDrive page (private to the driver's accoun
 - **Credentials:** the driver offered their YouDrive username and password. They were not used or stored: the build environment cannot reach the logged-in site, and a work login should stay with its owner. The driver was advised to change the password, because it appeared in a screenshot in the chat.
 - Version **1.4.3 (versionCode 10)**.
 
+## Fix in 1.4.4: YouDrive in its own full-screen window
+
+- **Report:** with 1.4.3 the login form still did not show, and the keyboard opened with nothing visible. "Log out" seemed to do nothing.
+- **Reading:** the keyboard opening meant the page had focused its username field, and the status "Logged out" meant a visible password field was on screen. The form was laid out but **not drawn**. That is a display problem of the embedded WebView (inside the Compose screen, first laid out off screen), not of the site. Logging out could not change what was shown.
+- **Fix:**
+  - YouDrive now opens in its **own Activity**, like a browser tab: a Compose bar on top and a **plain WebView in the window** below it, at the phone's real size. It keeps clear of the status bar, navigation bar and keyboard (insets; the keyboard pushes the page up).
+  - The page is loaded only once it is on screen. A page loaded off screen for background watching is loaded again when shown.
+  - **Log out** clears the page's storage, cookies and cache, **destroys the WebView** and shows a brand-new page.
+  - Back goes back inside the page, then closes the window.
+  - Trip-change notifications open this window directly. "Add all trips" opens the list review for a new list.
+- Version **1.4.4 (versionCode 11)**.
+

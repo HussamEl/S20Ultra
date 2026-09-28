@@ -10,6 +10,7 @@ import androidx.core.app.NotificationManagerCompat
 import se.eldebosh.nastastopp.MainActivity
 import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.core.youdrive.TripChange
+import se.eldebosh.nastastopp.youdrive.YouDriveActivity
 
 /** Notification channels and the persistent route notification. */
 object Notifications {
@@ -26,6 +27,7 @@ object Notifications {
     private const val MAX_TRIP_ALERTS = 5
     const val EXTRA_OPEN = "se.eldebosh.nastastopp.OPEN"
     const val OPEN_YOUDRIVE = "youdrive"
+    const val OPEN_REVIEW = "review"
 
     fun createChannels(context: Context) {
         val nm = context.getSystemService(NotificationManager::class.java) ?: return
@@ -53,9 +55,7 @@ object Notifications {
 
     private fun openYouDrive(context: Context): PendingIntent = PendingIntent.getActivity(
         context, 3,
-        Intent(context, MainActivity::class.java)
-            .putExtra(EXTRA_OPEN, OPEN_YOUDRIVE)
-            .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+        Intent(context, YouDriveActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 

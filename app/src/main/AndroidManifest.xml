@@ -70,6 +70,14 @@
             </intent-filter>
         </activity>
 
+        <!-- YouDrive in its own full-screen window (the page at the phone's real size). -->
+        <activity
+            android:name=".youdrive.YouDriveActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density|uiMode"
+            android:label="@string/youdrive_title"
+            android:windowSoftInputMode="adjustResize" />
+
         <service
             android:name=".service.RouteService"
             android:exported="false"

@@ -77,6 +77,7 @@ class YouDriveWatcher(
     private var nextChangeId = 1L
     private var lastReloadMs = 0L
     private var fastReads = false
+    private var loadedHidden = false
 
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state.asStateFlow()
@@ -176,21 +177,39 @@ class YouDriveWatcher(
                 callback.invoke(origin, false, false)
             }
         }
-        // A size, so the page lays out while it is not on screen.
-        web.measure(View.MeasureSpec.makeMeasureSpec(OFFSCREEN_W, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(OFFSCREEN_H, View.MeasureSpec.EXACTLY))
-        web.layout(0, 0, OFFSCREEN_W, OFFSCREEN_H)
-        web.loadUrl(URL)
-        lastReloadMs = System.currentTimeMillis()
         webView = web
+        if (wrapper.baseContext is Activity) {
+            // Shown in YouDrive's window: load once the page is on screen, at the phone's real size.
+            web.post { if (web.url == null) load(web) }
+        } else {
+            // Watching in the background: give the page a size so it lays out off screen. It is
+            // loaded again when it is shown, because a page laid out off screen may not draw.
+            web.measure(View.MeasureSpec.makeMeasureSpec(OFFSCREEN_W, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(OFFSCREEN_H, View.MeasureSpec.EXACTLY))
+            web.layout(0, 0, OFFSCREEN_W, OFFSCREEN_H)
+            loadedHidden = true
+            load(web)
+        }
         if (_state.value.status == Status.OFF) _state.value = _state.value.copy(status = Status.LOADING)
         return web
     }
 
-    /** Shows the page inside [activity] (dialogs and pickers need an activity context). */
+    private fun load(web: WebView) {
+        lastReloadMs = System.currentTimeMillis()
+        web.loadUrl(URL)
+    }
+
+    /**
+     * The page for YouDrive's window [activity] (dialogs and pickers need an activity context).
+     * The caller adds it to its layout; a page loaded off screen is loaded again once shown.
+     */
     fun attach(activity: Context): WebView {
         wrapper.baseContext = activity
         val web = webView()
         (web.parent as? ViewGroup)?.removeView(web)
+        if (loadedHidden) {
+            loadedHidden = false
+            web.post { reload() }
+        }
         fastReads = true
         restartLoop()
         handler.postDelayed({ readNow() }, PAGE_QUICK_MS)
@@ -251,32 +270,37 @@ class YouDriveWatcher(
 
     /** Opens YouDrive's start page (login, or the trips when logged in). */
     fun openStart() {
-        lastReloadMs = System.currentTimeMillis()
-        webView?.loadUrl(URL) ?: webView()
+        webView?.let { load(it) } ?: webView()
     }
 
     fun reload() {
         lastReloadMs = System.currentTimeMillis()
+        if (wrapper.baseContext !is Activity) loadedHidden = true
         webView?.reload() ?: webView()
     }
 
     /**
-     * Clears the YouDrive login and everything the page stored (also its session storage, which
-     * lives as long as the page), then shows the start page again.
+     * Logs out completely: clears what the page stored (also its session storage, which lives as
+     * long as the page), cookies, web storage and cache, and throws the page away. [then] runs
+     * when done, so the window can show a brand-new page.
      */
-    fun logout() {
+    fun logout(then: () -> Unit = {}) {
         val web = webView
-        val restart = {
+        val finish = {
             CookieManager.getInstance().removeAllCookies(null)
+            CookieManager.getInstance().flush()
             WebStorage.getInstance().deleteAllData()
             web?.clearCache(true)
-            web?.loadUrl(URL)
-            web?.clearHistory()
+            (web?.parent as? ViewGroup)?.removeView(web)
+            web?.destroy()
+            if (webView === web) webView = null
+            loadedHidden = false
             _canGoBack.value = false
+            watch.reset()
+            _state.value = State(status = Status.OFF)
+            then()
         }
-        watch.reset()
-        _state.value = State(status = if (web != null) Status.LOADING else Status.OFF)
-        if (web == null) restart() else web.evaluateJavascript(CLEAR_STORAGE_JS) { restart() }
+        if (web == null) finish() else web.evaluateJavascript(CLEAR_STORAGE_JS) { finish() }
     }
 
     private fun isYouDrive(uri: Uri) = uri.host == API_HOST || uri.host == URL.toUri().host

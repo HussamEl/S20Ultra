@@ -60,7 +60,6 @@ import se.eldebosh.nastastopp.util.LocaleHelper
 import se.eldebosh.nastastopp.util.SystemIntents
 import se.eldebosh.nastastopp.overlay.OverlayTileService
 import se.eldebosh.nastastopp.ui.screens.YouDriveCard
-import se.eldebosh.nastastopp.ui.screens.YouDriveScreen
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import android.widget.Toast
@@ -88,7 +87,6 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
     val history by graph.history.entries.collectAsStateWithLifecycle()
     val street by graph.street.state.collectAsStateWithLifecycle()
     val youDrive by graph.youDrive.state.collectAsStateWithLifecycle()
-    val youDriveCanGoBack by graph.youDrive.canGoBack.collectAsStateWithLifecycle()
     val importing = importState is ImportUi.Running
     val snackbar = remember { SnackbarHostState() }
     var resumeTick by remember { mutableIntStateOf(0) }
@@ -230,28 +228,6 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             historyRetentionHours = settings.historyRetentionHours,
                             onClearHistory = { graph.history.clear() },
                             youDrive = { YouDriveCard(youDrive, settings.youDriveWatch) { vm.openYouDrive() } },
-                        )
-                        Screen.YOUDRIVE -> YouDriveScreen(
-                            state = youDrive,
-                            watching = settings.youDriveWatch,
-                            webView = { ctx -> graph.youDrive.attach(ctx) },
-                            onReleaseWebView = { graph.youDrive.detach() },
-                            canGoBack = youDriveCanGoBack,
-                            onPageBack = { graph.youDrive.goBack() },
-                            onStartPage = { graph.youDrive.openStart() },
-                            onBack = { vm.back() },
-                            onWatch = { on ->
-                                if (on && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !SystemIntents.hasNotifications(context)) {
-                                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                                }
-                                vm.setYouDriveWatch(on)
-                            },
-                            onReload = { graph.youDrive.reload() },
-                            onReadNow = { graph.youDrive.readNow() },
-                            onImportAll = { vm.importYouDriveTrips() },
-                            onApply = { vm.applyYouDriveChange(it) },
-                            onDismiss = { graph.youDrive.dismiss(it.id) },
-                            onLogout = { graph.youDrive.logout() },
                         )
                         Screen.REVIEW -> ReviewScreen(
                             route = route,

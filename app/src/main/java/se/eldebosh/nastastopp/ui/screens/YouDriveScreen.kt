@@ -1,14 +1,11 @@
 package se.eldebosh.nastastopp.ui.screens
 
-import android.webkit.WebView
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -37,7 +34,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.ui.Hint
 import se.eldebosh.nastastopp.ui.TouchTarget
@@ -51,21 +47,17 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 /**
- * The driver's YouDrive page inside the app, taking almost the whole screen like in Chrome. One
- * slim bar on top: back, status, watch bell, start page, reload and a menu (add all trips, check
- * now, log out). Added / cancelled trips appear above the page with "add / remove" buttons.
+ * The slim bar of YouDrive's window (the page itself fills the rest of the screen): back, status,
+ * watch bell, start page, reload and a menu (add all trips, check now, log out). Added /
+ * cancelled trips appear under it with "add / remove" buttons.
  */
 @Composable
-fun YouDriveScreen(
+fun YouDriveBar(
     state: YouDriveWatcher.State,
     watching: Boolean,
-    webView: (android.content.Context) -> WebView,
-    onReleaseWebView: () -> Unit,
-    canGoBack: Boolean,
-    onPageBack: () -> Unit,
-    onStartPage: () -> Unit,
     onBack: () -> Unit,
     onWatch: (Boolean) -> Unit,
+    onStartPage: () -> Unit,
     onReload: () -> Unit,
     onReadNow: () -> Unit,
     onImportAll: () -> Unit,
@@ -75,9 +67,7 @@ fun YouDriveScreen(
 ) {
     var confirmLogout by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
-    // The phone's Back key goes back inside the page first (e.g. from its Settings to the login).
-    BackHandler(enabled = canGoBack, onBack = onPageBack)
-    Column(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxWidth()) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(end = 2.dp),
@@ -135,12 +125,6 @@ fun YouDriveScreen(
             }
         }
         state.changes.asReversed().forEach { ChangeRow(it, onApply, onDismiss) }
-        // The YouDrive page itself (the same WebView keeps running while watching).
-        AndroidView(
-            factory = { context -> webView(context) },
-            onRelease = { onReleaseWebView() },
-            modifier = Modifier.ref(151).weight(1f).fillMaxWidth(),
-        )
     }
     if (confirmLogout) {
         AlertDialog(

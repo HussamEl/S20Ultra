@@ -215,19 +215,27 @@ class UiSmokeRoboTest {
     }
 
     @Test
-    fun youDriveScreenOpensFromHome() {
+    fun youDriveOpensInItsOwnFullScreenWindow() {
         app.graph.settings.update { it.copy(onboardingDone = true) }
         launch().use {
             waitText(s(R.string.youdrive_card_title))
             compose.onNodeWithText(s(R.string.youdrive_card_title)).performScrollTo().performClick()
+            compose.waitForIdle()
+            val started = generateSequence { shadowOf(app).nextStartedActivity }.take(5).toList()
+            assertTrue(started.map { it.component?.className }.toString(), started.any { it.component?.className == se.eldebosh.nastastopp.youdrive.YouDriveActivity::class.java.name })
+        }
+        ActivityScenario.launch(se.eldebosh.nastastopp.youdrive.YouDriveActivity::class.java).use {
+            shadowOf(Looper.getMainLooper()).idle()
             // One slim bar: watch bell, start page, reload and a menu; the page gets the rest.
             compose.onNodeWithContentDescription(s(R.string.youdrive_watch)).assertExists()
             compose.onNodeWithContentDescription(s(R.string.youdrive_start_page)).assertExists()
             compose.onNodeWithContentDescription(s(R.string.youdrive_more)).performClick()
-            compose.onNodeWithText(s(R.string.youdrive_read_now)).assertExists()
             compose.onNodeWithText(s(R.string.youdrive_read_now)).performClick()
-            compose.onNodeWithContentDescription(s(R.string.back)).performClick()
-            compose.onNodeWithText(s(R.string.home_import)).assertExists()
+            compose.onNodeWithContentDescription(s(R.string.youdrive_more)).performClick()
+            compose.onNodeWithText(s(R.string.youdrive_logout)).performClick()
+            compose.onNodeWithText(s(R.string.delete)).performClick()
+            shadowOf(Looper.getMainLooper()).idle()
+            compose.onNodeWithContentDescription(s(R.string.youdrive_watch)).assertExists()
         }
     }
 
