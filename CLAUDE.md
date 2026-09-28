@@ -44,7 +44,7 @@ An Android app for a Swedish shared-ride driver:
   - `apksigner verify --print-certs`: the SHA-256 starts `1ae627778bdd`.
   - `dexdump`: ML Kit `TextRegistrar` is present.
 - Copy the APK to `dist/NastaStopp.apk`, update `DECISIONS.md` and `README.md`, then commit and push to `claude/nasta-stopp-android-app-soeru7`.
-- Signing uses `keystore.properties` (gitignored), which points to `~/.nastastopp-signing/`. R8 stays disabled because it strips the ML Kit registrars.
+- Signing uses `keystore.properties` (gitignored), which points to `~/.nastastopp-signing/`. Hussam holds a private backup of the key (since 2026-09-28); never commit it or post it anywhere. R8 stays disabled because it strips the ML Kit registrars.
 
 ## Device testing (with the local Claude session on the user's laptop)
 - A second Claude Code session on the user's laptop has the S20 Ultra (SM-G988B, Android 13) on adb. It installs and tests every build. **Never try to reach the phone yourself.**
