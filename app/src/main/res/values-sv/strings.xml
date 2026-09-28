@@ -66,7 +66,7 @@
     <string name="btn_end">Avsluta</string>
     <string name="btn_edit_list">Redigera listan</string>
     <string name="confirm_end_title">Avsluta rutten?</string>
-    <string name="confirm_end_text">Alla adresser raderas från telefonen.</string>
+    <string name="confirm_end_text">Rutten och listan raderas. Resorna finns kvar under \"Tidigare resor\" på startsidan tills tiden löper ut (se Inställningar) eller du rensar dem. Google Maps fortsätter navigera tills du avslutar där.</string>
     <string name="status_arrived">Framme – nästa stopp ropas ut när du kör vidare</string>
     <string name="status_distance">Avstånd till stoppet: %1$d m</string>
     <string name="status_manual_only">Manuell växling för detta stopp (tryck Nästa)</string>

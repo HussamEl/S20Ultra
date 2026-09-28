@@ -50,7 +50,7 @@ class AddressExtractor(private val localities: Localities) {
         val found = ArrayList<Triple<ParsedAddress, Int, Int>>()
         var i = 0
         while (i < lines.size) {
-            val line = lines[i]
+            val line = withCarriedPrefix(lines.getOrNull(i - 1), lines[i])
             val next = lines.getOrNull(i + 1)
             val single = safeParse(line)
             val singleHasPlace = single != null && (single.postalCode != null || single.town != null)
@@ -235,6 +235,21 @@ class AddressExtractor(private val localities: Localities) {
             coreKey = TextNorm.key(core),
         )
     }
+
+    /**
+     * OCR sometimes splits one row in two: "10:45 Västra" | "Torggatan 12, 652 24 Karlstad". A
+     * street prefix word left at the end of the previous line is put back in front of the street.
+     */
+    private fun withCarriedPrefix(previous: String?, line: String): String {
+        val last = previous?.trim()?.split(' ')?.lastOrNull()?.stripPunct() ?: return line
+        // Capitalised like a street name ("Västra"), so UI text such as "Visa nya" is not carried.
+        if (last.firstOrNull()?.isUpperCase() != true || !isStreetPrefix(last)) return line
+        val first = line.trim().split(' ').firstOrNull()?.stripPunct() ?: return line
+        if (first.isEmpty() || !first.first().isLetter() || isStreetPrefix(first)) return line
+        return "$last ${line.trim()}"
+    }
+
+    private fun isStreetPrefix(word: String) = TextNorm.fold(word) in STREET_PREFIXES
 
     private fun ParsedAddress.toStop(order: Int) = ExtractedStop(
         displayText = displayText,
@@ -454,7 +469,10 @@ class AddressExtractor(private val localities: Localities) {
         if (streetIdx >= 0) {
             val word = tokens[streetIdx].stripPunct().lowercase(TextNorm.SWEDISH)
             val standalone = STREET_SUFFIXES.any { it == word }
-            return if (standalone) maxOf(0, streetIdx - 1) else streetIdx
+            var anchor = if (standalone) maxOf(0, streetIdx - 1) else streetIdx
+            // "Västra Torggatan", "Gamla Kilsvägen": the prefix belongs to the street name.
+            while (anchor > 0 && isStreetPrefix(tokens[anchor - 1].stripPunct())) anchor--
+            return anchor
         }
         val numIdx = tokens.indexOfFirst { HOUSE_NUMBER.matches(it.stripPunct()) }
         if (numIdx > 0) {
@@ -477,6 +495,12 @@ class AddressExtractor(private val localities: Localities) {
             "udden", "ringen", "allén", "allé", "gata", "torg", "plan", "väg",
             "vagen", "allen", "alle",
         ).sortedByDescending { it.length }
+
+        /** Words that start a street name ("Västra Torggatan"), folded (no å ä ö, lower case). */
+        val STREET_PREFIXES: Set<String> = setOf(
+            "vastra", "ostra", "norra", "sodra", "stora", "lilla", "gamla", "nya",
+            "ovre", "nedre", "yttre", "inre", "sankt", "s:t",
+        )
 
         private val HOUSE_NUMBER = Regex("\\d{1,4}\\s?[A-Za-z]?|\\d{1,4}-\\d{1,4}")
 

@@ -21,7 +21,9 @@ import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.node.invalidateMeasurement
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.platform.LocalFontFamilyResolver
-import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -48,10 +50,19 @@ object RefNumbers {
  */
 fun Modifier.ref(n: Int, centered: Boolean = false): Modifier =
     // The number is drawn over the strip's full size, so the draw part comes before the strip.
-    this.testTag(refTag(n)) then RefDrawElement(n, corner = false) then RefStripElement(centered)
+    this.refId(n) then RefDrawElement(n, corner = false) then RefStripElement(centered)
 
 /** For icon buttons and switches: the number sits in the control's own empty top-start corner. */
-fun Modifier.refCorner(n: Int): Modifier = this.testTag(refTag(n)) then RefDrawElement(n, corner = true)
+fun Modifier.refCorner(n: Int): Modifier = this.refId(n) then RefDrawElement(n, corner = true)
+
+/**
+ * The test tag "ref_<n>", exported as resource-id on the element itself, so it also works in
+ * dialogs and menus (separate windows, outside the app roots).
+ */
+private fun Modifier.refId(n: Int): Modifier = semantics {
+    testTag = refTag(n)
+    testTagsAsResourceId = true
+}
 
 /**
  * Stable id of numbered element [n] ("ref_78"): a test tag that UI Automator sees as the
@@ -117,10 +128,12 @@ private class RefDrawNode(var n: Int, var corner: Boolean) : Modifier.Node(), Dr
             val padX = 3.dp.toPx()
             val w = text.size.width + 2 * padX
             val h = text.size.height.toFloat()
-            val inset = 1.dp.toPx()
-            val x = if (layoutDirection == LayoutDirection.Ltr) inset else size.width - w - inset
-            drawRoundRect(PILL, topLeft = Offset(x, inset), size = Size(w, h), cornerRadius = CornerRadius(h / 2))
-            drawText(text, topLeft = Offset(x + padX, inset))
+            // Nudged up and out, so it sits beside the control's corner instead of on its edge
+            // (a switch track, a "?" ring).
+            val out = 4.dp.toPx()
+            val x = if (layoutDirection == LayoutDirection.Ltr) -out else size.width - w + out
+            drawRoundRect(PILL, topLeft = Offset(x, -out), size = Size(w, h), cornerRadius = CornerRadius(h / 2))
+            drawText(text, topLeft = Offset(x + padX, -out))
         } else {
             val text = m.measure(n.toString(), STRIP_STYLE)
             val x = if (layoutDirection == LayoutDirection.Ltr) 2.dp.toPx() else size.width - text.size.width - 2.dp.toPx()

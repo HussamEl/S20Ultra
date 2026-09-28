@@ -106,13 +106,22 @@ class OverlayManager(
 
     val canShow: Boolean get() = Settings.canDrawOverlays(context)
 
+    /** Screens the panel must never cover (the passenger display), while they are shown. */
+    private val suppressedBy = HashSet<String>()
+
+    /** [key]'s screen is shown ([on]) or gone: the panel stays away while any such screen is shown. */
+    fun suppress(key: String, on: Boolean) {
+        val changed = if (on) suppressedBy.add(key) else suppressedBy.remove(key)
+        if (changed) refresh()
+    }
+
     /** Shows/updates/hides the panel according to the route, the settings and the permission. */
     fun refresh() {
         val r = controller.route.value
         val s = settings.current
         val routeOn = r != null && r.active && r.stops.isNotEmpty() && canShow
         setReminder(routeOn && s.overlayHidden)
-        if (!routeOn || s.overlayHidden) {
+        if (!routeOn || s.overlayHidden || suppressedBy.isNotEmpty()) {
             street.want(WANT_KEY, false)
             hide()
             return
@@ -648,9 +657,9 @@ class OverlayManager(
         private const val BRAND = 0xFF6EA8FF.toInt()
         private const val ON_BRAND = 0xFF06142B.toInt()
         private const val TIME = 0xFFFFC56B.toInt()
-        private const val PANEL = 0xF2131A26.toInt()
-        private const val RAISED = 0xF21A2231.toInt()
-        private const val INFO_BG = 0xEB0B0F17.toInt()
+        private const val PANEL = 0xFA131A26.toInt()
+        private const val RAISED = 0xFA1A2231.toInt()
+        private const val INFO_BG = 0xFA0B0F17.toInt() // nearly opaque: map labels must not show through
         private const val HAIRLINE = 0xFF2F3B52.toInt()
         private const val MUTED = 0xFF9AA6BA.toInt()
         private const val WHITE = 0xFFFFFFFF.toInt()

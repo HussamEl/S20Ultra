@@ -363,3 +363,28 @@ Not verifiable here: the logged-in YouDrive page (private to the driver's accoun
 - **Delivery:** the release-signed `dist/NastaStopp.apk` on the branch (same key every time, so updates install in place), not a debug APK. The cloud's debug key changes between sessions.
 - The version line (125) shows the versionCode too: "Version 1.0 (15)".
 - **Test race fixed:** `RouteControllerRoboTest` set-up deleted the route file on a background thread while the next test saved it. `RouteController.awaitPersisted()` (tests only) now waits for queued writes.
+
+## 1.0.1 (versionCode 16): fixes from the first real-device test (PR #1)
+
+The device session tested build 15 on the S20 Ultra: 10 pass, 2 pass with issues, 1 fail, 1 blocked.
+- **B6 (blocker), YouDrive never loaded on Android 13 ("certificate 3" = `SSL_UNTRUSTED`):**
+  - The site chains to **Telia Root CA v2**, which Android 13 and older don't ship; they only have TeliaSonera v1.
+  - Fix: `res/xml/network_security_config.xml` adds that public root as an extra trust anchor **for `regionvarmland.se` only**, next to the system store.
+  - The certificate comes from the Mozilla store (Debian ca-certificates). Its serial `01675F27D6FE7AE3E4ACBE095B059E` and SHA-256 `24:2B:69:74:…:B8:2C` match what the tester saw from the server.
+  - TLS verification is unchanged; untrusted certificates are still refused. There is no `proceed()`.
+- **B1, "Västra Torggatan 12" read as "Torggatan 12":**
+  - ML Kit split the row after "Västra" ("10:45 Västra" | "Torggatan 12, …").
+  - A street prefix word (Västra, Östra, Norra, Södra, Stora, Lilla, Gamla, Nya, Övre, Nedre, Yttre, Inre, Sankt, S:t) left capitalised at the end of the previous line is now put back in front of the street.
+  - Such prefixes are never dropped as if they were a surname in the geocoder candidates.
+  - Tests are in `DeviceFixturesTest`.
+- **B2, floating panel over the passenger display:** `OverlayManager.suppress(key, on)` keeps the panel away while the passenger display (Screen.DISPLAY_LOCAL) is shown.
+- **B3 / B5, end-route dialog:** the text now says what really happens:
+  - The route and its list are deleted.
+  - Its trips stay under "Previous trips" until they expire or are cleared.
+  - Google Maps keeps navigating until it is closed there.
+- **B4, `ref_83` missing in the dialog:** dialogs and menus are separate windows, so each numbered element now sets `testTagsAsResourceId` itself. `ref_<n>` therefore works everywhere.
+- **V1:** the corner number pill sits 4 dp up and out from the control, beside a switch track or "?" ring instead of notching it.
+- **V2:** the floating panel's surfaces are nearly opaque (`0xFA…`), so Maps labels don't show through.
+- **Not changed:**
+  - Maps' own picture-in-picture over the app (V3).
+  - Maps' first-run sign-in and terms screens (V4).

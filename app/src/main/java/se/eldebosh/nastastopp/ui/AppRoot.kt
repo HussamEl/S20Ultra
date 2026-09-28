@@ -71,6 +71,9 @@ private const val MAX_PICK = 30
 /** Key under which the route screen asks for current-street lookups. */
 private const val STREET_KEY = "active_screen"
 
+/** Key under which the passenger display keeps the floating panel away. */
+private const val DISPLAY_KEY = "passenger_display"
+
 @Composable
 fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
     val context = LocalContext.current
@@ -275,13 +278,20 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 onDispose { graph.street.want(STREET_KEY, false) }
                             }
                         }
-                        Screen.DISPLAY_LOCAL -> PassengerDisplayScreen(
-                            snapshot = display,
-                            status = null,
-                            connected = true,
-                            onSpeak = { controller.repeat() },
-                            onExit = { vm.back() },
-                        )
+                        Screen.DISPLAY_LOCAL -> {
+                            PassengerDisplayScreen(
+                                snapshot = display,
+                                status = null,
+                                connected = true,
+                                onSpeak = { controller.repeat() },
+                                onExit = { vm.back() },
+                            )
+                            // The passengers look at this screen: the driver's floating panel stays away.
+                            DisposableEffect(Unit) {
+                                graph.overlay.suppress(DISPLAY_KEY, true)
+                                onDispose { graph.overlay.suppress(DISPLAY_KEY, false) }
+                            }
+                        }
                         Screen.DISPLAY_ROLE -> {
                             val client = graph.displayClient
                             val link by client.state.collectAsStateWithLifecycle()
