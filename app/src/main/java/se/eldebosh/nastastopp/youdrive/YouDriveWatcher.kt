@@ -1,6 +1,17 @@
 package se.eldebosh.nastastopp.youdrive
 
 import android.annotation.SuppressLint
+import android.app.Activity
+import android.net.http.SslError
+import android.webkit.ConsoleMessage
+import android.webkit.GeolocationPermissions
+import android.webkit.JsPromptResult
+import android.webkit.JsResult
+import android.webkit.SslErrorHandler
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
+import android.webkit.WebResourceResponse
+import kotlinx.serialization.Serializable
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -15,6 +26,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.core.net.toUri
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -52,6 +64,8 @@ class YouDriveWatcher(
         val lastReadMs: Long? = null,
         /** Changes the driver has not handled yet (newest last). */
         val changes: List<PendingChange> = emptyList(),
+        /** Last problem of the page (load / HTTP / certificate / script error), shown to the driver. */
+        val problem: String? = null,
     )
 
     private val appContext = context.applicationContext
@@ -95,6 +109,10 @@ class YouDriveWatcher(
             allowContentAccess = false
             mediaPlaybackRequiresUserGesture = false // YouDrive's own alert sound
             setSupportMultipleWindows(false)
+            // Behave like Chrome: the page's own viewport and 100 % text (not the system font scale).
+            useWideViewPort = true
+            loadWithOverviewMode = true
+            textZoom = 100
         }
         CookieManager.getInstance().apply {
             setAcceptCookie(true)
@@ -112,6 +130,47 @@ class YouDriveWatcher(
             // YouDrive is a single-page app: its screens change the history without new pages.
             override fun doUpdateVisitedHistory(view: WebView, url: String?, isReload: Boolean) {
                 _canGoBack.value = view.canGoBack()
+            }
+
+            override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+                if (request.isForMainFrame || isYouDrive(request.url)) {
+                    problem("${error.errorCode} ${error.description} (${request.url.host})")
+                }
+            }
+
+            override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, response: WebResourceResponse) {
+                if (response.statusCode >= 400 && (request.isForMainFrame || request.url.host == API_HOST)) {
+                    problem("HTTP ${response.statusCode} ${request.url.host}${request.url.path.orEmpty().take(40)}")
+                }
+            }
+
+            @SuppressLint("WebViewClientOnReceivedSslError") // shown to the driver, then cancelled as usual
+            override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) {
+                problem("certificate ${error.primaryError} (${error.url.toUri().host})")
+                handler.cancel()
+            }
+        }
+        web.webChromeClient = object : WebChromeClient() {
+            override fun onConsoleMessage(message: ConsoleMessage): Boolean {
+                if (message.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
+                    problem("script: ${message.message().take(120)} (${message.sourceId().substringAfterLast('/')}:${message.lineNumber()})")
+                }
+                return true // never written to the system log
+            }
+
+            // Page dialogs need an activity: without one (page in the background) they are dismissed.
+            override fun onJsAlert(view: WebView, url: String?, message: String?, result: JsResult): Boolean =
+                if (wrapper.baseContext is Activity) super.onJsAlert(view, url, message, result) else result.cancel().let { true }
+
+            override fun onJsConfirm(view: WebView, url: String?, message: String?, result: JsResult): Boolean =
+                if (wrapper.baseContext is Activity) super.onJsConfirm(view, url, message, result) else result.cancel().let { true }
+
+            override fun onJsPrompt(view: WebView, url: String?, message: String?, defaultValue: String?, result: JsPromptResult): Boolean =
+                if (wrapper.baseContext is Activity) super.onJsPrompt(view, url, message, defaultValue, result) else result.cancel().let { true }
+
+            // The app never shares the phone's position with the page.
+            override fun onGeolocationPermissionsShowPrompt(origin: String?, callback: GeolocationPermissions.Callback) {
+                callback.invoke(origin, false, false)
             }
         }
         // A size, so the page lays out while it is not on screen.
@@ -197,14 +256,29 @@ class YouDriveWatcher(
         webView?.reload() ?: webView()
     }
 
-    /** Clears the YouDrive login and everything the page stored, then shows the login again. */
+    /**
+     * Clears the YouDrive login and everything the page stored (also its session storage, which
+     * lives as long as the page), then shows the start page again.
+     */
     fun logout() {
-        CookieManager.getInstance().removeAllCookies(null)
-        WebStorage.getInstance().deleteAllData()
-        webView?.clearCache(true)
+        val web = webView
+        val restart = {
+            CookieManager.getInstance().removeAllCookies(null)
+            WebStorage.getInstance().deleteAllData()
+            web?.clearCache(true)
+            web?.loadUrl(URL)
+            web?.clearHistory()
+            _canGoBack.value = false
+        }
         watch.reset()
-        _state.value = State(status = if (webView != null) Status.LOADING else Status.OFF)
-        webView?.loadUrl(URL)
+        _state.value = State(status = if (web != null) Status.LOADING else Status.OFF)
+        if (web == null) restart() else web.evaluateJavascript(CLEAR_STORAGE_JS) { restart() }
+    }
+
+    private fun isYouDrive(uri: Uri) = uri.host == API_HOST || uri.host == URL.toUri().host
+
+    private fun problem(text: String) {
+        _state.value = _state.value.copy(problem = text)
     }
 
     // ------------------------------------------------------------------------------------------
@@ -230,20 +304,26 @@ class YouDriveWatcher(
     /** Reads the page's visible text now. */
     fun readNow() {
         val web = webView ?: return
-        web.evaluateJavascript(READ_TEXT_JS) { result ->
-            val text = runCatching { json.decodeFromString<String?>(result ?: "null") }.getOrNull().orEmpty()
-            onPageText(text)
+        web.evaluateJavascript(READ_PAGE_JS) { result ->
+            // {"t": visible text, "p": a login form (password field) is shown}
+            val page = runCatching { json.decodeFromString<PageReading>(json.decodeFromString<String?>(result ?: "null") ?: "{}") }.getOrNull()
+            onPageText(page?.t.orEmpty(), loginForm = page?.p ?: false)
         }
     }
 
     /** Parses one reading of the page (also the entry point for tests). */
-    fun onPageText(text: String, nowMs: Long = System.currentTimeMillis(), nowTime: LocalTime = LocalTime.now()) {
+    fun onPageText(
+        text: String,
+        nowMs: Long = System.currentTimeMillis(),
+        nowTime: LocalTime = LocalTime.now(),
+        loginForm: Boolean = TripWatch.looksLoggedOut(text),
+    ) {
         val trips = TripWatch.tripsIn(text, extractor)
         val changes = watch.onReading(trips, nowTime.hour * 60 + nowTime.minute)
         val status = when {
             trips.isNotEmpty() -> Status.WATCHING
+            loginForm -> Status.LOGGED_OUT
             text.isBlank() -> Status.LOADING
-            TripWatch.looksLoggedOut(text) -> Status.LOGGED_OUT
             else -> Status.NO_TRIPS
         }
         val current = _state.value
@@ -268,7 +348,13 @@ class YouDriveWatcher(
 
     companion object {
         const val URL = "https://youdrive.regionvarmland.se/"
-        private const val READ_TEXT_JS = "(function(){return document.body ? document.body.innerText : '';})()"
+        private const val API_HOST = "youapi.regionvarmland.se"
+
+        /** Visible text, and whether a password field is visible (the login form). */
+        private const val READ_PAGE_JS = "(function(){var p=Array.prototype.some.call(" +
+            "document.querySelectorAll('input[type=password]'),function(e){return e.offsetParent!==null;});" +
+            "return JSON.stringify({t:document.body?document.body.innerText:'',p:p});})()"
+        private const val CLEAR_STORAGE_JS = "(function(){try{sessionStorage.clear();localStorage.clear();}catch(e){}return 1;})()"
         private const val READ_MS = 60_000L
         private const val FAST_READ_MS = 15_000L
         private const val PAGE_SETTLE_MS = 3_000L
@@ -277,3 +363,7 @@ class YouDriveWatcher(
         private const val OFFSCREEN_H = 2200
     }
 }
+
+/** What the page reading script returns. */
+@Serializable
+private data class PageReading(val t: String = "", val p: Boolean = false)

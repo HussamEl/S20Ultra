@@ -106,8 +106,8 @@ fun YouDriveScreen(
             Text(
                 youDriveStatus(state),
                 style = MaterialTheme.typography.bodyMedium,
-                color = if (state.status == YouDriveWatcher.Status.LOGGED_OUT) NotLocated else MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
+                color = if (state.status == YouDriveWatcher.Status.LOGGED_OUT || state.problem != null) NotLocated else MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.ref(143).fillMaxWidth().clickable { fullPageChoice = false }.padding(horizontal = 16.dp, vertical = 4.dp),
             )
@@ -172,6 +172,10 @@ private fun WatchRow(state: YouDriveWatcher.State, watching: Boolean, onWatch: (
 /** Status line for the YouDrive page (also used on the Home card). */
 @Composable
 fun youDriveStatus(state: YouDriveWatcher.State): String {
+    // A page problem is shown while no trips are read (the driver can report its text).
+    if (state.problem != null && state.status != YouDriveWatcher.Status.WATCHING) {
+        return stringResource(R.string.youdrive_problem, state.problem)
+    }
     val checked = state.lastReadMs?.let {
         Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("HH:mm"))
     } ?: "--:--"

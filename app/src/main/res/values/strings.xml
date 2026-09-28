@@ -262,4 +262,5 @@
     <string name="youdrive_start_page">صفحة بداية YouDrive</string>
     <string name="youdrive_full_page">عرض الصفحة بملء الشاشة</string>
     <string name="youdrive_show_controls">إظهار أزرار المراقبة</string>
+    <string name="youdrive_problem">مشكلة في الصفحة: %1$s</string>
 </resources>

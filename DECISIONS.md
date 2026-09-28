@@ -211,3 +211,14 @@ Not verifiable here: the logged-in YouDrive page (private to the driver's accoun
   - The monitoring hint is hidden once watching is on.
 - Version **1.4.1 (versionCode 8)**.
 
+## Fix in 1.4.2: YouDrive page closer to Chrome, real reset, page problems shown
+
+- **Report:** YouDrive still showed its frame ("Värmlandstrafik", menu with Settings / Font / About / Dark) but no login form.
+- **Checked in YouDrive's public bundle:** that menu (with "Settings") appears only when not logged in; the password form is a slide inside this frame. The certificate chain is complete, and `cordova.js` is only the SPA fallback, the same as in Chrome. The live page could not be rendered here: the build container's browser does not trust the network proxy, and TLS checks were not disabled.
+- **Changes:**
+  - WebView behaves more like Chrome: the page's own viewport (`useWideViewPort`, `loadWithOverviewMode`), text at 100 % instead of the system font scale (Samsung's large text made the page huge), and a `WebChromeClient` so page dialogs work. Dialogs are dismissed while the page is in the background, and geolocation is always refused.
+  - **Log out (152) really resets**: it clears the page's session and local storage via script, then cookies, web storage, cache and history, and reloads.
+  - "Logged out" is shown only when a **visible password field** exists, not just from words in the text.
+  - **Page problems** are shown in the status line (143): main-frame or API load errors, HTTP ≥ 400 from the YouDrive hosts, certificate errors (still cancelled) and script errors. The page's console is never written to the system log. This gives the exact cause if the form still does not appear.
+- Version **1.4.2 (versionCode 9)**.
+
