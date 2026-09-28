@@ -16,6 +16,7 @@ object Notifications {
     const val CHANNEL_ALERTS = "alerts"
     const val ID_ROUTE = 1001
     const val ID_OPEN_MAPS = 1002
+    const val ID_OVERLAY_HIDDEN = 1003
 
     fun createChannels(context: Context) {
         val nm = context.getSystemService(NotificationManager::class.java) ?: return
@@ -65,6 +66,23 @@ object Notifications {
             .addAction(0, context.getString(R.string.action_end_sv), RouteActionReceiver.pendingIntent(context, RouteActionReceiver.ACTION_END))
             .build()
     }
+
+    /**
+     * Shown while the driver has closed the floating button during a route: one tap brings it
+     * back. Silent; removed as soon as the button is shown again or the route ends.
+     */
+    fun buildOverlayHidden(context: Context): android.app.Notification =
+        NotificationCompat.Builder(context, CHANNEL_ROUTE)
+            .setSmallIcon(R.drawable.ic_stat_route)
+            .setContentTitle(context.getString(R.string.notif_overlay_hidden_title))
+            .setContentText(context.getString(R.string.notif_overlay_hidden_text))
+            .setOnlyAlertOnce(true)
+            .setShowWhen(false)
+            .setSilent(true)
+            .setAutoCancel(true)
+            .setContentIntent(RouteActionReceiver.pendingIntent(context, RouteActionReceiver.ACTION_SHOW_OVERLAY))
+            .addAction(0, context.getString(R.string.overlay_show), RouteActionReceiver.pendingIntent(context, RouteActionReceiver.ACTION_SHOW_OVERLAY))
+            .build()
 
     /** Minimal notification used only if the route state is not available yet. */
     fun buildPlaceholder(context: Context): android.app.Notification =

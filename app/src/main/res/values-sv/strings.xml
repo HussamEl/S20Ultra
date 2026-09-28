@@ -6,7 +6,6 @@
     <string name="notif_remaining">Kvar: %1$d</string>
     <string name="notif_open_maps_title">Öppna Maps för nästa etapp</string>
     <string name="notif_open_maps_text">Tryck för att starta navigeringen till nästa stopp</string>
-    <string name="overlay_description">Knapp för nästa stopp</string>
 
     <string name="back">Tillbaka</string>
     <string name="cancel">Avbryt</string>
@@ -108,7 +107,7 @@
     <string name="help_share_title">Dela en skärmdump till appen</string>
     <string name="help_share_body">1. Ta en skärmdump av sidan med adresserna (från valfri app: beställningsapp, sms, mejl, webbsida). Använd rullande skärmdump för långa listor.\n2. Tryck Dela i skärmdumpsverktyget eller i galleriet och välj Nästa Stopp. Flera bilder går bra; de läggs till i ordning.\n3. Eller öppna appen och tryck \"Importera skärmdumpar\".\n4. Granska listan och tryck \"Starta rutt\". Google Maps öppnas med stoppen (upp till 10 åt gången).</string>
     <string name="help_overlay_title">Flytande knapp</string>
-    <string name="help_overlay_body">Om du tillåter \"visa ovanpå andra appar\" visas en stor gul knapp över Google Maps under rutten:\n• Tryck = nästa stopp + utrop.\n• Håll inne = upprepa utropet.\n• Dra för att flytta den.\nUtan den fungerar allt via aviseringen.</string>
+    <string name="help_overlay_body">Om du tillåter \"visa ovanpå andra appar\" visas en flytande panel över Google Maps under rutten:\n• Den stora cirkeln = gatan du är på nu (tryck på den eller på den lilla högtalaren under för att höra namnet).\n• \"Nästa\" = nästa stopp + utrop (håll inne = upprepa utropet).\n• \"Bakåt\" = ångra senaste \"Nästa\".\n• Under: klockan, resans nummer, nästa resas tid (grön = gott om tid, gul = snart, röd = sen), avstånd, adress och väntetid vid framkomst.\n• \"–\" = minimera till en liten bubbla (tryck för att förstora). \"×\" = stäng; visa igen via aviseringen eller snabbinställningsrutan.\n• Dra för att flytta den.\nUtan den fungerar allt via aviseringen.</string>
     <string name="help_how_title">Så fungerar utropen</string>
     <string name="help_how_body">När du kör från ett stopp (efter att ha kommit fram) ropar appen ut nästa stopp och stoppet därefter, t.ex. \"Nästa stopp: Skoghall. Därefter: Kil.\"\nBara stadsdel eller ort nämns – aldrig gatunamn, nummer eller namn.</string>
     <string name="help_privacy_title">Integritet</string>
@@ -123,7 +122,7 @@
     <string name="onb_battery_title">Batteri</string>
     <string name="onb_battery_body">Tillåt appen att ignorera batterioptimering så att systemet inte stänger den under körning.\n\nPå Samsung: lägg också till appen bland \"Appar som aldrig sover\" (se Hjälp).</string>
     <string name="onb_overlay_title">Flytande knapp (valfritt)</string>
-    <string name="onb_overlay_body">En stor gul knapp över Google Maps: tryck = nästa stopp, håll inne = upprepa.\n\nSlå på \"Tillåt visning ovanpå andra appar\" för Nästa Stopp på nästa skärm. Utan den fungerar allt via aviseringen.</string>
+    <string name="onb_overlay_body">En flytande panel över Google Maps: \"Nästa\" och \"Bakåt\", gatan du är på och nästa resas tid.\n\nSlå på \"Tillåt visning ovanpå andra appar\" för Nästa Stopp på nästa skärm. Utan den fungerar allt via aviseringen.</string>
     <string name="onb_voice_title">Svensk röst</string>
     <string name="onb_voice_body">Utropen är alltid på svenska så att passagerarna förstår, oavsett appens språk.</string>
     <string name="onb_granted">Tillåtet ✓</string>
@@ -167,7 +166,6 @@
     <string name="open_bt_settings">Bluetooth-inställningar</string>
     <string name="settings_display_section">Passagerarskärm</string>
     <string name="settings_overlay_visible">Visa flytande knapp under rutten</string>
-    <string name="overlay_hide_desc">Dölj</string>
     <string name="allow_bluetooth">Tillåt Bluetooth</string>
     <string name="turn_on_bluetooth">Slå på Bluetooth</string>
     <string name="help_display_title">Passagerarskärm på surfplattan</string>
@@ -182,7 +180,7 @@
     <string name="home_overlay_hidden">Dold – slå på för att visa den</string>
     <string name="home_overlay_no_permission">Behöver \"Visa ovanpå andra appar\" – tryck för att tillåta</string>
     <string name="home_overlay_restricted_hint">På Samsung, om reglaget är grått: Appinfo → ⋮ → Tillåt begränsade inställningar, slå sedan på det.</string>
-    <string name="overlay_hidden_toast">Den flytande knappen är dold. Visa den igen från startsidan.</string>
+    <string name="overlay_hidden_toast">Den flytande knappen är stängd. Visa den igen via aviseringen, snabbinställningsrutan eller appen.</string>
     <string name="history_title">Tidigare resor</string>
     <string name="history_empty">Inga tidigare resor ännu.</string>
     <string name="history_retention_note">Varje resa raderas automatiskt efter %1$s (kan ändras i inställningarna).</string>
@@ -193,4 +191,33 @@
     <string name="retention_24h">24 timmar</string>
     <string name="retention_7d">7 dagar</string>
     <string name="settings_history">Spara resehistorik i</string>
+    <string name="overlay_back">Bakåt</string>
+    <string name="overlay_next">Nästa</string>
+    <string name="overlay_street_desc">Gatan du är på nu</string>
+    <string name="overlay_speak_street_desc">Säg gatunamnet</string>
+    <string name="overlay_repeat_desc">Upprepa utropet för nästa resa</string>
+    <string name="overlay_minimize_desc">Minimera den flytande knappen</string>
+    <string name="overlay_expand_desc">Förstora den flytande knappen</string>
+    <string name="overlay_close_desc">Stäng den flytande knappen</string>
+    <string name="overlay_open_app_desc">Öppna appen</string>
+    <string name="overlay_no_previous">Det finns ingen tidigare resa att gå tillbaka till</string>
+    <string name="street_unknown">Söker gatan…</string>
+    <string name="street_label">Du är på</string>
+    <string name="time_now">nu</string>
+    <string name="time_in_min">om %1$s min</string>
+    <string name="time_in_hm">om %1$s h %2$s min</string>
+    <string name="time_late_min">%1$s min sen</string>
+    <string name="time_late_hm">%1$s h %2$s min sen</string>
+    <string name="wait_at_stop">På plats i %1$s</string>
+    <string name="dist_m">%1$s m</string>
+    <string name="dist_km">%1$s km</string>
+    <string name="notif_overlay_hidden_title">Den flytande knappen är stängd</string>
+    <string name="notif_overlay_hidden_text">Tryck här för att visa den igen</string>
+    <string name="tile_label">Flytande knapp</string>
+    <string name="tile_shown">Visas</string>
+    <string name="tile_hidden">Dold</string>
+    <string name="tile_no_route">Ingen rutt</string>
+    <string name="home_overlay_add_tile">Lägg till rutan \"Flytande knapp\" i snabbinställningarna</string>
+    <string name="home_overlay_tile_added">Rutan är tillagd – dra ner aviseringspanelen för att hitta den</string>
+    <string name="home_overlay_restore_hint">Visa knappen snabbt igen efter att du stängt den: tryck på aviseringen \"Den flytande knappen är stängd\", på rutan i snabbinställningarna eller på den här brytaren.</string>
 </resources>

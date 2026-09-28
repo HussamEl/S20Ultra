@@ -1,0 +1,290 @@
+package se.eldebosh.nastastopp.robo
+
+import android.app.NotificationManager
+import android.content.Intent
+import android.os.Looper
+import android.speech.tts.TextToSpeech
+import android.view.View
+import android.view.ViewGroup
+import android.view.WindowManager
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
+import org.robolectric.shadow.api.Shadow
+import org.robolectric.shadows.ShadowSettings
+import org.robolectric.shadows.ShadowTextToSpeech
+import org.robolectric.shadows.ShadowWindowManagerImpl
+import kotlinx.coroutines.launch
+import se.eldebosh.nastastopp.App
+import se.eldebosh.nastastopp.AppGraph
+import se.eldebosh.nastastopp.R
+import se.eldebosh.nastastopp.core.geo.GeoResult
+import se.eldebosh.nastastopp.core.geo.StreetInfo
+import se.eldebosh.nastastopp.core.route.DetectorPhase
+import se.eldebosh.nastastopp.core.route.Fix
+import se.eldebosh.nastastopp.geo.CurrentStreet
+import se.eldebosh.nastastopp.route.model.GeoPoint
+import se.eldebosh.nastastopp.route.model.GeoStatus
+import se.eldebosh.nastastopp.service.Notifications
+import se.eldebosh.nastastopp.service.RouteActionReceiver
+import se.eldebosh.nastastopp.util.LocaleHelper
+import se.eldebosh.nastastopp.util.TimeLabels
+import java.time.Duration
+import java.util.Locale
+
+/** Back (undo "Nästa"), the current street, the waiting timer and the floating panel (Android 13). */
+@RunWith(AndroidJUnit4::class)
+@Config(sdk = [33])
+class FloatingPanelRoboTest {
+
+    private lateinit var app: App
+    private lateinit var graph: AppGraph
+
+    @Before
+    fun setUp() {
+        app = ApplicationProvider.getApplicationContext()
+        graph = app.graph
+        graph.controller.clear()
+        graph.history.clear()
+        graph.settings.update { it.copy(overlayHidden = false, overlayMinimized = false) }
+        idle()
+    }
+
+    private fun idle() = shadowOf(Looper.getMainLooper()).idle()
+
+    private fun settle() {
+        repeat(2_000) {
+            if (graph.controller.route.value?.stops?.none { it.geoStatus == GeoStatus.PENDING } != false) return
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
+        }
+    }
+
+    private fun readyTts(): ShadowTextToSpeech {
+        ShadowTextToSpeech.addLanguageAvailability(Locale.forLanguageTag("sv-SE"))
+        graph.announcer.recheck()
+        val shadow = shadowOf(ShadowTextToSpeech.getLastTextToSpeechInstance())
+        shadow.onInitListener.onInit(TextToSpeech.SUCCESS)
+        idle()
+        return shadow
+    }
+
+    private fun threeStops() {
+        graph.controller.addManual("Storgatan 14, 65224 Karlstad", "12:30")
+        graph.controller.addManual("Järnvägsgatan 3B, 68830 Storfors", "12:45")
+        graph.controller.addManual("Lindvägen 9, 66430 Grums", "13:40")
+        settle()
+    }
+
+    @Test
+    fun backUndoesNextAndItsHistoryEntry() {
+        val tts = readyTts()
+        threeStops()
+        val c = graph.controller
+        c.start()
+        idle()
+        assertFalse("nothing to go back to", c.back())
+        shadowOf(app).nextStartedActivity // Maps from start
+        c.next()
+        idle()
+        assertEquals(1, c.route.value!!.completed.size)
+        assertEquals(1, graph.history.entries.value.size)
+
+        assertTrue(c.back())
+        idle()
+        val r = c.route.value!!
+        assertTrue(r.completed.isEmpty())
+        assertEquals(listOf("12:30", "12:45", "13:40"), r.stops.map { it.time })
+        assertTrue("history entry removed", graph.history.entries.value.isEmpty())
+        assertEquals("Nästa stopp: Karlstad. Därefter: Storfors.", tts.lastSpokenText)
+        assertNull("Maps already has this stop (mid-batch)", shadowOf(app).nextStartedActivity)
+        c.end()
+    }
+
+    @Test
+    fun backAfterBatchRelaunchesMapsFromTheRestoredStop() {
+        repeat(12) { graph.controller.addManual("Gata ${it + 1}, Karlstad") }
+        settle()
+        val c = graph.controller
+        c.start()
+        idle()
+        shadowOf(app).nextStartedActivity
+        repeat(10) { c.next() } // completes stop 10 → Maps gets 11..12
+        idle()
+        assertTrue(shadowOf(app).nextStartedActivity.dataString!!.contains("destination=Gata%2012%2C%20Karlstad"))
+        assertTrue(c.back())
+        idle()
+        val maps = shadowOf(app).nextStartedActivity.dataString!!
+        assertTrue(maps, maps.contains("waypoints=Gata%2010%2C%20Karlstad"))
+        assertEquals("Gata 10, Karlstad", c.route.value!!.stops.first().displayText)
+        // Maps now starts at stop 10, so going back to stop 9 launches it again from there.
+        assertTrue(c.back())
+        idle()
+        val again = shadowOf(app).nextStartedActivity.dataString!!
+        assertTrue(again, again.contains("waypoints=Gata%209%2C%20Karlstad"))
+        // Forward again inside that batch: no relaunch, and back stays inside it too.
+        c.next()
+        c.back()
+        idle()
+        assertNull(shadowOf(app).nextStartedActivity)
+        c.end()
+    }
+
+    @Test
+    fun speakStreetOnlyOnRequestAndNotToDisplays() {
+        val tts = readyTts()
+        threeStops()
+        graph.controller.start()
+        idle()
+        val sent = mutableListOf<String>()
+        val job = graph.scope.launch { graph.controller.announcements.collect { sent += it.swedish } }
+        assertFalse(graph.controller.speakStreet(null))
+        assertTrue(graph.controller.speakStreet(StreetInfo("Drottninggatan", "Centrum")))
+        idle()
+        assertEquals("Drottninggatan", tts.lastSpokenText)
+        assertTrue("not forwarded to passenger displays", sent.isEmpty())
+        job.cancel()
+        graph.controller.end()
+    }
+
+    @Test
+    fun currentStreetLooksUpOnlyWhenWantedAndThrottles() {
+        val calls = mutableListOf<Pair<Double, Double>>()
+        var answer: List<GeoResult>? = listOf(GeoResult(59.38, 13.5, null, null, "Karlstad", "Centrum", "Drottninggatan"))
+        val street = CurrentStreet(graph.scope) { lat, lng -> calls += lat to lng; answer }
+        fun fix(s: Long, m: Double) = Fix(s * 1000, 59.38 + m / 111_195.0, 13.5, null, 5f)
+
+        street.onFix(fix(0, 0.0))
+        idle()
+        assertTrue("nobody shows the street", calls.isEmpty())
+        street.want("test", true)
+        street.onFix(fix(1, 0.0))
+        idle()
+        assertEquals(1, calls.size)
+        assertEquals(StreetInfo("Drottninggatan", "Centrum"), street.state.value)
+        street.onFix(fix(3, 100.0))
+        street.onFix(fix(20, 5.0))
+        idle()
+        assertEquals("throttled", 1, calls.size)
+        answer = null // geocoder failed: the last street stays
+        street.onFix(fix(30, 200.0))
+        idle()
+        assertEquals(2, calls.size)
+        assertEquals("Drottninggatan", street.state.value!!.street)
+        street.reset()
+        assertNull(street.state.value)
+        street.want("test", false)
+    }
+
+    @Test
+    fun waitingTimerRunsWhileAtTheStop() {
+        threeStops()
+        val c = graph.controller
+        val r = c.route.value!!
+        c.restoreStops(
+            r.stops.mapIndexed { i, s ->
+                s.copy(geoStatus = GeoStatus.LOCATED, geo = GeoPoint(59.38 + i * 0.01, 13.50, "addr $i", locality = "Karlstad"))
+            },
+        )
+        c.start()
+        idle()
+        fun fix(t: Long, m: Double, v: Float) = Fix(t * 1000, 59.38 + m / 111_195.0, 13.50, v, 5f)
+        assertNull(c.tracking.value.arrivedAtMs)
+        c.onLocation(fix(0, 400.0, 12f))
+        c.onLocation(fix(2, 10.0, 0f))
+        assertEquals(DetectorPhase.ARRIVED, c.tracking.value.phase)
+        assertNotNull(c.tracking.value.arrivedAtMs)
+        c.onLocation(fix(40, 150.0, 8f)) // departed → next stop
+        idle()
+        assertNull(c.tracking.value.arrivedAtMs)
+        c.end()
+    }
+
+    @Test
+    fun timeLabels() {
+        assertEquals("03:12", TimeLabels.duration(192_000))
+        assertEquals("1:02:05", TimeLabels.duration(3_725_000))
+        assertEquals(app.getString(R.string.time_in_min, "7"), TimeLabels.until(app, 7))
+        assertEquals(app.getString(R.string.time_late_hm, "1", "5"), TimeLabels.until(app, -65))
+        assertEquals(app.getString(R.string.time_now), TimeLabels.until(app, 0))
+        assertEquals(app.getString(R.string.dist_m, "350"), TimeLabels.distance(app, 347.0))
+        assertEquals(app.getString(R.string.dist_km, "1.2"), TimeLabels.distance(app, 1_234.0))
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Floating panel
+
+    private val wm get() = Shadow.extract<ShadowWindowManagerImpl>(app.getSystemService(WindowManager::class.java))
+
+    /** The overlay builds its views with the in-app language, like this. */
+    private fun ui(id: Int) = LocaleHelper.wrap(app, graph.settings.current.uiLanguage).getString(id)
+
+    private fun find(root: View, description: String): View? {
+        if (root.contentDescription == description) return root
+        if (root is ViewGroup) for (i in 0 until root.childCount) find(root.getChildAt(i), description)?.let { return it }
+        return null
+    }
+
+    private fun overlayView(description: Int): View {
+        assertEquals(1, wm.views.size)
+        val view = find(wm.views.single(), ui(description))
+        assertNotNull("view '${ui(description)}'", view)
+        return view!!
+    }
+
+    private fun reminder() = shadowOf(app.getSystemService(NotificationManager::class.java)).getNotification(Notifications.ID_OVERLAY_HIDDEN)
+
+    @Test
+    fun panelBackNextMinimiseCloseAndQuickRestore() {
+        ShadowSettings.setCanDrawOverlays(true)
+        threeStops()
+        val c = graph.controller
+        c.start()
+        idle()
+
+        overlayView(R.string.overlay_next).performClick()
+        idle()
+        assertEquals(1, c.route.value!!.completedCount)
+        overlayView(R.string.overlay_back).performClick()
+        idle()
+        assertEquals(0, c.route.value!!.completedCount)
+        overlayView(R.string.overlay_street_desc)
+        overlayView(R.string.overlay_speak_street_desc)
+        assertTrue("panel shows the street", graph.street.isWanted)
+
+        // "–" → small bubble; tap → full panel again.
+        overlayView(R.string.overlay_minimize_desc).performClick()
+        idle()
+        assertTrue(graph.settings.current.overlayMinimized)
+        assertFalse("no street lookups while minimised", graph.street.isWanted)
+        overlayView(R.string.overlay_expand_desc).performClick()
+        idle()
+        assertFalse(graph.settings.current.overlayMinimized)
+        overlayView(R.string.overlay_next)
+
+        // "×" → closed, a notification brings it back with one tap.
+        overlayView(R.string.overlay_close_desc).performClick()
+        idle()
+        assertTrue(graph.settings.current.overlayHidden)
+        assertTrue(wm.views.isEmpty())
+        assertNotNull(reminder())
+        RouteActionReceiver().onReceive(app, Intent(RouteActionReceiver.ACTION_SHOW_OVERLAY))
+        idle()
+        assertFalse(graph.settings.current.overlayHidden)
+        assertEquals(1, wm.views.size)
+        assertNull(reminder())
+
+        c.end()
+        idle()
+        assertTrue(wm.views.isEmpty())
+        assertNull(reminder())
+    }
+}

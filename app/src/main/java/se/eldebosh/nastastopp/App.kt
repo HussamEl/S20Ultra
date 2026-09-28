@@ -8,6 +8,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import se.eldebosh.nastastopp.core.parse.AddressExtractor
 import se.eldebosh.nastastopp.core.parse.Localities
+import se.eldebosh.nastastopp.geo.CurrentStreet
 import se.eldebosh.nastastopp.geo.Geocoding
 import se.eldebosh.nastastopp.importer.ScreenshotImporter
 import se.eldebosh.nastastopp.link.DisplayLinkClient
@@ -37,7 +38,10 @@ class AppGraph(app: Application) {
     val history = TripHistory(app, settings, scope)
     val controller = RouteController(app, scope, repository, settings, geocoding, announcer, maps, localities, extractor, history)
     val notifier = RouteNotifier(app, controller, settings, scope)
-    val overlay = OverlayManager(app, controller, settings, scope)
+
+    /** The street the vehicle is on now (floating button and route screen). */
+    val street = CurrentStreet(scope, geocoding::reverse)
+    val overlay = OverlayManager(app, controller, settings, street, scope)
     val importer = ScreenshotImporter(OcrEngine(app), extractor)
 
     /** Controller: Bluetooth server for passenger displays (runs only when enabled). */
@@ -53,6 +57,11 @@ class AppGraph(app: Application) {
                 }
             }
         }
+    }
+
+    init {
+        // The current street is only kept while a route is active.
+        scope.launch { controller.route.collect { if (it?.active != true) street.reset() } }
     }
 }
 

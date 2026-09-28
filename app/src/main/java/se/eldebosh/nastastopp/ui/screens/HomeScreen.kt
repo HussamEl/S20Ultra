@@ -72,6 +72,7 @@ fun HomeScreen(
     overlayHidden: Boolean,
     onOverlayVisible: (Boolean) -> Unit,
     onOverlayPermission: () -> Unit,
+    onAddTile: (() -> Unit)?,
     history: List<HistoryEntry>,
     historyRetentionHours: Int,
     onClearHistory: () -> Unit,
@@ -127,7 +128,7 @@ fun HomeScreen(
         Text(stringResource(R.string.home_share_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
         LinkCard(link, onToggleLink, onFixLink)
-        OverlayCard(overlayPermission, overlayHidden, onOverlayVisible, onOverlayPermission)
+        OverlayCard(overlayPermission, overlayHidden, onOverlayVisible, onOverlayPermission, onAddTile)
 
         ButtonRow {
             BigButton(stringResource(R.string.home_settings), onSettings, Modifier.weight(1f), icon = R.drawable.ic_settings, primary = false)
@@ -224,20 +225,50 @@ fun LinkCard(link: DisplayLinkServer.State, onToggle: (Boolean) -> Unit, onFix: 
     }
 }
 
-/** Floating button: show it again after "×", or grant the overlay permission. */
+/**
+ * Floating button: show it again after "×", grant the overlay permission, or add the Quick
+ * Settings tile ([onAddTile], Android 13+) that brings it back with one tap.
+ */
 @Composable
-fun OverlayCard(permission: Boolean, hidden: Boolean, onVisible: (Boolean) -> Unit, onPermission: () -> Unit) {
+fun OverlayCard(permission: Boolean, hidden: Boolean, onVisible: (Boolean) -> Unit, onPermission: () -> Unit, onAddTile: (() -> Unit)? = null) {
     val status = when {
         !permission -> stringResource(R.string.home_overlay_no_permission)
         hidden -> stringResource(R.string.home_overlay_hidden)
         else -> stringResource(R.string.home_overlay_shown)
     }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainer),
+    ) {
+        OverlaySwitchRow(permission, hidden, status, onVisible, onPermission)
+        if (permission) {
+            Text(
+                stringResource(R.string.home_overlay_restore_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+            if (onAddTile != null) {
+                TextButton(onClick = onAddTile, modifier = Modifier.padding(horizontal = 6.dp).heightIn(min = TouchTarget)) {
+                    Icon(painterResource(R.drawable.ic_tile), contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.home_overlay_add_tile))
+                }
+            } else {
+                Spacer(Modifier.height(10.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun OverlaySwitchRow(permission: Boolean, hidden: Boolean, status: String, onVisible: (Boolean) -> Unit, onPermission: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainer)
             .clickable { if (!permission) onPermission() else onVisible(hidden) }
             .heightIn(min = TouchTarget)
             .padding(horizontal = 16.dp, vertical = 10.dp),

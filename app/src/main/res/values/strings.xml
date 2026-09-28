@@ -7,7 +7,6 @@
     <string name="notif_remaining">المتبقي: %1$d</string>
     <string name="notif_open_maps_title">افتح الخرائط للجزء التالي</string>
     <string name="notif_open_maps_text">اضغط هنا لبدء الملاحة إلى المحطات التالية</string>
-    <string name="overlay_description">زر المحطة التالية</string>
 
     <string name="back">رجوع</string>
     <string name="cancel">إلغاء</string>
@@ -109,7 +108,7 @@
     <string name="help_share_title">كيف تشارك لقطة شاشة مع التطبيق</string>
     <string name="help_share_body">1. خذ لقطة شاشة للصفحة التي فيها العناوين (من أي تطبيق: تطبيق الطلبات، رسالة SMS، بريد، موقع ويب). يمكن استخدام «لقطة التمرير» للقوائم الطويلة.\n2. اضغط «مشاركة» في شريط لقطة الشاشة أو من المعرض، واختر «Nästa Stopp». يمكنك اختيار عدة صور مرة واحدة؛ تُضاف بالترتيب.\n3. أو افتح التطبيق واضغط «استيراد لقطات الشاشة».\n4. راجع القائمة، ثم اضغط «ابدأ المسار». تفتح خرائط Google مع كل المحطات (حتى 10 في كل مرة).</string>
     <string name="help_overlay_title">الزر العائم</string>
-    <string name="help_overlay_body">إذا سمحت بـ«الظهور فوق التطبيقات الأخرى» يظهر زر أصفر كبير فوق خرائط Google أثناء المسار:\n• ضغطة = المحطة التالية + إعلان.\n• ضغطة مطولة = إعادة الإعلان.\n• اسحبه لتغيير مكانه.\nبدونه يعمل كل شيء من الإشعار.</string>
+    <string name="help_overlay_body">إذا سمحت بـ«الظهور فوق التطبيقات الأخرى» تظهر لوحة عائمة فوق خرائط Google أثناء المسار:\n• الدائرة الكبيرة = اسم الشارع الذي أنت فيه الآن (اضغطها أو زر الصوت الصغير تحتها لنطقه).\n• «التالي» = المحطة التالية + إعلان (ضغطة مطولة = إعادة الإعلان).\n• «رجوع» = التراجع عن آخر «التالي».\n• تحتها: الساعة، رقم الرحلة، وقت الرحلة التالية (أخضر = متسع، أصفر = قريب، أحمر = متأخر)، المسافة، العنوان، ومؤقّت الانتظار عند الوصول.\n• «–» = تصغير إلى فقاعة صغيرة (اضغطها للتكبير). «×» = إغلاق؛ لإرجاعها اضغط الإشعار أو مربع الإعدادات السريعة.\n• اسحبها لتغيير مكانها.\nبدونها يعمل كل شيء من الإشعار.</string>
     <string name="help_how_title">كيف يعمل الإعلان</string>
     <string name="help_how_body">عند مغادرة المحطة (بعد الوصول إليها) يعلن التطبيق بالسويدية المحطة التالية والتي بعدها، مثل: «Nästa stopp: Skoghall. Därefter: Kil.»\nيُذكر اسم الحي أو المدينة فقط — لا أسماء شوارع ولا أرقام ولا أسماء أشخاص.</string>
     <string name="help_privacy_title">الخصوصية</string>
@@ -124,7 +123,7 @@
     <string name="onb_battery_title">البطارية</string>
     <string name="onb_battery_body">حتى لا يوقف النظام التطبيق أثناء القيادة، اسمح له بتجاهل تحسين البطارية.\n\nفي هواتف سامسونج أضفه أيضاً إلى «التطبيقات التي لا تنام أبداً» (الطريقة في صفحة المساعدة).</string>
     <string name="onb_overlay_title">الزر العائم (اختياري)</string>
-    <string name="onb_overlay_body">زر أصفر كبير فوق خرائط Google: ضغطة = المحطة التالية، ضغطة مطولة = إعادة الإعلان.\n\nفي الشاشة التالية فعّل «السماح بالظهور فوق التطبيقات الأخرى» لـ Nästa Stopp. إذا لم تفعّله يعمل كل شيء عبر الإشعار.</string>
+    <string name="onb_overlay_body">لوحة عائمة فوق خرائط Google: «التالي» و«رجوع»، واسم الشارع الذي أنت فيه، ووقت الرحلة التالية.\n\nفي الشاشة التالية فعّل «السماح بالظهور فوق التطبيقات الأخرى» لـ Nästa Stopp. إذا لم تفعّله يعمل كل شيء عبر الإشعار.</string>
     <string name="onb_voice_title">الصوت السويدي</string>
     <string name="onb_voice_body">الإعلانات تُقال دائماً بالسويدية حتى يفهمها الركاب، مهما كانت لغة الواجهة.</string>
     <string name="onb_granted">تم السماح ✓</string>
@@ -168,7 +167,6 @@
     <string name="open_bt_settings">إعدادات البلوتوث</string>
     <string name="settings_display_section">شاشة الركاب</string>
     <string name="settings_overlay_visible">إظهار الزر العائم أثناء المسار</string>
-    <string name="overlay_hide_desc">إخفاء</string>
     <string name="allow_bluetooth">السماح بالبلوتوث</string>
     <string name="turn_on_bluetooth">تشغيل البلوتوث</string>
     <string name="help_display_title">شاشة الركاب على التابلت</string>
@@ -183,7 +181,7 @@
     <string name="home_overlay_hidden">مخفي — شغّل المفتاح لإظهاره</string>
     <string name="home_overlay_no_permission">يحتاج إذن «الظهور فوق التطبيقات» — اضغط للسماح</string>
     <string name="home_overlay_restricted_hint">في سامسونج، إذا كان الخيار رمادياً: معلومات التطبيق ← ⋮ ← «السماح بالإعدادات المقيدة»، ثم فعّله.</string>
-    <string name="overlay_hidden_toast">تم إخفاء الزر العائم. أعِد إظهاره من الصفحة الرئيسية.</string>
+    <string name="overlay_hidden_toast">أُغلق الزر العائم. لإرجاعه: اضغط إشعار «الزر العائم مغلق» أو مربع الإعدادات السريعة أو من التطبيق.</string>
     <string name="history_title">الرحلات السابقة</string>
     <string name="history_empty">لا توجد رحلات سابقة بعد.</string>
     <string name="history_retention_note">تُحذف كل رحلة تلقائياً بعد %1$s (يمكن تغييرها من الإعدادات).</string>
@@ -194,4 +192,33 @@
     <string name="retention_24h">24 ساعة</string>
     <string name="retention_7d">7 أيام</string>
     <string name="settings_history">مدة حفظ سجل الرحلات</string>
+    <string name="overlay_back">رجوع</string>
+    <string name="overlay_next">التالي</string>
+    <string name="overlay_street_desc">اسم الشارع الذي أنت فيه الآن</string>
+    <string name="overlay_speak_street_desc">انطق اسم الشارع</string>
+    <string name="overlay_repeat_desc">أعِد إعلان الرحلة التالية</string>
+    <string name="overlay_minimize_desc">تصغير الزر العائم</string>
+    <string name="overlay_expand_desc">تكبير الزر العائم</string>
+    <string name="overlay_close_desc">إغلاق الزر العائم</string>
+    <string name="overlay_open_app_desc">فتح التطبيق</string>
+    <string name="overlay_no_previous">لا توجد رحلة سابقة للرجوع إليها</string>
+    <string name="street_unknown">جارٍ تحديد الشارع…</string>
+    <string name="street_label">أنت الآن في</string>
+    <string name="time_now">الآن</string>
+    <string name="time_in_min">بعد %1$s د</string>
+    <string name="time_in_hm">بعد %1$s س %2$s د</string>
+    <string name="time_late_min">متأخر %1$s د</string>
+    <string name="time_late_hm">متأخر %1$s س %2$s د</string>
+    <string name="wait_at_stop">في الموقع منذ %1$s</string>
+    <string name="dist_m">%1$s م</string>
+    <string name="dist_km">%1$s كم</string>
+    <string name="notif_overlay_hidden_title">الزر العائم مغلق</string>
+    <string name="notif_overlay_hidden_text">اضغط هنا لإرجاعه فوراً</string>
+    <string name="tile_label">الزر العائم</string>
+    <string name="tile_shown">ظاهر</string>
+    <string name="tile_hidden">مخفي</string>
+    <string name="tile_no_route">لا يوجد مسار</string>
+    <string name="home_overlay_add_tile">أضِف مربع «الزر العائم» إلى الإعدادات السريعة</string>
+    <string name="home_overlay_tile_added">أُضيف المربع — اسحب الإشعارات لأسفل لتجده</string>
+    <string name="home_overlay_restore_hint">لإرجاع الزر بسرعة بعد إغلاقه: اضغط إشعار «الزر العائم مغلق»، أو مربع «الزر العائم» في الإعدادات السريعة، أو هذا المفتاح.</string>
 </resources>

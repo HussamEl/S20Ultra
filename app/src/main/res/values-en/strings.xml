@@ -6,7 +6,6 @@
     <string name="notif_remaining">Remaining: %1$d</string>
     <string name="notif_open_maps_title">Open Maps for the next leg</string>
     <string name="notif_open_maps_text">Tap to start navigation to the next stops</string>
-    <string name="overlay_description">Next stop button</string>
 
     <string name="back">Back</string>
     <string name="cancel">Cancel</string>
@@ -108,7 +107,7 @@
     <string name="help_share_title">Share a screenshot to the app</string>
     <string name="help_share_body">1. Take a screenshot of the page with the addresses (any app: dispatch app, SMS, email, web page). Use scroll capture for long lists.\n2. Tap Share in the screenshot toolbar or in the gallery and pick Nästa Stopp. Several images are fine; they are added in order.\n3. Or open the app and tap \"Import screenshots\".\n4. Review the list and tap \"Start route\". Google Maps opens with the stops (up to 10 at a time).</string>
     <string name="help_overlay_title">Floating button</string>
-    <string name="help_overlay_body">If you allow \"display over other apps\", a big yellow button is shown over Google Maps during the route:\n• Tap = next stop + announcement.\n• Long-press = repeat the announcement.\n• Drag to move it.\nWithout it everything works from the notification.</string>
+    <string name="help_overlay_body">If you allow \"display over other apps\", a floating panel is shown over Google Maps during the route:\n• The big circle = the street you are on now (tap it, or the small speaker under it, to hear the name).\n• \"Next\" = next stop + announcement (long-press = repeat the announcement).\n• \"Back\" = undo the last \"Next\".\n• Below: the clock, the trip number, the next trip\'s time (green = plenty of time, yellow = soon, red = late), distance, address and the waiting time after arrival.\n• \"–\" = minimise to a small bubble (tap it to expand). \"×\" = close; bring it back from the notification or the Quick Settings tile.\n• Drag to move it.\nWithout it everything works from the notification.</string>
     <string name="help_how_title">How announcements work</string>
     <string name="help_how_body">When you drive off from a stop (after arriving) the app announces the next stop and the one after it in Swedish, e.g. \"Nästa stopp: Skoghall. Därefter: Kil.\"\nOnly the district or town is said – never street names, numbers or names.</string>
     <string name="help_privacy_title">Privacy</string>
@@ -123,7 +122,7 @@
     <string name="onb_battery_title">Battery</string>
     <string name="onb_battery_body">Allow the app to ignore battery optimization so the system does not stop it while driving.\n\nOn Samsung also add the app to \"Never sleeping apps\" (see Help).</string>
     <string name="onb_overlay_title">Floating button (optional)</string>
-    <string name="onb_overlay_body">A big yellow button over Google Maps: tap = next stop, long-press = repeat.\n\nTurn on \"Allow display over other apps\" for Nästa Stopp on the next screen. Without it everything works from the notification.</string>
+    <string name="onb_overlay_body">A floating panel over Google Maps: \"Next\" and \"Back\", the street you are on and the next trip\'s time.\n\nTurn on \"Allow display over other apps\" for Nästa Stopp on the next screen. Without it everything works from the notification.</string>
     <string name="onb_voice_title">Swedish voice</string>
     <string name="onb_voice_body">Announcements are always in Swedish so the passengers understand, whatever the app language.</string>
     <string name="onb_granted">Allowed ✓</string>
@@ -167,7 +166,6 @@
     <string name="open_bt_settings">Bluetooth settings</string>
     <string name="settings_display_section">Passenger display</string>
     <string name="settings_overlay_visible">Show the floating button during the route</string>
-    <string name="overlay_hide_desc">Hide</string>
     <string name="allow_bluetooth">Allow Bluetooth</string>
     <string name="turn_on_bluetooth">Turn on Bluetooth</string>
     <string name="help_display_title">Passenger display on a tablet</string>
@@ -182,7 +180,7 @@
     <string name="home_overlay_hidden">Hidden – switch on to show it</string>
     <string name="home_overlay_no_permission">Needs \"Display over other apps\" – tap to allow</string>
     <string name="home_overlay_restricted_hint">On Samsung, if the switch is greyed out: App info → ⋮ → Allow restricted settings, then turn it on.</string>
-    <string name="overlay_hidden_toast">Floating button hidden. Show it again from the Home screen.</string>
+    <string name="overlay_hidden_toast">Floating button closed. Bring it back from the notification, the Quick Settings tile or the app.</string>
     <string name="history_title">Previous trips</string>
     <string name="history_empty">No previous trips yet.</string>
     <string name="history_retention_note">Each trip is deleted automatically after %1$s (can be changed in Settings).</string>
@@ -193,4 +191,33 @@
     <string name="retention_24h">24 hours</string>
     <string name="retention_7d">7 days</string>
     <string name="settings_history">Keep trip history for</string>
+    <string name="overlay_back">Back</string>
+    <string name="overlay_next">Next</string>
+    <string name="overlay_street_desc">The street you are on now</string>
+    <string name="overlay_speak_street_desc">Say the street name</string>
+    <string name="overlay_repeat_desc">Repeat the next-trip announcement</string>
+    <string name="overlay_minimize_desc">Minimise the floating button</string>
+    <string name="overlay_expand_desc">Expand the floating button</string>
+    <string name="overlay_close_desc">Close the floating button</string>
+    <string name="overlay_open_app_desc">Open the app</string>
+    <string name="overlay_no_previous">There is no previous trip to go back to</string>
+    <string name="street_unknown">Finding the street…</string>
+    <string name="street_label">You are on</string>
+    <string name="time_now">now</string>
+    <string name="time_in_min">in %1$s min</string>
+    <string name="time_in_hm">in %1$s h %2$s min</string>
+    <string name="time_late_min">%1$s min late</string>
+    <string name="time_late_hm">%1$s h %2$s min late</string>
+    <string name="wait_at_stop">At the stop for %1$s</string>
+    <string name="dist_m">%1$s m</string>
+    <string name="dist_km">%1$s km</string>
+    <string name="notif_overlay_hidden_title">Floating button closed</string>
+    <string name="notif_overlay_hidden_text">Tap here to bring it back</string>
+    <string name="tile_label">Floating button</string>
+    <string name="tile_shown">Shown</string>
+    <string name="tile_hidden">Hidden</string>
+    <string name="tile_no_route">No route</string>
+    <string name="home_overlay_add_tile">Add the \"Floating button\" tile to Quick Settings</string>
+    <string name="home_overlay_tile_added">Tile added – pull down the notification shade to find it</string>
+    <string name="home_overlay_restore_hint">To bring the button back quickly after closing it: tap the \"Floating button closed\" notification, the Quick Settings tile, or this switch.</string>
 </resources>

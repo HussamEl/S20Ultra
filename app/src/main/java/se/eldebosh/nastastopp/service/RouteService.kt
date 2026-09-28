@@ -40,8 +40,12 @@ class RouteService : Service() {
 
     private val callback = object : LocationCallback() {
         override fun onLocationResult(result: LocationResult) {
-            val controller = App.from(this@RouteService).graph.controller
-            for (loc in result.locations) controller.onLocation(loc.toFix())
+            val graph = App.from(this@RouteService).graph
+            for (loc in result.locations) {
+                val fix = loc.toFix()
+                graph.controller.onLocation(fix)
+                graph.street.onFix(fix)
+            }
         }
     }
 

@@ -63,9 +63,38 @@ object TripTimes {
         return String.format(Locale.ROOT, "%02d:%s", m.groupValues[1].toInt(), m.groupValues[2])
     }
 
+    /**
+     * Minutes from [nowMinuteOfDay] until the scheduled [time] (negative = late), or null without
+     * a time. Wraps around midnight: a trip counts as late for at most [MAX_LATE_MIN] minutes,
+     * otherwise it is the next occurrence (e.g. "00:10" at 23:50 is in 20 minutes).
+     */
+    fun minutesUntil(time: String?, nowMinuteOfDay: Int): Int? {
+        val t = minutes(time)
+        if (t == Int.MAX_VALUE) return null
+        var d = t - nowMinuteOfDay
+        if (d < -MAX_LATE_MIN) d += DAY
+        if (d > DAY - MAX_LATE_MIN) d -= DAY
+        return d
+    }
+
+    /** How the next trip's scheduled time compares with now. */
+    fun level(minutesUntil: Int): TimeLevel = when {
+        minutesUntil < 0 -> TimeLevel.LATE
+        minutesUntil <= SOON_MIN -> TimeLevel.SOON
+        else -> TimeLevel.AHEAD
+    }
+
+    /** Within this many minutes of the scheduled time the trip counts as "soon". */
+    const val SOON_MIN = 5
+    private const val DAY = 24 * 60
+    private const val MAX_LATE_MIN = 8 * 60
+
     /** Sort key in minutes; stops without a time sort last. */
     fun minutes(time: String?): Int = time?.let { t ->
         val parts = t.split(':')
         parts.getOrNull(0)?.toIntOrNull()?.let { h -> h * 60 + (parts.getOrNull(1)?.toIntOrNull() ?: 0) }
     } ?: Int.MAX_VALUE
 }
+
+/** Scheduled time vs. now: more than [TripTimes.SOON_MIN] minutes ahead, soon, or late. */
+enum class TimeLevel { AHEAD, SOON, LATE }

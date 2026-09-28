@@ -58,8 +58,13 @@ import se.eldebosh.nastastopp.ui.screens.SettingsScreen
 import se.eldebosh.nastastopp.ui.screens.TtsMissingScreen
 import se.eldebosh.nastastopp.util.LocaleHelper
 import se.eldebosh.nastastopp.util.SystemIntents
+import se.eldebosh.nastastopp.overlay.OverlayTileService
+import android.widget.Toast
 
 private const val MAX_PICK = 30
+
+/** Key under which the route screen asks for current-street lookups. */
+private const val STREET_KEY = "active_screen"
 
 @Composable
 fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
@@ -77,6 +82,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
     val display by controller.display.collectAsStateWithLifecycle()
     val linkServer by graph.displayServer.state.collectAsStateWithLifecycle()
     val history by graph.history.entries.collectAsStateWithLifecycle()
+    val street by graph.street.state.collectAsStateWithLifecycle()
     val importing = importState is ImportUi.Running
     val snackbar = remember { SnackbarHostState() }
     var resumeTick by remember { mutableIntStateOf(0) }
@@ -193,8 +199,17 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             overlayPermission = remember(resumeTick) { SystemIntents.canDrawOverlays(context) },
                             overlayHidden = settings.overlayHidden,
                             onOverlayVisible = { visible ->
-                                graph.settings.update { it.copy(overlayHidden = !visible) }
+                                graph.settings.update { it.copy(overlayHidden = !visible, overlayMinimized = false) }
                                 graph.overlay.refresh()
+                            },
+                            onAddTile = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                {
+                                    OverlayTileService.requestAdd(context) { added ->
+                                        if (added) Toast.makeText(context, R.string.home_overlay_tile_added, Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            } else {
+                                null
                             },
                             onOverlayPermission = { SystemIntents.openOverlaySettings(context) },
                             history = history,
@@ -240,9 +255,17 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 onEnd = { controller.end() },
                                 overlayAvailable = remember(resumeTick) { SystemIntents.canDrawOverlays(context) },
                                 overlayHidden = settings.overlayHidden,
+                                street = street,
+                                onSpeakStreet = { controller.speakStreet(street) },
+                                onPreviousTrip = { controller.back() },
                                 onOpenDisplay = { vm.navigate(Screen.DISPLAY_LOCAL) },
-                                onToggleOverlay = { graph.settings.update { it.copy(overlayHidden = !it.overlayHidden) } },
+                                onToggleOverlay = { graph.settings.update { it.copy(overlayHidden = !it.overlayHidden, overlayMinimized = false) } },
                             )
+                            // Look up the current street while this screen is shown.
+                            DisposableEffect(Unit) {
+                                graph.street.want(STREET_KEY, true)
+                                onDispose { graph.street.want(STREET_KEY, false) }
+                            }
                         }
                         Screen.DISPLAY_LOCAL -> PassengerDisplayScreen(
                             snapshot = display,

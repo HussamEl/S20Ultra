@@ -54,6 +54,8 @@ data class RouteData(
     val completed: List<Stop> = emptyList(),
     val batchEndStopId: Long? = null,
     val nextId: Long = 1,
+    /** First stop of the batch last handed to Google Maps (decides whether "back" re-launches it). */
+    val batchStartStopId: Long? = null,
 ) {
     val completedCount: Int get() = completed.size
     val previousStop: Stop? get() = completed.lastOrNull()

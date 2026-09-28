@@ -21,6 +21,7 @@ import kotlinx.coroutines.launch
 import se.eldebosh.nastastopp.core.display.DisplayItem
 import se.eldebosh.nastastopp.core.display.DisplaySnapshot
 import se.eldebosh.nastastopp.core.geo.GeoLogic
+import se.eldebosh.nastastopp.core.geo.StreetInfo
 import se.eldebosh.nastastopp.core.parse.AddressExtractor
 import se.eldebosh.nastastopp.core.parse.ExtractedStop
 import se.eldebosh.nastastopp.core.parse.Localities
@@ -51,6 +52,8 @@ data class TrackingState(
     val distanceM: Double? = null,
     /** False when the current stop is not located or shares its place with a neighbour. */
     val autoEnabled: Boolean = false,
+    /** Wall-clock time the vehicle arrived at the current stop (waiting timer), or null. */
+    val arrivedAtMs: Long? = null,
 )
 
 /**
@@ -88,6 +91,7 @@ class RouteController(
     private val persistDispatcher = Dispatchers.IO.limitedParallelism(1)
     private var geocodeJob: Job? = null
     private var editBaseline: List<Long>? = null
+    private var arrivedAtMs: Long? = null
 
     init {
         _route.value?.let { repo.scheduleExpiry(it.createdAtMs) }
@@ -254,7 +258,7 @@ class RouteController(
         val r = _route.value ?: return false
         if (r.stops.isEmpty()) return false
         val batch = r.stops.take(MapsUrlBuilder.MAX_STOPS_PER_LAUNCH)
-        set(r.copy(active = true, batchEndStopId = batch.last().id))
+        set(r.copy(active = true, batchStartStopId = batch.first().id, batchEndStopId = batch.last().id))
         speak(announcementFor(r.stops))
         maps.launch(batch.map { it.navigationText })
         ensureServiceRunning()
@@ -285,12 +289,52 @@ class RouteController(
                 stops = remaining,
                 completed = r.completed + done,
                 batchEndStopId = batchEnd,
+                batchStartStopId = if (relaunch) remaining.first().id else r.batchStartStopId,
             ),
         )
         speak(announcementFor(remaining))
         if (relaunch) {
             maps.launch(remaining.take(MapsUrlBuilder.MAX_STOPS_PER_LAUNCH).map { it.navigationText }, fromBackground = true)
         }
+    }
+
+    /**
+     * "Back": undoes the last "Nästa" (manual or automatic). The previous trip becomes the current
+     * one again, its history entry is removed and the announcement is repeated. If Google Maps was
+     * launched starting at the current trip (end of a batch, or "Open Maps"), it is launched again
+     * from the restored trip so the navigation includes it. Returns false if there is no trip to
+     * go back to.
+     */
+    fun back(): Boolean {
+        val r = _route.value ?: return false
+        if (!r.active) return false
+        val restored = r.completed.lastOrNull() ?: return false
+        history.removeLatest(restored.displayText, restored.time)
+        val stops = listOf(restored) + r.stops
+        val relaunch = r.batchStartStopId != null && r.batchStartStopId == r.stops.firstOrNull()?.id
+        val batch = stops.take(MapsUrlBuilder.MAX_STOPS_PER_LAUNCH)
+        set(
+            r.copy(
+                stops = stops,
+                completed = r.completed.dropLast(1),
+                batchStartStopId = if (relaunch) restored.id else r.batchStartStopId,
+                batchEndStopId = if (relaunch) batch.last().id else r.batchEndStopId,
+            ),
+        )
+        speak(announcementFor(stops))
+        if (relaunch) maps.launch(batch.map { it.navigationText }, fromBackground = true)
+        return true
+    }
+
+    /**
+     * Speaks the street the vehicle is on now. Only on the driver's request (speaker button):
+     * automatic announcements never contain street names, and this is not sent to passenger
+     * displays. Returns false when no street is known yet.
+     */
+    fun speakStreet(info: StreetInfo?): Boolean {
+        val text = info?.spoken ?: return false
+        announcer.speak(Announcement(text, null))
+        return true
     }
 
     /** "Upprepa": repeats the announcement for the current state. */
@@ -305,7 +349,7 @@ class RouteController(
         val r = _route.value ?: return
         if (r.stops.isEmpty()) return
         val batch = r.stops.take(MapsUrlBuilder.MAX_STOPS_PER_LAUNCH)
-        if (r.active) set(r.copy(batchEndStopId = batch.last().id))
+        if (r.active) set(r.copy(batchStartStopId = batch.first().id, batchEndStopId = batch.last().id))
         maps.launch(batch.map { it.navigationText })
     }
 
@@ -351,7 +395,8 @@ class RouteController(
         val r = _route.value ?: return
         if (!r.active) return
         val event = detector.onFix(fix)
-        _tracking.value = TrackingState(detector.phase, detector.lastDistanceM, detectorKey != null)
+        if (event == DetectorEvent.Arrived) arrivedAtMs = System.currentTimeMillis()
+        publishTracking()
         if (event == DetectorEvent.Departed) next(auto = true)
     }
 
@@ -388,9 +433,16 @@ class RouteController(
         val key = if (auto && geo != null) "${current.id}:${geo.lat}:${geo.lng}" else null
         if (key != detectorKey) {
             detectorKey = key
+            arrivedAtMs = null
             if (key != null && geo != null) detector.setTarget(geo.lat, geo.lng) else detector.setTarget(null, null)
         }
-        _tracking.value = TrackingState(detector.phase, detector.lastDistanceM, key != null)
+        publishTracking()
+    }
+
+    private fun publishTracking() {
+        val arrived = detector.phase == DetectorPhase.ARRIVED
+        if (!arrived) arrivedAtMs = null
+        _tracking.value = TrackingState(detector.phase, detector.lastDistanceM, detectorKey != null, arrivedAtMs.takeIf { arrived })
     }
 
     /** Two stops at the same place (≤ 30 m, or the same address text) — advance only manually. */

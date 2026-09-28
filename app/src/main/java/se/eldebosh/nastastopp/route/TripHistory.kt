@@ -75,6 +75,13 @@ class TripHistory(
         commit(HistoryFile(data.entries + entry, data.nextId + 1))
     }
 
+    /** Removes the most recent completed trip with this address and time ("back" after "Nästa"). */
+    fun removeLatest(displayText: String, time: String?): Boolean {
+        val entry = data.entries.lastOrNull { it.done && it.displayText == displayText && it.time == time } ?: return false
+        commit(HistoryFile(data.entries - entry, data.nextId))
+        return true
+    }
+
     fun clear() = commit(HistoryFile(emptyList(), data.nextId))
 
     /** Drops trips older than the retention period. */
