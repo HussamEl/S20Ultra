@@ -352,3 +352,14 @@ Not verifiable here: the logged-in YouDrive page (private to the driver's accoun
 - **Tests:**
   - `ScreenshotsRoboTest` renders every screen, the "?" popup and the floating panel to `app/build/screenshots/` for visual checks.
   - `UiSmokeRoboTest` follows the new layout: icons for Settings / Help, and the YouDrive menu.
+
+## 1.0 (versionCode 15): device-test support
+
+- A second Claude session on the user's laptop now installs and tests every build on the S20 Ultra over adb. It asked for stable ids, test inputs and a fixed delivery place.
+- **Stable ids:**
+  - `Modifier.ref(n)` / `refCorner(n)` also set the test tag `ref_<n>`, and the Compose roots (`AppRoot`, the YouDrive bar) set `testTagsAsResourceId`. UI Automator therefore sees every numbered control as resource-id `ref_<n>`, the same numbers as the README tables.
+  - The floating panel's views get `R.id.ref_1..ref_17` (`res/values/ids.xml`), even when the numbers are hidden.
+- **Test inputs:** two invented dispatch-list screenshots (`testdata/screenshots/`), drawn by `ScreenshotsRoboTest.deviceFixtures`. `DeviceFixturesTest` asserts what the parser reads from them.
+- **Delivery:** the release-signed `dist/NastaStopp.apk` on the branch (same key every time, so updates install in place), not a debug APK. The cloud's debug key changes between sessions.
+- The version line (125) shows the versionCode too: "Version 1.0 (15)".
+- **Test race fixed:** `RouteControllerRoboTest` set-up deleted the route file on a background thread while the next test saved it. `RouteController.awaitPersisted()` (tests only) now waits for queued writes.

@@ -42,6 +42,7 @@ class RouteControllerRoboTest {
         graph = app.graph
         graph.controller.clear()
         idle()
+        graph.controller.awaitPersisted() // the route file is deleted on a background thread
     }
 
     private fun idle() = shadowOf(Looper.getMainLooper()).idle()

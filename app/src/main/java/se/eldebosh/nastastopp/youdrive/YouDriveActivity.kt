@@ -18,7 +18,10 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -102,7 +105,11 @@ class YouDriveActivity : ComponentActivity() {
         }
         NastaTheme {
             // Surface: gives the bar's texts and icons the theme's light content colour.
-            Surface(color = MaterialTheme.colorScheme.surfaceContainerLow, contentColor = MaterialTheme.colorScheme.onSurface) {
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.semantics { testTagsAsResourceId = true }, // "ref_<n>" resource-ids
+            ) {
                 CompositionLocalProvider(LocalExplainResources provides explainResources) {
                     YouDriveBar(
                         state = state,

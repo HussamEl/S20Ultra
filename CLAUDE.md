@@ -45,3 +45,17 @@ An Android app for a Swedish shared-ride driver:
   - `dexdump`: ML Kit `TextRegistrar` is present.
 - Copy the APK to `dist/NastaStopp.apk`, update `DECISIONS.md` and `README.md`, then commit and push to `claude/nasta-stopp-android-app-soeru7`.
 - Signing uses `keystore.properties` (gitignored), which points to `~/.nastastopp-signing/`. R8 stays disabled because it strips the ML Kit registrars.
+
+## Device testing (with the local Claude session on the user's laptop)
+- A second Claude Code session on the user's laptop has the S20 Ultra (SM-G988B, Android 13) on adb. It installs and tests every build. **Never try to reach the phone yourself.**
+- **Delivery:** `dist/NastaStopp.apk` on this branch. It is release-signed with the same key every time, so `adb install -r` updates in place. Always bump `versionCode`.
+  - Raw URL: `https://github.com/HussamEl/S20Ultra/raw/<sha>/dist/NastaStopp.apk`. The repo is public.
+- **Stable ids for UI Automator:**
+  - Every numbered Compose control has resource-id `ref_<n>` (test tag + `testTagsAsResourceId` on the roots). Floating-panel parts are `se.eldebosh.nastastopp:id/ref_<1..17>`.
+  - The numbers are the README tables. Keep new controls numbered.
+- **Test inputs:** the invented screenshots in `testdata/screenshots/`. `testdata/README.md` lists the expected stops, and `DeviceFixturesTest` asserts them.
+- **Loop:**
+  1. Post `DEVICE-TEST READY <sha>` with the APK link and a numbered checklist.
+  2. The tester replies `DEVICE-TEST RESULT <sha>`.
+  - Until a PR exists, the user relays messages.
+- **YouDrive:** it is the real dispatch site, so the user signs in manually. The tester never types credentials.

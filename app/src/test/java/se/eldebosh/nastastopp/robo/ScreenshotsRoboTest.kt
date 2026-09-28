@@ -32,6 +32,7 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import se.eldebosh.nastastopp.core.display.DisplayItem
+import se.eldebosh.nastastopp.core.parse.DeviceFixtures
 import se.eldebosh.nastastopp.core.display.DisplaySnapshot
 import se.eldebosh.nastastopp.core.youdrive.TripChange
 import se.eldebosh.nastastopp.core.youdrive.WatchedTrip
@@ -244,6 +245,33 @@ class ScreenshotsRoboTest {
         }
         save("floating", bitmap)
         graph.controller.end()
+    }
+
+    /**
+     * The invented dispatch lists of [DeviceFixtures] as phone screenshots (1080×2400), for the
+     * import test on the real phone. Copied to testdata/screenshots/ when they change.
+     */
+    @Test
+    fun deviceFixtures() {
+        listOf("fixture_time_above" to DeviceFixtures.timeAbove, "fixture_same_line" to DeviceFixtures.sameLine).forEach { (name, lines) ->
+            val bitmap = Bitmap.createBitmap(1080, 2400, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap).apply { drawColor(android.graphics.Color.WHITE) }
+            val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                color = android.graphics.Color.BLACK
+                typeface = android.graphics.Typeface.DEFAULT
+            }
+            var y = 70f
+            lines.forEachIndexed { i, line ->
+                val header = i < 2
+                paint.textSize = if (i == 1) 60f else if (i == 0) 34f else 46f
+                paint.isFakeBoldText = header || line.first().isDigit()
+                if (!header && line.first().isDigit() && i > 2 && name == "fixture_time_above") y += 36f // gap between trips
+                canvas.drawText(line, 48f, y, paint)
+                y += if (i == 0) 110f else 78f
+            }
+            val dir = File("build/fixtures").apply { mkdirs() }
+            File(dir, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        }
     }
 
     @Test

@@ -1,8 +1,10 @@
 package se.eldebosh.nastastopp.route
 
+import androidx.annotation.VisibleForTesting
 import android.content.Context
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -474,6 +476,10 @@ class RouteController(
         }
         syncDetector()
     }
+
+    /** Waits until every queued save / delete of the route file is done (tests only). */
+    @VisibleForTesting
+    internal fun awaitPersisted() = runBlocking(persistDispatcher) {}
 
     /** Points the arrival detector at the current stop when automatic detection is allowed. */
     private fun syncDetector() {

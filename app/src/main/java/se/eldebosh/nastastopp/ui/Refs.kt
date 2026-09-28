@@ -21,6 +21,7 @@ import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.node.invalidateMeasurement
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.platform.LocalFontFamilyResolver
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -47,10 +48,16 @@ object RefNumbers {
  */
 fun Modifier.ref(n: Int, centered: Boolean = false): Modifier =
     // The number is drawn over the strip's full size, so the draw part comes before the strip.
-    this then RefDrawElement(n, corner = false) then RefStripElement(centered)
+    this.testTag(refTag(n)) then RefDrawElement(n, corner = false) then RefStripElement(centered)
 
 /** For icon buttons and switches: the number sits in the control's own empty top-start corner. */
-fun Modifier.refCorner(n: Int): Modifier = this then RefDrawElement(n, corner = true)
+fun Modifier.refCorner(n: Int): Modifier = this.testTag(refTag(n)) then RefDrawElement(n, corner = true)
+
+/**
+ * Stable id of numbered element [n] ("ref_78"): a test tag that UI Automator sees as the
+ * resource-id (the app roots set testTagsAsResourceId), so device tests find controls by number.
+ */
+fun refTag(n: Int) = "ref_$n"
 
 private val STRIP = 11.dp
 

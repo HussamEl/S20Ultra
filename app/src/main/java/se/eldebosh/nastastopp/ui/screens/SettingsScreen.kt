@@ -171,7 +171,7 @@ fun SettingsScreen(
             }
             // Version stamp: versionName + build date.
             Text(
-                stringResource(R.string.settings_version, BuildConfig.VERSION_NAME, BuildConfig.BUILD_DATE),
+                stringResource(R.string.settings_version, "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})", BuildConfig.BUILD_DATE),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.outline,
                 modifier = Modifier.ref(125).padding(start = 4.dp, top = 16.dp, bottom = 24.dp),

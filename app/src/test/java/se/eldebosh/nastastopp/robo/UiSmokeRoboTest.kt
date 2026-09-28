@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.performClick
@@ -97,8 +98,11 @@ class UiSmokeRoboTest {
             compose.onNodeWithText(s(R.string.home_import)).assertExists()
             assertTrue(app.graph.settings.current.onboardingDone)
 
+            // Stable ids for device tests: numbered controls carry the test tag "ref_<n>".
+            compose.onNodeWithTag("ref_23").assertExists()
+            compose.onNodeWithTag("ref_31").assertExists()
             compose.onNodeWithContentDescription(s(R.string.home_settings)).performClick()
-            compose.onNodeWithText(s(R.string.settings_version, BuildConfig.VERSION_NAME, BuildConfig.BUILD_DATE))
+            compose.onNodeWithText(s(R.string.settings_version, "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})", BuildConfig.BUILD_DATE))
                 .performScrollTo().assertExists()
             compose.onNodeWithText(s(R.string.detail_district)).assertExists()
             compose.onNodeWithText(s(R.string.settings_explain_arabic)).assertExists()

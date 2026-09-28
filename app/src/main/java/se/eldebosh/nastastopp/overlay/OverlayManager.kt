@@ -463,6 +463,7 @@ class OverlayManager(
      * (setting). Texts get a little start padding so the number does not cover them.
      */
     private fun View.ref(n: Int, bottomEnd: Boolean = false, padText: Boolean = true) {
+        id = REF_IDS[n - 1] // resource-id "ref_<n>" for device tests, also with the numbers hidden
         if (!settings.current.showRefNumbers) return
         if (padText && this is TextView) setPaddingRelative(maxOf(paddingStart, dp(REF_TEXT_PAD_DP)), paddingTop, paddingEnd, paddingBottom)
         val rtl = ui.resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_RTL
@@ -636,6 +637,10 @@ class OverlayManager(
         private const val WANT_KEY = "overlay"
         private const val CIRCLE_DP = 116f
         private const val REF_TEXT_PAD_DP = 17f
+        private val REF_IDS = intArrayOf(
+            R.id.ref_1, R.id.ref_2, R.id.ref_3, R.id.ref_4, R.id.ref_5, R.id.ref_6, R.id.ref_7, R.id.ref_8, R.id.ref_9,
+            R.id.ref_10, R.id.ref_11, R.id.ref_12, R.id.ref_13, R.id.ref_14, R.id.ref_15, R.id.ref_16, R.id.ref_17,
+        )
 
         /** All panel texts 10 % smaller than first designed (driver's request). */
         private const val FONT_SCALE = 0.9f
