@@ -53,7 +53,9 @@ An Android app for a Swedish shared-ride driver:
 - **Stable ids for UI Automator:**
   - Every numbered Compose control has resource-id `ref_<n>` (test tag + `testTagsAsResourceId` on the roots). Floating-panel parts are `se.eldebosh.nastastopp:id/ref_<1..17>`.
   - The numbers are the README tables. Keep new controls numbered.
-- **Test inputs:** the invented screenshots in `testdata/screenshots/`. `testdata/README.md` lists the expected stops, and `DeviceFixturesTest` asserts them.
+- **Test inputs:** the invented screenshots in `testdata/screenshots/`. `testdata/README.md` lists the expected stops and every invented term for the privacy search, and `DeviceFixturesTest` asserts the stops.
+- **Floating-panel positions:** UI Automator can't see overlay windows. After `adb shell setprop log.tag.NastaStoppRefs DEBUG`, the panel logs its parts' screen bounds (`ref_<n>=[l,t][r,b]`), ids and bounds only.
+- **Each READY lists:** the steps the change affects, a short smoke set, the steps that need Hussam's hands (sign-ins, terms, OS dialogs), and what is urgent for the driver.
 - **Loop:**
   1. Post `DEVICE-TEST READY <sha>` with the APK link and a numbered checklist.
   2. The tester replies `DEVICE-TEST RESULT <sha>`.

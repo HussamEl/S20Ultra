@@ -60,5 +60,22 @@ class DeviceFixturesTest {
         val named = extractor.extract(listOf("ANDERSSON VÄSTRA TORGGATAN 12, 65224 KARLSTAD")).single()
         assertEquals(true, named.candidates.contains("Västra Torggatan 12, 652 24 Karlstad"))
     }
+
+    @Test
+    fun streetPrefixesAndSplitRows() = assertEquals(
+        listOf(
+            "08:10 Östra Storgatan 3, 652 24 Karlstad",
+            "08:30 Norra allén 4, 652 25 Karlstad",
+            "08:50 Södra Kyrkogatan 7, 681 30 Kristinehamn",
+            "09:10 S:t Olofsgatan 2, 652 24 Karlstad",
+            "09:30 Stora torget 1, 652 25 Karlstad",
+            "09:50 Lilla Badhusgatan 5, 652 25 Karlstad",
+            "10:10 Gamla Kyrkogatan 12, 664 30 Grums",
+            "10:30 Övre Torggatan 8, 652 24 Karlstad",
+            "10:50 Västra Skolgatan 9, 663 30 Skoghall",
+            "11:10 Norra Strandvägen 21, 681 31 Kristinehamn",
+        ),
+        read(DeviceFixtures.prefixes),
+    )
 }
 

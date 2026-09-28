@@ -388,3 +388,11 @@ The device session tested build 15 on the S20 Ultra: 10 pass, 2 pass with issues
 - **Not changed:**
   - Maps' own picture-in-picture over the app (V3).
   - Maps' first-run sign-in and terms screens (V4).
+
+## 1.0.2 (versionCode 17): test aids asked for by the device session
+
+- **Floating-panel positions in logcat:** UI Automator's dump can't see overlay windows, so the tester had to tap the panel by coordinates.
+  - With `adb shell setprop log.tag.NastaStoppRefs DEBUG`, every layout or move of the panel logs one line with each visible part's screen bounds, e.g. `ref_5=[l,t][r,b]`.
+  - It logs ids and bounds only, never stop data, and stays silent unless switched on (`Log.isLoggable`).
+- **`fixture_prefixes.png`:** ten invented stops with street prefixes and multi-word names. It covers Östra, Norra, Södra, S:t, Stora, Lilla, Gamla and Övre, plus two rows split after the prefix. `testdata/README.md` now lists every invented name, number, street and postcode for the privacy search.
+- **Test for B2:** the panel leaves while the passenger display suppresses it, and no "closed" reminder is posted.

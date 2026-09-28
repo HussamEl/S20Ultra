@@ -242,6 +242,24 @@ class FloatingPanelRoboTest {
 
     private fun reminder() = shadowOf(app.getSystemService(NotificationManager::class.java)).getNotification(Notifications.ID_OVERLAY_HIDDEN)
 
+    /** Found on the S20 Ultra (B2): the panel covered the passenger display. */
+    @Test
+    fun panelStaysAwayWhileThePassengerDisplayIsShown() {
+        ShadowSettings.setCanDrawOverlays(true)
+        threeStops()
+        graph.controller.start()
+        idle()
+        assertEquals(1, wm.views.size)
+        graph.overlay.suppress("passenger_display", true)
+        idle()
+        assertTrue("no panel over the passenger display", wm.views.isEmpty())
+        assertNull("not the \"closed\" reminder: the driver did not close it", reminder())
+        graph.overlay.suppress("passenger_display", false)
+        idle()
+        assertEquals(1, wm.views.size)
+        graph.controller.end()
+    }
+
     @Test
     fun panelBackNextMinimiseCloseAndQuickRestore() {
         ShadowSettings.setCanDrawOverlays(true)

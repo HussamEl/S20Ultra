@@ -253,7 +253,11 @@ class ScreenshotsRoboTest {
      */
     @Test
     fun deviceFixtures() {
-        listOf("fixture_time_above" to DeviceFixtures.timeAbove, "fixture_same_line" to DeviceFixtures.sameLine).forEach { (name, lines) ->
+        listOf(
+            "fixture_time_above" to DeviceFixtures.timeAbove,
+            "fixture_same_line" to DeviceFixtures.sameLine,
+            "fixture_prefixes" to DeviceFixtures.prefixes,
+        ).forEach { (name, lines) ->
             val bitmap = Bitmap.createBitmap(1080, 2400, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap).apply { drawColor(android.graphics.Color.WHITE) }
             val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {

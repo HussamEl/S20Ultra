@@ -15,6 +15,7 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.text.TextUtils
+import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
@@ -221,6 +222,7 @@ class OverlayManager(
         content.layoutDirection = ui.resources.configuration.layoutDirection
         content.addOnLayoutChangeListener { view, l, t, r, b, ol, ot, orr, ob ->
             if (r - l != orr - ol || b - t != ob - ot) keepOnScreen(view, lp)
+            logRefBoundsSoon()
         }
         try {
             wm?.addView(content, lp)
@@ -551,6 +553,29 @@ class OverlayManager(
         }
     }
 
+    /**
+     * For device tests: UI Automator does not see overlay windows, so with
+     * `adb shell setprop log.tag.NastaStoppRefs DEBUG` every layout or move of the panel logs its
+     * numbered parts' screen bounds ("ref_5=[812,640][980,808] …"). Ids and bounds only, never
+     * stop data; silent unless switched on.
+     */
+    private fun logRefBoundsSoon() {
+        if (!Log.isLoggable(REF_LOG_TAG, Log.DEBUG)) return
+        handler.removeCallbacks(logRefBounds)
+        handler.postDelayed(logRefBounds, 150) // after the window has moved
+    }
+
+    private val logRefBounds = Runnable {
+        val panel = root ?: return@Runnable
+        val at = IntArray(2)
+        val parts = REF_IDS.withIndex().mapNotNull { (i, id) ->
+            val v = panel.findViewById<View>(id)?.takeIf { it.isShown } ?: return@mapNotNull null
+            v.getLocationOnScreen(at)
+            "ref_${i + 1}=[${at[0]},${at[1]}][${at[0] + v.width},${at[1] + v.height}]"
+        }
+        Log.d(REF_LOG_TAG, parts.joinToString(" "))
+    }
+
     /** Moves the window back inside the screen (after a size change or a drag). */
     private fun keepOnScreen(view: View, lp: WindowManager.LayoutParams) {
         if (root != view) return
@@ -628,6 +653,7 @@ class OverlayManager(
                     if (dragging) {
                         settings.setOverlayPosition(lp.x, lp.y)
                         keepOnScreen(window, lp)
+                        logRefBoundsSoon()
                     } else if (!longPressed) {
                         v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                         v.performClick() // → the view's click listener
@@ -646,6 +672,7 @@ class OverlayManager(
         private const val WANT_KEY = "overlay"
         private const val CIRCLE_DP = 116f
         private const val REF_TEXT_PAD_DP = 17f
+        private const val REF_LOG_TAG = "NastaStoppRefs"
         private val REF_IDS = intArrayOf(
             R.id.ref_1, R.id.ref_2, R.id.ref_3, R.id.ref_4, R.id.ref_5, R.id.ref_6, R.id.ref_7, R.id.ref_8, R.id.ref_9,
             R.id.ref_10, R.id.ref_11, R.id.ref_12, R.id.ref_13, R.id.ref_14, R.id.ref_15, R.id.ref_16, R.id.ref_17,
