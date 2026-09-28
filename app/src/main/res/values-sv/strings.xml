@@ -30,7 +30,10 @@
     <string name="importing">Läser bild %1$d av %2$d…</string>
     <string name="import_result">Tillagda adresser: %1$d</string>
     <string name="import_none">Inga adresser hittades i bilderna</string>
-    <string name="import_failed">Bilder som inte kunde läsas: %1$d</string>
+    <string name="import_failed_title">Kunde inte läsa bilden</string>
+    <string name="import_failed_count">Bilder som inte lästes: %1$d av %2$d.</string>
+    <string name="import_failed_hint">Om det händer igen: ta en skärmdump av det här meddelandet och skicka till utvecklaren. Texten ovan innehåller inga adresser.</string>
+    <string name="ok">OK</string>
     <string name="confirm_clear_title">Rensa all data?</string>
     <string name="confirm_clear_text">Adresslistan raderas permanent.</string>
 

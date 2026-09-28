@@ -35,6 +35,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _import = MutableStateFlow<ImportUi>(ImportUi.Idle)
     val importState: StateFlow<ImportUi> = _import.asStateFlow()
 
+    /** Details of the last import in which images could not be read (shown in a dialog). */
+    data class ImportError(val failedImages: Int, val totalImages: Int, val detail: String?)
+
+    private val _importError = MutableStateFlow<ImportError?>(null)
+    val importError: StateFlow<ImportError?> = _importError.asStateFlow()
+
+    fun dismissImportError() {
+        _importError.value = null
+    }
+
     private val _messages = MutableSharedFlow<UiMessage>(extraBufferCapacity = 4)
     val messages: SharedFlow<UiMessage> = _messages.asSharedFlow()
 
@@ -93,8 +103,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val added = graph.controller.addExtracted(result.stops)
             when {
                 added > 0 -> message(UiMessage(R.string.import_result, added))
-                result.failedImages > 0 -> message(UiMessage(R.string.import_failed, result.failedImages))
-                else -> message(UiMessage(R.string.import_none))
+                result.failedImages == 0 -> message(UiMessage(R.string.import_none))
+            }
+            if (result.failedImages > 0) {
+                _importError.value = ImportError(result.failedImages, result.images, result.errorDetail)
             }
             if ((graph.controller.route.value?.stops?.size ?: 0) > 0) showReview()
         }

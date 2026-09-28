@@ -109,6 +109,19 @@ No fallback to an older version was needed: every latest stable version built.
 ## Build & delivery (§15)
 
 - **Release signing**: the keystore is `/root/.nastastopp-signing/nastastopp-release.jks` (PKCS12, RSA 4096, alias `nastastopp`). It lives outside the repository and is referenced by the git-ignored `keystore.properties`. **If `keystore.properties` is missing** (a clean checkout), the release build signs with the debug key, so `assembleRelease` always produces an installable APK.
-- The release build uses R8 (minify plus resource shrinking) and packages only the `arm64-v8a` and `armeabi-v7a` ABIs (the OCR native library is about 11 MB per ABI). The debug build keeps all ABIs for emulators.
+- The release build packages only the `arm64-v8a` and `armeabi-v7a` ABIs (the OCR native library is about 11 MB per ABI). The debug build keeps all ABIs for emulators.
+- **R8 is disabled for release (since 1.0.1).** See "Fix in 1.0.1" below. The APK is larger (about 46 MB instead of 23 MB) but runs exactly the code the debug build and tests run. `proguard-rules.pro` now carries the ML Kit keep rules, in case R8 is re-enabled later.
 - `dist/NastaStopp.apk` is the **signed release APK** and is committed. `*.apk` is git-ignored except that file.
 - The Gradle deprecation warning ("Configuration.setVisible") comes from a plugin, not from this project's scripts.
+
+## Fix in 1.0.1: "could not read the image" on the phone
+
+- **Symptom:** on the S20 Ultra, every imported screenshot failed with "could not read the image".
+- **Cause:** in 1.0.0 the release APK was minified by R8 in **full mode** (the AGP 9 default). R8 removed the no-argument constructors of ML Kit's component registrars (`TextRegistrar`, `CommonComponentRegistrar`, `VisionCommonRegistrar`) and renamed `getComponents`. ML Kit creates these by reflection from manifest meta-data, so the text recognizer could not be created. The failure was invisible to every test: unit and Robolectric tests run un-minified code and cannot load ML Kit's native OCR. It was confirmed by inspecting the 1.0.0 release dex with `dexdump`.
+- **Fix:** R8 is off for release; the 1.0.1 dex was checked to contain the constructors again. In addition:
+  - the OCR falls back to ML Kit's own image loader (`InputImage.fromFilePath`) if the tiled decode fails;
+  - any failure in one image (including errors from the native library) only skips that image;
+  - a malformed OCR line can never fail an image (a per-line guard, plus a 40,000-line fuzz test of the parser);
+  - a dialog shows **which step failed** (OPEN / DECODE / ENGINE / OCR / PARSE) with the technical reason, so a remaining problem can be reported from a screenshot. The reason never contains OCR text or addresses.
+- Regex flags were made portable (`RegexOption.IGNORE_CASE` instead of inline `(?iu)`), and all 29 app regexes were checked to compile and match correctly with the ICU 74 engine (Android's regex engine). This was verified, not guessed: ICU also accepted the old patterns, so they were not the cause.
+- Version bumped to **1.0.1 (versionCode 2)** and signed with the same key, so it installs over 1.0.0.

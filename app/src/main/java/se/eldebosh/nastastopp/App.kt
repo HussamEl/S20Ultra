@@ -33,7 +33,7 @@ class AppGraph(app: Application) {
     val controller = RouteController(app, scope, repository, settings, geocoding, announcer, maps, localities, extractor)
     val notifier = RouteNotifier(app, controller, settings, scope)
     val overlay = OverlayManager(app, controller, settings, scope)
-    val importer = ScreenshotImporter(OcrEngine(app.contentResolver), extractor)
+    val importer = ScreenshotImporter(OcrEngine(app), extractor)
 }
 
 class App : Application() {

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarDuration
@@ -20,6 +21,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -31,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -63,6 +66,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
     val settings by graph.settings.state.collectAsStateWithLifecycle()
     val ttsStatus by graph.announcer.status.collectAsStateWithLifecycle()
     val importState by vm.importState.collectAsStateWithLifecycle()
+    val importError by vm.importError.collectAsStateWithLifecycle()
     val importing = importState is ImportUi.Running
     val snackbar = remember { SnackbarHostState() }
     var resumeTick by remember { mutableIntStateOf(0) }
@@ -250,5 +254,29 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
             }
             SnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 180.dp))
         }
+    }
+
+    importError?.let { err ->
+        AlertDialog(
+            onDismissRequest = { vm.dismissImportError() },
+            title = { Text(stringResource(R.string.import_failed_title)) },
+            text = {
+                Column {
+                    Text(stringResource(R.string.import_failed_count, err.failedImages, err.totalImages), style = MaterialTheme.typography.bodyLarge)
+                    if (!err.detail.isNullOrBlank()) {
+                        Text(
+                            err.detail,
+                            style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Ltr),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 10.dp),
+                        )
+                    }
+                    Text(stringResource(R.string.import_failed_hint), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 10.dp))
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { vm.dismissImportError() }) { Text(stringResource(R.string.ok)) }
+            },
+        )
     }
 }

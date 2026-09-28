@@ -30,7 +30,10 @@
     <string name="importing">Reading image %1$d of %2$d…</string>
     <string name="import_result">Addresses added: %1$d</string>
     <string name="import_none">No addresses found in the images</string>
-    <string name="import_failed">Images that could not be read: %1$d</string>
+    <string name="import_failed_title">Could not read the image</string>
+    <string name="import_failed_count">Images not read: %1$d of %2$d.</string>
+    <string name="import_failed_hint">If this happens again, take a screenshot of this message and send it to the developer. The text above contains no addresses.</string>
+    <string name="ok">OK</string>
     <string name="confirm_clear_title">Clear all data?</string>
     <string name="confirm_clear_text">The address list will be permanently deleted.</string>
 

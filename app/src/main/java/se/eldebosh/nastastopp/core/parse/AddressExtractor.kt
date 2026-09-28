@@ -49,10 +49,10 @@ class AddressExtractor(private val localities: Localities) {
         while (i < lines.size) {
             val line = lines[i]
             val next = lines.getOrNull(i + 1)
-            val single = parse(line)
+            val single = safeParse(line)
             val singleHasPlace = single != null && (single.postalCode != null || single.town != null)
-            if (next != null && !singleHasPlace && isJoinable(line) && startsWithPostalOrTown(next)) {
-                val joined = parse("${line.trim().trimEnd(',')}, ${next.trim()}", joined = true)
+            if (next != null && !singleHasPlace && safeCheck { isJoinable(line) && startsWithPostalOrTown(next) }) {
+                val joined = safeParse("${line.trim().trimEnd(',')}, ${next.trim()}", joined = true)
                 if (joined != null) {
                     found += joined to (startOrder + i)
                     i += 2
@@ -92,6 +92,14 @@ class AddressExtractor(private val localities: Localities) {
 
     // ---------------------------------------------------------------------------------------
     // Line analysis
+
+    /** A malformed line must never fail the whole screenshot: it is simply skipped. */
+    private fun safeParse(raw: String, joined: Boolean = false): ParsedAddress? =
+        try {
+            parse(raw, joined)
+        } catch (_: RuntimeException) {
+            null
+        }
 
     /**
      * Analyses one line. Returns null if the line is rejected / not an address.
@@ -258,6 +266,13 @@ class AddressExtractor(private val localities: Localities) {
     // ---------------------------------------------------------------------------------------
     // Joining helpers
 
+    private inline fun safeCheck(block: () -> Boolean): Boolean =
+        try {
+            block()
+        } catch (_: RuntimeException) {
+            false
+        }
+
     private fun isJoinable(line: String): Boolean {
         val n = normalizeRaw(line)
         if (n.isEmpty() || MONEY.containsMatchIn(n) || UI_WORDS.containsMatchIn(n) || isShortCodeLine(n)) return false
@@ -394,7 +409,7 @@ class AddressExtractor(private val localities: Localities) {
     }
 
     private fun String.removeCountrySuffix(): String =
-        replace(Regex("(?i)[,\\s]*\\b(sverige|sweden|se)\\s*$"), "").trim()
+        replace(COUNTRY_SUFFIX, "").trim()
 
     // ---------------------------------------------------------------------------------------
     // Street tokens
@@ -463,21 +478,23 @@ class AddressExtractor(private val localities: Localities) {
         private val TIME = Regex("(?<![\\p{N}])(?:[01]?\\d|2[0-3])[:.][0-5]\\d(?![\\p{N}])")
         private val MONEY = Regex("(?<![\\p{L}])(?:KR|kr|Kr|SEK|sek)(?![\\p{L}])")
         private val UI_WORDS = Regex(
-            "(?iu)(?<![\\p{L}])(?:fee|fees|compensation|performed|departed|pick-?up|drop-?off|status|" +
+            "(?<![\\p{L}])(?:fee|fees|compensation|performed|departed|pick-?up|drop-?off|status|" +
                 "avgift|ersättning|utförd|utförda|avgått)(?![\\p{L}])",
+            RegexOption.IGNORE_CASE,
         )
-        private val CARE_OF = Regex("(?iu)(?<![\\p{L}])c/o(?![\\p{L}])")
+        private val COUNTRY_SUFFIX = Regex("[,\\s]*\\b(sverige|sweden|se)\\s*$", RegexOption.IGNORE_CASE)
+        private val CARE_OF = Regex("(?<![\\p{L}])c/o(?![\\p{L}])", RegexOption.IGNORE_CASE)
         private val SHORT_CODE_TOKEN = Regex("[A-ZÅÄÖ0-9]{1,4}")
 
         /** Apartment / extra parts that are removed from the address. */
         private val EXTRA_PARTS = listOf(
-            Regex("(?iu)(?<![\\p{L}])(?:lgh|lägenhet)(?![\\p{L}])\\.?\\s*(?:nr\\.?\\s*)?\\d*"),
-            Regex("(?iu)(?<![\\p{L}])vån(?:ing)?(?![\\p{L}])\\.?\\s*\\d*\\s*(?:tr(?:appor)?\\.?)?(?![\\p{L}])"),
-            Regex("(?iu)(?<![\\p{L}\\p{N}])\\d+\\s*tr(?:appor)?\\.?(?![\\p{L}])"),
-            Regex("(?iu)(?<![\\p{L}])port(?:kod)?(?![\\p{L}])\\.?\\s*[:.]?\\s*[\\p{L}\\p{N}]{0,6}(?![\\p{L}])"),
-            Regex("(?iu)(?<![\\p{L}])uppg(?:ång)?(?![\\p{L}])\\.?\\s*[\\p{L}\\p{N}]{0,3}(?![\\p{L}])"),
+            Regex("(?<![\\p{L}])(?:lgh|lägenhet)(?![\\p{L}])\\.?\\s*(?:nr\\.?\\s*)?\\d*", RegexOption.IGNORE_CASE),
+            Regex("(?<![\\p{L}])vån(?:ing)?(?![\\p{L}])\\.?\\s*\\d*\\s*(?:tr(?:appor)?\\.?)?(?![\\p{L}])", RegexOption.IGNORE_CASE),
+            Regex("(?<![\\p{L}\\p{N}])\\d+\\s*tr(?:appor)?\\.?(?![\\p{L}])", RegexOption.IGNORE_CASE),
+            Regex("(?<![\\p{L}])port(?:kod)?(?![\\p{L}])\\.?\\s*[:.]?\\s*[\\p{L}\\p{N}]{0,6}(?![\\p{L}])", RegexOption.IGNORE_CASE),
+            Regex("(?<![\\p{L}])uppg(?:ång)?(?![\\p{L}])\\.?\\s*[\\p{L}\\p{N}]{0,3}(?![\\p{L}])", RegexOption.IGNORE_CASE),
             // Floor ("plan 3") only when written after a comma — a street "…plan 3" is kept.
-            Regex("(?iu),\\s*plan\\s*\\d+(?![\\p{L}\\p{N}])"),
+            Regex(",\\s*plan\\s*\\d+(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE),
         )
 
         fun formatPostal(code: String): String {

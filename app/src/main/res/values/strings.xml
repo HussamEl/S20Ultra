@@ -31,7 +31,10 @@
     <string name="importing">جارٍ قراءة الصورة %1$d من %2$d…</string>
     <string name="import_result">عناوين مضافة: %1$d</string>
     <string name="import_none">لم يتم العثور على عناوين في الصور</string>
-    <string name="import_failed">صور تعذرت قراءتها: %1$d</string>
+    <string name="import_failed_title">تعذرت قراءة الصورة</string>
+    <string name="import_failed_count">صور لم تُقرأ: %1$d من %2$d.</string>
+    <string name="import_failed_hint">إذا تكرر ذلك، خذ لقطة شاشة لهذه الرسالة وأرسلها للمطور. النص أعلاه لا يحتوي على أي عنوان.</string>
+    <string name="ok">حسناً</string>
     <string name="confirm_clear_title">مسح كل البيانات؟</string>
     <string name="confirm_clear_text">سيتم حذف قائمة العناوين نهائياً.</string>
 

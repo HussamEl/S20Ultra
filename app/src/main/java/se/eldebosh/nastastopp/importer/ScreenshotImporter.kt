@@ -1,12 +1,24 @@
 package se.eldebosh.nastastopp.importer
 
 import android.net.Uri
+import kotlinx.coroutines.CancellationException
 import se.eldebosh.nastastopp.core.parse.AddressExtractor
 import se.eldebosh.nastastopp.core.parse.ExtractedStop
+import se.eldebosh.nastastopp.ocr.ImageReadException
 import se.eldebosh.nastastopp.ocr.OcrEngine
+import se.eldebosh.nastastopp.ocr.ReadStage
 import se.eldebosh.nastastopp.util.DebugLog
 
-data class ImportResult(val stops: List<ExtractedStop>, val images: Int, val failedImages: Int)
+/**
+ * @property errorDetail short technical reason for the first failed image (no OCR text, no
+ *   addresses), shown to the driver so a problem can be reported.
+ */
+data class ImportResult(
+    val stops: List<ExtractedStop>,
+    val images: Int,
+    val failedImages: Int,
+    val errorDetail: String? = null,
+)
 
 /**
  * Runs OCR + address extraction on screenshots, in the order received. Only the extracted
@@ -17,12 +29,17 @@ class ScreenshotImporter(private val ocr: OcrEngine, private val extractor: Addr
     suspend fun import(uris: List<Uri>, onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }): ImportResult {
         val all = ArrayList<ExtractedStop>()
         var failed = 0
+        var firstError: String? = null
         var lineOffset = 0
         uris.forEachIndexed { index, uri ->
             onProgress(index, uris.size)
             try {
                 val lines = ocr.recognize(uri).map { it.text }
-                val stops = extractor.extract(lines, startOrder = lineOffset)
+                val stops = try {
+                    extractor.extract(lines, startOrder = lineOffset)
+                } catch (e: RuntimeException) {
+                    throw ImageReadException(ReadStage.PARSE, e)
+                }
                 lineOffset += lines.size
                 DebugLog.d { "image ${index + 1}: ${lines.size} lines, ${stops.size} addresses" }
                 for (stop in stops) {
@@ -30,17 +47,18 @@ class ScreenshotImporter(private val ocr: OcrEngine, private val extractor: Addr
                     if (last != null && extractor.isSameAddress(last, stop)) continue // merge across images
                     all += stop
                 }
-            } catch (e: kotlinx.coroutines.CancellationException) {
+            } catch (e: CancellationException) {
                 throw e
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
+                // Any failure (including errors from the native OCR library) only skips this image.
                 DebugLog.w(e) { "image ${index + 1} failed" }
                 failed++
-            } catch (e: OutOfMemoryError) {
-                DebugLog.w(e) { "image ${index + 1} too large" }
-                failed++
+                if (firstError == null) {
+                    firstError = (e as? ImageReadException)?.message ?: "${e.javaClass.simpleName}: ${e.message.orEmpty().take(160)}"
+                }
             }
         }
         onProgress(uris.size, uris.size)
-        return ImportResult(all, uris.size, failed)
+        return ImportResult(all, uris.size, failed, firstError)
     }
 }

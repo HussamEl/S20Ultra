@@ -30,8 +30,8 @@ android {
         applicationId = "se.eldebosh.nastastopp"
         minSdk = 29
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.0.1"
         buildConfigField("String", "BUILD_DATE", "\"$buildDate\"")
     }
 
@@ -51,8 +51,11 @@ android {
             // Real phones only (the OCR native library is ~11 MB per ABI); debug keeps all ABIs
             // so it can also run on x86 emulators.
             ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
-            isMinifyEnabled = true
-            isShrinkResources = true
+            // R8 is OFF on purpose: in R8 full mode (AGP 9 default) it removed the constructors
+            // of ML Kit's component registrars, which ML Kit creates by reflection, so text
+            // recognition failed on every image. Release now ships the same code as debug.
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
