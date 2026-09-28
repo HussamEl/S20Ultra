@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,6 +26,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SwipeToDismissBox
@@ -50,10 +52,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import se.eldebosh.nastastopp.R
+import se.eldebosh.nastastopp.core.parse.TripTimes
 import se.eldebosh.nastastopp.route.model.GeoStatus
 import se.eldebosh.nastastopp.route.model.RouteData
 import se.eldebosh.nastastopp.route.model.Stop
@@ -61,6 +65,7 @@ import se.eldebosh.nastastopp.ui.BigButton
 import se.eldebosh.nastastopp.ui.ButtonRow
 import se.eldebosh.nastastopp.ui.TopBar
 import se.eldebosh.nastastopp.ui.TouchTarget
+import se.eldebosh.nastastopp.ui.theme.Amber
 import se.eldebosh.nastastopp.ui.theme.Located
 import se.eldebosh.nastastopp.ui.theme.NotLocated
 
@@ -73,9 +78,10 @@ fun ReviewScreen(
     onMove: (Int, Int) -> Unit,
     onDelete: (Stop) -> Unit,
     onDeleteAbove: (Stop) -> Unit,
-    onEdit: (Stop, String) -> Boolean,
+    onEdit: (Stop, String, String?) -> Boolean,
     onRetry: (Stop) -> Unit,
-    onAddManual: (String) -> Boolean,
+    onAddManual: (String, String?) -> Boolean,
+    onSortByTime: () -> Unit,
     onAddScreenshots: () -> Unit,
     onStart: () -> Unit,
     onBackToRoute: () -> Unit,
@@ -89,7 +95,13 @@ fun ReviewScreen(
     val reorder = remember(listState) { ReorderState(listState) { from, to -> move(from, to) } }
 
     Column(Modifier.fillMaxSize()) {
-        TopBar(stringResource(R.string.review_title), onBack = onBack)
+        TopBar(stringResource(R.string.review_title), onBack = onBack) {
+            if (stops.count { it.time != null } >= 2) {
+                IconButton(onClick = onSortByTime, modifier = Modifier.size(TouchTarget)) {
+                    Icon(painterResource(R.drawable.ic_schedule), contentDescription = stringResource(R.string.sort_by_time), modifier = Modifier.size(30.dp))
+                }
+            }
+        }
         Text(
             stringResource(R.string.review_count, stops.size) + "   •   " + stringResource(R.string.review_hint),
             style = MaterialTheme.typography.bodySmall,
@@ -153,16 +165,18 @@ fun ReviewScreen(
         AddressDialog(
             title = stringResource(R.string.dialog_edit_title),
             initial = stop.displayText,
+            initialTime = stop.time.orEmpty(),
             onDismiss = { editing = null },
-            onSave = { text -> onEdit(stop, text).also { if (it) editing = null } },
+            onSave = { text, time -> onEdit(stop, text, time).also { if (it) editing = null } },
         )
     }
     if (adding) {
         AddressDialog(
             title = stringResource(R.string.dialog_add_title),
             initial = "",
+            initialTime = "",
             onDismiss = { adding = false },
-            onSave = { text -> onAddManual(text).also { if (it) adding = false } },
+            onSave = { text, time -> onAddManual(text, time).also { if (it) adding = false } },
         )
     }
 }
@@ -240,6 +254,9 @@ private fun SwipeableStopRow(
                         )
                         .padding(vertical = 10.dp, horizontal = 4.dp),
                 ) {
+                    if (stop.time != null) {
+                        Text(stop.time, style = MaterialTheme.typography.titleMedium, color = Amber, fontWeight = FontWeight.Bold)
+                    }
                     Text(
                         "${index + 1}.  ${stop.displayText}",
                         style = MaterialTheme.typography.titleMedium.copy(textDirection = TextDirection.Content),
@@ -303,26 +320,57 @@ private fun SwipeableStopRow(
 }
 
 @Composable
-private fun AddressDialog(title: String, initial: String, onDismiss: () -> Unit, onSave: (String) -> Boolean) {
+private fun AddressDialog(
+    title: String,
+    initial: String,
+    initialTime: String,
+    onDismiss: () -> Unit,
+    onSave: (String, String?) -> Boolean,
+) {
     var text by remember { mutableStateOf(initial) }
+    var time by remember { mutableStateOf(initialTime) }
     var error by remember { mutableStateOf(false) }
+    var timeError by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it; error = false },
-                placeholder = { Text(stringResource(R.string.dialog_address_hint)) },
-                isError = error,
-                supportingText = if (error) ({ Text(stringResource(R.string.invalid_address)) }) else null,
-                textStyle = MaterialTheme.typography.titleMedium.copy(textDirection = TextDirection.Content),
-                minLines = 2,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            Column {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it; error = false },
+                    placeholder = { Text(stringResource(R.string.dialog_address_hint)) },
+                    isError = error,
+                    supportingText = if (error) ({ Text(stringResource(R.string.invalid_address)) }) else null,
+                    textStyle = MaterialTheme.typography.titleMedium.copy(textDirection = TextDirection.Content),
+                    minLines = 2,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = time,
+                    onValueChange = { time = it; timeError = false },
+                    label = { Text(stringResource(R.string.dialog_time_label)) },
+                    isError = timeError,
+                    supportingText = if (timeError) ({ Text(stringResource(R.string.invalid_time)) }) else null,
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    textStyle = MaterialTheme.typography.titleMedium.copy(textDirection = TextDirection.Ltr),
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                )
+            }
         },
         confirmButton = {
-            TextButton(onClick = { if (!onSave(text.trim())) error = true }, modifier = Modifier.heightIn(min = TouchTarget)) {
+            TextButton(
+                onClick = {
+                    val parsedTime = if (time.isBlank()) null else TripTimes.normalizeTyped(time)
+                    if (time.isNotBlank() && parsedTime == null) {
+                        timeError = true
+                    } else if (!onSave(text.trim(), parsedTime)) {
+                        error = true
+                    }
+                },
+                modifier = Modifier.heightIn(min = TouchTarget),
+            ) {
                 Text(stringResource(R.string.save), style = MaterialTheme.typography.labelLarge)
             }
         },

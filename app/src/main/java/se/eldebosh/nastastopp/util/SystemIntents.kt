@@ -47,6 +47,15 @@ object SystemIntents {
         }
     }
 
+    fun openBluetoothSettings(context: Context) {
+        start(context, Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
+    }
+
+    /** Asks the system to turn Bluetooth on (needs the Bluetooth permission on Android 12+). */
+    fun requestEnableBluetooth(context: Context) {
+        if (!start(context, Intent(android.bluetooth.BluetoothAdapter.ACTION_REQUEST_ENABLE))) openBluetoothSettings(context)
+    }
+
     fun openAppDetails(context: Context) {
         start(context, Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri(context)))
     }

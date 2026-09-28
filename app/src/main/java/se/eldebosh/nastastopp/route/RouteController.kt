@@ -5,18 +5,27 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import se.eldebosh.nastastopp.core.display.DisplayItem
+import se.eldebosh.nastastopp.core.display.DisplaySnapshot
 import se.eldebosh.nastastopp.core.geo.GeoLogic
 import se.eldebosh.nastastopp.core.parse.AddressExtractor
 import se.eldebosh.nastastopp.core.parse.ExtractedStop
 import se.eldebosh.nastastopp.core.parse.Localities
 import se.eldebosh.nastastopp.core.parse.TextNorm
+import se.eldebosh.nastastopp.core.parse.TripTimes
 import se.eldebosh.nastastopp.core.route.Announcement
 import se.eldebosh.nastastopp.core.route.Announcements
 import se.eldebosh.nastastopp.core.route.ArrivalConfig
@@ -65,6 +74,14 @@ class RouteController(
     private val _tracking = MutableStateFlow(TrackingState())
     val tracking: StateFlow<TrackingState> = _tracking.asStateFlow()
 
+    /** Every announcement this controller speaks (forwarded to connected passenger displays). */
+    private val _announcements = MutableSharedFlow<Announcement>(extraBufferCapacity = 8)
+    val announcements: SharedFlow<Announcement> = _announcements.asSharedFlow()
+
+    /** What the passenger display shows (locally and on a connected tablet). */
+    val display: StateFlow<DisplaySnapshot> = combine(_route, settings.state) { r, _ -> buildDisplay(r) }
+        .stateIn(scope, SharingStarted.Eagerly, buildDisplay(_route.value))
+
     private val detector = ArrivalDetector(ArrivalConfig.forRadius(settings.current.arrivalRadiusM))
     private var detectorKey: String? = null
     private val persistDispatcher = Dispatchers.IO.limitedParallelism(1)
@@ -101,6 +118,24 @@ class RouteController(
     fun announcementFor(stops: List<Stop>): Announcement =
         Announcements.forRemaining(stops.take(2).map { spokenName(it) }, settings.current.englishRepeat)
 
+    private fun buildDisplay(r: RouteData?): DisplaySnapshot {
+        if (r == null) return DisplaySnapshot()
+        val full = settings.current.displayFullAddress
+        return DisplaySnapshot.build(
+            active = r.active,
+            completed = r.completed,
+            remaining = r.stops,
+            item = { s -> DisplayItem(time = s.time, title = spokenName(s), subtitle = if (full) s.displayText else null) },
+            announcement = if (r.active && r.stops.isNotEmpty()) announcementFor(r.stops) else null,
+        )
+    }
+
+    /** Speaks on this device and tells connected displays. */
+    private fun speak(announcement: Announcement) {
+        announcer.speak(announcement)
+        _announcements.tryEmit(announcement)
+    }
+
     // ------------------------------------------------------------------------------------------
     // Editing (review screen)
 
@@ -120,27 +155,38 @@ class RouteController(
         return added.size
     }
 
-    fun addManual(text: String): Boolean {
+    fun addManual(text: String, time: String? = null): Boolean {
         val e = extractor.fromManualText(text) ?: return false
         val base = _route.value ?: newRoute()
-        set(base.copy(stops = base.stops + e.toStop(base.nextId), nextId = base.nextId + 1))
+        set(base.copy(stops = base.stops + e.toStop(base.nextId).copy(time = time), nextId = base.nextId + 1))
         ensureGeocoding()
         return true
     }
 
-    /** Replaces a stop's text and re-geocodes it. */
-    fun editText(id: Long, text: String): Boolean {
+    /**
+     * Replaces a stop's text and time. The address is re-parsed and re-geocoded only if the text
+     * changed.
+     */
+    fun editText(id: Long, text: String, time: String? = null): Boolean {
+        val current = _route.value?.stops?.firstOrNull { it.id == id } ?: return false
+        if (text.trim() == current.displayText) {
+            update { r -> r.copy(stops = r.stops.map { if (it.id == id) it.copy(time = time) else it }) }
+            return true
+        }
         val e = extractor.fromManualText(text) ?: return false
         update { r ->
             r.copy(
                 stops = r.stops.map {
-                    if (it.id == id) e.toStop(id).copy(sourceOrder = it.sourceOrder) else it
+                    if (it.id == id) e.toStop(id).copy(sourceOrder = it.sourceOrder, time = time) else it
                 },
             )
         }
         ensureGeocoding()
         return true
     }
+
+    /** Orders the remaining trips by their scheduled time (trips without a time keep their order, last). */
+    fun sortByTime() = update { r -> r.copy(stops = r.stops.sortedBy { TripTimes.minutes(it.time) }) }
 
     fun retryLocate(id: Long) {
         update { r -> r.copy(stops = r.stops.map { if (it.id == id) it.copy(geoStatus = GeoStatus.PENDING, geo = null) else it }) }
@@ -194,7 +240,7 @@ class RouteController(
         val now = r.stops.map { it.id }
         val batchChanged = now.take(MapsUrlBuilder.MAX_STOPS_PER_LAUNCH) != baseline.take(MapsUrlBuilder.MAX_STOPS_PER_LAUNCH)
         if (now.firstOrNull() != baseline.firstOrNull() || now.getOrNull(1) != baseline.getOrNull(1)) {
-            announcer.speak(announcementFor(r.stops))
+            speak(announcementFor(r.stops))
         }
         if (batchChanged) openMaps()
     }
@@ -208,7 +254,7 @@ class RouteController(
         if (r.stops.isEmpty()) return false
         val batch = r.stops.take(MapsUrlBuilder.MAX_STOPS_PER_LAUNCH)
         set(r.copy(active = true, batchEndStopId = batch.last().id))
-        announcer.speak(announcementFor(r.stops))
+        speak(announcementFor(r.stops))
         maps.launch(batch.map { it.navigationText })
         ensureServiceRunning()
         return true
@@ -235,12 +281,11 @@ class RouteController(
         set(
             r.copy(
                 stops = remaining,
-                completedCount = r.completedCount + 1,
-                previousStop = done,
+                completed = r.completed + done,
                 batchEndStopId = batchEnd,
             ),
         )
-        announcer.speak(announcementFor(remaining))
+        speak(announcementFor(remaining))
         if (relaunch) {
             maps.launch(remaining.take(MapsUrlBuilder.MAX_STOPS_PER_LAUNCH).map { it.navigationText }, fromBackground = true)
         }
@@ -250,7 +295,7 @@ class RouteController(
     fun repeat() {
         val r = _route.value ?: return
         if (!r.active || r.stops.isEmpty()) return
-        announcer.speak(announcementFor(r.stops))
+        speak(announcementFor(r.stops))
     }
 
     /** "Öppna Maps": re-launches navigation with the remaining stops (max 10). */
@@ -269,7 +314,7 @@ class RouteController(
     }
 
     private fun finish() {
-        announcer.speak(Announcements.finished(settings.current.englishRepeat))
+        speak(Announcements.finished(settings.current.englishRepeat))
         endInternal()
     }
 
@@ -404,9 +449,10 @@ class RouteController(
         parsedTown = parsedTown,
         parsedTownKnown = parsedTownKnown,
         sourceOrder = sourceOrder,
+        time = time,
     )
 
-    private fun Stop.toExtracted() = ExtractedStop(displayText, candidates, parsedPostalCode, parsedTown, sourceOrder, parsedTownKnown)
+    private fun Stop.toExtracted() = ExtractedStop(displayText, candidates, parsedPostalCode, parsedTown, sourceOrder, parsedTownKnown, time)
 
     companion object {
         const val SAME_PLACE_M = 30.0

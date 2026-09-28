@@ -9,6 +9,8 @@ import se.eldebosh.nastastopp.core.parse.AddressExtractor
 import se.eldebosh.nastastopp.core.parse.Localities
 import se.eldebosh.nastastopp.geo.Geocoding
 import se.eldebosh.nastastopp.importer.ScreenshotImporter
+import se.eldebosh.nastastopp.link.DisplayLinkClient
+import se.eldebosh.nastastopp.link.DisplayLinkServer
 import se.eldebosh.nastastopp.maps.MapsLauncher
 import se.eldebosh.nastastopp.ocr.OcrEngine
 import se.eldebosh.nastastopp.overlay.OverlayManager
@@ -34,6 +36,12 @@ class AppGraph(app: Application) {
     val notifier = RouteNotifier(app, controller, settings, scope)
     val overlay = OverlayManager(app, controller, settings, scope)
     val importer = ScreenshotImporter(OcrEngine(app), extractor)
+
+    /** Controller: Bluetooth server for passenger displays (runs only when enabled). */
+    val displayServer = DisplayLinkServer(app, controller, settings, scope)
+
+    /** Display role: Bluetooth client towards the driver's device. */
+    val displayClient by lazy { DisplayLinkClient(app, scope) }
 }
 
 class App : Application() {

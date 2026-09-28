@@ -133,4 +133,43 @@
     <string name="tts_missing_body">Announcements need Swedish voice data.\n\nTap \"Install\", choose Swedish and download it. On Samsung, preferably choose Speech Services by Google as the preferred engine under Text-to-speech.\n\nThen tap \"Check again\".</string>
     <string name="tts_install">Install</string>
     <string name="tts_recheck">Check again</string>
+
+    <!-- 1.1.0: trip times, passenger display, Bluetooth link -->
+    <string name="dialog_time_label">Time (optional), e.g. 12:48</string>
+    <string name="invalid_time">Invalid time, write e.g. 12:48</string>
+    <string name="sort_by_time">Sort by time</string>
+    <string name="open_display">Show passenger display</string>
+    <string name="overlay_show">Show floating button</string>
+    <string name="overlay_hide">Hide floating button</string>
+    <string name="display_waiting_route">Waiting for the route to start…</string>
+    <string name="display_repeat">Repeat</string>
+    <string name="display_exit">Exit</string>
+    <string name="display_connected">Connected: %1$s</string>
+    <string name="display_connecting">Connecting to %1$s…</string>
+    <string name="display_next_label">Next stop</string>
+    <string name="role_controller">Full control (driver)</string>
+    <string name="role_display">Passenger display</string>
+    <string name="role_display_hint">For the tablet: shows the next destination in large text and connects to the driver\'s device via Bluetooth.</string>
+    <string name="switch_to_controller">Switch to full control</string>
+    <string name="switch_to_display">Use as passenger display</string>
+    <string name="link_title">Passenger display via Bluetooth</string>
+    <string name="link_off">Off</string>
+    <string name="link_waiting">Waiting for the display…</string>
+    <string name="link_no_permission">Nearby devices permission needed – tap</string>
+    <string name="link_bt_off">Bluetooth is off – tap to turn on</string>
+    <string name="link_no_bt">This device has no Bluetooth</string>
+    <string name="link_hint">Pair the phone and the tablet once in Bluetooth settings. Enable this on the driver\'s device, then choose it on the tablet.</string>
+    <string name="display_full_address">Show the full address on the passenger display</string>
+    <string name="display_full_address_hint">Off = only the area is shown (passenger privacy).</string>
+    <string name="display_speaks">Also speak announcements on this device</string>
+    <string name="display_choose_device">Choose the driver\'s device</string>
+    <string name="display_no_paired">No paired devices. Pair the devices in Bluetooth settings first.</string>
+    <string name="open_bt_settings">Bluetooth settings</string>
+    <string name="settings_display_section">Passenger display</string>
+    <string name="settings_overlay_visible">Show the floating button during the route</string>
+    <string name="overlay_hide_desc">Hide</string>
+    <string name="allow_bluetooth">Allow Bluetooth</string>
+    <string name="turn_on_bluetooth">Turn on Bluetooth</string>
+    <string name="help_display_title">Passenger display on a tablet</string>
+    <string name="help_display_body">1. Install the app on the tablet too.\n2. Pair the phone and the tablet once in Bluetooth settings.\n3. On the driver\'s device: Settings → \"Passenger display via Bluetooth\" → on.\n4. On the tablet: choose \"Passenger display\", then the driver\'s device in the list.\n5. When the route starts, the tablet shows the next destination in large text, with one previous trip above and three upcoming trips below. The speaker button repeats the announcement.\nThe link is direct Bluetooth between the devices, no internet. The passenger display can also be opened on the phone itself from the route screen.</string>
 </resources>

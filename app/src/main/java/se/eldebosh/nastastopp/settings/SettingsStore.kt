@@ -8,6 +8,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import se.eldebosh.nastastopp.core.geo.AnnouncementDetail
 
+/** What this device is used for. Every device can be either; the user picks it in the app. */
+enum class DeviceRole {
+    /** Full control: import, review, route, GPS, announcements, Maps. */
+    CONTROLLER,
+
+    /** Passenger display: mirrors a controller over Bluetooth. */
+    DISPLAY,
+}
+
 data class AppSettings(
     /** "ar" (default), "sv" or "en". */
     val uiLanguage: String = "ar",
@@ -16,6 +25,17 @@ data class AppSettings(
     val speechRate: Float = 0.9f,
     val arrivalRadiusM: Int = 75,
     val onboardingDone: Boolean = false,
+    val role: DeviceRole = DeviceRole.CONTROLLER,
+    /** Controller: accept passenger displays over Bluetooth. */
+    val displayLinkEnabled: Boolean = false,
+    /** Passenger display shows the full address under the area name (off = area only, private). */
+    val displayFullAddress: Boolean = false,
+    /** Display role: also speak announcements on this device. */
+    val displaySpeaks: Boolean = false,
+    /** Display role: Bluetooth address of the controller device to connect to. */
+    val displayControllerAddress: String? = null,
+    /** Floating button hidden by the driver (can be shown again from the app). */
+    val overlayHidden: Boolean = false,
 )
 
 /** Small settings store on SharedPreferences (no addresses are ever stored here). */
@@ -34,6 +54,12 @@ class SettingsStore(context: Context) {
             putFloat(K_RATE, next.speechRate)
             putInt(K_RADIUS, next.arrivalRadiusM)
             putBoolean(K_ONBOARD, next.onboardingDone)
+            putString(K_ROLE, next.role.name)
+            putBoolean(K_LINK, next.displayLinkEnabled)
+            putBoolean(K_FULL_ADDR, next.displayFullAddress)
+            putBoolean(K_DISPLAY_SPEAKS, next.displaySpeaks)
+            putString(K_CONTROLLER, next.displayControllerAddress)
+            putBoolean(K_OVERLAY_HIDDEN, next.overlayHidden)
         }
         _state.value = next
     }
@@ -53,6 +79,12 @@ class SettingsStore(context: Context) {
         speechRate = prefs.getFloat(K_RATE, 0.9f),
         arrivalRadiusM = prefs.getInt(K_RADIUS, 75),
         onboardingDone = prefs.getBoolean(K_ONBOARD, false),
+        role = runCatching { DeviceRole.valueOf(prefs.getString(K_ROLE, null) ?: "") }.getOrDefault(DeviceRole.CONTROLLER),
+        displayLinkEnabled = prefs.getBoolean(K_LINK, false),
+        displayFullAddress = prefs.getBoolean(K_FULL_ADDR, false),
+        displaySpeaks = prefs.getBoolean(K_DISPLAY_SPEAKS, false),
+        displayControllerAddress = prefs.getString(K_CONTROLLER, null),
+        overlayHidden = prefs.getBoolean(K_OVERLAY_HIDDEN, false),
     )
 
     companion object {
@@ -63,6 +95,12 @@ class SettingsStore(context: Context) {
         private const val K_RATE = "speech_rate"
         private const val K_RADIUS = "arrival_radius"
         private const val K_ONBOARD = "onboarding_done"
+        private const val K_ROLE = "device_role"
+        private const val K_LINK = "display_link_enabled"
+        private const val K_FULL_ADDR = "display_full_address"
+        private const val K_DISPLAY_SPEAKS = "display_speaks"
+        private const val K_CONTROLLER = "display_controller_address"
+        private const val K_OVERLAY_HIDDEN = "overlay_hidden"
         private const val K_OX = "overlay_x"
         private const val K_OY = "overlay_y"
 

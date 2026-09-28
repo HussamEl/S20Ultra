@@ -42,6 +42,12 @@ import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.core.route.Announcements
 import se.eldebosh.nastastopp.route.model.Stop
 import se.eldebosh.nastastopp.ui.screens.ActiveRouteScreen
+import se.eldebosh.nastastopp.ui.screens.DisplayRoleScreen
+import se.eldebosh.nastastopp.ui.screens.PassengerDisplayScreen
+import se.eldebosh.nastastopp.link.Bluetooth
+import se.eldebosh.nastastopp.link.LinkAvailability
+import se.eldebosh.nastastopp.settings.DeviceRole
+import androidx.compose.runtime.DisposableEffect
 import se.eldebosh.nastastopp.ui.screens.HelpScreen
 import se.eldebosh.nastastopp.ui.screens.HomeScreen
 import se.eldebosh.nastastopp.ui.screens.OnboardingScreen
@@ -67,6 +73,8 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
     val ttsStatus by graph.announcer.status.collectAsStateWithLifecycle()
     val importState by vm.importState.collectAsStateWithLifecycle()
     val importError by vm.importError.collectAsStateWithLifecycle()
+    val display by controller.display.collectAsStateWithLifecycle()
+    val linkServer by graph.displayServer.state.collectAsStateWithLifecycle()
     val importing = importState is ImportUi.Running
     val snackbar = remember { SnackbarHostState() }
     var resumeTick by remember { mutableIntStateOf(0) }
@@ -119,6 +127,25 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
     }
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { resumeTick++ }
 
+    // Bluetooth (passenger display link): permission → then (re)start the link.
+    val bluetoothPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        graph.displayServer.refresh()
+        resumeTick++
+    }
+    fun fixLink() {
+        val perm = Bluetooth.permission
+        when {
+            perm != null && !Bluetooth.hasPermission(context) -> bluetoothPermission.launch(perm)
+            Bluetooth.availability(context) == LinkAvailability.BLUETOOTH_OFF -> SystemIntents.requestEnableBluetooth(context)
+            else -> graph.displayServer.refresh()
+        }
+    }
+    fun toggleLink(on: Boolean) {
+        graph.settings.update { it.copy(displayLinkEnabled = on) }
+        if (on && !Bluetooth.hasPermission(context)) Bluetooth.permission?.let { bluetoothPermission.launch(it) }
+    }
+    LaunchedEffect(resumeTick) { graph.displayServer.refreshIfIdle() }
+
     val spokenName: (Stop) -> String = { controller.spokenName(it) }
     fun testVoice() = graph.announcer.speak(Announcements.nextStops("Karlstad", "Hammarö", settings.englishRepeat))
 
@@ -144,6 +171,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             onTestVoice = ::testVoice,
                             onVoiceMissing = { vm.navigate(Screen.TTS_MISSING) },
                             onFinish = { vm.finishOnboarding() },
+                            onChooseDisplay = { vm.setRole(DeviceRole.DISPLAY) },
                         )
                         Screen.HOME -> HomeScreen(
                             route = route,
@@ -156,6 +184,10 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             onSettings = { vm.navigate(Screen.SETTINGS) },
                             onHelp = { vm.navigate(Screen.HELP) },
                             onTtsMissing = { vm.navigate(Screen.TTS_MISSING) },
+                            link = linkServer,
+                            onToggleLink = ::toggleLink,
+                            onFixLink = ::fixLink,
+                            onUseAsDisplay = { vm.setRole(DeviceRole.DISPLAY) },
                         )
                         Screen.REVIEW -> ReviewScreen(
                             route = route,
@@ -174,9 +206,10 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 controller.deleteAllAbove(stop.id)
                                 vm.message(UiMessage(R.string.deleted_many, count, undo = { controller.restoreStops(before) }))
                             },
-                            onEdit = { stop, text -> controller.editText(stop.id, text) },
+                            onEdit = { stop, text, time -> controller.editText(stop.id, text, time) },
                             onRetry = { stop -> controller.retryLocate(stop.id) },
-                            onAddManual = { text -> controller.addManual(text) },
+                            onAddManual = { text, time -> controller.addManual(text, time) },
+                            onSortByTime = { controller.sortByTime() },
                             onAddScreenshots = ::pickImages,
                             onStart = ::requestStart,
                             onBackToRoute = { vm.leaveReviewToActive() },
@@ -193,6 +226,43 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 onOpenMaps = { controller.openMaps() },
                                 onEdit = { vm.navigate(Screen.REVIEW) },
                                 onEnd = { controller.end() },
+                                overlayAvailable = remember(resumeTick) { SystemIntents.canDrawOverlays(context) },
+                                overlayHidden = settings.overlayHidden,
+                                onOpenDisplay = { vm.navigate(Screen.DISPLAY_LOCAL) },
+                                onToggleOverlay = { graph.settings.update { it.copy(overlayHidden = !it.overlayHidden) } },
+                            )
+                        }
+                        Screen.DISPLAY_LOCAL -> PassengerDisplayScreen(
+                            snapshot = display,
+                            status = null,
+                            connected = true,
+                            onSpeak = { controller.repeat() },
+                            onExit = { vm.back() },
+                        )
+                        Screen.DISPLAY_ROLE -> {
+                            val client = graph.displayClient
+                            val link by client.state.collectAsStateWithLifecycle()
+                            val remote by client.snapshot.collectAsStateWithLifecycle()
+                            val address = settings.displayControllerAddress
+                            // Connect while this screen is shown; retry after returning from settings.
+                            LaunchedEffect(address, resumeTick) { if (address != null) client.start(address) }
+                            DisposableEffect(Unit) { onDispose { client.stop() } }
+                            // Optionally speak the controller's announcements here too.
+                            LaunchedEffect(settings.displaySpeaks) {
+                                if (settings.displaySpeaks) client.announcements.collect { graph.announcer.speak(it) }
+                            }
+                            DisplayRoleScreen(
+                                settings = settings,
+                                link = link,
+                                snapshot = remote,
+                                paired = remember(resumeTick, link.status) { Bluetooth.pairedDevices(context) },
+                                onRequestPermission = { Bluetooth.permission?.let { bluetoothPermission.launch(it) } },
+                                onEnableBluetooth = { SystemIntents.requestEnableBluetooth(context) },
+                                onOpenBluetoothSettings = { SystemIntents.openBluetoothSettings(context) },
+                                onChoose = { device -> graph.settings.update { it.copy(displayControllerAddress = device.address) } },
+                                onSpeak = { remote?.announcement?.let { graph.announcer.speak(it) } },
+                                onToggleSpeaks = { v -> graph.settings.update { it.copy(displaySpeaks = v) } },
+                                onSwitchToController = { vm.setRole(DeviceRole.CONTROLLER) },
                             )
                         }
                         Screen.SETTINGS -> SettingsScreen(
@@ -232,6 +302,9 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             },
                             onOverlay = { SystemIntents.openOverlaySettings(context) },
                             onBattery = { SystemIntents.requestIgnoreBatteryOptimizations(context) },
+                            link = linkServer,
+                            onToggleLink = ::toggleLink,
+                            onFixLink = ::fixLink,
                             onVoice = {
                                 if (ttsStatus == se.eldebosh.nastastopp.tts.TtsStatus.READY) testVoice() else vm.navigate(Screen.TTS_MISSING)
                             },

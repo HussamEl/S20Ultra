@@ -133,4 +133,43 @@
     <string name="tts_missing_body">För utropen behövs svensk röstdata.\n\nTryck \"Installera\", välj Svenska och ladda ner. På Samsung: välj gärna Talfunktioner från Google som önskad motor under Text till tal.\n\nTryck sedan \"Kontrollera igen\".</string>
     <string name="tts_install">Installera</string>
     <string name="tts_recheck">Kontrollera igen</string>
+
+    <!-- 1.1.0: trip times, passenger display, Bluetooth link -->
+    <string name="dialog_time_label">Tid (valfri), t.ex. 12:48</string>
+    <string name="invalid_time">Ogiltig tid, skriv t.ex. 12:48</string>
+    <string name="sort_by_time">Sortera efter tid</string>
+    <string name="open_display">Visa passagerarskärm</string>
+    <string name="overlay_show">Visa flytande knapp</string>
+    <string name="overlay_hide">Dölj flytande knapp</string>
+    <string name="display_waiting_route">Väntar på att rutten startar…</string>
+    <string name="display_repeat">Upprepa</string>
+    <string name="display_exit">Stäng</string>
+    <string name="display_connected">Ansluten: %1$s</string>
+    <string name="display_connecting">Ansluter till %1$s…</string>
+    <string name="display_next_label">Nästa stopp</string>
+    <string name="role_controller">Full kontroll (förare)</string>
+    <string name="role_display">Passagerarskärm</string>
+    <string name="role_display_hint">För surfplattan: visar nästa mål i stor text och ansluter till förarens enhet via Bluetooth.</string>
+    <string name="switch_to_controller">Byt till full kontroll</string>
+    <string name="switch_to_display">Använd som passagerarskärm</string>
+    <string name="link_title">Passagerarskärm via Bluetooth</string>
+    <string name="link_off">Av</string>
+    <string name="link_waiting">Väntar på skärmen…</string>
+    <string name="link_no_permission">Behörighet för enheter i närheten behövs – tryck</string>
+    <string name="link_bt_off">Bluetooth är av – tryck för att slå på</string>
+    <string name="link_no_bt">Enheten saknar Bluetooth</string>
+    <string name="link_hint">Parkoppla telefonen och surfplattan en gång i Bluetooth-inställningarna. Slå på det här på förarens enhet och välj den sedan på surfplattan.</string>
+    <string name="display_full_address">Visa hela adressen på passagerarskärmen</string>
+    <string name="display_full_address_hint">Av = bara området visas (passagerarnas integritet).</string>
+    <string name="display_speaks">Läs upp utropen även på den här enheten</string>
+    <string name="display_choose_device">Välj förarens enhet</string>
+    <string name="display_no_paired">Inga parkopplade enheter. Parkoppla enheterna i Bluetooth-inställningarna först.</string>
+    <string name="open_bt_settings">Bluetooth-inställningar</string>
+    <string name="settings_display_section">Passagerarskärm</string>
+    <string name="settings_overlay_visible">Visa flytande knapp under rutten</string>
+    <string name="overlay_hide_desc">Dölj</string>
+    <string name="allow_bluetooth">Tillåt Bluetooth</string>
+    <string name="turn_on_bluetooth">Slå på Bluetooth</string>
+    <string name="help_display_title">Passagerarskärm på surfplattan</string>
+    <string name="help_display_body">1. Installera appen även på surfplattan.\n2. Parkoppla telefonen och surfplattan en gång i Bluetooth-inställningarna.\n3. På förarens enhet: Inställningar → \"Passagerarskärm via Bluetooth\" → på.\n4. På surfplattan: välj \"Passagerarskärm\" och sedan förarens enhet i listan.\n5. När rutten startar visas nästa mål i stor text, med ett tidigare stopp ovanför och tre kommande under. Högtalarknappen upprepar utropet.\nAnslutningen går direkt via Bluetooth, utan internet. Passagerarskärmen kan också öppnas på telefonen från ruttskärmen.</string>
 </resources>

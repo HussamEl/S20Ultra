@@ -10,6 +10,7 @@ package se.eldebosh.nastastopp.core.parse
  * @property parsedTown town as written after the postal code / comma, or null.
  * @property parsedTownKnown true if [parsedTown] is in the bundled locality list.
  * @property sourceOrder index of the (first) OCR line this stop came from.
+ * @property time scheduled time of the trip as shown in the screenshot ("12:48"), or null.
  */
 data class ExtractedStop(
     val displayText: String,
@@ -18,6 +19,7 @@ data class ExtractedStop(
     val parsedTown: String?,
     val sourceOrder: Int,
     val parsedTownKnown: Boolean = false,
+    val time: String? = null,
 )
 
 /** Which detection rule accepted the line (see §5 of the spec). */
@@ -44,7 +46,8 @@ class AddressExtractor(private val localities: Localities) {
 
     /** Extract stops from lines already sorted in reading order. */
     fun extract(lines: List<String>, startOrder: Int = 0): List<ExtractedStop> {
-        val found = ArrayList<Pair<ParsedAddress, Int>>()
+        // (parsed address, first line index, last line index)
+        val found = ArrayList<Triple<ParsedAddress, Int, Int>>()
         var i = 0
         while (i < lines.size) {
             val line = lines[i]
@@ -54,15 +57,22 @@ class AddressExtractor(private val localities: Localities) {
             if (next != null && !singleHasPlace && safeCheck { isJoinable(line) && startsWithPostalOrTown(next) }) {
                 val joined = safeParse("${line.trim().trimEnd(',')}, ${next.trim()}", joined = true)
                 if (joined != null) {
-                    found += joined to (startOrder + i)
+                    found += Triple(joined, i, i + 1)
                     i += 2
                     continue
                 }
             }
-            if (single != null) found += single to (startOrder + i)
+            if (single != null) found += Triple(single, i, i)
             i++
         }
-        return mergeConsecutiveDuplicates(found.map { (p, order) -> p.toStop(order) to p })
+        val times = try {
+            TripTimes.assign(lines, found.map { it.second to it.third })
+        } catch (_: RuntimeException) {
+            List(found.size) { null }
+        }
+        return mergeConsecutiveDuplicates(
+            found.mapIndexed { k, (p, first, _) -> p.toStop(startOrder + first).copy(time = times.getOrNull(k)) to p },
+        )
     }
 
     /**
@@ -242,9 +252,9 @@ class AddressExtractor(private val localities: Localities) {
             if (last != null && sameParsed(last.second, item.second)) {
                 // Keep the more complete of the two (more place info), at the first position.
                 val keep = if (placeScore(item.second) > placeScore(last.second)) {
-                    item.first.copy(sourceOrder = last.first.sourceOrder) to item.second
+                    item.first.copy(sourceOrder = last.first.sourceOrder, time = last.first.time ?: item.first.time) to item.second
                 } else {
-                    last
+                    last.first.copy(time = last.first.time ?: item.first.time) to last.second
                 }
                 out[out.lastIndex] = keep
             } else {

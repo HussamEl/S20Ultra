@@ -14,8 +14,17 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import se.eldebosh.nastastopp.App
 import se.eldebosh.nastastopp.R
+import se.eldebosh.nastastopp.settings.DeviceRole
 
-enum class Screen { ONBOARDING, HOME, REVIEW, ACTIVE, SETTINGS, HELP, TTS_MISSING }
+enum class Screen {
+    ONBOARDING, HOME, REVIEW, ACTIVE, SETTINGS, HELP, TTS_MISSING,
+
+    /** Passenger display on this (controller) device. */
+    DISPLAY_LOCAL,
+
+    /** This device is a passenger display for another device (Bluetooth). */
+    DISPLAY_ROLE,
+}
 
 sealed interface ImportUi {
     data object Idle : ImportUi
@@ -49,6 +58,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val messages: SharedFlow<UiMessage> = _messages.asSharedFlow()
 
     private fun initialScreen(): Screen = when {
+        graph.settings.current.role == DeviceRole.DISPLAY -> Screen.DISPLAY_ROLE
         !graph.settings.current.onboardingDone -> Screen.ONBOARDING
         graph.controller.isActive -> Screen.ACTIVE
         else -> Screen.HOME
@@ -79,6 +89,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun resetTo(vararg screens: Screen) {
         _stack.value = screens.toList().ifEmpty { listOf(Screen.HOME) }
+    }
+
+    /** Switches this device between full control and passenger display. */
+    fun setRole(role: DeviceRole) {
+        graph.settings.update { it.copy(role = role, onboardingDone = true) }
+        if (role == DeviceRole.DISPLAY) {
+            graph.settings.update { it.copy(displayLinkEnabled = false) }
+            resetTo(Screen.DISPLAY_ROLE)
+        } else {
+            graph.displayClient.stop()
+            resetTo(if (graph.controller.isActive) Screen.ACTIVE else Screen.HOME)
+        }
     }
 
     fun finishOnboarding() {

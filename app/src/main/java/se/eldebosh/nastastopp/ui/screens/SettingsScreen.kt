@@ -33,6 +33,7 @@ import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.core.geo.AnnouncementDetail
 import se.eldebosh.nastastopp.settings.AppSettings
 import se.eldebosh.nastastopp.tts.TtsStatus
+import se.eldebosh.nastastopp.link.DisplayLinkServer
 import se.eldebosh.nastastopp.ui.BigButton
 import se.eldebosh.nastastopp.ui.SectionTitle
 import se.eldebosh.nastastopp.ui.TopBar
@@ -61,6 +62,9 @@ fun SettingsScreen(
     onOverlay: () -> Unit,
     onBattery: () -> Unit,
     onVoice: () -> Unit,
+    link: DisplayLinkServer.State,
+    onToggleLink: (Boolean) -> Unit,
+    onFixLink: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize()) {
         TopBar(stringResource(R.string.settings_title), onBack = onBack)
@@ -114,6 +118,17 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(8.dp))
             BigButton(stringResource(R.string.settings_test_voice), onTestVoice, Modifier.fillMaxWidth(), icon = R.drawable.ic_speaker)
+
+            SectionTitle(stringResource(R.string.settings_display_section))
+            LinkCard(link, onToggleLink, onFixLink)
+            SwitchRow(
+                stringResource(R.string.display_full_address),
+                stringResource(R.string.display_full_address_hint),
+                settings.displayFullAddress,
+            ) { v -> onUpdate { it.copy(displayFullAddress = v) } }
+            SwitchRow(stringResource(R.string.settings_overlay_visible), null, !settings.overlayHidden) { v ->
+                onUpdate { it.copy(overlayHidden = !v) }
+            }
 
             SectionTitle(stringResource(R.string.settings_permissions))
             StatusRow(stringResource(R.string.settings_location), permissions.location, onLocation)
@@ -175,5 +190,23 @@ private fun StatusRow(label: String, ok: Boolean, onClick: () -> Unit, statusOve
             style = MaterialTheme.typography.bodyMedium,
             color = if (ok) se.eldebosh.nastastopp.ui.theme.Located else se.eldebosh.nastastopp.ui.theme.NotLocated,
         )
+    }
+}
+
+@Composable
+private fun SwitchRow(label: String, hint: String?, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = TouchTarget)
+            .clickable(role = Role.Switch) { onChange(!checked) }
+            .padding(vertical = 6.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.bodyLarge)
+            if (hint != null) Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Switch(checked = checked, onCheckedChange = onChange)
     }
 }

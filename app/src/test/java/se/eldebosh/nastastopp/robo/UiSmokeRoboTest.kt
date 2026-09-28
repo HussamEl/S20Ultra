@@ -81,7 +81,7 @@ class UiSmokeRoboTest {
             waitText(s(R.string.onb_welcome_title))
             // Arabic is the default UI language.
             assertEquals("مرحباً بك في Nästa Stopp", s(R.string.onb_welcome_title))
-            compose.onNodeWithText(s(R.string.next_step)).performScrollTo().performClick()
+            compose.onNodeWithText(s(R.string.role_controller)).performScrollTo().performClick()
             compose.onNodeWithText(s(R.string.onb_location_title)).assertExists()
             // Skip through the permission steps one at a time.
             repeat(4) {
@@ -93,7 +93,7 @@ class UiSmokeRoboTest {
             compose.onNodeWithText(s(R.string.home_import)).assertExists()
             assertTrue(app.graph.settings.current.onboardingDone)
 
-            compose.onNodeWithText(s(R.string.home_settings)).performClick()
+            compose.onNodeWithText(s(R.string.home_settings)).performScrollTo().performClick()
             compose.onNodeWithText(s(R.string.settings_version, BuildConfig.VERSION_NAME, BuildConfig.BUILD_DATE))
                 .performScrollTo().assertExists()
             compose.onNodeWithText(s(R.string.detail_district)).assertExists()
@@ -101,7 +101,7 @@ class UiSmokeRoboTest {
                 assertEquals(android.util.LayoutDirection.RTL, a.resources.configuration.layoutDirection)
             }
             compose.onNodeWithContentDescription(s(R.string.back)).performClick()
-            compose.onNodeWithText(s(R.string.home_help)).performClick()
+            compose.onNodeWithText(s(R.string.home_help)).performScrollTo().performClick()
             compose.onNodeWithText(s(R.string.help_battery_title)).assertExists()
             compose.onNodeWithText(s(R.string.help_share_title)).performScrollTo().assertExists()
         }
@@ -116,7 +116,7 @@ class UiSmokeRoboTest {
         settleGeocoding()
         launch().use {
             waitText(s(R.string.home_resume_draft))
-            compose.onNodeWithText(s(R.string.home_resume_draft)).performClick()
+            compose.onNodeWithText(s(R.string.home_resume_draft)).performScrollTo().performClick()
             compose.onNodeWithText(s(R.string.review_title)).assertExists()
             compose.onNodeWithText("1.  Storgatan 14, 652 24 Karlstad").assertExists()
             compose.onNodeWithText(s(R.string.review_add_manual)).assertExists()
@@ -143,6 +143,19 @@ class UiSmokeRoboTest {
     }
 
     @Test
+    fun deviceCanBecomeAPassengerDisplayAndBack() {
+        app.graph.settings.update { it.copy(onboardingDone = true) }
+        launch().use {
+            waitText(s(R.string.switch_to_display))
+            compose.onNodeWithText(s(R.string.switch_to_display)).performScrollTo().performClick()
+            compose.onNodeWithText(s(R.string.display_choose_device)).assertExists()
+            assertEquals(se.eldebosh.nastastopp.settings.DeviceRole.DISPLAY, app.graph.settings.current.role)
+            compose.onNodeWithText(s(R.string.switch_to_controller)).performScrollTo().performClick()
+            compose.onNodeWithText(s(R.string.home_import)).assertExists()
+        }
+    }
+
+    @Test
     fun activeRouteNextButtonAdvances() {
         app.graph.settings.update { it.copy(onboardingDone = true) }
         app.graph.controller.addManual("Storgatan 14, 65224 Karlstad")
@@ -158,6 +171,14 @@ class UiSmokeRoboTest {
             compose.waitForIdle()
             assertEquals(1, app.graph.controller.route.value!!.stops.size)
             compose.onNodeWithText(s(R.string.active_counts, 1, 1)).assertExists()
+            // The completed trip stays visible (small, faded) with its area and address.
+            compose.onNodeWithText("Karlstad · Storgatan 14, 652 24 Karlstad").assertExists()
+            // Passenger display on the phone itself.
+            compose.onNodeWithContentDescription(s(R.string.open_display)).performClick()
+            compose.onNodeWithText("Storfors").assertExists()
+            compose.onNodeWithContentDescription(s(R.string.display_repeat)).assertExists()
+            compose.onNodeWithContentDescription(s(R.string.display_exit)).performClick()
+            compose.onNodeWithText(s(R.string.btn_next)).assertExists()
         }
         app.graph.controller.end()
     }

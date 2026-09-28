@@ -46,6 +46,9 @@ fun HelpScreen(
             SectionTitle(stringResource(R.string.help_share_title))
             Paragraph(stringResource(R.string.help_share_body))
 
+            SectionTitle(stringResource(R.string.help_display_title))
+            Paragraph(stringResource(R.string.help_display_body))
+
             SectionTitle(stringResource(R.string.help_how_title))
             Paragraph(stringResource(R.string.help_how_body))
 

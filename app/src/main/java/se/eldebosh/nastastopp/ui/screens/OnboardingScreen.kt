@@ -54,6 +54,7 @@ fun OnboardingScreen(
     onTestVoice: () -> Unit,
     onVoiceMissing: () -> Unit,
     onFinish: () -> Unit,
+    onChooseDisplay: () -> Unit,
 ) {
     val context = LocalContext.current
     val steps = Step.entries.filter { it != Step.NOTIFICATIONS || Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU }
@@ -98,7 +99,12 @@ fun OnboardingScreen(
         Spacer(Modifier.height(8.dp))
 
         when (step) {
-            Step.WELCOME -> BigButton(stringResource(R.string.next_step), { advance() }, Modifier.fillMaxWidth(), minHeight = 76.dp)
+            Step.WELCOME -> {
+                // Role: this device controls the route (default) or is a passenger display.
+                BigButton(stringResource(R.string.role_controller), { advance() }, Modifier.fillMaxWidth(), icon = R.drawable.ic_navigation, minHeight = 76.dp)
+                BigButton(stringResource(R.string.role_display), onChooseDisplay, Modifier.fillMaxWidth(), icon = R.drawable.ic_display, primary = false)
+                Text(stringResource(R.string.role_display_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             Step.VOICE -> {
                 if (granted == true) {
                     BigButton(stringResource(R.string.settings_test_voice), onTestVoice, Modifier.fillMaxWidth(), icon = R.drawable.ic_speaker, primary = false)

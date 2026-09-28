@@ -134,4 +134,43 @@
     <string name="tts_missing_body">لقراءة الإعلانات تحتاج إلى بيانات الصوت السويدي.\n\nاضغط «تثبيت» واختر «Svenska» وحمّلها. على هواتف سامسونج يُفضَّل اختيار «خدمات Google للكلام» كمحرك مفضل من إعدادات تحويل النص إلى كلام.\n\nبعد التثبيت اضغط «إعادة الفحص».</string>
     <string name="tts_install">تثبيت</string>
     <string name="tts_recheck">إعادة الفحص</string>
+
+    <!-- 1.1.0: trip times, passenger display, Bluetooth link -->
+    <string name="dialog_time_label">الوقت (اختياري)، مثل 12:48</string>
+    <string name="invalid_time">وقت غير صحيح، اكتبه مثل 12:48</string>
+    <string name="sort_by_time">ترتيب حسب الوقت</string>
+    <string name="open_display">عرض شاشة الركاب</string>
+    <string name="overlay_show">إظهار الزر العائم</string>
+    <string name="overlay_hide">إخفاء الزر العائم</string>
+    <string name="display_waiting_route">بانتظار بدء المسار…</string>
+    <string name="display_repeat">إعادة الصوت</string>
+    <string name="display_exit">خروج</string>
+    <string name="display_connected">متصل: %1$s</string>
+    <string name="display_connecting">جارٍ الاتصال بـ %1$s…</string>
+    <string name="display_next_label">المحطة التالية</string>
+    <string name="role_controller">تحكم كامل (السائق)</string>
+    <string name="role_display">شاشة الركاب</string>
+    <string name="role_display_hint">للتابلت: يعرض الوجهة القادمة بخط كبير، ويتصل بجهاز السائق عبر البلوتوث.</string>
+    <string name="switch_to_controller">التبديل إلى التحكم الكامل</string>
+    <string name="switch_to_display">استخدام هذا الجهاز كشاشة ركاب</string>
+    <string name="link_title">ربط شاشة الركاب (بلوتوث)</string>
+    <string name="link_off">متوقف</string>
+    <string name="link_waiting">بانتظار اتصال الشاشة…</string>
+    <string name="link_no_permission">يحتاج إذن «الأجهزة القريبة» — اضغط للسماح</string>
+    <string name="link_bt_off">البلوتوث مغلق — اضغط لتشغيله</string>
+    <string name="link_no_bt">لا يوجد بلوتوث في هذا الجهاز</string>
+    <string name="link_hint">اقرن الجوال والتابلت مرة واحدة من إعدادات البلوتوث. فعّل هذا الخيار في جهاز السائق، ثم اختر جهاز السائق في التابلت.</string>
+    <string name="display_full_address">إظهار العنوان الكامل في شاشة الركاب</string>
+    <string name="display_full_address_hint">عند الإيقاف تظهر المنطقة فقط (خصوصية الركاب).</string>
+    <string name="display_speaks">تشغيل الإعلانات الصوتية على هذا الجهاز أيضاً</string>
+    <string name="display_choose_device">اختر جهاز السائق</string>
+    <string name="display_no_paired">لا توجد أجهزة مقترنة. اقرن الجهازين من إعدادات البلوتوث أولاً.</string>
+    <string name="open_bt_settings">إعدادات البلوتوث</string>
+    <string name="settings_display_section">شاشة الركاب</string>
+    <string name="settings_overlay_visible">إظهار الزر العائم أثناء المسار</string>
+    <string name="overlay_hide_desc">إخفاء</string>
+    <string name="allow_bluetooth">السماح بالبلوتوث</string>
+    <string name="turn_on_bluetooth">تشغيل البلوتوث</string>
+    <string name="help_display_title">شاشة الركاب على التابلت</string>
+    <string name="help_display_body">1. ثبّت التطبيق على التابلت أيضاً.\n2. اقرن الجوال والتابلت مرة واحدة من إعدادات البلوتوث.\n3. في جهاز السائق: الإعدادات ← «ربط شاشة الركاب» ← تشغيل.\n4. في التابلت: اختر «شاشة الركاب» ثم اختر جهاز السائق من القائمة.\n5. عند بدء المسار تظهر الوجهة القادمة على التابلت بخط كبير، مع رحلة سابقة واحدة فوقها وثلاث رحلات قادمة تحتها. زر الصوت يعيد الإعلان.\nالاتصال عبر البلوتوث مباشرة بين الجهازين، دون إنترنت. يمكن أيضاً فتح شاشة الركاب على الجوال نفسه من شاشة المسار.</string>
 </resources>
