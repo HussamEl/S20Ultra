@@ -63,7 +63,7 @@ object AppTheme {
 private fun style(size: Int, line: Int, weight: FontWeight = FontWeight.Normal, spacing: Float = 0f) =
     TextStyle(fontSize = size.sp, lineHeight = line.sp, fontWeight = weight, letterSpacing = spacing.sp)
 
-/** A compact, modern type scale (smaller than the first driving design, at the driver's request). */
+/** A compact, modern type scale. */
 private val AppTypography = Typography(
     displaySmall = style(34, 40, FontWeight.Bold, -0.5f),
     headlineLarge = style(30, 36, FontWeight.Bold, -0.3f),

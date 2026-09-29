@@ -188,7 +188,7 @@ fun SettingsScreen(
                 }
             }
 
-            // The offline street map for exact street names (1.8, the driver's choice).
+            // The offline street map for exact street names.
             SectionTitle(stringResource(R.string.settings_street_map), help = R.string.help_street_map)
             AppCard {
                 ListRow(
@@ -219,7 +219,7 @@ fun SettingsScreen(
                 }
             }
 
-            // YouDrive's automatic sign-in (1.6, the driver's choice).
+            // YouDrive's automatic sign-in.
             SectionTitle(stringResource(R.string.settings_youdrive))
             AppCard {
                 SwitchRow(R.string.settings_youdrive_auto, R.string.help_youdrive_auto, settings.youDriveAutoSignIn, 156) { v ->

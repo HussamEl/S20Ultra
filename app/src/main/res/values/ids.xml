@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Floating panel parts 1–19: view ids so device tests (UI Automator) find them as "…:id/ref_<n>". -->
+<!-- Floating panel parts: view ids so device tests (UI Automator) find them as "…:id/ref_<n>". -->
 <resources>
     <item name="ref_1" type="id" />
     <item name="ref_2" type="id" />

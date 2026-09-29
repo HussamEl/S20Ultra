@@ -22,7 +22,7 @@ object Palette {
     val Pebble = Color(0xFF9AA0A6)
     val Slate = Color(0xFF5F6368)
 
-    // Accents: taxi yellow (the next action) and the first design's light blue.
+    // Accents: taxi yellow (the next action) and a light blue.
     val TaxiYellow = Color(0xFFFFC61A)
     val Butter = Color(0xFFFFF1C2)
     val Sky = Color(0xFF6EA8FF)
@@ -32,7 +32,7 @@ object Palette {
     val DeepSky = Color(0xFF16305A)
     val Honey = Color(0xFF3D3100)
 
-    // Night: the first design's calm blue-grey, easy on the eyes in the dark.
+    // Night: a calm blue-grey, easy on the eyes in the dark.
     val Night = Color(0xFF0B0F17)
     val NightCard = Color(0xFF131A26)
     val NightRaised = Color(0xFF1A2231)

@@ -5,7 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** YouDrive's automatic sign-in (1.6): when Login is pressed, and that saved values stay data. */
+/** YouDrive's automatic sign-in: when Login is pressed, and that saved values stay data. */
 class AutoSignInTest {
 
     @Test

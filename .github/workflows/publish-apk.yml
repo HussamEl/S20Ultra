@@ -1,4 +1,4 @@
-# Publishes a signed build as the GitHub Release "v<version>" (Hussam's decision, 1.9).
+# Publishes a signed build as the GitHub Release "v<version>".
 #
 # The APK is signed where it is built (the key never reaches GitHub) and handed over by
 # tools/publish-apk.sh on a short-lived branch "apk-drop/v<version>". Its one commit adds

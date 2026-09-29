@@ -93,9 +93,9 @@ class ScreenshotsRoboTest {
     )
 
     private val stops = listOf(
-        stop(1, "Sjösalagatan 21, 66452 Vålberg", "07:30", kind = TripKind.PICK_UP, name = "Anna Testsson"),
-        stop(2, "Brattgårdsgatan 4, 66452 Vålberg", "07:36", kind = TripKind.PICK_UP, name = "Bengt Provare"),
-        stop(3, "Majeldsvägen 10, 66450 Vålberg", "08:00", kind = TripKind.DROP_OFF, name = "Anna Testsson"),
+        stop(1, "Järnvägsgatan 3B, 68830 Storfors", "07:30", kind = TripKind.PICK_UP, name = "Anna Testsson"),
+        stop(2, "Västra Torggatan 12, 65224 Karlstad", "07:36", kind = TripKind.PICK_UP, name = "Bengt Provare"),
+        stop(3, "Hamngatan 7, 66330 Skoghall", "08:00", kind = TripKind.DROP_OFF, name = "Anna Testsson"),
         stop(4, "Storgatan 14, 65224 Karlstad", "08:25", located = false, kind = TripKind.DROP_OFF, name = "Bengt Provare"),
         stop(5, "Lindvägen 9, 66430 Grums", "09:10"),
     )
@@ -155,7 +155,7 @@ class ScreenshotsRoboTest {
             onToggleLink = {}, onFixLink = {}, onUseAsDisplay = {},
             overlayPermission = true, overlayHidden = false, onOverlayVisible = {}, onOverlayPermission = {}, onAddTile = {},
             history = listOf(
-                HistoryEntry(1, "07:10", "Vålberg", "Kasernhöjden 1, 66452 Vålberg", now - 3_600_000),
+                HistoryEntry(1, "07:10", "Kristinehamn", "Kungsgatan 22, 68131 Kristinehamn", now - 3_600_000),
                 HistoryEntry(2, "06:45", "Karlstad", "Storgatan 14, 65224 Karlstad", now - 5_000_000, done = false),
             ),
             historyRetentionHours = 12,
@@ -282,7 +282,7 @@ class ScreenshotsRoboTest {
         graph.controller.clear()
         graph.controller.addExtracted(
             graph.extractor.extract(
-                listOf("2026-09-29", "07:36", "Pick-up", "Bengt Provare", "Brattgårdsgatan 4, 66452 Vålberg", "08:00", "Drop-off", "Bengt Provare", "Majeldsvägen 10, 66450 Vålberg"),
+                listOf("2026-09-29", "07:36", "Pick-up", "Bengt Provare", "Västra Torggatan 12, 65224 Karlstad", "08:00", "Drop-off", "Bengt Provare", "Hamngatan 7, 66330 Skoghall"),
             ),
         )
         repeat(600) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1)) }
@@ -292,7 +292,7 @@ class ScreenshotsRoboTest {
         street.want("render", true)
         street.onFix(Fix(0, 59.38, 13.5, 12.5f, 5f)) // 45 km/h
         shadowOf(Looper.getMainLooper()).idle()
-        street.onFix(Fix(10_000, 59.38, 13.5, 12.5f, 5f)) // the confirming reading (1.8)
+        street.onFix(Fix(10_000, 59.38, 13.5, 12.5f, 5f)) // the confirming reading
         shadowOf(Looper.getMainLooper()).idle()
         val panelManager = OverlayManager(app, graph.controller, graph.settings, street, graph.scope)
         graph.controller.start()
@@ -403,9 +403,9 @@ class ScreenshotsRoboTest {
         PassengerDisplayScreen(
             snapshot = DisplaySnapshot(
                 active = true,
-                previous = DisplayItem("07:30", "Sjösalagatan 21", "Vålberg"),
-                current = DisplayItem("07:36", "Brattgårdsgatan 4", "Vålberg"),
-                upcoming = listOf(DisplayItem("08:00", "Majeldsvägen 10", "Vålberg"), DisplayItem("08:25", "Storgatan 14", "Karlstad")),
+                previous = DisplayItem("07:30", "Järnvägsgatan 3B", "Storfors"),
+                current = DisplayItem("07:36", "Västra Torggatan 12", "Karlstad"),
+                upcoming = listOf(DisplayItem("08:00", "Hamngatan 7", "Skoghall"), DisplayItem("08:25", "Storgatan 14", "Karlstad")),
             ),
             status = "Connected: Galaxy S20 Ultra",
             connected = true,

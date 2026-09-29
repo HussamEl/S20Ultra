@@ -157,12 +157,12 @@ class FloatingPanelRoboTest {
         graph.controller.end()
     }
 
-    /** 1.5: tapping the next stop's street on the panel says the street and number, nothing more. */
+    /** Tapping the next stop's street on the panel says the street and number, nothing more. */
     @Test
     fun tappingTheStopsStreetSaysStreetAndNumberOnly() {
         val tts = readyTts()
         ShadowSettings.setCanDrawOverlays(true)
-        graph.controller.addExtracted(graph.extractor.extract(listOf("2026-09-29", "07:36", "Pick-up", "Bengt Provare", "Brattgårdsgatan 4, 66452 Vålberg")))
+        graph.controller.addExtracted(graph.extractor.extract(listOf("2026-09-29", "07:36", "Pick-up", "Bengt Provare", "Västra Torggatan 12, 65224 Karlstad")))
         settle()
         assertEquals("Bengt Provare", graph.controller.route.value!!.stops.single().name)
         assertFalse("no route yet", graph.controller.speakStopStreet())
@@ -173,14 +173,14 @@ class FloatingPanelRoboTest {
         val job = graph.scope.launch { graph.controller.announcements.collect { sent += it.swedish } }
         overlayView(R.string.overlay_stop_street_desc).performClick()
         idle()
-        assertEquals("Brattgårdsgatan 4", tts.lastSpokenText) // never the passenger's name
+        assertEquals("Västra Torggatan 12", tts.lastSpokenText) // never the passenger's name
         assertTrue(spokenBefore != tts.lastSpokenText)
         assertTrue("not forwarded to passenger displays", sent.isEmpty())
         job.cancel()
         graph.controller.end()
     }
 
-    /** 1.7: the street's name is said when it changes, after any announcement, and only when switched on. */
+    /** The street's name is said when it changes, after any announcement, and only when switched on. */
     @Test
     fun theStreetIsSaidWhenItChangesUnlessSwitchedOff() {
         val tts = readyTts()
@@ -196,7 +196,7 @@ class FloatingPanelRoboTest {
 
         street.onFix(fix(0, 0.0))
         idle()
-        assertTrue("one reading is not enough (1.8)", tts.lastSpokenText!!.startsWith("Nästa stopp"))
+        assertTrue("one reading is not enough", tts.lastSpokenText!!.startsWith("Nästa stopp"))
         street.onFix(fix(10, 0.0)) // the confirming reading, also when standing still
         idle()
         assertEquals("Drottninggatan", tts.lastSpokenText)
@@ -224,7 +224,7 @@ class FloatingPanelRoboTest {
         graph.controller.end()
     }
 
-    /** 1.7: the speed from the positions, shown on the panel, gone when the positions stop. */
+    /** The speed from the positions, shown on the panel, gone when the positions stop. */
     @Test
     fun theSpeedIsShownWhilePositionsComeIn() {
         var now = 1_000_000L
@@ -243,7 +243,7 @@ class FloatingPanelRoboTest {
         derived.onFix(Fix(2_000, 59.38 + 25.0 / 111_195.0, 13.5, null, 5f))
         assertEquals(45, derived.speedNow())
 
-        // On the panel (1.8): the number alone in its own circle; "–" until a position has a speed.
+        // On the panel: the number alone in its own circle; "–" until a position has a speed.
         shadowOf(app).grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
         ShadowSettings.setCanDrawOverlays(true)
         threeStops()
@@ -259,7 +259,7 @@ class FloatingPanelRoboTest {
         graph.controller.end()
     }
 
-    /** 1.7: the speaker on the street bar switches the street speech on and off. */
+    /** The speaker on the street bar switches the street speech on and off. */
     @Test
     fun theStreetBarsSpeakerSwitchesStreetSpeech() {
         ShadowSettings.setCanDrawOverlays(true)
@@ -276,7 +276,7 @@ class FloatingPanelRoboTest {
         graph.controller.end()
     }
 
-    /** 1.8: with the offline street map the road comes from the map, on every position, and the geocoder gives only the area. */
+    /** With the offline street map the road comes from the map, on every position, and the geocoder gives only the area. */
     @Test
     fun withTheStreetMapTheRoadComesFromTheMap() {
         val lat0 = 59.38
@@ -316,7 +316,7 @@ class FloatingPanelRoboTest {
         street.onFix(fix(1, 0.0))
         idle()
         assertEquals(1, calls.size)
-        assertEquals("a street needs a second reading (1.8)", StreetInfo(null, "Centrum"), street.state.value)
+        assertEquals("a street needs a second reading", StreetInfo(null, "Centrum"), street.state.value)
         street.onFix(fix(5, 0.0))
         idle()
         assertEquals("throttled", 1, calls.size)

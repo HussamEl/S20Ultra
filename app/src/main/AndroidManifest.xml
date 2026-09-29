@@ -3,14 +3,14 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <!--
-        Network: only for the driver's YouDrive page (1.4.0, the driver's decision). The app's own
-        code sends nothing anywhere; ML Kit's usage reporting is switched off below.
+        Network: only for the driver's YouDrive page and the offline street map's download (on the
+        driver's tap). Nothing else is sent anywhere; ML Kit's usage reporting is switched off below.
     -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
 
     <!--
-        Location only to name the street the vehicle is on (1.3, the driver's decision): asked at
+        Location only to name the street the vehicle is on and its speed: asked at
         "Start route", used while a route is active, never stored, logged or sent, and never given
         to the YouDrive page (its WebView has geolocation off). Never in the background.
     -->
@@ -115,7 +115,7 @@
 
         <!--
             Privacy: ML Kit's usage reporting (Google datatransport) gets no upload backend, so no
-            reports are sent even though the app now has internet access for YouDrive.
+            reports are sent although the app has internet access.
         -->
         <service
             android:name="com.google.android.datatransport.runtime.backends.TransportBackendDiscovery"

@@ -4,7 +4,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 
 /**
- * When the app signs in to YouDrive by itself (the driver's choice, 1.6). YouDrive forgets its
+ * When the app signs in to YouDrive by itself (switch 156, off by default). YouDrive forgets its
  * login whenever its window is closed, in Chrome too, so the driver would sign in again and again.
  *
  * With the switch on, each reading that shows the login form may press Login, but only

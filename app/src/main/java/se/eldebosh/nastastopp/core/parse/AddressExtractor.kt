@@ -26,7 +26,7 @@ data class ExtractedStop(
     val name: String? = null,
 )
 
-/** Which detection rule accepted the line (see §5 of the spec). */
+/** Which detection rule accepted the line. */
 enum class MatchRule { POSTAL_TOWN, STREET_NUMBER, KNOWN_TOWN, MANUAL }
 
 /** Result of analysing one (possibly joined) line. */

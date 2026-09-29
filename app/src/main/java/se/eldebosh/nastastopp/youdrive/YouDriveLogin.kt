@@ -17,8 +17,8 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /**
- * The driver's YouDrive login, only if he typed it into the app on this phone (1.6, his decision,
- * for the automatic sign-in). It is encrypted with a key that never leaves the phone's Android
+ * The driver's YouDrive login, only if he typed it into the app on this phone (for the
+ * automatic sign-in). It is encrypted with a key that never leaves the phone's Android
  * Keystore and kept in app-private storage that is never backed up. It is only ever filled into
  * YouDrive's own login form ([se.eldebosh.nastastopp.core.youdrive.SignInScript]); it is never
  * shown again, logged or sent anywhere, and Delete removes it.

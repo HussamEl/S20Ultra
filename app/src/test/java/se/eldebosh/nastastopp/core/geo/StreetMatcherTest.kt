@@ -8,7 +8,7 @@ import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
 import java.io.DataOutputStream
 
-/** The offline street map (1.8): the road you are on, never a guess. Invented roads around a crossing. */
+/** The offline street map: the road you are on, never a guess. Invented roads around a crossing. */
 class StreetMatcherTest {
 
     private val lat0 = 59.38

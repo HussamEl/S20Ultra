@@ -95,12 +95,9 @@ class App : Application() {
         super.onCreate()
         instance = this
         graph = AppGraph(this)
-        // Keep the stored UI language in sync with a per-app language chosen in system settings
-        // (except right after the 1.4.0 switch to English, which replaces the old system choice).
-        if (!SettingsStore.languageMigrated) {
-            LocaleHelper.systemPerAppLanguage(this)?.let { sys ->
-                if (sys != graph.settings.current.uiLanguage) graph.settings.update { it.copy(uiLanguage = sys) }
-            }
+        // Keep the stored UI language in sync with a per-app language chosen in system settings.
+        LocaleHelper.systemPerAppLanguage(this)?.let { sys ->
+            if (sys != graph.settings.current.uiLanguage) graph.settings.update { it.copy(uiLanguage = sys) }
         }
         LocaleHelper.applyAppLocale(this, graph.settings.current.uiLanguage)
         Notifications.createChannels(this)

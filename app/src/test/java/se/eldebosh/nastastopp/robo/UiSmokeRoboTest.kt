@@ -1,5 +1,6 @@
 package se.eldebosh.nastastopp.robo
 
+import android.content.Context
 import android.os.Looper
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
@@ -19,6 +20,7 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -31,6 +33,8 @@ import se.eldebosh.nastastopp.App
 import se.eldebosh.nastastopp.BuildConfig
 import se.eldebosh.nastastopp.MainActivity
 import se.eldebosh.nastastopp.R
+import se.eldebosh.nastastopp.core.geo.AnnouncementDetail
+import se.eldebosh.nastastopp.settings.SettingsStore
 
 /**
  * Smoke-tests the Compose screens in the Arabic UI on Android 13 (like the S20 Ultra).
@@ -80,11 +84,25 @@ class UiSmokeRoboTest {
         }
 
     @Test
+    fun freshSettingsUseTheDefaults() {
+        app.getSharedPreferences(SettingsStore.PREFS, Context.MODE_PRIVATE).edit().clear().commit()
+        val s = SettingsStore(app).current
+        assertEquals("en", s.uiLanguage)
+        assertTrue(s.explanationsArabic)
+        assertFalse("reference numbers are hidden until switched on", s.showRefNumbers)
+        assertEquals(AnnouncementDetail.FULL, s.detail)
+        assertTrue(s.sayStreetChanges)
+        assertTrue(s.displayFullAddress)
+        assertFalse(s.youDriveAutoSignIn)
+        assertFalse(s.youDriveWatch)
+    }
+
+    @Test
     fun onboardingThenHomeSettingsAndHelp() {
         app.graph.settings.update { it.copy(onboardingDone = false) }
         launch().use {
             waitText(s(R.string.onb_welcome_title))
-            // English is the default UI language since 1.4.0 (explanations stay Arabic while setting up).
+            // English is the default UI language (explanations stay Arabic while setting up).
             assertEquals("en", app.graph.settings.current.uiLanguage)
             assertTrue(app.graph.settings.current.explanationsArabic)
             compose.onNodeWithText(s(R.string.role_controller)).performScrollTo().performClick()
@@ -106,10 +124,11 @@ class UiSmokeRoboTest {
                 .performScrollTo().assertExists()
             compose.onNodeWithText(s(R.string.detail_district)).assertExists()
             compose.onNodeWithText(s(R.string.settings_explain_arabic)).assertExists()
+            val refsShown = app.graph.settings.current.showRefNumbers
             compose.onNodeWithText(s(R.string.settings_ref_numbers)).performScrollTo().performClick()
-            assertEquals(false, app.graph.settings.current.showRefNumbers)
+            assertEquals(!refsShown, app.graph.settings.current.showRefNumbers)
             compose.onNodeWithText(s(R.string.settings_ref_numbers)).performClick()
-            assertEquals(true, app.graph.settings.current.showRefNumbers)
+            assertEquals(refsShown, app.graph.settings.current.showRefNumbers)
             compose.onNodeWithContentDescription(s(R.string.back)).performClick()
             compose.onNodeWithContentDescription(s(R.string.home_help)).performClick()
             compose.onNodeWithText(s(R.string.help_battery_title)).assertExists()

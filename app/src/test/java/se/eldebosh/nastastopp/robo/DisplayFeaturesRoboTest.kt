@@ -65,7 +65,7 @@ class DisplayFeaturesRoboTest {
         assertTrue(d.active)
         assertNull(d.previous)
         assertEquals("12:30", d.current?.time)
-        // Street address with the house number (default since 1.4.0), the area under it.
+        // Street address with the house number (the default), the area under it.
         assertEquals("Storgatan 14", d.current?.title)
         assertEquals("Karlstad", d.current?.subtitle)
         assertEquals(listOf("Järnvägsgatan 3B", "Björkvägen 7", "Kungsgatan 5"), d.upcoming.map { it.title })

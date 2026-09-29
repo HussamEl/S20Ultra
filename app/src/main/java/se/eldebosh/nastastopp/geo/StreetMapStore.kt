@@ -30,7 +30,7 @@ import java.net.URI
 import java.net.URLEncoder
 
 /**
- * The offline street map (1.8, the driver's decision): the named roads of Värmland from
+ * The offline street map: the named roads of Värmland from
  * OpenStreetMap, downloaded once when the driver taps "Download" in Settings, kept on the phone
  * (app-private, no backup, not part of the app itself) and loaded into [CurrentStreet].
  *

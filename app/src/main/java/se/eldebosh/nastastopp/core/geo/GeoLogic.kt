@@ -20,9 +20,9 @@ data class GeoResult(
 )
 
 /**
- * What the announcement says about the next stop. FULL (the driver's choice in 1.6, the default):
- * its street and number, then the district and the town. The stop after it is always named by
- * district (or town) only.
+ * What the announcement says. FULL (the default): the next stop's street and number, then the
+ * district and the town; the stop after it with its street and number, then its district.
+ * DISTRICT and TOWN_ONLY name both stops by district (or town) only.
  */
 enum class AnnouncementDetail { FULL, DISTRICT, TOWN_ONLY }
 
@@ -56,7 +56,7 @@ object GeoLogic {
     }
 
     /**
-     * The next stop said in full: "Brattgårdsgatan 4, Herrhagen, Karlstad". The street and
+     * The next stop said in full: "Storgatan 14, Herrhagen, Karlstad". The street and
      * number, then the district and the town, each once (compared without case or å ä ö). An
      * apartment number ("lgh 1402") is left out, and so is the placeholder for an unknown place.
      */

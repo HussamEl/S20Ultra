@@ -2,7 +2,7 @@ package se.eldebosh.nastastopp.core.geo
 
 
 /**
- * Which road the vehicle is on, from the offline street map (1.8): the nearest named road, with
+ * Which road the vehicle is on, from the offline street map: the nearest named road, with
  * the vehicle's heading deciding between roads that are nearly as close (at a crossing the road
  * you drive along wins over the one you cross). Only a good GPS position is used, and only a road
  * close enough to be the one you are on: no road means no name, never a guess.
@@ -31,7 +31,7 @@ object StreetMatcher {
 }
 
 /**
- * Keeps the street name steady (1.8): a new street is taken only when it comes out the same in
+ * Keeps the street name steady: a new street is taken only when it comes out the same in
  * [confirmations] readings in a row, so one stray position at a crossing never changes the name
  * (or makes the app say a wrong one). Without any road for a while ([holdMs]) the name is cleared.
  */

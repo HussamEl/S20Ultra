@@ -1,28 +1,36 @@
 <div dir="rtl">
 
-# دليل المشروع الكامل — Nästa Stopp 1.2
+# دليل المشروع — Nästa Stopp 2.0
 
-هذا الدليل يشرح **كل الكود**: كيف يعمل التطبيق من الداخل، وأين يوجد كل جزء، وكيف تُضاف ميزة أو يُعدَّل شيء بأمان. هو نقطة البداية لأي محادثة جديدة عن المشروع.
+هذا الدليل لمن يستلم المشروع: ما هو التطبيق، وكيف بُني، وأين يوجد كل جزء، وكيف يُبنى ويُنشر ويُجرَّب، وما القواعد التي لا تُكسر ولماذا. يصف التطبيق كما هو الآن. تاريخ git قبل العلامة `v2.0` أرشيف لا تحتاجه للعمل.
 
-- **دليل الاستعمال** للسائق: [README.md](../README.md)، وفيه جداول الأرقام المرجعية كاملة.
-- **سجل القرارات** وسببها، نسخة بنسخة: [DECISIONS.md](../DECISIONS.md).
-- **قواعد العمل المختصرة**: [CLAUDE.md](../CLAUDE.md)، ويُقرأ تلقائياً في كل محادثة جديدة.
+- **دليل الاستعمال** للسائق، مع جداول الأرقام المرجعية: [README.md](../README.md).
+- **القرارات وأسبابها**: [DECISIONS.md](../DECISIONS.md).
+- **قواعد العمل المختصرة** (تُقرأ تلقائياً في كل محادثة جديدة مع Claude): [CLAUDE.md](../CLAUDE.md).
 
 ---
 
-## 1. لمحة سريعة
+## 1. ما هو التطبيق
+
+تطبيق أندرويد لسائق رحلات النقل المشترك (Region Värmland، السويد):
+1. يقرأ العناوين وأوقات الرحلات من **لقطات شاشة** (قراءة نص على الجهاز)، أو من صفحة **YouDrive** (موقع التوزيع الذي يعمل به السائق) داخل التطبيق.
+2. يرتّب المحطات، ويفتح **خرائط Google** بالملاحة إليها، 10 محطات في كل مرة.
+3. **يعلن بالسويدية** المحطة التالية والتي بعدها، ويعرض **زراً عائماً** فوق الخرائط فيه الشارع الحالي والسرعة والرحلة التالية.
+4. يعرض الوجهة القادمة على **تابلت للركاب** عبر البلوتوث.
+5. ينبّه عند **إضافة رحلة أو إلغائها** في YouDrive.
 
 | الشيء | القيمة |
 |---|---|
 | الحزمة | `se.eldebosh.nastastopp` |
-| الإصدار | `versionName "1.2"`، `versionCode 20` (في `app/build.gradle.kts`) |
-| اللغة والأدوات | Kotlin 2.4، AGP 9.4، Gradle 9.8، Jetpack Compose (Material 3) |
-| الأندرويد | `minSdk 29` (أندرويد 10)، `targetSdk/compileSdk 37` |
-| القراءة من الصور | ML Kit Text Recognition **المدمج** (نموذج Latin داخل التطبيق، دون Play Services) |
-| المكتبات الأخرى | `androidx.webkit` (هوية كروم لصفحة YouDrive)، kotlinx.serialization، coroutines |
-| لا يوجد | Hilt/DI framework، Firebase، تحليلات، تقارير أعطال، موقع في الخلفية، إذن التخزين |
-| الاختبارات | 177 اختباراً: وحدة (JUnit) + Robolectric (أندرويد 13، sdk 33) |
-| R8/minify | **مطفأ** في release، لأنه كان يحذف مسجِّلات ML Kit (راجع DECISIONS 1.0.1) |
+| الإصدار | `versionName` و`versionCode` في `app/build.gradle.kts` (2.0 = البداية، `versionCode 1`) |
+| الأدوات | Kotlin 2.4، AGP 9.4، Gradle 9.8، Jetpack Compose (Material 3) |
+| أندرويد | `minSdk 29` (أندرويد 10)، `targetSdk/compileSdk 37` |
+| القراءة من الصور | ML Kit Text Recognition **المدمج** (النموذج داخل التطبيق، بلا Play Services) |
+| مكتبات أخرى | `androidx.webkit`، kotlinx.serialization، coroutines |
+| لا يوجد | Hilt، Firebase، تحليلات، تقارير أعطال، موقع في الخلفية، إذن التخزين |
+| الاختبارات | نحو 200 اختبار: JUnit للمنطق + Robolectric (أندرويد 13، sdk 33) |
+| R8 | **مطفأ** في release (راجع القسم 9) |
+| الأجهزة | جوال Samsung Galaxy S20 Ultra (أندرويد 13)، وتابلت Galaxy Tab S9+ لشاشة الركاب |
 
 ---
 
@@ -37,360 +45,384 @@
 ┌───────────────┴─────────── طبقة أندرويد ─────┴────────────────────────┐
 │ RouteController (مصدر الحقيقة للمسار)   YouDriveWatcher (صفحة الموقع)   │
 │ OcrEngine · Geocoding · Announcer · MapsLauncher · OverlayManager      │
+│ CurrentStreet · StreetMapStore · StreetService · StreetCaller         │
 │ DisplayLinkServer/Client · Notifications · SettingsStore · TripHistory │
 └───────────────▲───────────────────────────────────────────────────────┘
                 │ دوال Kotlin خالصة
 ┌───────────────┴───────────── core/ (بلا أندرويد) ─────────────────────┐
-│ parse/ (العناوين والأوقات) · ocr/ (التقسيم والدمج) · geo/ · route/    │
-│ link/ (بروتوكول البلوتوث) · display/ · youdrive/ (مقارنة القوائم)      │
+│ parse/ (العناوين والأوقات) · ocr/ (التقسيم والدمج) · geo/ (الشارع)   │
+│ route/ (الإعلانات والخرائط) · link/ · display/ · youdrive/            │
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
-- **`core/`** منطق خالص بلا أي اعتماد على أندرويد، ولذلك يُختبر بسرعة في JUnit. كل منطق صعب (تحليل النص، الأوقات، مقارنة قوائم YouDrive…) يوضع هنا.
-- **حقن الاعتماديات يدوي**: `AppGraph` في `App.kt` يُنشئ كل الكائنات مرة واحدة لكل عملية. أي شاشة أو خدمة تصل إليها عبر `App.from(context).graph`.
-- **الحالة** تُعرض كـ `StateFlow`، وتقرؤها الواجهة بـ `collectAsStateWithLifecycle()`. كل الاستدعاءات على الـ main thread، إلا حيث تستخدم coroutines الخلفية.
+- **`core/`** منطق خالص بلا أي اعتماد على أندرويد، فيُختبر بسرعة في JUnit. كل منطق صعب يوضع هنا.
+- **حقن يدوي**: `AppGraph` في `App.kt` ينشئ كل الكائنات مرة واحدة لكل عملية. الشاشات والخدمات تصل إليها عبر `App.from(context).graph`.
+- **الحالة** `StateFlow`، تقرؤها الواجهة بـ `collectAsStateWithLifecycle()`. كل الاستدعاءات على الـ main thread، إلا ما يعمل في coroutines خلفية.
 - **نشاطان**:
-  - `MainActivity`: كل الشاشات بالتنقّل عبر `MainViewModel.stack`.
+  - `MainActivity`: كل الشاشات، بالتنقّل عبر `MainViewModel.stack`.
   - `YouDriveActivity`: نافذة YouDrive الكاملة.
 
 ---
 
 ## 3. رحلة البيانات من الصورة إلى الإعلان
 
-1. **الاستيراد**: تأتي الصورة إلى `MainActivity.handleShareIntent` (مشاركة) أو من منتقي الصور في `AppRoot`، ثم إلى `MainViewModel.importImages(uris)` ← `ScreenshotImporter.import`.
+1. **الاستيراد**: الصورة تأتي بالمشاركة (`MainActivity.handleShareIntent`) أو من منتقي الصور في `AppRoot`، ثم `MainViewModel.importImages(uris)` ← `ScreenshotImporter.import`.
 2. **القراءة (OCR)** في `ocr/OcrEngine`:
-   - تُفتح الصورة من الـ URI **في الذاكرة فقط**.
+   - تُفتح الصورة **في الذاكرة فقط**، ولا تُنسخ.
    - تُقسَّم اللقطات الطويلة إلى أجزاء متداخلة (`core/ocr/TilePlanner`).
    - تُقرأ الأجزاء بـ ML Kit، ثم تُدمج الأسطر وتُزال المكررات وتُرتَّب (`core/ocr/OcrLineMerger`).
+   - فشل صورة يُعرض بمرحلته (`ReadStage`) دون أي نص منها.
 3. **الاستخراج** في `core/parse/AddressExtractor.extract(lines)`:
-   - يبحث عن رمز بريدي سويدي، وشارع مع رقم، ومدينة من `Localities` (الملف `assets/localities_se.txt`).
-   - يتجاهل الأسماء والهواتف والمبالغ وكل النص الآخر.
-   - الوقت يأتي من `TripTimes`: الوقت على سطر العنوان نفسه، أو فوقه أو تحته حسب تصميم الصفحة.
-   - **نوع الرحلة** (`TripKind`: PULL_OUT / PICK_UP / DROP_OFF / PULL_IN) يأتي من كلمة YouDrive القريبة ("Pick-up"، "Drop-off"، "Pull-out"، أو "Hämtning"/"Lämning") عبر `TripKinds.labelIn`. الوقت والنوع في بطاقة واحدة، لذلك يُختار لهما **اتجاه واحد** (فوق العنوان أو تحته) بأغلبية الاثنين معاً (`AddressExtractor.timesAndKinds`)، فلا تأخذ رحلة نوع جارتها.
-   - **اسم الراكب**: السطر فوق العنوان مباشرة إن كان اسماً واضحاً (`AddressExtractor.personName`)، ويُحفظ منه **الاسم الأول والأخير فقط** ("Per Johan Albin Stenbäck" ← "Per Stenbäck"). سطر فيه أرقام أو فواصل أو كلمة بحرف صغير أو شارع أو مدينة ليس اسماً.
+   - يبحث عن رمز بريدي سويدي، وشارع مع رقم، ومدينة من `Localities` (`assets/localities_se.txt`)، ويتجاهل كل نص آخر.
+   - الوقت من `TripTimes`: على سطر العنوان، أو فوقه أو تحته حسب تصميم الصفحة.
+   - **نوع الرحلة** (`TripKind`: PULL_OUT / PICK_UP / DROP_OFF / PULL_IN) من كلمة YouDrive القريبة عبر `TripKinds.labelIn`. الوقت والنوع يُختار لهما **اتجاه واحد** بالأغلبية (`timesAndKinds`)، فلا تأخذ رحلة وقت جارتها أو نوعها.
+   - **اسم الراكب**: السطر فوق العنوان إن كان اسماً واضحاً (`personName`)، **الأول والأخير فقط**.
    - الناتج: `ExtractedStop(displayText, candidates, time, kind, name, …)`.
-4. **القائمة** في `RouteController.addExtracted` ← `Stop` في `RouteData`. رحلة **Pull-out** لا تصبح محطة: تُحفظ في `RouteData.depot` (نقطة الانطلاق، بطاقة رمادية فوق الرحلات) ولا تُرسل إلى الخرائط ولا يُعلَن عنها. عنوانان متتاليان متطابقان يُدمجان، إلا إذا اختلف نوعهما (توصيل ثم التقاط في نفس المكان = محطتان).
-   ثم يبدأ تحديد الموقع في الخلفية (`Geocoding.locate`، عبر `android.location.Geocoder` الخاص بالنظام، مع مهلة 15 ثانية لكل عنوان).
-5. **المراجعة** في `ReviewScreen`: نقل، حذف، تعديل، إضافة يدوية، ترتيب حسب الوقت.
-6. **البدء** بـ `RouteController.start()`:
-   - يعلن أول محطتين (`Announcer.speak`).
-   - يفتح خرائط Google بأول 10 محطات (`MapsLauncher` + `core/route/MapsUrlBuilder`).
+4. **القائمة**: `RouteController.addExtracted` ← `Stop` في `RouteData`.
+   - رحلة **Pull-out** ليست محطة: تُحفظ في `RouteData.depot` (نقطة الانطلاق، بطاقة رمادية)، ولا تُرسل إلى الخرائط ولا يُعلَن عنها.
+   - عنوانان متتاليان متطابقان يُدمجان، إلا إذا اختلف نوعهما.
+   - ثم يبدأ تحديد المواقع في الخلفية (`Geocoding.locate`، عبر `Geocoder` النظام، مهلة 15 ثانية لكل عنوان).
+5. **المراجعة** في `ReviewScreen`: نقل، حذف (مع تراجع)، تعديل، إضافة يدوية، ترتيب حسب الوقت.
+6. **البدء** بـ `RouteController.start()`: إعلان أول محطتين، وفتح الخرائط بأول 10 محطات (`MapsLauncher` + `core/route/MapsUrlBuilder`)، وتشغيل `StreetService` إن سمح السائق بالموقع.
 7. **أثناء القيادة**:
-   - `next()`: يسجّل الرحلة في `TripHistory`، وينتقل، ويعلن. في نهاية مجموعة الـ 10 يفتح الخرائط بالمجموعة التالية.
+   - `next()`: يسجّل الرحلة في `TripHistory` وينتقل ويعلن. في نهاية مجموعة الـ 10 تُفتح الخرائط بالمجموعة التالية.
    - `back()`: يتراجع عن آخر next.
    - `repeat()`: يعيد الإعلان.
-   - `end()`: ينهي المسار ويحفظ الرحلات غير المكتملة في السجل.
-8. **الحفظ**: `RouteRepository` يحفظ في ملف خاص بلا نسخ احتياطي، ويحذفه بعد 12 ساعة، ومعه `ExpiryReceiver` عبر `AlarmManager`.
+   - `end()`: ينهي المسار، والرحلات غير المكتملة تبقى في السجل.
+   - **التقدّم بضغطة السائق فقط**. الموقع لا ينقل المسار أبداً.
+8. **الحفظ**: `RouteRepository` يحفظ في ملف خاص بلا نسخ احتياطي، ويحذفه بعد 12 ساعة من إنشائه (عند الفتح، وعند العودة للتطبيق، وبمنبّه `ExpiryReceiver`).
 9. **ما يراه الآخرون**:
-   - `RouteController.display` يبني `DisplaySnapshot` لشاشة الركاب، ويرسله `DisplayLinkServer` بالبلوتوث.
-   - `RouteNotifier` يحدّث إشعار المسار.
-   - `OverlayManager` يحدّث الزر العائم.
-
-**الإعلانات** (`core/route/Announcements` + `RouteController.spokenName`):
-- الحي أو المدينة فقط: «Nästa stopp: X. Därefter: Y.»
-- اسم الحي يُختار في `core/geo/GeoLogic.spokenName` من نتيجة الـ Geocoder مع فحص `isSafeAreaName`، ويخضع لإعداد «District / Town only».
+   - `RouteController.display` يبني `DisplaySnapshot` لشاشة الركاب، ويرسله `DisplayLinkServer`.
+   - `RouteNotifier` يحدّث إشعار المسار، و`OverlayManager` يحدّث الزر العائم.
 
 ---
 
-## 4. YouDrive
+## 4. الإعلانات
 
-الملفات: `youdrive/YouDriveWatcher.kt`، `youdrive/YouDriveActivity.kt`، `youdrive/YouDriveService.kt`، `core/youdrive/TripWatch.kt`، `core/youdrive/BrowserIdentity.kt`، `ui/screens/YouDriveScreen.kt`.
+(`core/route/Announcements` + `RouteController.announcementFor` + `core/geo/GeoLogic`)
 
-- **الصفحة**: `https://youdrive.regionvarmland.se/`، وهي تطبيق React (Trapeze «YouOperate Driver»)، والـ API على `youapi.regionvarmland.se`. تسجيل الدخول يبقى في `sessionStorage` داخل الـ WebView.
+- **الكامل** (الافتراضي، الإعداد 136): «Nästa stopp: Storgatan 14, Herrhagen, Karlstad. Därefter: Kungsgatan 5, Kronoparken.»
+  - المحطة التالية: الشارع ورقمه، ثم الحي، ثم المدينة (`fullSpokenName`).
+  - التي بعدها: الشارع ورقمه، ثم الحي (`thenSpokenName`).
+- **الإعدادان 106 / 107**: المحطتان بالحي فقط أو بالمدينة فقط (`spokenName`).
+- **لا يُنطق اسم راكب أبداً**: اسم العائلة الذي تضعه بعض القوائم قبل الشارع يُحذف (`streetOf`).
+- **اسم الحي آمن** (`GeoLogic.isSafeAreaName`): لا أرقام، ولا اسم شارع المحطة، والحي المنتهي بلاحقة شارع («…gatan») يُستبدل بالمدينة. المدينة تُنطق فقط إن كانت في القائمة المرفقة.
+- **بضغطة السائق**:
+  - شريط الشارع: الشارع الحالي مع الحي (`speakStreet`).
+  - شارع المحطة التالية في الزر العائم (13): الشارع ورقمه (`speakStopStreet`).
+- **الشارع الحالي وحده** كلما تغيّر (`geo/StreetCaller` ← `sayStreetChange`)، بعد أي إعلان وليس فوقه (`interrupt = false`)، مرة واحدة لكل شارع. يوقفه زر السماعة (4) أو الإعداد 137.
+- **المحرّك** (`tts/Announcer`): إن لم يكن في المحرّك الافتراضي صوت سويدي وكان محرّك Google مثبّتاً، يُستعمل محرّك Google. إعلان طُلب والمحرّك يبدأ يُنطق فقط إن كان عمره أقل من 20 ثانية. صوت الخرائط ينخفض أثناء الكلام. التكرار بالإنجليزية اختياري (108).
+
+---
+
+## 5. الموقع واسم الشارع والسرعة
+
+الملفات: `service/StreetService.kt`، `geo/CurrentStreet.kt`، `geo/StreetMapStore.kt`، `geo/StreetCaller.kt`، `core/geo/StreetMap.kt`، `core/geo/StreetMatcher.kt`، `core/geo/StreetLookup.kt`، `core/geo/Fix.kt`.
+
+- **الإذن**: يُطلب عند «Start route» وفي الإعدادات (119)، **أثناء الاستخدام فقط**. الموقع الدقيق مطلوب: مع «التقريبي فقط» يظهر 119 بالأحمر.
+- **`StreetService`**: خدمة أمامية من نوع location أثناء المسار. تستعمل `LocationManager` (بلا Play services): مزوّد GPS عند السماح بالموقع الدقيق، بدقة عالية، موقع كل ثانيتين حتى عند الوقوف. ترسل كل موقع (`Fix`) إلى `CurrentStreet` **فقط**.
+- **`CurrentStreet`** (في الذاكرة فقط؛ لا يُحفظ ولا يُسجَّل ولا يُرسل):
+  - **مع خريطة الشوارع**: كل موقع جيد يُطابق مع الطريق (`StreetMatcher`):
+    - أقرب طريق مسمّى ضمن 30 م؛
+    - الطريق العرضي على اتجاه السير يُحسب أبعد بـ 25 م عندما تتجاوز السرعة 3 م/ث (عند التقاطع يفوز الطريق الذي تسير عليه)؛
+    - موقع أسوأ من 25 م لا يُستعمل. لا طريق = لا اسم.
+  - **بدون الخريطة**: شارع الـ Geocoder يُقبل فقط إن كان عنوانه ضمن 40 م (`StreetLookup.pickNear`)، وإلا يظهر الحي وحده. الطلبات محدودة: 8 ثوانٍ و35 م على الأقل بين طلبين، وإعادة بعد 30 ثانية عند الفشل، وفقط حين تعرض شاشة ما الشارع.
+  - **في الحالتين**: شارع جديد يحتاج **قراءتين متفقتين** (`StreetTracker`)، ويُمحى الاسم بعد 20 ثانية بلا طريق.
+  - الحي يأتي من الـ Geocoder دائماً.
+  - **السرعة**: سرعة GPS، أو من موقعين دقيقين (كلاهما ≤ 20 م، بينهما 0.5–10 ثوانٍ). تُعرض فقط إن كان عمرها ≤ 10 ثوانٍ (`speedNow`).
+- **خريطة الشوارع** (`StreetMapStore`، الإعدادات 138 للتنزيل أو التحديث و139 للحذف):
+  - الطرق المسمّاة للسيارات في Värmland من OpenStreetMap عبر Overpass API.
+  - 48 مربعاً ثابتاً فوق المنطقة (مع هامش)، واحداً واحداً مع توقف ثانية، و3 محاولات وخادم ثانٍ.
+  - تُقرأ الإجابة بالتدفق (`JsonReader`) وتُبنى في `StreetMapBuilder`، ثم تُحفظ ملفاً ثنائياً مضغوطاً في `noBackupFilesDir/streetmap/varmland.nsm`. تنزيل جديد يحلّ محلّها فقط إن اكتمل.
+  - `StreetMap`: النقاط بأجزاء المليون من الدرجة، وشبكة خلايا ~110 م للبحث السريع.
+  - **الطلب لا يحتوي موقع السيارة أبداً**. البيانات © OpenStreetMap contributors (ODbL)، مذكورة في الإعدادات.
+
+---
+
+## 6. YouDrive
+
+الملفات: `youdrive/YouDriveWatcher.kt`، `youdrive/YouDriveActivity.kt`، `youdrive/YouDriveService.kt`، `youdrive/YouDriveLogin.kt`، `core/youdrive/TripWatch.kt`، `core/youdrive/YouDriveCards.kt`، `core/youdrive/AutoSignIn.kt`، `core/youdrive/BrowserIdentity.kt`، `ui/screens/YouDriveScreen.kt`.
+
+- **الصفحة**: `https://youdrive.regionvarmland.se/`، تطبيق React (Trapeze «YouOperate Driver»)، والـ API على `youapi.regionvarmland.se`. الدخول يبقى في `sessionStorage` داخل الـ WebView.
 - **WebView واحد لكل التطبيق** داخل `YouDriveWatcher`، مبني على `MutableContextWrapper`:
-  - `attach(activity)`: يعرض الصفحة في النافذة.
-  - `detach()`: يُبقيها تعمل في الخلفية إذا كانت المراقبة مفعّلة، وإلا يغلقها.
-- **القراءة (نص وليس صورة)**: `READ_PAGE_JS` يعيد `{t: النص الظاهر, c: نص كل بطاقة رحلة, p: هل يوجد حقل كلمة سر, f: ما أُصلح}`، ثم `onPageText` ← `TripWatch.tripsIn`.
-  - **بطاقة بطاقة** (منذ 1.2): السكربت يجد كل بطاقة دون معرفة كود الصفحة. يبدأ من كلمة النوع الظاهرة ("Pick-up"…) ويصعد إلى أكبر عنصر لا يحوي كلمة نوع أخرى. ثم `YouDriveCards.parse` يقرأ كل بطاقة وحدها، فلا يختلط وقت بطاقة أو اسمها بجارتها:
-    - **الوقت** = الوقت الأول في البطاقة (المجدول، ساعة 🕘) لأن YouDrive يرتّب المسار به. الوقت الثاني (المحجوز 🤝 أو آخر موعد 🔒) يُحفظ في `WatchedTrip.booked` ويُستعمل في مفتاح المقارنة لأنه لا يتغيّر عند إعادة الجدولة.
-    - **العنوان** = أول سطر يقبله `AddressExtractor`. وإن لم يوجد (مكان بلا رقم مثل مدخل مستشفى) فالسطر بعد اسم الراكب، مع أكثر مدينة في القائمة كأول مرشّح للبحث.
+  - `attach(activity)` يعرضه في `YouDriveActivity` بحجم الشاشة الحقيقي؛
+  - `detach()` يُبقيه يعمل في الخلفية إذا كانت المراقبة مفعّلة، وإلا يغلقه.
+- **القراءة (نص وليس صورة)**: `READ_PAGE_JS` يعيد `{t: النص الظاهر, c: نص كل بطاقة رحلة, p: هل يوجد حقل كلمة سر ظاهر, f: ما أُصلح}`، ثم `onPageText` ← `TripWatch.tripsIn`.
+  - **بطاقة بطاقة**: السكربت يبدأ من كلمة النوع الظاهرة ("Pick-up"…) ويصعد إلى أكبر عنصر لا يحوي كلمة نوع أخرى. ثم `YouDriveCards.parse` يقرأ كل بطاقة وحدها:
+    - **الوقت** = الأول في البطاقة (المجدول)، لأن YouDrive يرتّب به. الثاني (المحجوز أو آخر موعد) يُحفظ في `WatchedTrip.booked` للمقارنة، لأنه لا يتغيّر عند إعادة الجدولة.
+    - **العنوان** = أول سطر يقبله `AddressExtractor`، وإلا (مكان بلا رقم) السطر بعد اسم الراكب.
     - **الاسم** = السطر فوق العنوان (الأول والأخير فقط).
-    - **منتهية** = الحالة "Performed" أو "Departed": لا تُضاف بـ «Add all trips» (نقطة الانطلاق تُضاف دائماً).
-  - إن لم يجد السكربت بطاقات، يُقرأ النص كله كما في لقطات الشاشة (الطريقة القديمة).
-- **المقارنة** في `TripWatch.onReading`:
-  - أول قراءة غير فارغة هي الأساس.
-  - التغيير لا يُعتمد إلا إذا ظهر في **قراءتين متتاليتين**.
-  - القراءات الفارغة تُتجاهل.
-  - رحلة اختفت بعد موعدها بأكثر من 5 دقائق تُعتبر منتهية.
-  - `isNewList`: لم يبقَ شيء من القائمة القديمة، أو تغيّر أكثر من النصف وأكثر من 3 ← قائمة جديدة **بلا تنبيه** (يوم آخر، أو عرض آخر).
-- **التوقيت**:
-  - قراءة كل 60 ثانية، وكل 15 ثانية والنافذة ظاهرة.
-  - إعادة تحميل كل 5 دقائق (`RELOAD_MS` ثابت)، **فقط والنافذة مغلقة**.
-- **التنبيهات**: `Notifications.postTripChanges` على قناة `trip_changes` بصوت واهتزاز. حد أقصى 5 تنبيهات، ثم ملخّص.
-- **الهوية مثل كروم**:
-  - `BrowserIdentity.chromeUserAgent` يحذف `; wv` و`Version/4.0`.
-  - `setUserAgentMetadata` يستبدل «Android WebView» بـ «Google Chrome».
-  - ترويسة X-Requested-With لم يعد WebView يرسلها.
+    - **منتهية** (Performed / Departed): لا تُضاف بـ «Add all trips».
+  - بلا بطاقات يُقرأ النص كله كما في لقطات الشاشة.
+- **المقارنة** (`TripWatch.onReading`):
+  - أول قراءة غير فارغة هي الأساس، والتغيير يُعتمد إذا ظهر في **قراءتين متتاليتين**، والقراءات الفارغة تُتجاهل.
+  - رحلة اختفت بعد موعدها بأكثر من 5 دقائق = منتهية وليست ملغاة.
+  - `isNewList`: لم يبقَ شيء من القائمة، أو تغيّر أكثر من النصف وأكثر من 3 ← قائمة جديدة **بلا تنبيه** (يوم آخر أو عرض آخر).
+- **التوقيت**: قراءة كل 60 ثانية (15 ثانية والنافذة ظاهرة)، وإعادة تحميل كل 5 دقائق **فقط والنافذة مغلقة**.
+- **التنبيهات**: `Notifications.postTripChanges` على قناة `trip_changes` بصوت واهتزاز، 5 على الأكثر ثم ملخّص. التغيير يُطبَّق على القائمة **فقط بضغطة السائق** (Add / Remove). «Add all trips» مزامنة: رحلة موجودة (نفس العنوان والنوع والاسم، والوقتان ضمن 45 دقيقة، `sameTrip`) تُحدَّث ولا تتكرر.
+- **الهوية مثل كروم**: `BrowserIdentity.chromeUserAgent` بلا `; wv` ولا `Version/4.0`، و`setUserAgentMetadata` يضع «Google Chrome» مكان «Android WebView».
 - **الأمان**:
-  - لا موقع للصفحة (`setGeolocationEnabled(false)`).
+  - لا موقع للصفحة (`setGeolocationEnabled(false)`، ورفض كل طلب).
+  - لا جسر JavaScript، ولا وصول للملفات، ولا طلبات منّا إلى خوادمهم.
   - لا روابط تطبيقات ولا نوافذ JS والصفحة في الخلفية.
-  - أخطاء الشهادات تُرفض دائماً.
-  - `res/xml/network_security_config.xml` يضيف جذر «Telia Root CA v2» العام (من سجل Mozilla) كمرجع ثقة لنطاق `regionvarmland.se` فقط. سبب ذلك أن أندرويد 13 وما قبله لا يحتوي هذا الجذر، فكانت صفحة YouDrive لا تُفتح (خطأ الشهادة 3). التحقق من الشهادات يبقى كاملاً.
-  - `onRenderProcessGone` يعيد فتح الصفحة بدل إغلاق التطبيق.
+  - أخطاء الشهادات تُعرض وتُرفض دائماً. `res/xml/network_security_config.xml` يضيف جذر «Telia Root CA v2» العام كمرجع ثقة لنطاق `regionvarmland.se` فقط، لأن أندرويد 13 وما قبله لا يحتويه.
+  - نموذج دخول مخفي خارج الشاشة يُعاد إظهاره (ويُذكر في سطر الحالة).
+  - `onRenderProcessGone` يفتح صفحة جديدة بدل انهيار التطبيق.
   - «Log out» يمسح التخزين والكوكيز والكاش ويهدم الـ WebView.
-- **الخدمة**: `YouDriveService` خدمة أمامية من نوع `specialUse` تُبقي العملية حية أثناء المراقبة. إشعارها صامت ويتحدّث عند تغيّر النص فقط.
-- **ما زال يحتاج تجربة على الجوال**: قراءة الرحلات من الصفحة الحقيقية نجحت (19 رحلة)، لكن تنبيه الإضافة والإلغاء الحقيقي لم يُجرَّب بعد.
+- **الخدمة**: `YouDriveService` خدمة أمامية `specialUse` تُبقي العملية حية أثناء المراقبة فقط. إشعارها صامت ويتحدّث عند تغيّر النص.
+- **الدخول التلقائي** (المفتاح 156، مطفأ افتراضياً):
+  - YouDrive ينسى الدخول كلما أُغلقت نافذته، حتى في كروم.
+  - معلومات الدخول تُحفظ فقط إذا كتبها السائق بنفسه في الإعدادات (157): `YouDriveLogin` يشفّرها AES-GCM بمفتاح من Android Keystore لا يغادر الجوال، في مساحة خاصة بلا نسخ احتياطي.
+  - `SignInScript` يكتبها فقط في نموذج YouDrive نفسه على العنوان الصحيح (ويتحقق منه داخل الصفحة أيضاً)، وفي الحقول الفارغة فقط، كنصوص JSON.
+  - `AutoSignIn`: محاولتان على الأكثر، بينهما 20 ثانية. بعد «Log out» لا شيء حتى يدخل السائق بنفسه.
 
 ---
 
-## 5. الملفات واحداً واحداً
+## 7. الملفات واحداً واحداً
 
 المسار الأساسي: `app/src/main/java/se/eldebosh/nastastopp/`
 
 ### الجذر
 | الملف | الدور |
 |---|---|
-| `App.kt` | `Application` + `AppGraph` (حقن يدوي لكل الكائنات). يطبّق لغة الواجهة وينشئ قنوات الإشعارات. |
-| `MainActivity.kt` | النشاط الرئيسي: المشاركة (SEND/SEND_MULTIPLE)، وفتح YouDrive أو المراجعة من الإشعارات، وتشغيل خدمة YouDrive عند الاستئناف. |
+| `App.kt` | `Application` + `AppGraph` (كل الكائنات). يطبّق لغة الواجهة وينشئ قنوات الإشعارات. |
+| `MainActivity.kt` | المشاركة (SEND / SEND_MULTIPLE)، وفتح YouDrive أو المراجعة من الإشعارات، وتشغيل خدمة YouDrive عند العودة. |
 
-### `core/` — منطق خالص (مختبَر في `app/src/test/.../core/`)
+### `core/` — منطق خالص (اختباراته في `app/src/test/.../core/`)
 | الملف | الدور |
 |---|---|
-| `parse/AddressExtractor.kt` | قلب القراءة: من أسطر OCR إلى `ExtractedStop`. أيضاً `fromManualText` للإدخال اليدوي، و`isSameAddress` للمقارنة، و`STREET_SUFFIXES`. |
-| `parse/TripKinds.kt` | `TripKind` (Pull-out / Pick-up / Drop-off / Pull-in) و`labelIn`: الكلمة كاملة فقط، فجملة فيها الكلمة لا تُحسب. |
-| `parse/TripTimes.kt` | إيجاد وقت كل رحلة، و`minutesUntil` (متأخر حتى 8 ساعات كحد أقصى)، و`level` (AHEAD/SOON/LATE)، و`normalizeTyped` للإدخال اليدوي. |
-| `parse/Localities.kt` | قائمة المدن السويدية (من `assets/localities_se.txt`)، بحث لا يتأثر بحالة الأحرف ولا بعلامات å ä ö. |
-| `parse/TextNorm.kt` | أدوات نص: `fold` (إزالة العلامات)، و`key`، وتشابه ليفنشتاين. |
+| `parse/AddressExtractor.kt` | قلب القراءة: من أسطر OCR إلى `ExtractedStop`. أيضاً `fromManualText` للإدخال اليدوي، و`isSameAddress`. |
+| `parse/TripKinds.kt` | `TripKind` و`labelIn` (الكلمة كاملة فقط). |
+| `parse/TripTimes.kt` | وقت كل رحلة، و`minutesUntil` (متأخر حتى 8 ساعات)، و`level` (AHEAD / SOON / LATE)، و`normalizeTyped`. |
+| `parse/Localities.kt` | المدن السويدية من `assets/localities_se.txt`، بلا اعتبار لحالة الأحرف ولا لـ å ä ö. |
+| `parse/TextNorm.kt` | `fold` و`key` وتشابه ليفنشتاين. |
 | `parse/TitleCase.kt` | «STORGATAN 14» ← «Storgatan 14» بقواعد سويدية. |
-| `ocr/TilePlanner.kt`, `OcrLineMerger.kt`, `OcrLine.kt` | تقسيم الصور الطويلة، ثم دمج النتائج وإزالة التكرار وترتيب القراءة. |
-| `geo/GeoLogic.kt` | اختيار أفضل نتيجة Geocoder، واسم المنطقة المنطوق، والمسافة. |
-| `geo/StreetLookup.kt` | منطق «الشارع الحالي»: متى نسأل الـ Geocoder من جديد، واختيار الشارع من النتائج. |
-| `geo/Fix.kt` | موقع واحد (الوقت، الإحداثيات، السرعة، الدقة، الاتجاه) لاسم الشارع والسرعة فقط. |
-| `geo/StreetMap.kt` | خريطة الشوارع المسمّاة (نقاط بأجزاء المليون من الدرجة) وشبكة خلايا ~110 م للبحث السريع، وملفها الثنائي، و`StreetMapBuilder`. |
-| `geo/StreetMatcher.kt` | `StreetMatcher`: الطريق الذي أنت عليه من المسافة والاتجاه، ولا اسم إن لم يكن طريق قريب. `StreetTracker`: شارع جديد يحتاج قراءتين متفقتين. |
+| `ocr/TilePlanner.kt`، `OcrLineMerger.kt`، `OcrLine.kt` | تقسيم الصور الطويلة، ثم دمج الأسطر وإزالة التكرار وترتيب القراءة. |
+| `geo/GeoLogic.kt` | أفضل نتيجة Geocoder، والاسم المنطوق (`spokenName`، `fullSpokenName`، `isSafeAreaName`)، والمسافة. |
+| `geo/StreetLookup.kt` | متى نسأل الـ Geocoder عن الشارع الحالي، و`pickNear`. |
+| `geo/Fix.kt` | موقع واحد (الوقت، الإحداثيات، السرعة، الدقة، الاتجاه). |
+| `geo/StreetMap.kt` | خريطة الشوارع وشبكتها وملفها الثنائي، و`StreetMapBuilder`. |
+| `geo/StreetMatcher.kt` | `StreetMatcher` (الطريق من المسافة والاتجاه) و`StreetTracker` (قراءتان متفقتان). |
 | `route/Announcements.kt` | نصوص الإعلانات السويدية والإنجليزية. |
-| `route/MapsUrlBuilder.kt` | رابط اتجاهات خرائط Google، بحد أقصى 10 محطات لكل فتح. |
-| `link/LinkProtocol.kt`, `LinkTargets.kt` | رسائل JSON سطراً سطراً بين الجوال والتابلت، وترتيب الأجهزة المقترنة. |
+| `route/MapsUrlBuilder.kt` | رابط اتجاهات خرائط Google، 10 محطات على الأكثر. |
+| `link/LinkProtocol.kt`، `LinkTargets.kt` | رسائل JSON سطراً سطراً بين الجوال والتابلت، وترتيب الأجهزة المقترنة. |
 | `display/DisplaySnapshot.kt` | ما تعرضه شاشة الركاب: `DisplayItem(time, title, subtitle)`. |
-| `youdrive/TripWatch.kt` | مقارنة قراءات YouDrive (راجع القسم 4). |
-| `youdrive/YouDriveCards.kt` | قراءة بطاقات YouDrive واحدة واحدة: النوع، الوقت المجدول والمحجوز، الاسم، العنوان (ومكان بلا رقم)، والرحلات المنتهية (`toAdd`). |
+| `youdrive/TripWatch.kt` | مقارنة قراءات YouDrive. |
+| `youdrive/YouDriveCards.kt` | قراءة بطاقات YouDrive واحدة واحدة. |
+| `youdrive/AutoSignIn.kt` | متى يُضغط Login تلقائياً، و`SignInScript`. |
 | `youdrive/BrowserIdentity.kt` | هوية كروم للصفحة. |
 
 ### طبقة أندرويد
 | الملف | الدور |
 |---|---|
-| `route/RouteController.kt` | **مصدر الحقيقة للمسار**: الإضافة والتعديل والحذف والنقل، وstart/next/back/repeat/openMaps/end، والإدراج من YouDrive (`importTrips`، `insertTrip`، `removeTrip`)، وبناء `display`، و`spokenName`. |
-| `route/model/RouteModels.kt` | `Stop`، `RouteData`، `GeoPoint`، `GeoStatus`. عناوين وأوقات فقط. |
-| `route/RouteRepository.kt` | حفظ المسار في ملف خاص، وحذف ما عمره أكثر من 12 ساعة. |
-| `route/TripHistory.kt` | «Previous trips» في الصفحة الرئيسية، مع مدة الحفظ (12 ساعة، 24 ساعة، 7 أيام). |
+| `route/RouteController.kt` | **مصدر الحقيقة للمسار**: الإضافة والتعديل والحذف والنقل، وstart / next / back / repeat / openMaps / end، ومزامنة YouDrive (`syncTrips`، `insertTrip`، `removeTrip`)، والإعلانات، و`display`. |
+| `route/model/RouteModels.kt` | `Stop`، `RouteData`، `GeoPoint`، `GeoStatus`. |
+| `route/RouteRepository.kt` | حفظ المسار وحذفه بعد 12 ساعة. |
+| `route/TripHistory.kt` | «Previous trips»، مع مدة الحفظ (12 ساعة، 24 ساعة، 7 أيام). |
 | `route/ExpiryReceiver.kt` | منبّه يحذف البيانات المنتهية. |
-| `ocr/OcrEngine.kt` | ML Kit + التقسيم. الأخطاء تُعرض بمرحلة الفشل (`ReadStage`) دون أي نص. |
-| `importer/ScreenshotImporter.kt` | يمرّر الصور إلى OCR ثم الاستخراج، ويعيد عدد العناوين والأخطاء. |
-| `geo/Geocoding.kt` | `locate` (من العنوان إلى الإحداثيات، يجرّب عدة صيغ)، و`reverse` (من الإحداثيات إلى الشارع الحالي). |
-| `geo/CurrentStreet.kt` | الشارع الحالي (شريط الشارع في الزر العائم وفي شاشة المسار)، يُحسب فقط حين تعرضه شاشة، والسرعة من آخر موقع (`speedNow`، تختفي بعد 10 ثوانٍ بلا موقع). |
-| `geo/StreetMapStore.kt` | تنزيل الخريطة من Overpass (مربعات Värmland)، وقراءتها بالتدفق، وحفظها في `noBackupFilesDir/streetmap`، وتحميلها عند التشغيل. |
-| `geo/StreetCaller.kt` | ينطق اسم الشارع كلما تغيّر (مرة واحدة لكل شارع)، إن كان السائق تركه مفعّلاً. |
-| `service/StreetService.kt` | خدمة أمامية من نوع location أثناء المسار (بإذن «أثناء الاستخدام» فقط، عبر `LocationManager`). ترسل المواقع إلى `CurrentStreet` **فقط** (الشارع والسرعة)، ولا تحفظها ولا تسجّلها. `RouteController` لا يستقبل أي موقع: «Nästa» بضغطة السائق فقط. |
-| `tts/Announcer.kt` | TextToSpeech بالسويدية، مع خفض صوت الخرائط مؤقتاً أثناء الكلام، والتحقق من وجود الصوت السويدي (`TtsStatus`). |
-| `maps/MapsLauncher.kt` | فتح خرائط Google. من الخلفية يضيف إشعار «افتح الخرائط» لأن أندرويد قد يمنع فتح نشاط من الخلفية. |
-| `overlay/OverlayManager.kt` | الزر العائم (Views، وليس Compose): بطاقة الزجاج (`glass()`)، والكبسولة بعد التصغير، والسحب، وتصغير الأزرار عند الضغط، والأرقام المرجعية 1–19، وتذكير الإشعار عند الإغلاق. الألوان من `PanelColors` (أدوار `AppColors.panel`). |
+| `ocr/OcrEngine.kt` | ML Kit + التقسيم، ومراحل الفشل (`ReadStage`). |
+| `importer/ScreenshotImporter.kt` | الصور ← OCR ← الاستخراج. |
+| `geo/Geocoding.kt` | `locate` (العنوان ← الإحداثيات) و`reverse` (الإحداثيات ← العناوين القريبة). |
+| `geo/CurrentStreet.kt` | الشارع الحالي والسرعة (القسم 5). |
+| `geo/StreetMapStore.kt` | تنزيل خريطة الشوارع وحفظها وتحميلها (`OverpassDownload`). |
+| `geo/StreetCaller.kt` | نطق الشارع عند تغيّره. |
+| `service/StreetService.kt` | خدمة الموقع أثناء المسار (القسم 5). |
+| `tts/Announcer.kt` | TextToSpeech بالسويدية، وخفض صوت الخرائط، و`TtsStatus`. |
+| `maps/MapsLauncher.kt` | فتح خرائط Google، وإشعار «افتح الخرائط» حين يمنع النظام الفتح من الخلفية. |
+| `overlay/OverlayManager.kt` | الزر العائم (القسم 8). |
 | `overlay/OverlayTileService.kt` | مربع «Floating button» في الإعدادات السريعة. |
 | `service/Notifications.kt` | القنوات، وإشعار المسار، وتنبيهات YouDrive، وإشعار «الزر العائم مغلق». |
-| `service/RouteNotifier.kt` | يُبقي إشعار المسار متزامناً مع المسار. |
+| `service/RouteNotifier.kt` | يُبقي إشعار المسار متزامناً. |
 | `service/RouteActionReceiver.kt` | أزرار الإشعار: Nästa / Upprepa / Avsluta / إظهار الزر العائم. |
-| `link/Bluetooth.kt`, `DisplayLinkServer.kt`, `DisplayLinkClient.kt` | شاشة الركاب عبر RFCOMM بين أجهزة مقترنة (قناة آمنة + قناة احتياطية، وإعادة اتصال تلقائية). |
-| `settings/SettingsStore.kt` | كل الإعدادات (`AppSettings`) في SharedPreferences، بلا عناوين. فيه ترحيل `SCHEMA` واللغة. |
+| `link/Bluetooth.kt`، `DisplayLinkServer.kt`، `DisplayLinkClient.kt` | شاشة الركاب عبر البلوتوث (القسم 8). |
+| `settings/SettingsStore.kt` | كل الإعدادات (`AppSettings`) في SharedPreferences، بلا عناوين. |
 | `util/LocaleHelper.kt` | لغة الواجهة داخل التطبيق، و`explanationContext` (موارد الشروح بالعربية). |
-| `util/SystemIntents.kt` | فحص الأذونات وفتح صفحات إعدادات النظام. |
+| `util/SystemIntents.kt` | فحص الأذونات (ومنها `hasPreciseLocation`) وفتح صفحات إعدادات النظام. |
 | `util/TimeLabels.kt` | «in 7 min»، «5 min late». |
-| `util/DebugLog.kt` | سجلات في debug فقط. **ممنوع** تسجيل عنوان أو نص OCR في release. |
-| `youdrive/*` | راجع القسم 4. |
+| `util/DebugLog.kt` | سجلات في debug فقط. |
+| `youdrive/*` | القسم 6. |
 
 ### الواجهة `ui/`
 | الملف | الدور |
 |---|---|
-| `theme/Palette.kt` | الطبقة 1: الألوان الخام (YouDrive، الأصفر، الأزرق الفاتح، ألوان الليل، الحالة). راجع القسم 6. |
-| `theme/AppColors.kt` | الطبقة 2: أدوار الألوان، و`DayColors` و`NightColors`، و`trip(kind)` و`status(level)`. |
+| `theme/Palette.kt` | الطبقة 1: الألوان الخام. |
+| `theme/AppColors.kt` | الطبقة 2: أدوار الألوان، `DayColors` و`NightColors`، و`trip(kind)` و`status(level)`، وأدوار الزر العائم `panel`. |
 | `theme/AppEffects.kt` | الطبقة 3: الظلال، وتصغير الزر عند الضغط، وتلاشي الألوان. |
-| `theme/Theme.kt` | `NastaTheme(appearance)` و`AppTheme.colors` / `AppTheme.effects`، وتحويل الأدوار إلى Material 3، والخطوط والأشكال. |
-| `theme/SystemBars.kt` | `SystemBarsFollowTheme()`: أيقونات شريط الحالة وخلفية النافذة حسب المظهر. |
-| `Components.kt` | مكونات موحّدة: `AppButton`، `TopBar`، `SectionTitle`، `AppCard`، `CardDivider`، `ListRow`، `IconBadge`، `KindLabel` (نوع الرحلة كحبة بيضاء صغيرة)، `Chevron`، `Paragraph`. `TouchTarget = 48.dp`. |
-| `Explain.kt` | الشروح: `explain(id)` (بالعربية أثناء الإعداد)، و`HelpDot` (علامة «?» الصغيرة التي تفتح الشرح)، و`Hint` (نص شرح داخل نافذة حوار). |
-| `Refs.kt` | الأرقام المرجعية: `Modifier.ref(n)` (رقم في سطر خاص فوق العنصر، و`centered = true` داخل الصفوف) و`Modifier.refCorner(n)` (في زاوية الأيقونات والمفاتيح). `RefNumbers.enabled` يتبع الإعداد 105. |
-| `AppRoot.kt` | يوزّع الشاشات، ويطلب الأذونات، ويعرض رسائل snackbar، ويوفّر `LocalExplainResources`. |
+| `theme/Theme.kt` | `NastaTheme(appearance)`، و`AppTheme.colors` / `AppTheme.effects`، والتحويل إلى Material 3، والخطوط والأشكال. |
+| `theme/SystemBars.kt` | أيقونات شريط الحالة وخلفية النافذة حسب المظهر. |
+| `Components.kt` | `AppButton`، `TopBar`، `SectionTitle`، `AppCard`، `TripSurface`، `ListRow`، `IconBadge`، `KindLabel`، `Chevron`، `Paragraph`. `TouchTarget = 48.dp`. |
+| `Explain.kt` | `explain(id)`، و`HelpDot` (علامة «?»)، و`Hint`. |
+| `Refs.kt` | الأرقام المرجعية (`ref`، `refCorner`) ومعرّفات الاختبار `ref_<n>`. |
+| `AppRoot.kt` | يوزّع الشاشات، ويطلب الأذونات، ويعرض snackbar، ويوفّر `LocalExplainResources`. |
 | `MainViewModel.kt` | مكدس الشاشات (`Screen`)، والاستيراد، وفتح YouDrive أو المراجعة. |
-| `screens/*.kt` | كل شاشة في ملف. الأرقام المرجعية لكل شاشة في README. |
+| `screens/*.kt` | كل شاشة في ملف. |
 
 ### الموارد
-- **النصوص**:
-  - `res/values/strings.xml` = **العربية (الافتراضية!)**.
-  - `values-en/strings.xml` = الإنجليزية (لغة الواجهة الحالية).
-  - `values-sv/strings.xml` = السويدية.
-  - **كل مفتاح جديد يجب أن يُضاف إلى الملفات الثلاثة.**
-  - `strings_fixed.xml` فيه نصوص لا تُترجم.
-- **الأيقونات**: `res/drawable/ic_*.xml` (vector). أيقونة التطبيق: `ic_launcher_background.xml` (تدرّج أصفر) + `ic_launcher_foreground.xml` (دبوس + سهم) + `ic_launcher_monochrome.xml`.
-- **ملفات xml**: `backup_rules.xml` و`data_extraction_rules.xml` (تستثني كل شيء)، و`locales_config.xml`.
+- **النصوص**: `values/strings.xml` = **العربية (الافتراضية)**، `values-en/` = الإنجليزية (لغة الواجهة الافتراضية)، `values-sv/` = السويدية. **كل مفتاح في الملفات الثلاثة.** `strings_fixed.xml` لما لا يُترجم.
+- **الأيقونات**: `res/drawable/ic_*.xml` (vector). أيقونة التطبيق: `ic_launcher_background` (تدرّج أصفر) + `ic_launcher_foreground` (دبوس + سهم) + `ic_launcher_monochrome`.
+- **xml**: `backup_rules` و`data_extraction_rules` (تستثني كل شيء)، و`locales_config`، و`network_security_config`.
+- **`values/ids.xml`**: معرّفات أجزاء الزر العائم `ref_<n>`.
 
 ---
 
-## 6. نظام التصميم (Design System)
+## 8. الزر العائم وشاشة الركاب
 
-الهدف: تغيير الألوان أو إضافة تأثير **في مكان واحد**، دون لمس الشاشات. النظام ثلاث طبقات في `ui/theme/`، وكل طبقة تعتمد على التي قبلها فقط:
+### الزر العائم (`overlay/OverlayManager.kt`)
+- **Views وليس Compose**، في نافذة `TYPE_APPLICATION_OVERLAY`.
+- **بطاقة زجاج مدخَّن** في المظهرين (`glass()`): إطار شفاف، ونصوص على زجاج أعمق (`well`)، وحافتان فاتحة وداكنة. لا ألوان خاصة به: `PanelColors` يحوّل أدوار `AppColors.panel` عند البناء.
+- **الأجزاء** (أرقامها في README):
+  - الرأس: الساعة 8، رقم الرحلة 9، التصغير 6، الإغلاق 7.
+  - صف الشارع: دائرة السرعة 15 بجانب شريط الشارع 2 (فيه الحي 3 وزر نطق الشارع 4).
+  - الرحلة التالية 16: شريط جانبي بلون النوع، الوقت 10 مع شارع المحطة 13، الاسم 18 مع حالة الوقت 11، المدينة 19 بلا رمز بريدي.
+  - الأزرار: Back 1 وNext 5 (ضغطة مطوّلة على Next أو شريط الشارع = إعادة الإعلان).
+  - الكبسولة بعد التصغير 17.
+- **السلوك**:
+  - السحب من أي مكان يحرّكه، والمكان يُحفظ. «×» و«–» يستجيبان للضغط الحقيقي فقط.
+  - بعد الإغلاق أثناء المسار: إشعار صامت، ومربع الإعدادات السريعة، والمفاتيح تعيده.
+  - يغيب ما دامت شاشة الركاب ظاهرة على الجوال (`suppress`).
+- **للاختبار**: كل جزء له `id/ref_<n>`، ومع `setprop log.tag.NastaStoppRefs DEBUG` يسجّل حدود الأجزاء على الشاشة فقط.
+
+### شاشة الركاب (`link/*`، `ui/screens/PassengerDisplayScreen.kt`، `DisplayRoleScreen.kt`)
+- البلوتوث RFCOMM بين أجهزة مقترنة. الجوال يستمع على قناة آمنة وقناة احتياطية، ويخدم الأجهزة المقترنة به فقط.
+- التابلت يجد الجوال وحده: آخر جهاز أولاً، ثم الجوالات، ثم التابلتات والحواسيب. السماعات وأنظمة السيارة تُتخطّى.
+- يُرسل `DisplaySnapshot` فقط: رحلة سابقة، والحالية، و3 قادمة. الوقت، والشارع مع الرقم، والحي تحته (الإعداد 114؛ مطفأً = الحي فقط). **لا أسماء أبداً.**
+- إعادة الاتصال كل 3 ثوانٍ، وping كل 10 ثوانٍ، وقطع الاتصال الصامت بعد 30 ثانية، وسطر أطول من 64 KB يقطع الاتصال.
+- التابلت ينطق بزره فقط، إلا إذا فُعّل النطق عليه.
+- العنوان الكبير لا ينقسم في وسط كلمة: حجمه محدود بأطول كلمة.
+
+---
+
+## 9. نظام التصميم
+
+الهدف: تغيير الألوان أو التأثيرات **في مكان واحد**، دون لمس الشاشات. ثلاث طبقات في `ui/theme/`:
 
 | الطبقة | الملف | ما فيها | متى تعدّلها |
 |---|---|---|---|
-| 1. الألوان الخام | `Palette.kt` | كل لون بقيمته، مسمّى بما **هو** (YouDriveGreen، TaxiYellow، Sky…) لا بما يُستعمل له. | لتغيير درجة لون في كل مكان. |
-| 2. الأدوار | `AppColors.kt` | `data class AppColors`: دور كل لون («بطاقة التقاط»، «الإجراء التالي»، «نص ثانوي»…)، ومجموعتان: `DayColors` و`NightColors`. | لتغيير لون عنصر معيّن، أو لإضافة مظهر جديد (مجموعة ثالثة). |
-| 3. التأثيرات | `AppEffects.kt` | الظلال (`cardShadow`، `currentShadow`، `panelShadow`)، وتصغير الزر عند الضغط (`pressedScale`، وفي الزر العائم `panelPressedScale` خلال `panelPressMs`)، وتلاشي تغيّر الألوان (`colorFadeMs`). `0.dp` أو `1f` أو `0` يطفئ التأثير. | لإضافة تأثير أو ضبطه أو إطفائه. |
+| 1. الألوان الخام | `Palette.kt` | كل لون بقيمته، مسمّى بما **هو** (YouDriveGreen، TaxiYellow، Sky…). | لتغيير درجة لون في كل مكان. |
+| 2. الأدوار | `AppColors.kt` | دور كل لون، ومجموعتان: `DayColors` و`NightColors`. | لتغيير لون عنصر، أو لإضافة مظهر. |
+| 3. التأثيرات | `AppEffects.kt` | الظلال، وتصغير الزر عند الضغط، وتلاشي الألوان. `0.dp` أو `1f` أو `0` يطفئ التأثير. | لإضافة تأثير أو ضبطه. |
 
-- **`Theme.kt`** يجمعها:
-  - `NastaTheme(appearance)` يختار النهاري أو الليلي حسب الإعداد (130–132: Day / Night / Automatic).
-  - ويوفّر `AppTheme.colors` و`AppTheme.effects` لكل الشاشات.
-  - ويحوّل الأدوار إلى ألوان Material 3 (`toMaterial()`)، فتتبعها المفاتيح والنوافذ والقوائم تلقائياً.
-- **القاعدة**: لا قيمة لون (`Color(0x…)`) خارج `Palette.kt` و`AppColors.kt`. الشاشات تكتب `AppTheme.colors.دور`.
+- **`Theme.kt`**: `NastaTheme(appearance)` يختار النهاري أو الليلي (130–132: Day / Night / Automatic)، ويوفّر `AppTheme.colors` و`AppTheme.effects`، ويحوّل الأدوار إلى Material 3.
+- **القاعدة**: لا `Color(0x…)` خارج `Palette.kt` و`AppColors.kt`.
 - **الأدوار الأساسية**:
 
 | الدور | نهاري | ليلي | أين |
 |---|---|---|---|
-| `background` / `card` / `cardBorder` | رمادي فاتح / أبيض / خط رفيع | الأزرق الليلي الداكن | الصفحة والبطاقات |
+| `background` / `card` / `cardBorder` | رمادي فاتح / أبيض / خط رفيع | أزرق ليلي داكن | الصفحة والبطاقات |
 | `text` / `textMuted` | أسود / رمادي | أبيض مزرق / رمادي مزرق | النصوص |
-| `action` / `onAction` | **أسود** (مثل Arrive) | **الأزرق الفاتح** Sky | الأزرار الرئيسية (`AppButton`) |
-| `accent` / `onAccent` | **الأصفر** مع نص أسود | الأصفر | Next، Start route، وقت الرحلة الحالية، الشعار |
-| `info` | أزرق (SkyInk) | الأزرق الفاتح Sky | المفاتيح، العناوين، الروابط، أيقونات المعلومات (Material `primary`) |
+| `action` / `onAction` | أسود | الأزرق الفاتح Sky | الأزرار الرئيسية |
+| `accent` / `onAccent` | الأصفر مع نص أسود | الأصفر | Next، Start route، وقت الرحلة الحالية |
+| `info` | أزرق SkyInk | Sky | المفاتيح والعناوين والروابط |
 | `pickUp` / `dropOff` / `depot` | أخضر YouDrive / أبيض / رمادي | أخضر داكن / بطاقة داكنة / رمادي داكن | بطاقات الرحلات (`trip(kind)`) |
 | `currentBorder` | أسود | أصفر | إطار الرحلة الحالية |
-| `success` / `warning` / `danger` | أخضر / كهرماني / أحمر داكنة | نفسها فاتحة | الحالة (`status(level)`) |
-| `panel` (`PanelRoles`) | زجاج أسود مدخَّن | زجاج كحلي مدخَّن | الزر العائم: `glass` (الإطار الشفاف)، `sheen` (لمعة أعلاه)، `well` (زجاج أعمق تحت النصوص)، `control`، `edgeLight`/`edgeDark` (حافتان)، ونوع الرحلة بألوان YouDrive الفاتحة |
+| `success` / `warning` / `danger` | أخضر / كهرماني / أحمر | نفسها أفتح | الحالة (`status(level)`) |
+| `panel` | زجاج أسود مدخَّن | زجاج كحلي مدخَّن | الزر العائم |
 
-- **المكوّنات** في `ui/Components.kt`:
-  - `AppButton` يأخذ `action` أو `tonal`، ويصغر قليلاً عند الضغط (`pressedScale`).
-  - `AppCard` بطاقة بظل خفيف في النهار.
-  - `TripSurface(kind, current)` بطاقة الرحلة بلونها. لونها يتلاشى عند التغيّر، والحالية بإطار سميك وظل أكبر. كل بطاقات الرحلات (المراجعة، المسار، نقطة الانطلاق) تستعملها.
-  - `KindLabel` حبة نوع الرحلة، و`ListRow` و`TopBar` و`SectionTitle`.
-- **الزر العائم** (Views وليس Compose): لا ألوان خاصة به. `PanelColors` في `OverlayManager.kt` يحوّل أدوار `AppColors.panel` (والأصفر) إلى أرقام ARGB عند بناء اللوحة، ويُعاد البناء عند تغيّر المظهر، و`AppTheme.effectsFor` يعطيه التأثيرات.
-  - هو زجاج مدخَّن في المظهرين لأنه يطفو فوق أي خلفية. الإطار شفاف (الخريطة تظهر خلفه)، والنصوص على `well` أعمق. `ThemeContrastTest.checkPanel` يفحص كل نص فوق أبيض وأسود وأخضر حديقة وأزرق طريق، ويفحص الحافتين.
-  - الصور في `ScreenshotsRoboTest` (`floating`، `floating_night`، `floating_ar`، `floating_bubble`) ترسمه فوق خلفية نصفها خريطة فاتحة ونصفها داكن.
-- **الأرقام المرجعية** و**أشرطة النظام** تتبع المظهر أيضاً: `Refs.kt` يقرأ `LocalAppColors`، و`SystemBarsFollowTheme()` يجعل أيقونات شريط الحالة داكنة نهاراً وفاتحة ليلاً.
-- **التباين مضمون باختبار**: `ThemeContrastTest` يفحص كل زوج نص/خلفية في المظهرين حسب WCAG (4.5 للنص، و3 للحدود والنص العريض على البطاقات). أي تغيير لون يجعل شيئاً غير مقروء يفشل هنا.
-- **كيف أغيّر لوناً؟** غيّر القيمة في `Palette.kt` (تتبعها كل الأدوار)، أو غيّر الدور في `DayColors`/`NightColors`، ثم شغّل الاختبارات.
-- **كيف أضيف تأثيراً؟** أضف حقلاً في `AppEffects` بقيمته للنهار والليل، واستعمله في المكوّن عبر `AppTheme.effects` (مثال: `pressedScale` في `AppButton`).
-- **كيف أضيف مظهراً جديداً؟** مجموعة `AppColors` جديدة، وقيمة في `settings/Appearance`، وسطر في `AppTheme.colorsFor`.
-- **الأحجام**:
-  - الأزرار 48 dp افتراضياً، و52 dp للأزرار الرئيسية، و60 dp لـ Next و Back.
-  - الأيقونات 20–24 dp.
-  - الزوايا: `shapes.medium` = 14، و`large` = 20.
-- **الشرح**: لا تضع فقرة شرح في الشاشة؛ ضع `HelpDot(R.string.x_hint)` بجانب العنوان، أو استعمل `ListRow(help = ...)`.
+- **المكوّنات** (`ui/Components.kt`): `AppButton` (action / tonal)، `AppCard`، `TripSurface(kind, current)` لكل بطاقة رحلة، `KindLabel`، `ListRow`، `TopBar`، `SectionTitle`.
+- **التباين مضمون باختبار**: `ThemeContrastTest` يفحص كل زوج نص/خلفية في المظهرين (WCAG: 4.5 للنص، و3 للحدود والنص العريض)، و`checkPanel` يفحص الزر العائم فوق أبيض وأسود وأخضر حديقة وأزرق طريق.
+- **كيف أغيّر لوناً؟** غيّر القيمة في `Palette.kt`، أو الدور في `DayColors` / `NightColors`، ثم شغّل الاختبارات.
+- **كيف أضيف تأثيراً؟** حقل في `AppEffects` بقيمته للنهار والليل، ويُستعمل عبر `AppTheme.effects`.
+- **كيف أضيف مظهراً؟** مجموعة `AppColors` جديدة، وقيمة في `settings/Appearance`، وسطر في `AppTheme.colorsFor`.
+- **الأحجام**: الأزرار 48 dp، و52 dp للرئيسية، و60 dp لـ Next و Back في شاشة المسار. الزوايا: `shapes.medium` = 14، `large` = 20.
+- **الشرح**: لا فقرات شرح في الشاشة. `HelpDot(R.string.x_hint)` بجانب العنوان، أو `ListRow(help = …)`. نصّه بالعربية ما دام 104 مفعّلاً.
 - **الأرقام المرجعية**:
-  - كل عنصر جديد يأخذ رقماً غير مستعمل من نطاق شاشته (راجع جداول README)، ويُضاف إلى الجدول.
-  - `ref` للعناصر العادية، و`refCorner` للأيقونات والمفاتيح.
-  - داخل صفوف البطاقات يُمرَّر `ref` إلى `ListRow(ref = n)`، حتى لا يُقصّ الرقم عند زاوية البطاقة.
-- **الاتجاه**:
-  - نص قد يكون عربياً أو سويدياً يُكتب بـ `style.copy(textDirection = TextDirection.Content)`.
-  - الواجهة العربية RTL تلقائياً.
+  - كل عنصر جديد يأخذ رقماً غير مستعمل من نطاق شاشته، ويُضاف إلى جدول README.
+  - `ref(n)` للعناصر العادية (`centered = true` داخل الصفوف)، و`refCorner(n)` للأيقونات والمفاتيح، و`ListRow(ref = n)` داخل صفوف البطاقات.
+  - **مخفية افتراضياً** (الإعداد 105)، ومعرّفات `ref_<n>` موجودة دائماً.
+- **الاتجاه**: نص قد يكون عربياً أو سويدياً يُكتب بـ `style.copy(textDirection = TextDirection.Content)`. الواجهة العربية RTL تلقائياً.
 
 ---
 
-## 7. البناء والاختبار والإصدار
+## 10. البناء والاختبار والنشر
 
 ```bash
 ./gradlew test assembleRelease lintDebug lintRelease   # كل شيء؛ يجب أن ينتهي بـ exit 0
 ./gradlew :app:testDebugUnitTest --tests '*ScreenshotsRoboTest'   # صور الشاشات في app/build/screenshots/
 ```
 
-خطوات الإصدار (بالترتيب، **ولا commit قبل نجاح كل شيء**):
-1. **رفع الرقمين** في `app/build.gradle.kts`: `versionCode` دائماً +1 حتى يُثبَّت التطبيق فوق القديم، و`versionName` الجديد.
-2. **البناء الكامل** بالأمر أعلاه. **افحص رمز الخروج**: كل الاختبارات تنجح، و lint = «No issues found».
-3. **فحص الـ APK**:
-   - `aapt2 dump badging` للتأكد من الرقم، ومن وجود إذن الموقع FINE/COARSE وعدم وجود إذن الموقع في الخلفية (BACKGROUND).
-   - `apksigner verify --print-certs` للتأكد من التوقيع (SHA-256 يبدأ بـ `1ae62777…`).
-   - `dexdump` للتأكد من وجود `TextRegistrar` (مسجّل ML Kit).
-4. **النسخ والتوثيق**: انسخ الملف إلى `dist/NastaStopp.apk` (خارج git منذ 1.9)، وحدّث DECISIONS.md وREADME.
-5. **commit وpush** للكود.
-6. **النشر في GitHub Releases** (قرار حسام، 1.9):
-   - اكتب ملاحظات الإصدار بالإنجليزية في ملف (بلا بيانات ركاب)؛
-   - شغّل `tools/publish-apk.sh <الملف>`. هو يرفع الـ APK على فرع مؤقت `apk-drop/v<الإصدار>`؛
-   - ثم ينشئ `.github/workflows/publish-apk.yml` الإصدار `v<الإصدار>` على commit الكود، ويحذف الفرع المؤقت، فلا يدخل الـ APK تاريخ الفروع؛
-   - تأكّد أن الإصدار ظهر.
-7. اضغط الـ APK في zip (حوالي 18 MB) وأرسله للسائق.
+خطوات كل إصدار (بالترتيب، **ولا commit قبل نجاح كل شيء**):
+1. **رفع الرقمين** في `app/build.gradle.kts`: `versionCode` +1 دائماً، و`versionName` الجديد.
+2. **البناء الكامل** بالأمر أعلاه، مع **فحص رمز الخروج**: كل الاختبارات تنجح، وlint = «No issues found».
+3. **فحص الـ APK** (`app/build/outputs/apk/release/app-release.apk`، والأدوات في `/opt/android-sdk/build-tools/37.0.0/`):
+   - `aapt2 dump badging`: الرقم، ووجود إذن الموقع FINE / COARSE، وغياب BACKGROUND.
+   - `apksigner verify --print-certs`: الـ SHA-256 يبدأ بـ `1ae627778bdd`.
+   - `dexdump`: وجود `TextRegistrar` (مسجّل ML Kit).
+4. **النسخ والتوثيق**: انسخ الـ APK إلى `dist/NastaStopp.apk` (خارج git)، وحدّث DECISIONS.md وREADME إن تغيّر قرار أو واجهة.
+5. **commit وpush** للكود إلى `claude/nasta-stopp-android-app-soeru7`.
+6. **النشر في GitHub Releases**:
+   - ملاحظات الإصدار بالإنجليزية في ملف (بلا بيانات ركاب)؛
+   - `tools/publish-apk.sh <الملف>` يرفع الـ APK على فرع مؤقت `apk-drop/v<الإصدار>`؛
+   - `.github/workflows/publish-apk.yml` ينشئ الإصدار `v<الإصدار>` على commit الكود، ويحذف الفرع المؤقت؛
+   - تأكّد أن الإصدار ظهر ومعه الملف.
+7. **التسليم**: zip للـ APK (نحو 18 MB) يُرسل للسائق، و«DEVICE-TEST READY» على PR #1 (القسم 13).
 
-- **التوقيع**: `keystore.properties` في الجذر (خارج git) ← المفتاح في `~/.nastastopp-signing/`. عند حسام نسخة احتياطية خاصة من المفتاح (منذ 2026-09-28)، ولا تُرفع أبداً إلى المستودع. بدون هذا الملف يُوقَّع release بمفتاح debug، ولا يُثبَّت فوق النسخة الحالية.
-- **البناء دون إنترنت** قد يفشل إذا نقصت مكتبة من الكاش، فيُعاد بالإنترنت.
+- **التوقيع**: `keystore.properties` في الجذر (خارج git) ← المفتاح في `~/.nastastopp-signing/`. عند حسام نسخة احتياطية خاصة منه، ولا يُرفع أبداً إلى المستودع ولا إلى GitHub. بدون الملف يُوقَّع release بمفتاح debug، ولا يُثبَّت فوق النسخة الموقّعة.
+- **R8 مطفأ**: في وضعه الكامل حذف منشئات مسجِّلات ML Kit التي تُنشأ بالانعكاس، ففشلت القراءة من كل الصور، والاختبارات لا تكشف ذلك. `proguard-rules.pro` جاهز ليوم تشغيله، مع فحص `dexdump`.
+- **ABIs**: release لـ `arm64-v8a` و`armeabi-v7a` فقط (مكتبة OCR نحو 11 MB لكل واحد).
 
 ### الاختبارات
-- **`app/src/test/.../core/*`**: منطق خالص. أهمها `AddressExtractorTest` و`AddressExtractorFuzzTest` و`TripTimesTest` و`TripWatchTest`.
-- **`app/src/test/.../robo/*`**: Robolectric على أندرويد 13.
-  - `UiSmokeRoboTest`: الشاشات بالعربية.
-  - `FloatingPanelRoboTest`، `YouDriveRoboTest`، `DisplayLinkRoboTest`، `RouteControllerRoboTest`، `TripHistoryRoboTest`، `DisplayFeaturesRoboTest`.
-  - `ScreenshotsRoboTest`: يرسم كل شاشة إلى صورة.
+- **`app/src/test/.../core/*`**: المنطق الخالص. أهمها `AddressExtractorTest` و`AddressExtractorFuzzTest` و`TripTimesTest` و`TripWatchTest` و`YouDriveCardsTest` و`StreetMatcherTest` و`GeoLogicTest`.
+- **`app/src/test/.../robo/*`**: Robolectric على أندرويد 13:
+  - `UiSmokeRoboTest`: الشاشات، والإعدادات الافتراضية.
+  - `FloatingPanelRoboTest`: الزر العائم، والشارع، والسرعة، والنطق.
+  - `RouteControllerRoboTest`، `YouDriveRoboTest`، `YouDriveLoginRoboTest`، `StreetServiceRoboTest`، `StreetMapDownloadRoboTest`، `DisplayLinkRoboTest`، `DisplayFeaturesRoboTest`، `TripHistoryRoboTest`.
+  - `ScreenshotsRoboTest`: يرسم كل شاشة إلى صورة في `app/build/screenshots/` (للفحص محلياً فقط)، ويرسم صور `testdata/screenshots/`.
+- **`ui/theme/ThemeContrastTest`**: تباين الألوان.
 
 ---
 
-## 8. قواعد لا تُكسر
+## 11. قواعد لا تُكسر
 
-1. **الصور** لا تُنسخ ولا تُحفظ. تُقرأ في الذاكرة فقط.
-2. **لا يُحفظ إلا العنوان والوقت ونوع الرحلة واسم الراكب الأول والأخير** (قرار السائق في 1.2)، ولا هواتف ولا أسماء وسطى ولا نص آخر. الاسم يظهر على شاشات السائق فقط (المراجعة، المسار، الزر العائم): **لا يُنطق، ولا يُرسل إلى شاشة الركاب، ولا يوضع في إشعار أو في السجل، ولا يُسجَّل في logcat**. يضمن ذلك الاختبار `namesStayOnTheDriversScreens`.
-3. **لا سجلات** لعناوين أو نص OCR في release. استعمل `DebugLog` فقط.
-4. **النسخ الاحتياطي**: `allowBackup="false"`، وقواعد الاستخراج تستثني كل شيء.
-5. **الموقع لاسم الشارع فقط** (قرار السائق في 1.3):
-   - أثناء المسار وبإذن «أثناء استخدام التطبيق» فقط؛ إذن الموقع في الخلفية محذوف بـ `tools:node="remove"`.
-   - المواقع تذهب إلى `CurrentStreet` فقط: لا تنقل المسار وحدها، ولا تُحفظ ولا تُسجَّل ولا تُرسل.
-   - **صفحة YouDrive لا تحصل على الموقع أبداً**: `setGeolocationEnabled(false)` ورفض كل طلب من الصفحة (الاختبار `theYouDrivePageNeverGetsTheLocation`).
-6. **الإنترنت** لصفحة YouDrive، ولتنزيل خريطة الشوارع (1.8) فقط:
-   - التنزيل يبدأ بضغطة السائق على 138 فقط، ويطلب مربعات ثابتة من OpenStreetMap (Overpass) تغطي Värmland، لا موقع السيارة أبداً.
-   - تقارير ML Kit (datatransport) معطّلة في الـ manifest.
-7. **الإعلان الصوتي** (قرار السائق في 1.6):
-   - المحطة التالية كاملة: الشارع ورقمه، ثم الحي، ثم المدينة (`GeoLogic.fullSpokenName`، الإعداد 136 الافتراضي). الإعدادان 106 و107 يختصرانها إلى الحي أو المدينة.
-   - المحطة التي بعدها بشارعها ورقمها ثم الحي (1.7، `thenSpokenName`).
-   - الشارع الحالي يُنطق وحده كلما تغيّر (1.7، `geo/StreetCaller`، بعد أي إعلان وليس فوقه). زر السماعة في الزر العائم (4) أو الإعداد 137 يوقفه.
-   - بضغطة من السائق: الشارع الحالي مع الحي (شريط الشارع)، أو شارع المحطة التالية ورقمها (الجزء 13، `speakStopStreet`).
-   - **لا يُنطق اسم راكب أبداً**: اسم العائلة الذي تضعه بعض القوائم قبل الشارع يُحذف (`streetOf`).
-   - شاشة الركاب يمكن أن تعرض الشارع مع الرقم (إعداد 114).
-8. **لا Hilt ولا Firebase** ولا تحليلات ولا تقارير أعطال.
-9. **بيانات دخول YouDrive**:
-   - لا تدخل الكود ولا المستودع ولا السجلات ولا الردود أبداً، ولا يستعملها Claude.
-   - التطبيق يحفظها فقط إذا كتبها السائق بنفسه في الإعدادات (157) على جواله (قراره في 1.6):
-     - مشفّرة بمفتاح من Android Keystore لا يغادر الجوال (`YouDriveLogin`)، ولا تُنسخ احتياطياً؛
-     - تُكتب فقط في صفحة دخول YouDrive نفسها على `https://youdrive.regionvarmland.se` (`SignInScript`، الذي يتحقق من العنوان داخل الصفحة أيضاً)؛
-     - محاولتان على الأكثر (`AutoSignIn`)، وبعد «Log out» لا شيء حتى يدخل السائق بنفسه.
-   - لا يُعطَّل فحص شهادات TLS أبداً.
-10. **لا شيء يظهر وحده**: الإشعارات والنوافذ وفتح الخرائط كلها تأتي بعد فعل من السائق. الاستثناءات:
-    - تنبيهات YouDrive (وهذا هو غرضها)؛
-    - إشعار «افتح الخرائط» عند منع النظام؛
-    - اسم الشارع الحالي ما دام السائق يترك «انطق الشارع» مفعّلاً (4 / 137).
+1. **الصور** لا تُنسخ ولا تُحفظ.
+2. **لا يُحفظ إلا العنوان والوقت ونوع الرحلة واسم الراكب الأول والأخير.** الاسم على شاشات السائق فقط: **لا يُنطق، ولا يُرسل إلى شاشة الركاب، ولا يوضع في إشعار أو في السجل، ولا يُسجَّل** (`namesStayOnTheDriversScreens`).
+3. **لا سجلات** لعناوين أو نص OCR في release (`DebugLog` فقط). `allowBackup=false`.
+4. **الموقع لاسم الشارع والسرعة فقط**: أثناء الاستخدام، لا في الخلفية، لا ينقل المسار، لا يُحفظ ولا يُسجَّل ولا يُرسل. **صفحة YouDrive لا تحصل عليه أبداً.**
+5. **اسم الشارع لا يُخترع**: القسم 5 كله. لا تطابق = لا اسم.
+6. **الإنترنت** لصفحة YouDrive ولتنزيل خريطة الشوارع بضغطة السائق فقط. التنزيل لا يرسل موقع السيارة. لا Firebase ولا تحليلات ولا تقارير أعطال ولا Hilt.
+7. **الإعلانات**: كما في القسم 4. **لا يُنطق اسم راكب أبداً.**
+8. **بيانات دخول YouDrive**: لا تدخل الكود ولا المستودع ولا السجلات ولا الردود، ولا يستعملها Claude. التطبيق يحفظها مشفّرة فقط إذا كتبها السائق بنفسه (القسم 6).
+9. **لا يُعطَّل فحص شهادات TLS أبداً**، ولا يُلغى `HTTPS_PROXY` في بيئة البناء.
+10. **لا شيء يظهر وحده**: كل نافذة أو رسالة أو صوت أو فتح للخرائط بعد فعل من السائق. الاستثناءات فقط: تنبيهات YouDrive، وإشعار «افتح الخرائط» عند منع النظام، واسم الشارع الحالي ما دام «انطق الشارع» مفعّلاً (4 / 137).
 
 ---
 
-## 9. كيف أضيف أو أعدّل…
+## 12. كيف أضيف أو أعدّل…
 
-- **إعداد جديد**:
-  1. أضِف حقلاً في `AppSettings` بقيمة افتراضية.
-  2. أضِف مفتاحاً في `SettingsStore`: ثابتاً `K_…`، وسطراً في موضع الحفظ، وسطراً في موضع القراءة.
-  3. أضِف صفاً في `SettingsScreen`: `SwitchRow(R.string.x, R.string.x_hint, value, رقم) { … }`.
-  4. أضِف النصوص إلى الملفات الثلاثة.
-  5. أضِف الرقم إلى جدول README.
-- **نص جديد**: أضِفه إلى `values/` (عربي) و`values-en/` و`values-sv/`. lint يعترض إذا نقصت ترجمة.
-- **نص إعلان**: عدّل `core/route/Announcements.kt` واختبار `AnnouncementsTest`.
+- **إعداداً جديداً**:
+  1. حقل في `AppSettings` بقيمة افتراضية.
+  2. في `SettingsStore`: ثابت `K_…`، وسطر في `update`، وسطر في `read`.
+  3. صف في `SettingsScreen`: `SwitchRow(R.string.x, R.string.x_hint, value, رقم) { … }`.
+  4. النصوص في الملفات الثلاثة، والرقم في جدول README.
+- **نصاً جديداً**: في `values/` (عربي) و`values-en/` و`values-sv/`. lint يعترض إذا نقصت ترجمة.
+- **نص إعلان**: `core/route/Announcements.kt` واختبار `AnnouncementsTest`.
 - **شكل صفحة YouDrive تغيّر** (لم تعد الرحلات تُقرأ):
-  1. خذ لقطة للصفحة، بدون بيانات دخول.
-  2. أضِف النص المقروء كحالة اختبار في `TripWatchTest` أو `YouDriveRoboTest`.
-  3. عدّل `YouDriveCards` (قراءة البطاقة) أو `TripWatch.tripsIn` أو `AddressExtractor`، واختبر في `YouDriveCardsTest`.
-- **صيغة عنوان جديدة من تطبيق آخر**: أضِف حالة في `AddressExtractorTest` أولاً، ثم عدّل `AddressExtractor`.
-- **التقدّم التلقائي عند المغادرة** (إن طلبه السائق يوماً): أُزيل كاشف الوصول الخامل في 1.9 (في تاريخ git قبل 1.9: `core/route/ArrivalDetector.kt`). إعادته تُعلن المحطة التالية دون ضغطة من السائق، فتحتاج قراره أولاً (القاعدة 10).
+  1. خذ نص الصفحة (بلا بيانات دخول، وبأسماء مخترعة).
+  2. أضِفه حالة اختبار في `YouDriveCardsTest` أو `TripWatchTest` أو `YouDriveRoboTest`.
+  3. عدّل `YouDriveCards` أو `TripWatch.tripsIn` أو `AddressExtractor`.
+- **صيغة عنوان جديدة**: حالة في `AddressExtractorTest` أولاً، ثم عدّل `AddressExtractor`.
+- **منطقة أخرى غير Värmland لخريطة الشوارع**: حدود `OverpassDownload` (`SOUTH`، `WEST`، `NORTH`، `EAST`) واسم الملف في `StreetMapStore`.
 
 ---
 
-## 10. التجربة على الجوال الحقيقي
+## 13. التجربة على الجوال الحقيقي
 
-- **من يجرّب:** جلسة Claude ثانية على لابتوب السائق متصلة بالجوال (S20 Ultra، أندرويد 13) عبر adb. هي تثبّت كل نسخة وتجرّبها. جلسة السحابة لا تتصل بالجوال أبداً.
-- **مكان النسخة:** إصدار GitHub `v<الإصدار>`، موقّعة release بنفس المفتاح دائماً، فتُحدَّث فوق النسخة القديمة. الرابط المباشر: `https://github.com/HussamEl/S20Ultra/releases/download/v<الإصدار>/NastaStopp.apk`. (النسخ حتى 1.9 موجودة أيضاً في `raw/<sha>/dist/NastaStopp.apk`.)
-- **معرّفات ثابتة للاختبار الآلي:**
-  - كل عنصر مرقّم له `resource-id` = `ref_<n>` (عبر `Modifier.ref` مع `testTagsAsResourceId`).
-  - أجزاء الزر العائم لها `id/ref_1` إلى `id/ref_19`.
-- **صور اختبار مخترعة** (بلا ركاب حقيقيين): في `testdata/screenshots/`، ونتائجها المتوقعة في `testdata/README.md`.
-- **دورة العمل:**
-  1. نرسل «DEVICE-TEST READY» مع الـ SHA وقائمة الخطوات.
-  2. يعود الرد «DEVICE-TEST RESULT».
+- **من يجرّب**: جلسة Claude ثانية على لابتوب السائق، متصلة بالجوال عبر adb. هي تثبّت كل نسخة وتجرّبها. جلسة السحابة لا تتصل بالجوال أبداً.
+- **النسخة**: إصدار GitHub `v<الإصدار>`. الرابط المباشر: `https://github.com/HussamEl/S20Ultra/releases/download/v<الإصدار>/NastaStopp.apk`. موقّعة بنفس المفتاح دائماً، فتُثبَّت فوق السابقة بـ `adb install -r`.
+- **معرّفات ثابتة**: كل عنصر مرقّم له `resource-id` = `ref_<n>`، وأجزاء الزر العائم `se.eldebosh.nastastopp:id/ref_<n>`. الأرقام هي جداول README.
+- **صور اختبار مخترعة** (بلا ركاب حقيقيين) في `testdata/screenshots/`، ونتائجها المتوقعة وكل الكلمات المخترعة في `testdata/README.md`.
+- **دورة العمل**:
+  1. تُنشر «DEVICE-TEST READY <sha>» على PR #1 مع رابط الـ APK وقائمة مرقّمة: الخطوات التي يمسّها التغيير، ومجموعة فحص سريعة، وما يحتاج يدَي حسام (الدخول، الشروط، نوافذ النظام)، وما هو عاجل للسائق.
+  2. يردّ المجرّب بـ «DEVICE-TEST RESULT <sha>».
+  3. حسام يقرّر متى تجرّب جلسة اللابتوب ويخبرها بنفسه. لا تُكتب لها تعليمات ولا يُنتظر ردّها.
+- **YouDrive**: موقع التوزيع الحقيقي، فالدخول يدوي من حسام. المجرّب لا يكتب بيانات دخول أبداً.
 
 ---
 
-## 11. معلومات للمحادثة القادمة
+## 14. لمن يستلم
 
-- **التواصل مع السائق**: يكتب بالعربية، والردّ يكون بالعربية ومختصراً. لا تُرسَل له صور من التطبيق (لتوفير التوكنز). يُرسَل ملف zip للـ APK فقط.
-- **الجوال**: Samsung Galaxy S20 Ultra (أندرويد 13). **التابلت**: Galaxy Tab S9+.
-- **الفرع**: `claude/nasta-stopp-android-app-soeru7` في `HussamEl/S20Ultra`.
-- **ما يُنتظر تجربته على الجوال**:
-  1. وصول تنبيه حقيقي عند إضافة رحلة أو إلغائها في YouDrive.
-  2. «Add all trips» مع قائمة YouDrive الحقيقية (كان العدد 19).
-  3. شكل الهوية الجديدة على الجهاز.
+- **التواصل**: حسام (السائق وصاحب المشروع) يكتب بالعربية، والرد بالعربية ومختصراً. لا تُرسل له صور من التطبيق. كل نسخة تُرسل له zip للـ APK.
+- **المستودع**: `HussamEl/S20Ultra`، فرع العمل `claude/nasta-stopp-android-app-soeru7`، وPR #1 مسودة تجمع العمل ودورة التجربة.
+- **بداية 2.0**: تُثبَّت بعد حذف أي نسخة قديمة من الجوال (الرقم الداخلي بدأ من 1)، ثم تُعاد الأذونات. بعدها كل نسخة تُثبَّت فوق السابقة.
+- **ما يحتاج تجربة على الأجهزة**: تنزيل خريطة الشوارع ودقة الشارع أثناء القيادة، والسرعة، والدخول التلقائي إلى YouDrive، وتنبيه حقيقي عند إضافة رحلة أو إلغائها، والاتصال بالتابلت.
 
 </div>

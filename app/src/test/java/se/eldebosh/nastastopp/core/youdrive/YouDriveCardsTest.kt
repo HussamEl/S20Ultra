@@ -11,7 +11,7 @@ import se.eldebosh.nastastopp.core.parse.TripKind
 
 /**
  * YouDrive's trip cards, one text per card as the page reader returns them. The structure copies
- * the driver's real list (2026-09-29); every name, number and note is invented.
+ * YouDrive's real list; every name, number and note is invented.
  */
 class YouDriveCardsTest {
 
@@ -80,7 +80,7 @@ class YouDriveCardsTest {
         val viaCards = TripWatch.tripsIn("whatever", extractor, cards)
         assertEquals(6, viaCards.size)
         assertTrue(viaCards.any { it.stop?.displayText?.startsWith("Sjukhuset") == true })
-        // Without cards the page text is parsed as before.
+        // Without cards the whole page text is parsed, as for a screenshot.
         assertFalse(TripWatch.tripsIn(cards.joinToString("\n"), extractor).any { it.stop?.displayText?.startsWith("Sjukhuset") == true })
     }
 

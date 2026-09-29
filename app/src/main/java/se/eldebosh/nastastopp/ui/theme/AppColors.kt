@@ -190,7 +190,7 @@ val DayColors = AppColors(
 )
 
 /**
- * Night: the first design's calm blue-grey with its light blue, and the same meanings. Pick-ups
+ * Night: a calm blue-grey with a light blue accent, and the same meanings. Pick-ups
  * stay green and the depot grey, only darker; yellow still marks the next action.
  */
 val NightColors = AppColors(

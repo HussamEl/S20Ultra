@@ -60,7 +60,7 @@ class GeoLogicTest {
         assertTrue(d in 55.0..60.0)
     }
 
-    /** 1.6: the next stop said in full — street and number, district, town — each part once. */
+    /** The next stop said in full — street and number, district, town — each part once. */
     @Test
     fun fullSpokenNameSaysStreetDistrictAndTownOnce() {
         assertEquals("Storgatan 14, Herrhagen, Karlstad", GeoLogic.fullSpokenName("Storgatan 14", "Herrhagen", "Karlstad"))

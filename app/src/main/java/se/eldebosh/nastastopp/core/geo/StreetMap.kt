@@ -13,7 +13,7 @@ import kotlin.math.min
 
 /**
  * The named roads of the driver's region (from OpenStreetMap, downloaded once on the phone), to
- * tell exactly which road the vehicle is on (1.8). Each road is a line of points in millionths of
+ * tell exactly which road the vehicle is on. Each road is a line of points in millionths of
  * a degree. A grid of ~110 m cells over the road segments finds the roads near a position fast.
  */
 class StreetMap(

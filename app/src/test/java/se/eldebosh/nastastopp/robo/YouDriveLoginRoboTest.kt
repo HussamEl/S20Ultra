@@ -13,7 +13,7 @@ import org.robolectric.annotation.Config
 import se.eldebosh.nastastopp.youdrive.YouDriveLogin
 
 /**
- * The YouDrive login saved on the phone (1.6): stored only sealed, never in plain text, never in
+ * The YouDrive login saved on the phone: stored only sealed, never in plain text, never in
  * its text form, and gone after Delete. (The Android Keystore does not exist in unit tests, so a
  * stand-in seals the bytes here; the real key is made on the phone.)
  */

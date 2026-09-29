@@ -21,7 +21,7 @@ import kotlin.math.roundToInt
  * The street the vehicle is on now, and its speed. Kept in memory only — never stored, logged or
  * sent to passenger displays. All calls on the main thread.
  *
- * The street (1.8, "exact, never invented"):
+ * The street is exact or absent, never invented:
  * - with the offline street map ([map]), every good GPS position is matched to the road it is on
  *   ([StreetMatcher]: distance and heading);
  * - without it, the system geocoder's nearest address counts only when it lies within 40 m

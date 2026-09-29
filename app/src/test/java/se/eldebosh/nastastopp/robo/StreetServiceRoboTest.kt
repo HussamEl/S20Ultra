@@ -24,7 +24,7 @@ import se.eldebosh.nastastopp.route.model.GeoStatus
 import se.eldebosh.nastastopp.service.StreetService
 import java.time.Duration
 
-/** Location (1.3) only names the street the vehicle is on: asked for, never in the background, never moving the route on. */
+/** Location only names the street the vehicle is on: asked for, never in the background, never moving the route on. */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [33])
 class StreetServiceRoboTest {

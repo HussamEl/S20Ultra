@@ -11,7 +11,7 @@ import se.eldebosh.nastastopp.geo.OverpassDownload
 import java.io.IOException
 import java.io.StringReader
 
-/** The street map's download (1.8): what is asked for, and how an answer is read. Invented roads. */
+/** The street map's download: what is asked for, and how an answer is read. Invented roads. */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [33])
 class StreetMapDownloadRoboTest {

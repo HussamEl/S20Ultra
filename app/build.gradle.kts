@@ -30,8 +30,8 @@ android {
         applicationId = "se.eldebosh.nastastopp"
         minSdk = 29
         targetSdk = 37
-        versionCode = 27
-        versionName = "1.9"
+        versionCode = 1
+        versionName = "2.0"
         buildConfigField("String", "BUILD_DATE", "\"$buildDate\"")
     }
 

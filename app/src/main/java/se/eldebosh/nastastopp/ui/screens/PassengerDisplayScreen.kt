@@ -163,7 +163,7 @@ fun PassengerDisplayScreen(
                     textDirection = TextDirection.Content,
                 )
                 // Never larger than the size at which the longest word still fits on one line,
-                // so a street name is not split in the middle ("Brattgård-sgatan").
+                // so a street name is not split in the middle ("Järnvägsg-atan").
                 val measurer = rememberTextMeasurer()
                 val width = constraints.maxWidth
                 val maxSp = remember(current.title, width) {

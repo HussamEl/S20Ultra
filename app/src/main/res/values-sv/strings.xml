@@ -129,7 +129,7 @@
     <string name="tts_install">Installera</string>
     <string name="tts_recheck">Kontrollera igen</string>
 
-    <!-- 1.1.0: trip times, passenger display, Bluetooth link -->
+    <!-- Trip times, passenger display, Bluetooth link -->
     <string name="dialog_time_label">Tid (valfri), t.ex. 12:48</string>
     <string name="invalid_time">Ogiltig tid, skriv t.ex. 12:48</string>
     <string name="sort_by_time">Sortera efter tid</string>
@@ -218,7 +218,7 @@
     <string name="settings_ref_numbers">Referensnummer på knapparna</string>
     <string name="settings_ref_numbers_hint">Ett litet genomskinligt nummer på varje knapp, brytare och uppgift (i appen och på den flytande knappen), så att du kan hänvisa till numret. Hela listan finns i README.</string>
     <string name="help_refs_title">Referensnummer</string>
-    <string name="help_refs_body">Varje knapp, brytare och uppgift har ett litet nummer precis ovanför (på små ikonknappar: i hörnet). Ange bara numret när något ska ändras, t.ex. \"ändra 78\".\n• 1–17: den flytande knappen.\n• 20–39: startsidan.\n• 40–60: granska listan.\n• 61–84: ruttskärmen.\n• 86–95: passagerarskärmen.\n• 100–125: inställningar.\n• 140–155: YouDrive.\n• 160–179: hjälp och röst.\n• 180–190: första start.\n• 191–199: surfplattan som passagerarskärm.\nNumren kan döljas i inställningarna (105).</string>
+    <string name="help_refs_body">När de är påslagna i inställningarna (105) har varje knapp, brytare och uppgift ett litet nummer precis ovanför (på små ikonknappar: i hörnet). Ange bara numret när något ska ändras, t.ex. \"ändra 78\".\n• 1–19: den flytande knappen.\n• 20–39: startsidan.\n• 40–60: granska listan.\n• 61–85: ruttskärmen.\n• 86–95: passagerarskärmen.\n• 100–139: inställningar.\n• 140–159: YouDrive.\n• 160–179: hjälp och röst.\n• 180–190: första start.\n• 191–199: surfplattan som passagerarskärm.\nNumren är dolda som standard.</string>
     <string name="help_youdrive_title">YouDrive-aviseringar</string>
     <string name="help_youdrive_body">1. Tryck på kortet \"YouDrive\" (25) på startsidan.\n2. Logga in i YouDrive i appen en gång (BankID eller lösenord) och öppna sidan med resorna.\n3. Tryck på klockan (142) för att slå på bevakningen; den blir grön.\nVisas en annan sida i stället för inloggningen (t.ex. Settings), tryck på hemknappen (153) eller telefonens bakåtknapp. \"Add all trips\", \"Check now\" och \"Log out\" finns i menyn ⋮ (155).\nAppen läser sidan varje minut (bara tider och adresser, inga namn) och laddar om den var 5:e minut (bara när fönstret är stängt, aldrig medan du använder den). När en resa läggs till eller avbokas får du en avisering med ljud och vibration, även när Maps är framme. Tryck på aviseringen och välj \"Lägg till\" eller \"Ta bort\" för att uppdatera listan.\nEn resa som försvinner mer än 5 minuter efter sin tid räknas som klar, inte avbokad. Öppnar du en annan dag eller vy i YouDrive räknas den som en ny lista och ingen avisering ges.\nOm du loggas ut från YouDrive syns det på kortet och i aviseringen; öppna sidan och logga in igen.</string>
     <string name="channel_trips">Ändrade resor (YouDrive)</string>

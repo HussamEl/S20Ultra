@@ -81,8 +81,8 @@ class StreetService : Service() {
         val request = LocationRequestCompat.Builder(INTERVAL_MS)
             .setMinUpdateIntervalMillis(INTERVAL_MS)
             .setMinUpdateDistanceMeters(MIN_DISTANCE_M)
-            // High accuracy (1.8): "balanced" positions came from Wi-Fi and masts, often 30–60 m
-            // off and without a speed, which named the wrong street and left the speed empty.
+            // High accuracy: "balanced" positions come from Wi-Fi and masts, often 30–60 m off and
+            // without a speed, which would name the wrong street and leave the speed empty.
             .setQuality(LocationRequestCompat.QUALITY_HIGH_ACCURACY)
             .build()
         try {
@@ -96,7 +96,7 @@ class StreetService : Service() {
     }
 
     /**
-     * GPS itself when precise location is allowed (1.8): exact positions with the speed and heading
+     * GPS itself when precise location is allowed: exact positions with the speed and heading
      * the street matching needs. Otherwise the fused provider, or the network.
      */
     private fun provider(manager: LocationManager): String? {
@@ -144,8 +144,8 @@ class StreetService : Service() {
 
     companion object {
         /**
-         * A new position every 2 s, also when standing still, so the panel's speed stays current
-         * (1.7). Street lookups are throttled separately by StreetLookup.
+         * A new position every 2 s, also when standing still, so the panel's speed stays current.
+         * Street lookups are throttled separately by StreetLookup.
          */
         private const val INTERVAL_MS = 2_000L
         private const val MIN_DISTANCE_M = 0f

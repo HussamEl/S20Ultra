@@ -6,7 +6,7 @@ import se.eldebosh.nastastopp.core.parse.TextNorm
 import se.eldebosh.nastastopp.route.RouteController
 
 /**
- * Says the street's name each time the vehicle turns into another one (1.7, the driver's choice).
+ * Says the street's name each time the vehicle turns into another one.
  * The same street is not said twice in a row, and the area alone never is. Whether it speaks at
  * all is the driver's switch (the panel's speaker button, Settings 137), checked by the controller.
  */

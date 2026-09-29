@@ -21,12 +21,12 @@ enum class DeviceRole {
 enum class Appearance { DAY, NIGHT, AUTOMATIC }
 
 data class AppSettings(
-    /** "en" (default since 1.4.0), "ar" or "sv". */
+    /** "en" (the default), "ar" or "sv". */
     val uiLanguage: String = "en",
     /** Explanations (hints, help, onboarding) in Arabic whatever the UI language (during set-up). */
     val explanationsArabic: Boolean = true,
-    /** Small reference numbers on every control, so the driver can point at one by number. */
-    val showRefNumbers: Boolean = true,
+    /** Small reference numbers on every control (hidden by default), to point at one by number. */
+    val showRefNumbers: Boolean = false,
     val detail: AnnouncementDetail = AnnouncementDetail.FULL,
     val englishRepeat: Boolean = false,
     val speechRate: Float = 0.9f,
@@ -48,9 +48,9 @@ data class AppSettings(
     val historyRetentionHours: Int = 12,
     /** Keep the YouDrive page open in the background and alert when trips are added or cancelled. */
     val youDriveWatch: Boolean = false,
-    /** Say the street's name each time the vehicle turns into another (1.7, the driver's choice). */
+    /** Say the street's name each time the vehicle turns into another. */
     val sayStreetChanges: Boolean = true,
-    /** Sign in to YouDrive by itself when its login form shows (1.6, the driver's choice). */
+    /** Sign in to YouDrive by itself when its login form shows (needs a saved login). */
     val youDriveAutoSignIn: Boolean = false,
     /** Day, night or automatic (the phone's dark mode). */
     val appearance: Appearance = Appearance.DAY,
@@ -58,7 +58,7 @@ data class AppSettings(
 
 /** Small settings store on SharedPreferences (no addresses are ever stored here). */
 class SettingsStore(context: Context) {
-    private val prefs: SharedPreferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).also { migrate(it) }
+    private val prefs: SharedPreferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     private val _state = MutableStateFlow(read())
     val state: StateFlow<AppSettings> = _state.asStateFlow()
     val current: AppSettings get() = _state.value
@@ -99,7 +99,7 @@ class SettingsStore(context: Context) {
     private fun read() = AppSettings(
         uiLanguage = prefs.getString(K_LANG, DEFAULT_LANGUAGE) ?: DEFAULT_LANGUAGE,
         explanationsArabic = prefs.getBoolean(K_EXPLAIN_AR, true),
-        showRefNumbers = prefs.getBoolean(K_REF_NUMBERS, true),
+        showRefNumbers = prefs.getBoolean(K_REF_NUMBERS, false),
         youDriveWatch = prefs.getBoolean(K_YD_WATCH, false),
         youDriveAutoSignIn = prefs.getBoolean(K_YD_AUTO, false),
         sayStreetChanges = prefs.getBoolean(K_SAY_STREET, true),
@@ -122,9 +122,7 @@ class SettingsStore(context: Context) {
     companion object {
         const val PREFS = "settings"
         const val K_LANG = "ui_language"
-        // A new key in 1.6: every driver starts on the full announcement (street, district, town),
-        // the driver's request; the older "announcement_detail" value is not read any more.
-        private const val K_DETAIL = "announcement_detail_v2"
+        private const val K_DETAIL = "announcement_detail"
         private const val K_EN = "english_repeat"
         private const val K_RATE = "speech_rate"
         private const val K_ONBOARD = "onboarding_done"
@@ -144,46 +142,11 @@ class SettingsStore(context: Context) {
         private const val K_YD_AUTO = "youdrive_auto_sign_in"
         private const val K_SAY_STREET = "say_street_changes"
         private const val K_APPEARANCE = "appearance"
-        private const val K_SCHEMA = "settings_schema"
-        private const val SCHEMA = 3
-
-        /** Keys no version reads any more (removed from the phone by [migrate], schema 3). */
-        private val RETIRED_KEYS = listOf("announcement_detail", "arrival_radius")
         private const val DEFAULT_LANGUAGE = "en"
-
-        /**
-         * True when this process switched the stored language to English (1.4.0 upgrade), so the
-         * app replaces the old per-app system language instead of adopting it.
-         */
-        @Volatile
-        var languageMigrated = false
-            private set
-
-        /**
-         * Schema 2 (1.4.0): the app UI becomes English (the driver's request; explanations stay
-         * Arabic via [AppSettings.explanationsArabic]) and the passenger display shows the street
-         * address. Schema 3 (1.9): settings no version reads any more are removed.
-         */
-        @Synchronized
-        private fun migrate(prefs: SharedPreferences) {
-            val schema = prefs.getInt(K_SCHEMA, 0)
-            if (schema >= SCHEMA) return
-            val existing = prefs.contains(K_LANG)
-            prefs.edit(commit = true) {
-                if (schema < 2) {
-                    putString(K_LANG, DEFAULT_LANGUAGE)
-                    putBoolean(K_FULL_ADDR, true)
-                }
-                RETIRED_KEYS.forEach { remove(it) }
-                putInt(K_SCHEMA, SCHEMA)
-            }
-            if (schema < 2) languageMigrated = existing
-        }
 
         /** Read synchronously in attachBaseContext (before the Application graph is needed). */
         fun readLanguage(context: Context): String {
             val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            migrate(prefs)
             return prefs.getString(K_LANG, DEFAULT_LANGUAGE) ?: DEFAULT_LANGUAGE
         }
     }

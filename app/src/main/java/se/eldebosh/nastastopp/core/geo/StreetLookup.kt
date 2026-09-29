@@ -17,7 +17,7 @@ object StreetLookup {
     const val MIN_INTERVAL_MS = 8_000L
     const val MIN_MOVE_M = 35.0
     const val RETRY_MS = 30_000L
-    /** Positions less exact than this are not looked up (1.8: was 60 m, which named wrong streets). */
+    /** Positions less exact than this are not looked up (a looser limit names wrong streets). */
     const val MAX_ACCURACY_M = 30f
 
     fun shouldLookup(last: Fix?, fix: Fix, lastFailed: Boolean, confirming: Boolean = false): Boolean {
@@ -32,7 +32,7 @@ object StreetLookup {
     }
 
     /**
-     * Without the street map (1.8): the street of an address found by the geocoder counts only if
+     * Without the street map: the street of an address found by the geocoder counts only if
      * that address lies within [maxM] of the position. The nearest address is often on a side
      * street or across a crossing; then only the area is kept, and no street is guessed.
      */

@@ -28,7 +28,7 @@ adb push testdata/screenshots/fixture_youdrive.png /sdcard/Pictures/NastaStoppTe
 ```
 
 ## All invented terms (for the privacy log search)
-None of these may appear in logcat from the app. Since 1.2 the app shows the passenger's **first and last name** (e.g. "Anna Testsson") on the driver's own screens: the review list, the route screen and the floating panel. A name must still never appear on the passenger display, in a notification, in "Previous trips" or in a spoken announcement, and phone numbers and middle names never appear anywhere.
+None of these may appear in logcat from the app. The app shows the passenger's **first and last name** (e.g. "Anna Testsson") on the driver's own screens: the review list, the route screen and the floating panel. A name must still never appear on the passenger display, in a notification, in "Previous trips" or in a spoken announcement, and phone numbers and middle names never appear anywhere.
 - **Names:** Anna Testsson, Bengt Provare, Cecilia Exempel, David Demo, Erik Påhittad, Frida Uppdiktad
 - **Phone numbers:** 070-000 00 01, 070-000 00 02, 070-000 00 04, 070-000 00 05, 070-000 00 06
 - **Streets:** Depågatan, Storgatan, Järnvägsgatan, Lindvägen, Kyrkogatan, Skolgatan, Västra Torggatan, Torggatan, Hamngatan, Kungsgatan, Östra Storgatan, Norra allén, Södra Kyrkogatan, S:t Olofsgatan, Stora torget, Lilla Badhusgatan, Gamla Kyrkogatan, Övre Torggatan, Strandvägen
@@ -39,4 +39,4 @@ None of these may appear in logcat from the app. Since 1.2 the app shows the pas
 adb shell setprop log.tag.NastaStoppRefs DEBUG
 adb logcat -s NastaStoppRefs
 ```
-Every layout or move of the panel then logs `ref_<n>=[left,top][right,bottom]` in screen pixels for the visible parts (1–19; 12 and 14 retired in 1.9). It logs ids and bounds only, never stop data. Turn it off with `adb shell setprop log.tag.NastaStoppRefs ""`.
+Every layout or move of the panel then logs `ref_<n>=[left,top][right,bottom]` in screen pixels for its visible parts. It logs ids and bounds only, never stop data. Turn it off with `adb shell setprop log.tag.NastaStoppRefs ""`.

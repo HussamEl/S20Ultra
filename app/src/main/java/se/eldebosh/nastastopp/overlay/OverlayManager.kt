@@ -183,7 +183,7 @@ class OverlayManager(
         val r = controller.route.value ?: return
         val current = r.stops.firstOrNull() ?: return
         val info = street.state.value
-        // No location (the driver's choice): the street bar shows the next stop's area instead.
+        // Without location the street bar shows the next stop's area instead.
         v.street?.text = info?.street ?: info?.area ?: controller.spokenName(current)
         v.area?.apply {
             val area = info?.area.takeIf { info?.street != null }
@@ -205,7 +205,7 @@ class OverlayManager(
         // The stop's street and number beside the time; its postal code and town below.
         v.address?.text = controller.streetOf(current)
         v.town?.apply {
-            // The town only: the postal code is left out (the driver's request).
+            // The town only, without the postal code.
             val town = current.displayText.substringAfter(',', "").replace(POSTAL_CODE, "").trim(' ', ',')
             text = town
             visibility = if (town.isEmpty()) View.GONE else View.VISIBLE
@@ -417,7 +417,7 @@ class OverlayManager(
             addView(streetText, LinearLayout.LayoutParams(0, WRAP, 1f))
             addView(sayStreet, LinearLayout.LayoutParams(dp(36f), dp(36f)).apply { marginStart = dp(6f) })
         }
-        // The vehicle's speed (1.8): a big circle of its own beside the street, the number only.
+        // The vehicle's speed: a big circle of its own beside the street, the number only.
         val speedView = text(26f, pc.text, bold = true).apply {
             background = LayerDrawable(arrayOf(oval(pc.well), GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
@@ -528,9 +528,7 @@ class OverlayManager(
         card.addView(trip, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(8f) })
         card.addView(actions, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(8f) })
 
-        // Reference numbers 1–19 (listed in the README), so the driver can name each part. Since
-        // 1.7, 4 is the street-speech switch and 15 the speed (the 1.4 speaker and repeat are gone);
-        // 12 and 14 (distance and waiting timer) went with the arrival detector in 1.9 and are not reused.
+        // Reference numbers (listed in the README), so each part can be named; 12 and 14 are unused.
         back.ref(1)
         streetBar.ref(2)
         areaView.ref(3)
@@ -877,7 +875,7 @@ class OverlayManager(
         /** A Swedish postal code ("664 52", "66452"). */
         private val POSTAL_CODE = Regex("""\b\d{3}\s?\d{2}\b""")
 
-        /** The next stop's street beside its time: two steps larger than the address was (13 sp). */
+        /** The next stop's street beside its time, large enough to read at a glance. */
         private const val STOP_STREET_SP = 17f
         private const val CONTROL_DP = 34f
         private const val SPEED_DP = 60f
@@ -895,7 +893,7 @@ class OverlayManager(
             R.id.ref_18, R.id.ref_19,
         )
 
-        /** All panel texts 10 % smaller than first designed (driver's request). */
+        /** Scale of every panel text (a compact panel over the map). */
         private const val FONT_SCALE = 0.9f
     }
 }

@@ -129,9 +129,9 @@ class RouteController(
     )
 
     /**
-     * "Nästa stopp: …. Därefter: …." When the driver chose the full announcement (the default),
-     * the next stop is said with its street and number, district and town, and the one after it
-     * with its street and number and district (1.7). Otherwise both by district or town only.
+     * "Nästa stopp: …. Därefter: …." With the full announcement (the default) the next stop is
+     * said with its street and number, district and town, and the one after it with its street
+     * and number and district. Otherwise both by district or town only.
      */
     fun announcementFor(stops: List<Stop>): Announcement {
         val first = stops.firstOrNull() ?: return Announcements.finished(settings.current.englishRepeat)
@@ -149,7 +149,7 @@ class RouteController(
             completed = r.completed,
             remaining = r.stops,
             item = { s ->
-                // The street address with the house number (the driver's choice), the area under it.
+                // The street address with the house number (setting 114), the area under it.
                 if (full) DisplayItem(time = s.time, title = DisplayItem.streetPart(s.displayText), subtitle = spokenName(s))
                 else DisplayItem(time = s.time, title = spokenName(s))
             },
@@ -265,8 +265,8 @@ class RouteController(
     /**
      * [stop] is the same YouDrive trip as [e]: the same address, the same kind and passenger when
      * both are known, and times at most [SAME_TRIP_MIN] minutes apart. The tolerance lets a trip
-     * read by an older version (its booked instead of its scheduled time) or re-planned by
-     * YouDrive still count as the same trip, so it is refreshed instead of added twice.
+     * re-planned by YouDrive (or read from a screenshot with its booked time) still count as the
+     * same trip, so it is refreshed instead of added twice.
      */
     private fun sameTrip(stop: Stop, e: ExtractedStop): Boolean {
         if (stop.kind != null && e.kind != null && stop.kind != e.kind) return false
@@ -291,7 +291,7 @@ class RouteController(
     /**
      * Brings the list in line with YouDrive ("Add all trips"). A trip that is not in the list yet
      * is added in time order. A trip that is ([sameTrip]) takes over YouDrive's time, kind and
-     * name, and other copies of it (e.g. read by an older version) are removed. Stops YouDrive
+     * name, and other copies of it are removed. Stops YouDrive
      * does not know (added by hand or from a screenshot) stay. Announces and re-launches Maps at
      * most once.
      */
@@ -494,9 +494,8 @@ class RouteController(
     }
 
     /**
-     * Speaks the street the vehicle is on now. Only on the driver's request (speaker button):
-     * automatic announcements never contain street names, and this is not sent to passenger
-     * displays. Returns false when no street is known yet.
+     * Speaks the street the vehicle is on now and its area, when the driver taps the street. Not
+     * sent to passenger displays. Returns false when no street is known yet.
      */
     fun speakStreet(info: StreetInfo?): Boolean {
         val text = info?.spoken ?: return false
@@ -505,9 +504,9 @@ class RouteController(
     }
 
     /**
-     * Says the next stop's street and number ("Brattgårdsgatan 4"). Only when the driver taps them
-     * on the floating panel: automatic announcements stay district or town only. Never the
-     * passenger's name, and not sent to passenger displays. Returns false without a route.
+     * Says the next stop's street and number ("Storgatan 14") when the driver taps them on the
+     * floating panel. Never the passenger's name, and not sent to passenger displays. Returns
+     * false without a route.
      */
     fun speakStopStreet(): Boolean {
         val stop = _route.value?.takeIf { it.active }?.stops?.firstOrNull() ?: return false
@@ -516,8 +515,8 @@ class RouteController(
     }
 
     /**
-     * Says the street the vehicle has just turned into (1.7, the driver's choice; the panel's
-     * speaker button or Settings 137 turn it off). Queued after any announcement, only during a
+     * Says the street the vehicle has just turned into (the panel's speaker button or Settings 137
+     * turn it off). Queued after any announcement, only during a
      * route, and not sent to passenger displays.
      */
     fun sayStreetChange(street: String): Boolean {

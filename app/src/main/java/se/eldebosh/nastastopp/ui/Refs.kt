@@ -36,12 +36,12 @@ import androidx.compose.ui.unit.sp
 import se.eldebosh.nastastopp.ui.theme.LocalAppColors
 
 /**
- * Reference numbers: a small number on every button, switch and piece of information, so the
- * driver can name a control by its number ("change 64"). The numbers are listed in the README;
- * they can be switched off in Settings (105).
+ * Reference numbers: a small number on every button, switch and piece of information, so a
+ * control can be named by its number ("change 64"). The numbers are listed in the README and
+ * shown only while Settings 105 is on (off by default). The test tags "ref_<n>" are always there.
  */
 object RefNumbers {
-    var enabled by mutableStateOf(true)
+    var enabled by mutableStateOf(false)
 }
 
 /**

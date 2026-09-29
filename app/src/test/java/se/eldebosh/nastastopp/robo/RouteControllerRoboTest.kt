@@ -97,14 +97,14 @@ class RouteControllerRoboTest {
     }
 
     /**
-     * "Add all trips" is a sync: a list read by an older version (booked instead of scheduled
-     * times, no names, a copy of the same trip) is brought up to date, never doubled (invented data).
+     * "Add all trips" is a sync: a list read from screenshots (booked instead of scheduled times,
+     * no names, a copy of the same trip) is brought up to date, never doubled (invented data).
      */
     @Test
     fun addAllTripsRefreshesInsteadOfDoubling() {
         val c = graph.controller
         val old = graph.extractor
-        // An older reading: the booked times (16:15) and no names, and one trip read twice.
+        // Read from screenshots: the booked times (16:15) and no names, and one trip read twice.
         c.addManual("Storgatan 14, 65224 Karlstad", "16:15")
         c.addManual("Lindvägen 9, 66430 Grums", "16:43")
         c.addManual("Storgatan 14, 65224 Karlstad", "16:20")
@@ -176,7 +176,7 @@ class RouteControllerRoboTest {
 
         assertTrue(graph.controller.start())
         idle()
-        // The next stop in full (the default since 1.6), but never the surname before the street.
+        // The next stop in full (the default), but never the surname before the street.
         assertEquals("Nästa stopp: Storgatan 14, Karlstad. Därefter: Järnvägsgatan 3B, Storfors.", tts.lastSpokenText)
 
         val maps = shadowOf(app).nextStartedActivity
