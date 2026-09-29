@@ -17,9 +17,9 @@
 
 ## التثبيت
 
-- الملف الجاهز: **`dist/NastaStopp.apk`**، وهو نسخة release موقّعة، ويعمل على أندرويد 10 أو أحدث. جُرِّب على Galaxy S20 Ultra.
+- الملف الجاهز: **`NastaStopp.apk`** في صفحة **[Releases](https://github.com/HussamEl/S20Ultra/releases)** (منذ 1.9). هو نسخة release موقّعة، ويعمل على أندرويد 10 أو أحدث. جُرِّب على Galaxy S20 Ultra.
 - ثبّته فوق النسخة القديمة، ولا حاجة لحذفها. تسجيل الدخول إلى YouDrive والإعدادات والسجل تبقى كما هي.
-- التثبيت من الكمبيوتر: `adb install -r dist/NastaStopp.apk`
+- التثبيت من الكمبيوتر: `adb install -r NastaStopp.apk`
 
 ---
 

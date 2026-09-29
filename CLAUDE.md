@@ -69,13 +69,19 @@ An Android app for a Swedish shared-ride driver:
   - `aapt2 dump badging`: version; FINE/COARSE location present, BACKGROUND location absent.
   - `apksigner verify --print-certs`: the SHA-256 starts `1ae627778bdd`.
   - `dexdump`: ML Kit `TextRegistrar` is present.
-- Copy the APK to `dist/NastaStopp.apk`, update `DECISIONS.md` and `README.md`, then commit and push to `claude/nasta-stopp-android-app-soeru7`.
+- Copy the APK to `dist/NastaStopp.apk` (gitignored), update `DECISIONS.md` and `README.md`, then commit and push to `claude/nasta-stopp-android-app-soeru7`.
+- **Publish as a GitHub Release** (Hussam's decision, 1.9; APKs are never committed again, and the old ones stay in the history):
+  - write short English release notes (no passenger data) to a file in the scratchpad;
+  - run `tools/publish-apk.sh <notes>`. It pushes the APK on a short-lived branch `apk-drop/v<versionName>`;
+  - `.github/workflows/publish-apk.yml` then creates the Release `v<versionName>` on the source commit and deletes the branch;
+  - check that the Release exists (`get_release_by_tag`) before posting the READY.
 - Signing uses `keystore.properties` (gitignored), which points to `~/.nastastopp-signing/`. Hussam holds a private backup of the key (since 2026-09-28); never commit it or post it anywhere. R8 stays disabled because it strips the ML Kit registrars.
 
 ## Device testing (with the local Claude session on the user's laptop)
 - A second Claude Code session on the user's laptop has the S20 Ultra (SM-G988B, Android 13) on adb. It installs and tests every build. **Never try to reach the phone yourself.**
-- **Delivery:** `dist/NastaStopp.apk` on this branch. It is release-signed with the same key every time, so `adb install -r` updates in place. Always bump `versionCode`.
-  - Raw URL: `https://github.com/HussamEl/S20Ultra/raw/<sha>/dist/NastaStopp.apk`. The repo is public.
+- **Delivery:** the GitHub Release `v<versionName>`. It is release-signed with the same key every time, so `adb install -r` updates in place. Always bump `versionCode`.
+  - APK URL: `https://github.com/HussamEl/S20Ultra/releases/download/v<versionName>/NastaStopp.apk`. The repo is public.
+  - Builds up to 1.9 are also at `https://github.com/HussamEl/S20Ultra/raw/<sha>/dist/NastaStopp.apk`.
 - **Stable ids for UI Automator:**
   - Every numbered Compose control has resource-id `ref_<n>` (test tag + `testTagsAsResourceId` on the roots). Floating-panel parts are `se.eldebosh.nastastopp:id/ref_<1..19>` (12 and 14 retired in 1.9).
   - The numbers are the README tables. Keep new controls numbered.

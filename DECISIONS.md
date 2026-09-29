@@ -714,6 +714,14 @@ The driver's request: inspect the whole project, clean the code, files, structur
 
 **Checked and kept:** `kotlinx-coroutines-play-services` (ML Kit's `Task.await()`), `ui-test-manifest` (Compose UI tests), `proguard-rules.pro` (for the day R8 can be switched on again), the Telia root certificate (YouDrive on Android 13), the four invented test screenshots.
 
-**GitHub:** only `main` and this branch exist, so there were no stale branches to delete. The repository is large because all 27 builds of `dist/NastaStopp.apk` (~47 MB each) stay in the git history. Removing them needs a history rewrite and a force push, which changes every commit id (old APK links break). It was left for the driver to decide.
+**GitHub:** only `main` and this branch exist, so there were no stale branches to delete. The repository is large because all 27 builds of `dist/NastaStopp.apk` (~47 MB each) stay in the git history. Removing them would need a history rewrite and a force push, which changes every commit id (old APK links break).
+
+**Hussam's decision: keep the history, publish future builds as GitHub Releases.**
+- `dist/` is gitignored and the APK is no longer tracked. The old builds stay in the history, and their `raw/<sha>` links keep working.
+- This session has no tool that creates a Release, and the signing key must not go to GitHub. So the signed APK is handed over on a short-lived branch:
+  - `tools/publish-apk.sh` pushes one commit (the APK and its notes on top of the source commit) to `apk-drop/v<version>`;
+  - `.github/workflows/publish-apk.yml` creates the Release `v<version>` (tag on the source commit, which has no APK) with the APK attached;
+  - it then deletes the branch. The APK never enters a branch's history, and clones don't download it.
+- The tester's link: `https://github.com/HussamEl/S20Ultra/releases/download/v<version>/NastaStopp.apk`.
 
 **Behaviour:** unchanged for the driver, apart from the retired numbers.
