@@ -19,7 +19,12 @@ data class GeoResult(
     val thoroughfare: String?,
 )
 
-enum class AnnouncementDetail { DISTRICT, TOWN_ONLY }
+/**
+ * What the announcement says about the next stop. FULL (the driver's choice in 1.6, the default):
+ * its street and number, then the district and the town. The stop after it is always named by
+ * district (or town) only.
+ */
+enum class AnnouncementDetail { FULL, DISTRICT, TOWN_ONLY }
 
 object GeoLogic {
     /** Sweden bounding box used for the geocoder. */
@@ -51,6 +56,22 @@ object GeoLogic {
     }
 
     /**
+     * The next stop said in full: "Brattgårdsgatan 4, Herrhagen, Karlstad". The street and
+     * number, then the district and the town, each once (compared without case or å ä ö). An
+     * apartment number ("lgh 1402") is left out, and so is the placeholder for an unknown place.
+     */
+    fun fullSpokenName(street: String, district: String?, town: String?): String {
+        val parts = mutableListOf<String>()
+        for (part in listOf(street.replace(APARTMENT, "").trim().trimEnd(','), district, town)) {
+            val p = part?.trim()?.takeIf { it.isNotEmpty() && it != NEXT_ADDRESS } ?: continue
+            if (parts.none { TextNorm.fold(it) == TextNorm.fold(p) }) parts += p
+        }
+        return parts.joinToString(", ").ifEmpty { NEXT_ADDRESS }
+    }
+
+    private val APARTMENT = Regex("""(?i)\s*\b(lgh|lägenhet)\.?\s*\S+""")
+
+    /**
      * The only text that is ever spoken for a stop: an area/town name, never a street, number,
      * person or facility. subLocality if present and different from locality, otherwise
      * locality, otherwise the parsed town (only if it is a known locality), otherwise
@@ -70,7 +91,7 @@ object GeoLogic {
             isKnownLocality(it) && isSafeAreaName(it, thoroughfare, strict = false) ||
                 isSafeAreaName(it, thoroughfare, strict = true)
         }
-        if (detail == AnnouncementDetail.DISTRICT && sub != null &&
+        if (detail != AnnouncementDetail.TOWN_ONLY && sub != null &&
             (loc == null || TextNorm.fold(sub) != TextNorm.fold(loc))
         ) {
             return sub

@@ -18,6 +18,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowTextToSpeech
 import se.eldebosh.nastastopp.App
 import se.eldebosh.nastastopp.AppGraph
+import se.eldebosh.nastastopp.core.geo.AnnouncementDetail
 import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.core.route.Fix
 import se.eldebosh.nastastopp.core.youdrive.YouDriveCards
@@ -89,7 +90,7 @@ class RouteControllerRoboTest {
 
         assertTrue(c.start())
         idle()
-        assertEquals("Nästa stopp: Karlstad. Därefter: Storfors.", tts.lastSpokenText)
+        assertEquals("Nästa stopp: Storgatan 14, Karlstad. Därefter: Storfors.", tts.lastSpokenText)
         val url = shadowOf(app).nextStartedActivity.dataString!!
         assertTrue(url, url.contains("Storgatan") && url.contains("J%C3%A4rnv%C3%A4gsgatan"))
         assertFalse("Maps is not sent to the depot: $url", url.contains("Dep"))
@@ -173,7 +174,8 @@ class RouteControllerRoboTest {
 
         assertTrue(graph.controller.start())
         idle()
-        assertEquals("Nästa stopp: Karlstad. Därefter: Storfors.", tts.lastSpokenText)
+        // The next stop in full (the default since 1.6), but never the surname before the street.
+        assertEquals("Nästa stopp: Storgatan 14, Karlstad. Därefter: Storfors.", tts.lastSpokenText)
 
         val maps = shadowOf(app).nextStartedActivity
         assertNotNull(maps)
@@ -185,11 +187,17 @@ class RouteControllerRoboTest {
         assertTrue(url, url.endsWith("&travelmode=driving&dir_action=navigate"))
 
         graph.controller.next()
-        assertEquals("Nästa stopp: Storfors. Därefter: Hammarö.", tts.lastSpokenText)
+        assertEquals("Nästa stopp: Järnvägsgatan 3B, Storfors. Därefter: Hammarö.", tts.lastSpokenText)
+        graph.controller.repeat()
+        assertEquals("Nästa stopp: Järnvägsgatan 3B, Storfors. Därefter: Hammarö.", tts.lastSpokenText)
+        // The driver's other choices: district or town only.
+        graph.settings.update { it.copy(detail = AnnouncementDetail.DISTRICT) }
         graph.controller.repeat()
         assertEquals("Nästa stopp: Storfors. Därefter: Hammarö.", tts.lastSpokenText)
+        graph.settings.update { it.copy(detail = AnnouncementDetail.FULL) }
         graph.controller.next()
-        assertEquals("Nästa stopp: Hammarö. Det är sista stoppet.", tts.lastSpokenText)
+        // The apartment number is not said.
+        assertEquals("Nästa stopp: Björkvägen 7, Hammarö. Det är sista stoppet.", tts.lastSpokenText)
         graph.controller.next()
         assertEquals("Rutten är klar.", tts.lastSpokenText)
         idle()
@@ -210,7 +218,7 @@ class RouteControllerRoboTest {
         idleUntil { graph.controller.route.value!!.stops.none { it.geoStatus == GeoStatus.PENDING } }
         graph.controller.start()
         idle()
-        assertEquals("Next stop: Karlstad. Then: Kil.", tts.lastSpokenText)
+        assertEquals("Next stop: Storgatan 14, Karlstad. Then: Kil.", tts.lastSpokenText)
         assertEquals(TextToSpeech.QUEUE_ADD, tts.queueMode)
         graph.settings.update { it.copy(englishRepeat = false) }
         graph.controller.end()
@@ -253,7 +261,7 @@ class RouteControllerRoboTest {
         graph.controller.restoreStops(located)
         graph.controller.start()
         idle()
-        assertEquals("Nästa stopp: Herrhagen. Därefter: Kronoparken.", tts.lastSpokenText)
+        assertEquals("Nästa stopp: Storgatan 14, Herrhagen, Karlstad. Därefter: Kronoparken.", tts.lastSpokenText)
         assertTrue(graph.controller.tracking.value.autoEnabled)
 
         // Drive in from 400 m, stop at the address, drive away.
@@ -264,7 +272,7 @@ class RouteControllerRoboTest {
         assertEquals(se.eldebosh.nastastopp.core.route.DetectorPhase.ARRIVED, graph.controller.tracking.value.phase)
         graph.controller.onLocation(fix(40, 150.0, 8f))
         idle()
-        assertEquals("Nästa stopp: Kronoparken. Därefter: Kronoparken.", tts.lastSpokenText)
+        assertEquals("Nästa stopp: Kungsgatan 5, Kronoparken, Karlstad. Därefter: Kronoparken.", tts.lastSpokenText)
         // Next two stops are at the same place → automatic detection off (manual only).
         assertFalse(graph.controller.tracking.value.autoEnabled)
         graph.controller.end()

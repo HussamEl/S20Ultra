@@ -4,8 +4,8 @@ import se.eldebosh.nastastopp.core.route.Fix
 
 /** The street the vehicle is on now and its area. Shown to the driver only; never stored. */
 data class StreetInfo(val street: String?, val area: String?) {
-    /** What the speaker button says: the street name, or the area when no street is known. */
-    val spoken: String? get() = street ?: area
+    /** What a tap on the street says: the street and the area ("Drottninggatan, Centrum"). */
+    val spoken: String? get() = listOfNotNull(street, area).distinct().joinToString(", ").ifEmpty { null }
 }
 
 /**

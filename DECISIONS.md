@@ -586,3 +586,43 @@ The kind chip's colour role (`onKind`) went with the chip. `ThemeContrastTest` n
   2. an on-phone login that he types once, encrypted with the Android Keystore.
 
 The driver was again advised to change the password.
+
+## 1.6 (versionCode 24): the full next stop in the announcement, and YouDrive's automatic sign-in
+
+**Announcements (the driver's request):** "When I press Next, say the street and its number, the area, then the city."
+- New option `AnnouncementDetail.FULL`, Settings 136, the default: "Nästa stopp: Storgatan 14, Herrhagen, Karlstad. Därefter: Kronoparken."
+  - The stop after it stays short, by district or town.
+  - 106 (district) and 107 (town) remain for a shorter announcement.
+  - `GeoLogic.fullSpokenName` says each part once and drops an apartment number ("lgh 1102").
+- The setting moved to a new key (`announcement_detail_v2`), so every phone starts on the full announcement.
+- **A passenger's name is never spoken.** Some lists put a surname before the street ("Andersson Storgatan 14").
+  - `RouteController.streetOf` takes the address candidate that starts at the street, the same rule the YouDrive alerts use.
+  - The announcement, the tap on the panel's street (13) and the panel's line all use it.
+  - `fullRouteFlowAnnouncesOnlyAreaNames` now checks that the surname is not said.
+- A tap on the street bar says the street **and** the area ("Drottninggatan, Centrum").
+- The panel's town line (19) no longer shows the postal code.
+
+**YouDrive's automatic sign-in (the driver's decision).** The driver found that YouDrive forgets its login whenever its window closes, in Chrome as well, so that part cannot be fixed in the app. He chose the sign-in offered in 1.5.
+- **Settings → YouDrive → Sign in automatically** (156), off by default.
+  - When YouDrive shows its login form, the app presses Login.
+  - It uses what YouDrive's own "Remember me" filled in. If the fields are empty, it uses the login the driver saved on the phone (157).
+- **The saved login** (`youdrive/YouDriveLogin`):
+  - It is typed once in a Settings dialog (150 / 151, Save 158, Delete 159, Cancel 154).
+  - It is encrypted with AES-256-GCM, with a key made inside the Android Keystore that never leaves the phone.
+  - It is kept in app-private storage with no backup.
+  - It is never shown again: the dialog always starts empty. It is never logged or sent.
+- **Filling it** (`core/youdrive/SignInScript`):
+  - It runs only when the WebView is on `https://youdrive.regionvarmland.se`, and the script checks the address again inside the page.
+  - It fills only empty fields.
+  - The values go in as JSON string literals, so they cannot run as code.
+  - It returns a status word only.
+- **Limits** (`AutoSignIn`):
+  - At most 2 tries in a row, 20 s apart, so a changed password never locks the account.
+  - Then the status line says the sign-in did not work.
+  - After "Log out" nothing is tried until the driver has signed in himself.
+- **Tests:** `AutoSignInTest` checks the tries, the pause after log-out, the host check and the escaping. `YouDriveLoginRoboTest` checks that nothing readable is stored and that Delete removes the login.
+- **Rules updated** (CLAUDE.md, GUIDE §8):
+  - credentials still never go into code, the repo, logs or replies;
+  - the cloud session never uses them;
+  - the laptop tester never types them.
+  - The login the driver sent in the chat was not used anywhere, and he was advised to change that password.

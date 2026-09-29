@@ -59,4 +59,15 @@ class GeoLogicTest {
         val d = GeoLogic.distanceMeters(59.3793, 13.5036, 59.3793, 13.5036 + 0.001)
         assertTrue(d in 55.0..60.0)
     }
+
+    /** 1.6: the next stop said in full — street and number, district, town — each part once. */
+    @Test
+    fun fullSpokenNameSaysStreetDistrictAndTownOnce() {
+        assertEquals("Storgatan 14, Herrhagen, Karlstad", GeoLogic.fullSpokenName("Storgatan 14", "Herrhagen", "Karlstad"))
+        assertEquals("Storgatan 14, Karlstad", GeoLogic.fullSpokenName("Storgatan 14", "Karlstad", "Karlstad"))
+        assertEquals("Storgatan 14, Hammarö", GeoLogic.fullSpokenName("Storgatan 14", "Hammarö", "HAMMARÖ"))
+        assertEquals("Björkvägen 7, Hammarö", GeoLogic.fullSpokenName("Björkvägen 7 Lgh 1102", "Hammarö", "Hammarö"))
+        assertEquals("Storgatan 14", GeoLogic.fullSpokenName("Storgatan 14", GeoLogic.NEXT_ADDRESS, GeoLogic.NEXT_ADDRESS))
+        assertEquals(GeoLogic.NEXT_ADDRESS, GeoLogic.fullSpokenName("", null, null))
+    }
 }

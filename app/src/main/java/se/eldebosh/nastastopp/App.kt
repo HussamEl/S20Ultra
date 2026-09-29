@@ -24,6 +24,7 @@ import se.eldebosh.nastastopp.service.RouteNotifier
 import se.eldebosh.nastastopp.settings.SettingsStore
 import se.eldebosh.nastastopp.tts.Announcer
 import se.eldebosh.nastastopp.util.LocaleHelper
+import se.eldebosh.nastastopp.youdrive.YouDriveLogin
 import se.eldebosh.nastastopp.youdrive.YouDriveWatcher
 
 /** Manual dependency graph (no DI framework). Created once per process. */
@@ -61,7 +62,10 @@ class AppGraph(app: Application) {
     }
 
     /** The driver's YouDrive page, watched for added / cancelled trips (alerts as notifications). */
-    val youDrive = YouDriveWatcher(app, settings, extractor) { changes ->
+    /** The YouDrive login, only if the driver saved it on this phone (encrypted). */
+    val youDriveLogin = YouDriveLogin(app)
+
+    val youDrive = YouDriveWatcher(app, settings, extractor, youDriveLogin) { changes ->
         Notifications.postTripChanges(app, changes.map { it.id to it.change })
     }
 

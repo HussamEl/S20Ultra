@@ -39,7 +39,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import se.eldebosh.nastastopp.MainActivity
 import se.eldebosh.nastastopp.R
-import se.eldebosh.nastastopp.core.display.DisplayItem
 import se.eldebosh.nastastopp.core.parse.TimeLevel
 import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.core.parse.TripTimes
@@ -70,8 +69,8 @@ import kotlin.math.roundToInt
  *     │ └──────────────────────────────────┘ │
  *     │ ┌──────────────────────────────────┐ │
  *     │ ▌ [14:33] Storgatan 14             │ │   the next trip: time, the stop's street (tap = say it),
- *     │ ▌ Anna Testsson         ● in 7 min │ │   passenger and on-time status,
- *     │ ▌ 652 24 Karlstad                  │ │   postal code and town; the stripe: its kind's colour
+ *     │ ▌ Anna Testsson         ● in 7 min │ │   passenger and on-time status
+ *     │ ▌ Karlstad                         │ │   and town; the stripe: its kind's colour
  *     │ └──────────────────────────────────┘ │
  *     │ [⏮ Back] [═════════ ⏭ Next ════════] │   compact; Next is the bright one
  *     └──────────────────────────────────────┘
@@ -197,11 +196,12 @@ class OverlayManager(
         (v.back as? ViewGroup)?.let { b -> for (i in 0 until b.childCount) b.getChildAt(i).alpha = backAlpha }
         v.progress?.text = progress(r.completedCount, r.stops.size)
         // The stop's street and number beside the time; its postal code and town below.
-        v.address?.text = DisplayItem.streetPart(current.displayText)
+        v.address?.text = controller.streetOf(current)
         v.town?.apply {
-            val rest = current.displayText.substringAfter(',', "").trim()
-            text = rest
-            visibility = if (rest.isEmpty()) View.GONE else View.VISIBLE
+            // The town only: the postal code is left out (the driver's request).
+            val town = current.displayText.substringAfter(',', "").replace(POSTAL_CODE, "").trim(' ', ',')
+            text = town
+            visibility = if (town.isEmpty()) View.GONE else View.VISIBLE
         }
         // The passenger's first + last name level with the time, as on YouDrive's card: this
         // panel is the driver's own.
@@ -859,6 +859,9 @@ class OverlayManager(
         private const val WELL_RADIUS_DP = 16f
         private const val ACTION_H_DP = 44f
         private const val ACTION_RADIUS_DP = 14f
+
+        /** A Swedish postal code ("664 52", "66452"). */
+        private val POSTAL_CODE = Regex("""\b\d{3}\s?\d{2}\b""")
 
         /** The next stop's street beside its time: two steps larger than the address was (13 sp). */
         private const val STOP_STREET_SP = 17f

@@ -43,7 +43,7 @@ class StreetLookupTest {
             GeoResult(0.0, 0.0, "Drottninggatan 3", "65225", "Karlstad", "Centrum", "Drottninggatan"),
         )
         assertEquals(StreetInfo("Drottninggatan", "Centrum"), StreetLookup.pick(results))
-        assertEquals("Drottninggatan", StreetLookup.pick(results)!!.spoken)
+        assertEquals("Drottninggatan, Centrum", StreetLookup.pick(results)!!.spoken)
     }
 
     @Test

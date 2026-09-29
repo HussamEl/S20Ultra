@@ -104,7 +104,7 @@ class FloatingPanelRoboTest {
         assertTrue(r.completed.isEmpty())
         assertEquals(listOf("12:30", "12:45", "13:40"), r.stops.map { it.time })
         assertTrue("history entry removed", graph.history.entries.value.isEmpty())
-        assertEquals("Nästa stopp: Karlstad. Därefter: Storfors.", tts.lastSpokenText)
+        assertEquals("Nästa stopp: Storgatan 14, Karlstad. Därefter: Storfors.", tts.lastSpokenText)
         assertNull("Maps already has this stop (mid-batch)", shadowOf(app).nextStartedActivity)
         c.end()
     }
@@ -149,7 +149,7 @@ class FloatingPanelRoboTest {
         assertFalse(graph.controller.speakStreet(null))
         assertTrue(graph.controller.speakStreet(StreetInfo("Drottninggatan", "Centrum")))
         idle()
-        assertEquals("Drottninggatan", tts.lastSpokenText)
+        assertEquals("Drottninggatan, Centrum", tts.lastSpokenText)
         assertTrue("not forwarded to passenger displays", sent.isEmpty())
         job.cancel()
         graph.controller.end()

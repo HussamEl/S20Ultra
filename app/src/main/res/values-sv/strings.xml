@@ -72,6 +72,7 @@
     <string name="settings_title">Inställningar</string>
     <string name="settings_language">Språk i appen</string>
     <string name="settings_detail">Detaljnivå i utropen</string>
+    <string name="detail_full">Gata och nummer, stadsdel, ort</string>
     <string name="detail_district">Stadsdel när den finns</string>
     <string name="detail_town">Endast ort</string>
     <string name="settings_english">Upprepa utropet på engelska</string>
@@ -104,9 +105,9 @@
     <string name="help_share_title">Dela en skärmdump till appen</string>
     <string name="help_share_body">1. Ta en skärmdump av sidan med adresserna (från valfri app: beställningsapp, sms, mejl, webbsida). Använd rullande skärmdump för långa listor.\n2. Tryck Dela i skärmdumpsverktyget eller i galleriet och välj Nästa Stopp. Flera bilder går bra; de läggs till i ordning.\n3. Eller öppna appen och tryck \"Importera skärmdumpar\".\n4. Granska listan och tryck \"Starta rutt\". Google Maps öppnas med stoppen (upp till 10 åt gången).</string>
     <string name="help_overlay_title">Flytande knapp</string>
-    <string name="help_overlay_body">Om du tillåter \"visa ovanpå andra appar\" visas ett flytande kort av rökt glas över Google Maps under rutten:\n• Den breda raden överst = gatan du kör på nu, om platsen är tillåten (annars nästa stopps område). Tryck på den för att höra den.\n• Under den, nästa resa: tiden med stoppets gata och nummer bredvid (tryck för att höra dem), passageraren och hur tidigt eller sent (grön = gott om tid, gul = snart, röd = sen), sedan postnummer och ort. Randen på sidan har resans YouDrive-färg. Tryck på resten för att öppna appen.\n• \"Nästa\" = nästa stopp + utrop (håll inne = upprepa utropet).\n• \"Bakåt\" = ångra senaste \"Nästa\".\n• \"–\" = krymp till en liten kapsel (tryck för att förstora). \"×\" = stäng; visa igen via aviseringen eller snabbinställningsrutan.\n• Dra för att flytta den.\nUtan den fungerar allt via aviseringen.</string>
+    <string name="help_overlay_body">Om du tillåter \"visa ovanpå andra appar\" visas ett flytande kort av rökt glas över Google Maps under rutten:\n• Den breda raden överst = gatan du kör på nu, om platsen är tillåten (annars nästa stopps område). Tryck på den för att höra den.\n• Under den, nästa resa: tiden med stoppets gata och nummer bredvid (tryck för att höra dem), passageraren och hur tidigt eller sent (grön = gott om tid, gul = snart, röd = sen), sedan orten. Randen på sidan har resans YouDrive-färg. Tryck på resten för att öppna appen.\n• \"Nästa\" = nästa stopp + utrop (håll inne = upprepa utropet).\n• \"Bakåt\" = ångra senaste \"Nästa\".\n• \"–\" = krymp till en liten kapsel (tryck för att förstora). \"×\" = stäng; visa igen via aviseringen eller snabbinställningsrutan.\n• Dra för att flytta den.\nUtan den fungerar allt via aviseringen.</string>
     <string name="help_how_title">Så fungerar utropen</string>
-    <string name="help_how_body">När du trycker på Nästa (i appen, på den flytande knappen eller i aviseringen) ropar appen ut nästa stopp och stoppet därefter, t.ex. \"Nästa stopp: Skoghall. Därefter: Kil.\"\nBara stadsdel eller ort nämns – aldrig gatunamn, nummer eller namn.\nOm du tillåter platsen använder appen den bara för att säga gatan du kör på; YouDrive-sidan får den aldrig.</string>
+    <string name="help_how_body">När du trycker på Nästa (i appen, på den flytande knappen eller i aviseringen) ropar appen ut nästa stopp och stoppet därefter, t.ex. \"Nästa stopp: Storgatan 14, Skoghall, Hammarö. Därefter: Kil.\"\nNästa stopp sägs med gata och nummer, sedan stadsdel och ort; stoppet därefter bara med stadsdel eller ort (Inställningar kan korta båda). En passagerares namn sägs aldrig.\nOm du tillåter platsen använder appen den bara för att säga gatan du kör på; YouDrive-sidan får den aldrig.</string>
     <string name="help_privacy_title">Integritet</string>
 
     <string name="onb_step">Steg %1$d av %2$d</string>
@@ -266,4 +267,17 @@
     <string name="appearance_auto">Automatiskt – följer telefonens mörka läge</string>
     <string name="appearance_hint">Dag är ljust, i YouDrives färger. Natt är mörkt och skonsamt för ögonen när du kör i mörker; resorna behåller sin betydelse (grön hämtning, grå start, gult för det du ska göra nu). Automatiskt följer telefonens mörka läge, som Samsung kan slå på från solnedgång till soluppgång.</string>
     <string name="youdrive_updated">Resor uppdaterade från YouDrive: %1$d</string>
+    <string name="settings_youdrive">YouDrive</string>
+    <string name="settings_youdrive_auto">Logga in automatiskt</string>
+    <string name="help_youdrive_auto">YouDrive glömmer inloggningen när fönstret stängs (även i Chrome). Med detta på trycker appen själv på Logga in när YouDrive visar inloggningen: med det YouDrives egen \"Kom ihåg mig\" fyllde i, eller med inloggningen du sparat i telefonen nedan. Den försöker högst två gånger, så ett fel lösenord låser aldrig kontot, och efter \"Logga ut\" väntar den tills du har loggat in själv.</string>
+    <string name="settings_youdrive_login">Inloggning sparad i telefonen</string>
+    <string name="youdrive_login_saved">Sparad, krypterad i telefonen</string>
+    <string name="youdrive_login_none">Inte sparad: YouDrives egen \"Kom ihåg mig\" används</string>
+    <string name="youdrive_login_title">YouDrive-inloggning i telefonen</string>
+    <string name="youdrive_login_note">Finns bara i den här telefonen, krypterad med telefonens egen nyckel, säkerhetskopieras eller skickas aldrig. Den fylls bara i YouDrives egen inloggning.</string>
+    <string name="youdrive_login_user">Användarnamn</string>
+    <string name="youdrive_login_password">Lösenord</string>
+    <string name="youdrive_login_save">Spara</string>
+    <string name="youdrive_login_delete">Radera</string>
+    <string name="youdrive_sign_in_failed">Automatisk inloggning fungerade inte. Kontrollera inloggningen i Inställningar, eller logga in själv.</string>
 </resources>

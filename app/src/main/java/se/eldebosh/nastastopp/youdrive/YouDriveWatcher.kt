@@ -37,8 +37,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.core.parse.AddressExtractor
+import se.eldebosh.nastastopp.core.youdrive.AutoSignIn
 import se.eldebosh.nastastopp.core.youdrive.BrowserIdentity
+import se.eldebosh.nastastopp.core.youdrive.SignInScript
 import se.eldebosh.nastastopp.core.youdrive.TripChange
 import se.eldebosh.nastastopp.core.youdrive.TripWatch
 import se.eldebosh.nastastopp.core.youdrive.WatchedTrip
@@ -59,6 +62,7 @@ class YouDriveWatcher(
     context: Context,
     private val settings: SettingsStore,
     private val extractor: AddressExtractor,
+    private val login: YouDriveLogin,
     private val alerts: (List<PendingChange>) -> Unit,
 ) {
     enum class Status { OFF, LOADING, WATCHING, NO_TRIPS, LOGGED_OUT }
@@ -79,6 +83,7 @@ class YouDriveWatcher(
     private val wrapper = MutableContextWrapper(appContext)
     private val handler = Handler(Looper.getMainLooper())
     private val watch = TripWatch()
+    private val autoSignIn = AutoSignIn()
     private val json = Json { isLenient = true }
     private var webView: WebView? = null
     private var nextChangeId = 1L
@@ -342,6 +347,7 @@ class YouDriveWatcher(
      * when done, so the window can show a brand-new page.
      */
     fun logout(then: () -> Unit = {}) {
+        autoSignIn.pause() // the driver logged out: do not sign straight back in
         val web = webView
         val finish = {
             CookieManager.getInstance().removeAllCookies(null)
@@ -393,7 +399,27 @@ class YouDriveWatcher(
             // shown, "f": what was repaired}
             val page = runCatching { json.decodeFromString<PageReading>(json.decodeFromString<String?>(result ?: "null") ?: "{}") }.getOrNull()
             if (!page?.f.isNullOrBlank()) DebugLog.d { "login form moved back on screen (${page.f.trim().take(60)})" }
-            onPageText(page?.t.orEmpty(), cards = page?.c.orEmpty(), loginForm = page?.p ?: false)
+            val loginForm = page?.p ?: false
+            onPageText(page?.t.orEmpty(), cards = page?.c.orEmpty(), loginForm = loginForm)
+            signInIfWanted(web, loginForm)
+        }
+    }
+
+    /**
+     * The automatic sign-in (a setting): when the login form shows, press Login, after filling it
+     * from the login saved on this phone if YouDrive's own "Remember me" left it empty. Only on
+     * YouDrive's own https page; the script checks that again inside the page.
+     */
+    private fun signInIfWanted(web: WebView, loginForm: Boolean) {
+        if (!autoSignIn.onReading(loginForm, settings.current.youDriveAutoSignIn, System.currentTimeMillis())) {
+            if (autoSignIn.gaveUp && loginForm) problem(appContext.getString(R.string.youdrive_sign_in_failed))
+            return
+        }
+        val url = web.url?.toUri() ?: return
+        if (url.scheme != "https" || url.host != AutoSignIn.HOST) return
+        val saved = login.load()
+        web.evaluateJavascript(SignInScript.build(saved?.username, saved?.password)) { result ->
+            DebugLog.d { "automatic sign-in: $result" } // a status word only, never a value
         }
     }
 

@@ -1,6 +1,13 @@
 package se.eldebosh.nastastopp.ui.screens
 
 import androidx.annotation.StringRes
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -70,7 +77,20 @@ fun SettingsScreen(
     link: DisplayLinkServer.State,
     onToggleLink: (Boolean) -> Unit,
     onFixLink: () -> Unit,
+    /** Whether a YouDrive login is saved on this phone (its values never reach this screen). */
+    youDriveLoginSaved: Boolean,
+    onSaveYouDriveLogin: (username: String, password: String) -> Unit,
+    onDeleteYouDriveLogin: () -> Unit,
 ) {
+    var loginDialog by remember { mutableStateOf(false) }
+    if (loginDialog) {
+        YouDriveLoginDialog(
+            saved = youDriveLoginSaved,
+            onSave = { u, p -> onSaveYouDriveLogin(u, p); loginDialog = false },
+            onDelete = { onDeleteYouDriveLogin(); loginDialog = false },
+            onDismiss = { loginDialog = false },
+        )
+    }
     Column(Modifier.fillMaxSize()) {
         TopBar(stringResource(R.string.settings_title), onBack = onBack, backRef = 100)
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
@@ -105,6 +125,10 @@ fun SettingsScreen(
 
             SectionTitle(stringResource(R.string.settings_detail))
             AppCard {
+                RadioRow(stringResource(R.string.detail_full), settings.detail == AnnouncementDetail.FULL, 136) {
+                    onUpdate { it.copy(detail = AnnouncementDetail.FULL) }
+                }
+                CardDivider()
                 RadioRow(stringResource(R.string.detail_district), settings.detail == AnnouncementDetail.DISTRICT, 106) {
                     onUpdate { it.copy(detail = AnnouncementDetail.DISTRICT) }
                 }
@@ -150,6 +174,23 @@ fun SettingsScreen(
                     if (i > 0) CardDivider()
                     RadioRow(retentionLabel(h), settings.historyRetentionHours == h, ref) { onUpdate { it.copy(historyRetentionHours = h) } }
                 }
+            }
+
+            // YouDrive's automatic sign-in (1.6, the driver's choice).
+            SectionTitle(stringResource(R.string.settings_youdrive))
+            AppCard {
+                SwitchRow(R.string.settings_youdrive_auto, R.string.help_youdrive_auto, settings.youDriveAutoSignIn, 156) { v ->
+                    onUpdate { it.copy(youDriveAutoSignIn = v) }
+                }
+                CardDivider()
+                ListRow(
+                    title = stringResource(R.string.settings_youdrive_login),
+                    subtitle = stringResource(if (youDriveLoginSaved) R.string.youdrive_login_saved else R.string.youdrive_login_none),
+                    subtitleColor = if (youDriveLoginSaved) AppTheme.colors.success else null,
+                    onClick = { loginDialog = true },
+                    trailing = { Chevron() },
+                    ref = 157,
+                )
             }
 
             SectionTitle(stringResource(R.string.settings_permissions))
@@ -239,5 +280,61 @@ private fun SwitchRow(@StringRes label: Int, @StringRes help: Int?, checked: Boo
         help = help,
         onClick = { onChange(!checked) },
         trailing = { Switch(checked = checked, onCheckedChange = onChange, modifier = Modifier.refCorner(ref)) },
+    )
+}
+
+/**
+ * Types the YouDrive login in once, to be kept encrypted on this phone. The fields always start
+ * empty: a saved login is never shown again, only replaced or deleted.
+ */
+@Composable
+private fun YouDriveLoginDialog(saved: Boolean, onSave: (String, String) -> Unit, onDelete: () -> Unit, onDismiss: () -> Unit) {
+    var user by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.youdrive_login_title)) },
+        text = {
+            Column {
+                Text(
+                    stringResource(R.string.youdrive_login_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AppTheme.colors.textMuted,
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = user,
+                    onValueChange = { user = it },
+                    label = { Text(stringResource(R.string.youdrive_login_user)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, autoCorrectEnabled = false),
+                    modifier = Modifier.ref(150).fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text(stringResource(R.string.youdrive_login_password)) },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
+                    modifier = Modifier.ref(151).fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(user, password) }, enabled = user.isNotBlank() && password.isNotEmpty(), modifier = Modifier.ref(158)) {
+                Text(stringResource(R.string.youdrive_login_save))
+            }
+        },
+        dismissButton = {
+            Row {
+                if (saved) {
+                    TextButton(onClick = onDelete, modifier = Modifier.ref(159)) {
+                        Text(stringResource(R.string.youdrive_login_delete), color = AppTheme.colors.danger)
+                    }
+                }
+                TextButton(onClick = onDismiss, modifier = Modifier.ref(154)) { Text(stringResource(R.string.cancel)) }
+            }
+        },
     )
 }

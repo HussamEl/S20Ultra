@@ -91,6 +91,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
     val linkServer by graph.displayServer.state.collectAsStateWithLifecycle()
     val history by graph.history.entries.collectAsStateWithLifecycle()
     val street by graph.street.state.collectAsStateWithLifecycle()
+    val youDriveLoginSaved by graph.youDriveLogin.saved.collectAsStateWithLifecycle()
     val youDrive by graph.youDrive.state.collectAsStateWithLifecycle()
     val importing = importState is ImportUi.Running
     val snackbar = remember { SnackbarHostState() }
@@ -378,6 +379,9 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             link = linkServer,
                             onToggleLink = ::toggleLink,
                             onFixLink = ::fixLink,
+                            youDriveLoginSaved = youDriveLoginSaved,
+                            onSaveYouDriveLogin = { u, p -> graph.youDriveLogin.save(u, p) },
+                            onDeleteYouDriveLogin = { graph.youDriveLogin.delete() },
                             onVoice = {
                                 if (ttsStatus == se.eldebosh.nastastopp.tts.TtsStatus.READY) testVoice() else vm.navigate(Screen.TTS_MISSING)
                             },

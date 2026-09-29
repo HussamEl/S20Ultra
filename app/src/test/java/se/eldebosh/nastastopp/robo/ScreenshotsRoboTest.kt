@@ -216,6 +216,7 @@ class ScreenshotsRoboTest {
             onBack = {}, onUpdate = {}, onLanguage = {}, onTestVoice = {}, onLocation = {}, onNotifications = {}, onOverlay = {}, onBattery = {}, onVoice = {},
             link = DisplayLinkServer.State(DisplayLinkServer.Status.WAITING, localName = "Galaxy S20 Ultra"),
             onToggleLink = {}, onFixLink = {},
+            youDriveLoginSaved = false, onSaveYouDriveLogin = { _, _ -> }, onDeleteYouDriveLogin = {},
         )
     }
 
@@ -243,6 +244,7 @@ class ScreenshotsRoboTest {
             ttsStatus = TtsStatus.READY,
             onBack = {}, onUpdate = {}, onLanguage = {}, onTestVoice = {}, onLocation = {}, onNotifications = {}, onOverlay = {}, onBattery = {}, onVoice = {},
             link = DisplayLinkServer.State(), onToggleLink = {}, onFixLink = {},
+            youDriveLoginSaved = true, onSaveYouDriveLogin = { _, _ -> }, onDeleteYouDriveLogin = {},
         )
     }
 

@@ -19,8 +19,18 @@ An Android app for a Swedish shared-ride driver:
 - **Location only names the street the vehicle is on** (Hussam's decision, 1.3). While-in-use only, never background (`ACCESS_BACKGROUND_LOCATION` stays removed). `service/StreetService` (LocationManager, no Play services) feeds `CurrentStreet` and nothing else: never `controller.onLocation` (no automatic advance), never stored, logged or sent. Asked at "Start route" and in Settings (119).
 - **The YouDrive WebView never gets location**: `setGeolocationEnabled(false)` and every page prompt is denied (`theYouDrivePageNeverGetsTheLocation`).
 - INTERNET is only for the YouDrive page. No Firebase, analytics, crash reporting or Hilt.
-- Never use or store the driver's YouDrive credentials. Never disable TLS verification. Never unset HTTPS_PROXY.
-- Spoken announcements name only the district or town. The passenger display may show street + number (setting 114). Only on the driver's tap does the app say a street: the current street (the panel's street bar) or the next stop's street + number (panel part 13). Never a passenger's name.
+- YouDrive credentials never go into code, the repo, logs or replies, and Claude never uses them. The app keeps them only if the driver typed them into Settings (157) on his phone (Hussam's decision, 1.6):
+  - `youdrive/YouDriveLogin`: encrypted with an Android Keystore key, in app-private storage with no backup;
+  - filled only into YouDrive's own login form on `https://youdrive.regionvarmland.se` (`SignInScript`);
+  - at most 2 tries in a row (`AutoSignIn`);
+  - the automatic sign-in switch is 156, off by default.
+- Never disable TLS verification. Never unset HTTPS_PROXY.
+- Announcements (Hussam's decision, 1.6):
+  - The next stop is said in full: street + number, then district, then town (setting 136, the default). Settings 106 and 107 shorten it to the district or the town.
+  - The stop after it is said by district or town only.
+  - On the driver's tap, the panel says the current street + area (street bar) or the next stop's street + number (part 13).
+  - **A passenger's name is never spoken.** A surname before the street is dropped (`RouteController.streetOf`).
+  - The passenger display may show street + number (setting 114).
 - Nothing may appear on its own. Every dialog, toast, Maps launch or sound follows a driver action. The only exceptions are YouDrive trip alerts and the "open Maps" fallback notification.
 
 ## UI conventions

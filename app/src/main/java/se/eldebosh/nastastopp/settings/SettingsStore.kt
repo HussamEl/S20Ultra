@@ -27,7 +27,7 @@ data class AppSettings(
     val explanationsArabic: Boolean = true,
     /** Small reference numbers on every control, so the driver can point at one by number. */
     val showRefNumbers: Boolean = true,
-    val detail: AnnouncementDetail = AnnouncementDetail.DISTRICT,
+    val detail: AnnouncementDetail = AnnouncementDetail.FULL,
     val englishRepeat: Boolean = false,
     val speechRate: Float = 0.9f,
     val arrivalRadiusM: Int = 75,
@@ -49,6 +49,8 @@ data class AppSettings(
     val historyRetentionHours: Int = 12,
     /** Keep the YouDrive page open in the background and alert when trips are added or cancelled. */
     val youDriveWatch: Boolean = false,
+    /** Sign in to YouDrive by itself when its login form shows (1.6, the driver's choice). */
+    val youDriveAutoSignIn: Boolean = false,
     /** Day, night or automatic (the phone's dark mode). */
     val appearance: Appearance = Appearance.DAY,
 )
@@ -80,6 +82,7 @@ class SettingsStore(context: Context) {
             putBoolean(K_EXPLAIN_AR, next.explanationsArabic)
             putBoolean(K_REF_NUMBERS, next.showRefNumbers)
             putBoolean(K_YD_WATCH, next.youDriveWatch)
+            putBoolean(K_YD_AUTO, next.youDriveAutoSignIn)
             putString(K_APPEARANCE, next.appearance.name)
         }
         _state.value = next
@@ -97,8 +100,9 @@ class SettingsStore(context: Context) {
         explanationsArabic = prefs.getBoolean(K_EXPLAIN_AR, true),
         showRefNumbers = prefs.getBoolean(K_REF_NUMBERS, true),
         youDriveWatch = prefs.getBoolean(K_YD_WATCH, false),
+        youDriveAutoSignIn = prefs.getBoolean(K_YD_AUTO, false),
         detail = runCatching { AnnouncementDetail.valueOf(prefs.getString(K_DETAIL, null) ?: "") }
-            .getOrDefault(AnnouncementDetail.DISTRICT),
+            .getOrDefault(AnnouncementDetail.FULL),
         englishRepeat = prefs.getBoolean(K_EN, false),
         speechRate = prefs.getFloat(K_RATE, 0.9f),
         arrivalRadiusM = prefs.getInt(K_RADIUS, 75),
@@ -117,7 +121,9 @@ class SettingsStore(context: Context) {
     companion object {
         const val PREFS = "settings"
         const val K_LANG = "ui_language"
-        private const val K_DETAIL = "announcement_detail"
+        // A new key in 1.6: every driver starts on the full announcement (street, district, town),
+        // the driver's request; the older "announcement_detail" value is not read any more.
+        private const val K_DETAIL = "announcement_detail_v2"
         private const val K_EN = "english_repeat"
         private const val K_RATE = "speech_rate"
         private const val K_RADIUS = "arrival_radius"
@@ -135,6 +141,7 @@ class SettingsStore(context: Context) {
         private const val K_EXPLAIN_AR = "explanations_arabic"
         private const val K_REF_NUMBERS = "show_ref_numbers"
         private const val K_YD_WATCH = "youdrive_watch"
+        private const val K_YD_AUTO = "youdrive_auto_sign_in"
         private const val K_APPEARANCE = "appearance"
         private const val K_SCHEMA = "settings_schema"
         private const val SCHEMA = 2

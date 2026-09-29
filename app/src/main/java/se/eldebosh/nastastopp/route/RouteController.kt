@@ -22,6 +22,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import se.eldebosh.nastastopp.core.display.DisplayItem
 import se.eldebosh.nastastopp.core.display.DisplaySnapshot
+import se.eldebosh.nastastopp.core.geo.AnnouncementDetail
 import se.eldebosh.nastastopp.core.geo.GeoLogic
 import se.eldebosh.nastastopp.core.geo.StreetInfo
 import se.eldebosh.nastastopp.core.parse.AddressExtractor
@@ -41,6 +42,7 @@ import se.eldebosh.nastastopp.core.route.MapsUrlBuilder
 import se.eldebosh.nastastopp.geo.Geocoding
 import se.eldebosh.nastastopp.geo.LocateResult
 import se.eldebosh.nastastopp.maps.MapsLauncher
+import se.eldebosh.nastastopp.core.youdrive.TripWatch
 import se.eldebosh.nastastopp.route.model.GeoPoint
 import se.eldebosh.nastastopp.route.model.GeoStatus
 import se.eldebosh.nastastopp.route.model.RouteData
@@ -124,8 +126,39 @@ class RouteController(
 
     val isActive: Boolean get() = _route.value?.active == true
 
-    fun announcementFor(stops: List<Stop>): Announcement =
-        Announcements.forRemaining(stops.take(2).map { spokenName(it) }, settings.current.englishRepeat)
+    /**
+     * A stop's street and number as said aloud and shown beside its time on the panel
+     * ("Storgatan 14"). A surname that some lists put before the street ("Andersson Storgatan 14")
+     * is left out, so a name is never spoken.
+     */
+    fun streetOf(stop: Stop): String = DisplayItem.streetPart(TripWatch.streetAddress(stop.candidates, stop.displayText))
+
+    /** The next stop in full (street and number, district, town), for the announcement. */
+    fun fullSpokenName(stop: Stop): String = GeoLogic.fullSpokenName(
+        street = streetOf(stop),
+        district = spokenName(stop, AnnouncementDetail.DISTRICT),
+        town = spokenName(stop, AnnouncementDetail.TOWN_ONLY),
+    )
+
+    private fun spokenName(stop: Stop, detail: AnnouncementDetail): String = GeoLogic.spokenName(
+        subLocality = stop.geo?.subLocality,
+        locality = stop.geo?.locality,
+        parsedTown = stop.parsedTown,
+        parsedTownKnown = stop.parsedTownKnown,
+        detail = detail,
+        thoroughfare = stop.geo?.thoroughfare,
+        isKnownLocality = localities::contains,
+    )
+
+    /**
+     * "Nästa stopp: …. Därefter: …." The next stop is said in full when the driver chose so
+     * (the default); the one after it by its district or town only.
+     */
+    fun announcementFor(stops: List<Stop>): Announcement {
+        val first = stops.firstOrNull() ?: return Announcements.finished(settings.current.englishRepeat)
+        val next = if (settings.current.detail == AnnouncementDetail.FULL) fullSpokenName(first) else spokenName(first)
+        return Announcements.forRemaining(listOf(next) + stops.drop(1).take(1).map { spokenName(it) }, settings.current.englishRepeat)
+    }
 
     private fun buildDisplay(r: RouteData?): DisplaySnapshot {
         if (r == null) return DisplaySnapshot()
@@ -497,7 +530,7 @@ class RouteController(
      */
     fun speakStopStreet(): Boolean {
         val stop = _route.value?.takeIf { it.active }?.stops?.firstOrNull() ?: return false
-        announcer.speak(Announcement(DisplayItem.streetPart(stop.displayText), null))
+        announcer.speak(Announcement(streetOf(stop), null))
         return true
     }
 

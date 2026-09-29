@@ -70,7 +70,7 @@ class DisplayFeaturesRoboTest {
         assertEquals("Karlstad", d.current?.subtitle)
         assertEquals(listOf("Järnvägsgatan 3B", "Björkvägen 7", "Kungsgatan 5"), d.upcoming.map { it.title })
         assertEquals(listOf("Storfors", "Hammarö", "Kil"), d.upcoming.map { it.subtitle })
-        assertEquals("Nästa stopp: Karlstad. Därefter: Storfors.", d.announcementSv)
+        assertEquals("Nästa stopp: Storgatan 14, Karlstad. Därefter: Storfors.", d.announcementSv)
 
         c.next()
         idle()
@@ -102,9 +102,9 @@ class DisplayFeaturesRoboTest {
         idle()
         assertEquals(
             listOf(
-                "Nästa stopp: Karlstad. Därefter: Storfors.",
-                "Nästa stopp: Storfors. Därefter: Hammarö.",
-                "Nästa stopp: Storfors. Därefter: Hammarö.",
+                "Nästa stopp: Storgatan 14, Karlstad. Därefter: Storfors.",
+                "Nästa stopp: Järnvägsgatan 3B, Storfors. Därefter: Hammarö.",
+                "Nästa stopp: Järnvägsgatan 3B, Storfors. Därefter: Hammarö.",
             ),
             got.map { it.swedish },
         )

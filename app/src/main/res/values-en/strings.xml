@@ -72,6 +72,7 @@
     <string name="settings_title">Settings</string>
     <string name="settings_language">App language</string>
     <string name="settings_detail">Announcement detail</string>
+    <string name="detail_full">Street and number, district, town</string>
     <string name="detail_district">District when available</string>
     <string name="detail_town">Town only</string>
     <string name="settings_english">Repeat the announcement in English</string>
@@ -104,9 +105,9 @@
     <string name="help_share_title">Share a screenshot to the app</string>
     <string name="help_share_body">1. Take a screenshot of the page with the addresses (any app: dispatch app, SMS, email, web page). Use scroll capture for long lists.\n2. Tap Share in the screenshot toolbar or in the gallery and pick Nästa Stopp. Several images are fine; they are added in order.\n3. Or open the app and tap \"Import screenshots\".\n4. Review the list and tap \"Start route\". Google Maps opens with the stops (up to 10 at a time).</string>
     <string name="help_overlay_title">Floating button</string>
-    <string name="help_overlay_body">If you allow \"display over other apps\", a floating card of smoked glass is shown over Google Maps during the route:\n• The wide bar at the top = the street you are on now, with location allowed (without it: the next stop\'s area). Tap it to hear it.\n• Below it, the next trip: its time with the stop\'s street and number beside it (tap them to hear them), the passenger and how early or late (green = plenty of time, yellow = soon, red = late), then the postal code and town. The stripe on its side has the trip\'s YouDrive colour. Tap the rest to open the app.\n• \"Next\" = next stop + announcement (long-press = repeat the announcement).\n• \"Back\" = undo the last \"Next\".\n• \"–\" = shrink it to a small capsule (tap it to expand). \"×\" = close; bring it back from the notification or the Quick Settings tile.\n• Drag it to move it.\nWithout it everything works from the notification.</string>
+    <string name="help_overlay_body">If you allow \"display over other apps\", a floating card of smoked glass is shown over Google Maps during the route:\n• The wide bar at the top = the street you are on now, with location allowed (without it: the next stop\'s area). Tap it to hear it.\n• Below it, the next trip: its time with the stop\'s street and number beside it (tap them to hear them), the passenger and how early or late (green = plenty of time, yellow = soon, red = late), then the town. The stripe on its side has the trip\'s YouDrive colour. Tap the rest to open the app.\n• \"Next\" = next stop + announcement (long-press = repeat the announcement).\n• \"Back\" = undo the last \"Next\".\n• \"–\" = shrink it to a small capsule (tap it to expand). \"×\" = close; bring it back from the notification or the Quick Settings tile.\n• Drag it to move it.\nWithout it everything works from the notification.</string>
     <string name="help_how_title">How announcements work</string>
-    <string name="help_how_body">When you tap Next (in the app, on the floating button or in the notification) the app announces the next stop and the one after it in Swedish, e.g. \"Nästa stopp: Skoghall. Därefter: Kil.\"\nOnly the district or town is said – never street names, numbers or names.\nIf you allow location, the app uses it only to name the street you are on; YouDrive\'s page never gets it.</string>
+    <string name="help_how_body">When you tap Next (in the app, on the floating button or in the notification) the app announces the next stop and the one after it in Swedish, e.g. \"Nästa stopp: Storgatan 14, Skoghall, Hammarö. Därefter: Kil.\"\nThe next stop is said with its street and number, then its district and town; the one after it by district or town only (Settings can make both shorter). A passenger\'s name is never said.\nIf you allow location, the app uses it only to name the street you are on; YouDrive\'s page never gets it.</string>
     <string name="help_privacy_title">Privacy</string>
 
     <string name="onb_step">Step %1$d of %2$d</string>
@@ -266,4 +267,17 @@
     <string name="appearance_auto">Automatic – follows the phone’s dark mode</string>
     <string name="appearance_hint">Day is light, in YouDrive’s colours. Night is dark and easy on the eyes when driving in the dark; the trips keep their meanings (green pick-up, grey start, yellow for what to do now). Automatic follows the phone’s dark mode, which Samsung can switch on from sunset to sunrise.</string>
     <string name="youdrive_updated">Trips updated from YouDrive: %1$d</string>
+    <string name="settings_youdrive">YouDrive</string>
+    <string name="settings_youdrive_auto">Sign in automatically</string>
+    <string name="help_youdrive_auto">YouDrive forgets its login whenever its window is closed (in Chrome too). With this on, the app presses Login by itself when YouDrive shows its login form: with what YouDrive\'s own \"Remember me\" filled in, or with the login you saved on this phone below. It tries twice at most, so a wrong password never locks your account, and after \"Log out\" it waits until you have signed in yourself.</string>
+    <string name="settings_youdrive_login">Login saved on this phone</string>
+    <string name="youdrive_login_saved">Saved, encrypted on this phone</string>
+    <string name="youdrive_login_none">Not saved: YouDrive\'s own \"Remember me\" is used</string>
+    <string name="youdrive_login_title">YouDrive login on this phone</string>
+    <string name="youdrive_login_note">Kept only on this phone, encrypted with the phone\'s own key, never backed up or sent anywhere. It is only filled into YouDrive\'s own login form.</string>
+    <string name="youdrive_login_user">Username</string>
+    <string name="youdrive_login_password">Password</string>
+    <string name="youdrive_login_save">Save</string>
+    <string name="youdrive_login_delete">Delete</string>
+    <string name="youdrive_sign_in_failed">Automatic sign-in did not work. Check the login saved in Settings, or sign in yourself.</string>
 </resources>
