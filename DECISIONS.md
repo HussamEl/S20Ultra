@@ -626,3 +626,28 @@ The driver was again advised to change the password.
   - the cloud session never uses them;
   - the laptop tester never types them.
   - The login the driver sent in the chat was not used anywhere, and he was advised to change that password.
+
+## 1.7 (versionCode 25): the stop after next in full, the street said when it changes, the speed
+
+The driver's three requests:
+1. **"Därefter" also names the street.** With the full announcement (136, the default), the stop after the next one is said with its street and number, then its district: "Nästa stopp: Storgatan 14, Herrhagen, Karlstad. Därefter: Kungsgatan 5, Kronoparken." (`RouteController.thenSpokenName`). A surname before the street is still dropped. 106 / 107 keep both short.
+2. **The current street is said by itself whenever it changes** (`geo/StreetCaller`).
+   - Each new street is said once, and the area alone never is.
+   - It is queued after any announcement (`Announcer.speak(interrupt = false)`), and dropped rather than kept when the voice is not ready.
+   - Only during a route, and not sent to the passenger display.
+   - A quick switch sits on the panel's street bar: the speaker button, part **4**. It shows a crossed-out speaker when off. The same switch is Settings **137**. It is on by default, at the driver's request.
+   - A tap on the bar still says the street and area.
+   - This is a new, deliberate exception to "nothing appears on its own", recorded in the rules.
+3. **The car's speed on the panel** (part **15**, beside the clock):
+   - The speed comes from the positions the street service already receives (`CurrentStreet.speedNow`), in km/h with Western digits in every language.
+   - It is hidden when no position arrived in the last 10 s.
+   - The service now asks for a position every 2 s, also when standing still, so the speed stays current. Street lookups keep their own throttle (8 s / 35 m).
+   - Positions still go to `CurrentStreet` only: nothing moves the route on, and nothing is stored, logged or sent.
+
+Numbers 4 and 15, retired in 1.5, are reused for the new parts. The README tables say what each number is now.
+
+Tests:
+- `FloatingPanelRoboTest.theStreetIsSaidWhenItChangesUnlessSwitchedOff`: said once, queued, silent when switched off;
+- `theSpeedIsShownWhilePositionsComeIn`: 12.5 m/s → "45 km/h", gone after 10 s;
+- `theStreetBarsSpeakerSwitchesStreetSpeech`;
+- the announcement tests now expect the street after "Därefter".

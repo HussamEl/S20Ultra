@@ -139,6 +139,10 @@ fun SettingsScreen(
                 CardDivider()
                 SwitchRow(R.string.settings_english, null, settings.englishRepeat, 108) { v -> onUpdate { it.copy(englishRepeat = v) } }
                 CardDivider()
+                SwitchRow(R.string.settings_say_street, R.string.help_say_street, settings.sayStreetChanges, 137) { v ->
+                    onUpdate { it.copy(sayStreetChanges = v) }
+                }
+                CardDivider()
                 var rate by remember(settings.speechRate) { mutableFloatStateOf(settings.speechRate) }
                 Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
                     Text(

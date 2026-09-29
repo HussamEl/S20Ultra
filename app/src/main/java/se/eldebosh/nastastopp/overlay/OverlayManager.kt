@@ -105,6 +105,8 @@ class OverlayManager(
     /** Views that are updated while the panel (or bubble) is shown. */
     private class Views {
         var street: TextView? = null
+        var sayStreet: ImageView? = null
+        var speed: TextView? = null
         var area: TextView? = null
         var back: View? = null
         var clock: TextView? = null
@@ -195,6 +197,13 @@ class OverlayManager(
         val backAlpha = if (r.completed.isEmpty()) 0.35f else 1f
         (v.back as? ViewGroup)?.let { b -> for (i in 0 until b.childCount) b.getChildAt(i).alpha = backAlpha }
         v.progress?.text = progress(r.completedCount, r.stops.size)
+        // The speaker on the street bar: is the street said by itself when it changes?
+        v.sayStreet?.apply {
+            val on = settings.current.sayStreetChanges
+            setImageResource(if (on) R.drawable.ic_speaker else R.drawable.ic_speaker_off)
+            contentDescription = ui.getString(if (on) R.string.overlay_say_street_on else R.string.overlay_say_street_off)
+            imageAlpha = if (on) 255 else 170
+        }
         // The stop's street and number beside the time; its postal code and town below.
         v.address?.text = controller.streetOf(current)
         v.town?.apply {
@@ -230,6 +239,13 @@ class OverlayManager(
         val current = r.stops.firstOrNull() ?: return
         val now = LocalTime.now()
         v.clock?.text = now.format(clockFormat)
+        // The vehicle's speed from the last position (hidden without a recent one).
+        v.speed?.apply {
+            val kmh = street.speedNow()
+            // Western digits in every language, like the clock beside it.
+            text = kmh?.let { ui.getString(R.string.speed_kmh, it.toString()) }.orEmpty()
+            visibility = if (kmh == null) View.GONE else View.VISIBLE
+        }
         val until = TripTimes.minutesUntil(current.time, now.hour * 60 + now.minute)
         val color = until?.let { pc.status(TripTimes.level(it)) }
         v.status?.apply {
@@ -364,12 +380,19 @@ class OverlayManager(
         }
         val minimize = roundControl("–", R.string.overlay_minimize_desc)
         val close = roundControl("×", R.string.overlay_close_desc)
+        // The vehicle's speed, from the same positions as the street (1.7).
+        val speedView = text(15f, pc.text, bold = true).apply {
+            background = rounded(pc.control, 20f)
+            setPadding(dp(9f), dp(1f), dp(9f), dp(1f))
+            visibility = View.GONE
+        }
         val header = LinearLayout(ui).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPaddingRelative(dp(6f), 0, 0, dp(6f))
             addView(clockView)
             addView(progressView, LinearLayout.LayoutParams(WRAP, WRAP).apply { marginStart = dp(8f) })
+            addView(speedView, LinearLayout.LayoutParams(WRAP, WRAP).apply { marginStart = dp(8f) })
             addView(View(ui), LinearLayout.LayoutParams(0, 1, 1f))
             addView(minimize, LinearLayout.LayoutParams(dp(CONTROL_DP), dp(CONTROL_DP)))
             addView(close, LinearLayout.LayoutParams(dp(CONTROL_DP), dp(CONTROL_DP)).apply { marginStart = dp(8f) })
@@ -403,7 +426,14 @@ class OverlayManager(
             addView(streetView, LinearLayout.LayoutParams(MATCH, dp(32f)))
             addView(areaView, LinearLayout.LayoutParams(MATCH, WRAP))
         }
-        // Tap anywhere on the bar = say the street (no separate speaker button).
+        // The quick switch: say the street by itself whenever it changes (on) or only on a tap (off).
+        val sayStreet = ImageView(ui).apply {
+            imageTintList = ColorStateList.valueOf(pc.text)
+            val pad = dp(7f)
+            setPadding(pad, pad, pad, pad)
+            background = oval(pc.control)
+        }
+        // Tap anywhere else on the bar = say the street.
         val streetBar = LinearLayout(ui).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -412,6 +442,7 @@ class OverlayManager(
             contentDescription = ui.getString(R.string.overlay_street_desc)
             addView(streetIcon, LinearLayout.LayoutParams(dp(22f), dp(22f)))
             addView(streetText, LinearLayout.LayoutParams(0, WRAP, 1f).apply { marginStart = dp(10f) })
+            addView(sayStreet, LinearLayout.LayoutParams(dp(36f), dp(36f)).apply { marginStart = dp(6f) })
         }
 
         // The next trip, with a stripe in its kind's colour (the time says the rest, so no
@@ -516,16 +547,18 @@ class OverlayManager(
         card.addView(trip, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(8f) })
         card.addView(actions, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(8f) })
 
-        // Reference numbers (listed in the README), so the driver can name each part. 4 (the
-        // speaker) and 15 (repeat) were removed in 1.5; their numbers are not reused.
+        // Reference numbers 1–19 (listed in the README), so the driver can name each part. Since
+        // 1.7, 4 is the street-speech switch and 15 the speed (the 1.4 speaker and repeat are gone).
         back.ref(1)
         streetBar.ref(2)
         areaView.ref(3)
+        sayStreet.ref(4)
         next.ref(5)
         minimize.ref(6, padText = false)
         close.ref(7, padText = false)
         clockView.ref(8)
         progressView.ref(9)
+        speedView.ref(15)
         timeView.ref(10)
         statusView.ref(11)
         distanceView.ref(12)
@@ -541,6 +574,8 @@ class OverlayManager(
         drag(back, press = true)
         streetBar.setOnClickListener { speakStreet() }
         drag(streetBar, press = true) { controller.repeat() }
+        sayStreet.setOnClickListener { settings.update { it.copy(sayStreetChanges = !it.sayStreetChanges) } }
+        drag(sayStreet, press = true)
         addressView.setOnClickListener { controller.speakStopStreet() }
         drag(addressView, press = true)
         // × and – only react to a real tap: dragging from them moves the panel like elsewhere.
@@ -554,6 +589,8 @@ class OverlayManager(
         drag(card)
 
         v.street = streetView
+        v.sayStreet = sayStreet
+        v.speed = speedView
         v.area = areaView
         v.back = back
         v.clock = clockView

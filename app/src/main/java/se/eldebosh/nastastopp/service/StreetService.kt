@@ -137,9 +137,12 @@ class StreetService : Service() {
     )
 
     companion object {
-        /** A new position every few seconds is plenty to name a street (and saves battery). */
-        private const val INTERVAL_MS = 4_000L
-        private const val MIN_DISTANCE_M = 15f
+        /**
+         * A new position every 2 s, also when standing still, so the panel's speed stays current
+         * (1.7). Street lookups are throttled separately by StreetLookup.
+         */
+        private const val INTERVAL_MS = 2_000L
+        private const val MIN_DISTANCE_M = 0f
 
         /**
          * Starts the service while a route is active and the driver allowed location. Must be

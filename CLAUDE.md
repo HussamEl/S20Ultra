@@ -16,7 +16,7 @@ An Android app for a Swedish shared-ride driver:
 - Images are never copied or stored. Keep only addresses, times, the trip kind (the list's Pick-up / Drop-off / Pull-out label) and the passenger's **first + last name** (Hussam's decision, 1.2): no middle names, phone numbers or other text.
 - The name is for the driver's own screens only (review, route, floating panel). It is never spoken, sent to the passenger display, put in a notification or "Previous trips", or logged (`namesStayOnTheDriversScreens` guards this).
 - Never log addresses or OCR text in release (use `util/DebugLog`). `allowBackup=false`.
-- **Location only names the street the vehicle is on** (Hussam's decision, 1.3). While-in-use only, never background (`ACCESS_BACKGROUND_LOCATION` stays removed). `service/StreetService` (LocationManager, no Play services) feeds `CurrentStreet` and nothing else: never `controller.onLocation` (no automatic advance), never stored, logged or sent. Asked at "Start route" and in Settings (119).
+- **Location only names the street the vehicle is on** (Hussam's decision, 1.3). While-in-use only, never background (`ACCESS_BACKGROUND_LOCATION` stays removed). `service/StreetService` (LocationManager, no Play services) feeds `CurrentStreet` (street + speed, 1.7) and nothing else: never `controller.onLocation` (no automatic advance), never stored, logged or sent. Asked at "Start route" and in Settings (119).
 - **The YouDrive WebView never gets location**: `setGeolocationEnabled(false)` and every page prompt is denied (`theYouDrivePageNeverGetsTheLocation`).
 - INTERNET is only for the YouDrive page. No Firebase, analytics, crash reporting or Hilt.
 - YouDrive credentials never go into code, the repo, logs or replies, and Claude never uses them. The app keeps them only if the driver typed them into Settings (157) on his phone (Hussam's decision, 1.6):
@@ -27,11 +27,15 @@ An Android app for a Swedish shared-ride driver:
 - Never disable TLS verification. Never unset HTTPS_PROXY.
 - Announcements (Hussam's decision, 1.6):
   - The next stop is said in full: street + number, then district, then town (setting 136, the default). Settings 106 and 107 shorten it to the district or the town.
-  - The stop after it is said by district or town only.
+  - The stop after it is said with its street + number, then its district (1.7).
   - On the driver's tap, the panel says the current street + area (street bar) or the next stop's street + number (part 13).
+  - The current street's name is also said by itself each time it changes (1.7, `geo/StreetCaller`). It is queued after any announcement. The panel's speaker (part 4) or Settings 137 switch it off.
   - **A passenger's name is never spoken.** A surname before the street is dropped (`RouteController.streetOf`).
   - The passenger display may show street + number (setting 114).
-- Nothing may appear on its own. Every dialog, toast, Maps launch or sound follows a driver action. The only exceptions are YouDrive trip alerts and the "open Maps" fallback notification.
+- Nothing may appear on its own. Every dialog, toast, Maps launch or sound follows a driver action. The only exceptions are:
+  - YouDrive trip alerts;
+  - the "open Maps" fallback notification;
+  - the current street's name while the driver keeps "say the street" on (panel 4 / Settings 137).
 
 ## UI conventions
 - Design system in `ui/theme/` (see GUIDE §6), in three layers:

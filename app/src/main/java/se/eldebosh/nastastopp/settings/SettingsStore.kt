@@ -49,6 +49,8 @@ data class AppSettings(
     val historyRetentionHours: Int = 12,
     /** Keep the YouDrive page open in the background and alert when trips are added or cancelled. */
     val youDriveWatch: Boolean = false,
+    /** Say the street's name each time the vehicle turns into another (1.7, the driver's choice). */
+    val sayStreetChanges: Boolean = true,
     /** Sign in to YouDrive by itself when its login form shows (1.6, the driver's choice). */
     val youDriveAutoSignIn: Boolean = false,
     /** Day, night or automatic (the phone's dark mode). */
@@ -83,6 +85,7 @@ class SettingsStore(context: Context) {
             putBoolean(K_REF_NUMBERS, next.showRefNumbers)
             putBoolean(K_YD_WATCH, next.youDriveWatch)
             putBoolean(K_YD_AUTO, next.youDriveAutoSignIn)
+            putBoolean(K_SAY_STREET, next.sayStreetChanges)
             putString(K_APPEARANCE, next.appearance.name)
         }
         _state.value = next
@@ -101,6 +104,7 @@ class SettingsStore(context: Context) {
         showRefNumbers = prefs.getBoolean(K_REF_NUMBERS, true),
         youDriveWatch = prefs.getBoolean(K_YD_WATCH, false),
         youDriveAutoSignIn = prefs.getBoolean(K_YD_AUTO, false),
+        sayStreetChanges = prefs.getBoolean(K_SAY_STREET, true),
         detail = runCatching { AnnouncementDetail.valueOf(prefs.getString(K_DETAIL, null) ?: "") }
             .getOrDefault(AnnouncementDetail.FULL),
         englishRepeat = prefs.getBoolean(K_EN, false),
@@ -142,6 +146,7 @@ class SettingsStore(context: Context) {
         private const val K_REF_NUMBERS = "show_ref_numbers"
         private const val K_YD_WATCH = "youdrive_watch"
         private const val K_YD_AUTO = "youdrive_auto_sign_in"
+        private const val K_SAY_STREET = "say_street_changes"
         private const val K_APPEARANCE = "appearance"
         private const val K_SCHEMA = "settings_schema"
         private const val SCHEMA = 2

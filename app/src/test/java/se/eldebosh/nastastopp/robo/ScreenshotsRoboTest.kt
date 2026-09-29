@@ -288,7 +288,7 @@ class ScreenshotsRoboTest {
         graph.overlay.suppress("render", true)
         val street = CurrentStreet(graph.scope) { _, _ -> listOf(GeoResult(59.38, 13.5, null, null, "Karlstad", "Centrum", "Västra Torggatan")) }
         street.want("render", true)
-        street.onFix(Fix(0, 59.38, 13.5, null, 5f))
+        street.onFix(Fix(0, 59.38, 13.5, 12.5f, 5f)) // 45 km/h
         val panelManager = OverlayManager(app, graph.controller, graph.settings, street, graph.scope)
         graph.controller.start()
         shadowOf(Looper.getMainLooper()).idle()

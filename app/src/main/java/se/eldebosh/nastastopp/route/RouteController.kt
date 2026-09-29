@@ -150,14 +150,24 @@ class RouteController(
         isKnownLocality = localities::contains,
     )
 
+    /** The stop after the next one: its street and number, then its district (or town). */
+    fun thenSpokenName(stop: Stop): String = GeoLogic.fullSpokenName(
+        street = streetOf(stop),
+        district = spokenName(stop, AnnouncementDetail.DISTRICT),
+        town = null,
+    )
+
     /**
-     * "Nästa stopp: …. Därefter: …." The next stop is said in full when the driver chose so
-     * (the default); the one after it by its district or town only.
+     * "Nästa stopp: …. Därefter: …." When the driver chose the full announcement (the default),
+     * the next stop is said with its street and number, district and town, and the one after it
+     * with its street and number and district (1.7). Otherwise both by district or town only.
      */
     fun announcementFor(stops: List<Stop>): Announcement {
         val first = stops.firstOrNull() ?: return Announcements.finished(settings.current.englishRepeat)
-        val next = if (settings.current.detail == AnnouncementDetail.FULL) fullSpokenName(first) else spokenName(first)
-        return Announcements.forRemaining(listOf(next) + stops.drop(1).take(1).map { spokenName(it) }, settings.current.englishRepeat)
+        val full = settings.current.detail == AnnouncementDetail.FULL
+        val next = if (full) fullSpokenName(first) else spokenName(first)
+        val then = stops.getOrNull(1)?.let { if (full) thenSpokenName(it) else spokenName(it) }
+        return Announcements.forRemaining(listOfNotNull(next, then), settings.current.englishRepeat)
     }
 
     private fun buildDisplay(r: RouteData?): DisplaySnapshot {
@@ -531,6 +541,17 @@ class RouteController(
     fun speakStopStreet(): Boolean {
         val stop = _route.value?.takeIf { it.active }?.stops?.firstOrNull() ?: return false
         announcer.speak(Announcement(streetOf(stop), null))
+        return true
+    }
+
+    /**
+     * Says the street the vehicle has just turned into (1.7, the driver's choice; the panel's
+     * speaker button or Settings 137 turn it off). Queued after any announcement, only during a
+     * route, and not sent to passenger displays.
+     */
+    fun sayStreetChange(street: String): Boolean {
+        if (!isActive || !settings.current.sayStreetChanges) return false
+        announcer.speak(Announcement(street, null), interrupt = false)
         return true
     }
 

@@ -109,9 +109,15 @@ class Announcer(context: Context, private val settings: SettingsStore) {
         initEngine(null)
     }
 
-    fun speak(announcement: Announcement) {
+    /**
+     * Says [announcement]. [interrupt] = false queues it after what is being said (the street's name
+     * said by itself must not cut off a next-stop announcement); such a line is dropped, not kept for
+     * later, when the voice is not ready.
+     */
+    fun speak(announcement: Announcement, interrupt: Boolean = true) {
         val t = tts
         if (t == null || _status.value != TtsStatus.READY) {
+            if (!interrupt) return
             pending = announcement
             pendingAtMs = SystemClock.elapsedRealtime()
             return
@@ -123,7 +129,7 @@ class Announcer(context: Context, private val settings: SettingsStore) {
         t.setLanguage(swedish)
         val svId = "sv-$id"
         lastUtteranceId = svId
-        t.speak(announcement.swedish, TextToSpeech.QUEUE_FLUSH, null, svId)
+        t.speak(announcement.swedish, if (interrupt) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD, null, svId)
         val en = announcement.english
         if (s.englishRepeat && en != null && t.isLanguageAvailable(english) >= TextToSpeech.LANG_AVAILABLE) {
             t.setLanguage(english)

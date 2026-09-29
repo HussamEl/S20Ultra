@@ -10,6 +10,7 @@ import se.eldebosh.nastastopp.core.parse.AddressExtractor
 import se.eldebosh.nastastopp.core.parse.Localities
 import se.eldebosh.nastastopp.geo.CurrentStreet
 import se.eldebosh.nastastopp.geo.Geocoding
+import se.eldebosh.nastastopp.geo.StreetCaller
 import se.eldebosh.nastastopp.importer.ScreenshotImporter
 import se.eldebosh.nastastopp.link.DisplayLinkClient
 import se.eldebosh.nastastopp.link.DisplayLinkServer
@@ -42,7 +43,10 @@ class AppGraph(app: Application) {
     val notifier = RouteNotifier(app, controller, settings, scope)
 
     /** The street the vehicle is on now (floating button and route screen). */
-    val street = CurrentStreet(scope, geocoding::reverse)
+    val street = CurrentStreet(scope, lookup = geocoding::reverse)
+
+    /** Says the street's name when it changes (the driver can switch it off). */
+    val streetCaller = StreetCaller(street, controller, scope)
     val overlay = OverlayManager(app, controller, settings, street, scope)
     val importer = ScreenshotImporter(OcrEngine(app), extractor)
 

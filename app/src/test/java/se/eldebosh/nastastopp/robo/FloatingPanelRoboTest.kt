@@ -7,6 +7,7 @@ import android.speech.tts.TextToSpeech
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.widget.TextView
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
@@ -32,6 +33,7 @@ import se.eldebosh.nastastopp.core.geo.StreetInfo
 import se.eldebosh.nastastopp.core.route.DetectorPhase
 import se.eldebosh.nastastopp.core.route.Fix
 import se.eldebosh.nastastopp.geo.CurrentStreet
+import se.eldebosh.nastastopp.geo.StreetCaller
 import se.eldebosh.nastastopp.route.model.GeoPoint
 import se.eldebosh.nastastopp.route.model.GeoStatus
 import se.eldebosh.nastastopp.service.Notifications
@@ -104,7 +106,7 @@ class FloatingPanelRoboTest {
         assertTrue(r.completed.isEmpty())
         assertEquals(listOf("12:30", "12:45", "13:40"), r.stops.map { it.time })
         assertTrue("history entry removed", graph.history.entries.value.isEmpty())
-        assertEquals("Nästa stopp: Storgatan 14, Karlstad. Därefter: Storfors.", tts.lastSpokenText)
+        assertEquals("Nästa stopp: Storgatan 14, Karlstad. Därefter: Järnvägsgatan 3B, Storfors.", tts.lastSpokenText)
         assertNull("Maps already has this stop (mid-batch)", shadowOf(app).nextStartedActivity)
         c.end()
     }
@@ -175,6 +177,86 @@ class FloatingPanelRoboTest {
         assertTrue(spokenBefore != tts.lastSpokenText)
         assertTrue("not forwarded to passenger displays", sent.isEmpty())
         job.cancel()
+        graph.controller.end()
+    }
+
+    /** 1.7: the street's name is said when it changes, after any announcement, and only when switched on. */
+    @Test
+    fun theStreetIsSaidWhenItChangesUnlessSwitchedOff() {
+        val tts = readyTts()
+        threeStops()
+        graph.controller.start()
+        idle()
+        var answer = "Drottninggatan"
+        val street = CurrentStreet(graph.scope) { _, _ -> listOf(GeoResult(59.38, 13.5, null, null, "Karlstad", "Centrum", answer)) }
+        StreetCaller(street, graph.controller, graph.scope)
+        street.want("test", true)
+        fun fix(s: Long, m: Double) = Fix(s * 1000, 59.38 + m / 111_195.0, 13.5, 10f, 5f)
+
+        street.onFix(fix(0, 0.0))
+        idle()
+        assertEquals("Drottninggatan", tts.lastSpokenText)
+        assertEquals("queued after an announcement, never over it", TextToSpeech.QUEUE_ADD, tts.queueMode)
+        graph.controller.repeat()
+        street.onFix(fix(20, 100.0)) // the same street again: not said again
+        idle()
+        assertTrue(tts.lastSpokenText!!.startsWith("Nästa stopp"))
+        answer = "Kungsgatan"
+        street.onFix(fix(40, 200.0))
+        idle()
+        assertEquals("Kungsgatan", tts.lastSpokenText)
+
+        graph.settings.update { it.copy(sayStreetChanges = false) }
+        graph.controller.repeat()
+        answer = "Västra Torggatan"
+        street.onFix(fix(60, 300.0))
+        idle()
+        assertTrue("switched off", tts.lastSpokenText!!.startsWith("Nästa stopp"))
+        graph.settings.update { it.copy(sayStreetChanges = true) }
+        graph.controller.end()
+    }
+
+    /** 1.7: the speed from the positions, shown on the panel, gone when the positions stop. */
+    @Test
+    fun theSpeedIsShownWhilePositionsComeIn() {
+        var now = 1_000_000L
+        val street = CurrentStreet(graph.scope, clockMs = { now }) { _, _ -> null }
+        assertNull(street.speedNow())
+        street.onFix(Fix(0, 59.38, 13.5, 12.5f, 5f))
+        assertEquals(45, street.speedNow())
+        street.onFix(Fix(2_000, 59.38, 13.5, null, 5f)) // no speed in this fix: the last one stays
+        assertEquals(45, street.speedNow())
+        now += 11_000
+        assertNull("no recent position", street.speedNow())
+
+        // On the panel (the app's own street): "45 km/h" in the header, hidden without a speed.
+        ShadowSettings.setCanDrawOverlays(true)
+        threeStops()
+        graph.controller.start()
+        idle()
+        val speed = wm.views.single().findViewById<TextView>(R.id.ref_15)
+        assertEquals(View.GONE, speed.visibility)
+        graph.street.onFix(Fix(System.currentTimeMillis(), 59.38, 13.5, 12.5f, 5f))
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
+        assertEquals(View.VISIBLE, speed.visibility)
+        assertEquals(ui(R.string.speed_kmh).replace("%1\$s", "45"), speed.text.toString())
+        graph.controller.end()
+    }
+
+    /** 1.7: the speaker on the street bar switches the street speech on and off. */
+    @Test
+    fun theStreetBarsSpeakerSwitchesStreetSpeech() {
+        ShadowSettings.setCanDrawOverlays(true)
+        threeStops()
+        graph.controller.start()
+        idle()
+        assertTrue(graph.settings.current.sayStreetChanges)
+        overlayView(R.string.overlay_say_street_on).performClick()
+        idle()
+        assertFalse(graph.settings.current.sayStreetChanges)
+        overlayView(R.string.overlay_say_street_off).performClick()
+        idle()
+        assertTrue(graph.settings.current.sayStreetChanges)
         graph.controller.end()
     }
 
