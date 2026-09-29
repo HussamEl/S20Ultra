@@ -291,6 +291,7 @@
     <string name="street_map_loading">جارٍ التحميل…</string>
     <string name="street_map_downloading">جارٍ التنزيل… الجزء %1$d من %2$d</string>
     <string name="street_map_ready">جاهزة · الشوارع: %1$d · %2$s · اضغط للتحديث</string>
-    <string name="street_map_failed">لم يكتمل التنزيل: اضغط للمحاولة مجدداً</string>
+    <string name="street_map_downloading_busy">جارٍ التنزيل… الجزء %1$d من %2$d · الخادم مشغول، ننتظر</string>
+    <string name="street_map_failed">توقّف التنزيل عند الجزء %1$d من %2$d: اضغط للمتابعة</string>
     <string name="street_map_delete">حذف خريطة الشوارع</string>
 </resources>

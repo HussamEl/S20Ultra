@@ -85,19 +85,22 @@ class DeviceFixturesTest {
         extractor.extract(DeviceFixtures.timeAbove).map { it.kind },
     )
 
-    /** YouDrive: the grey Pull-out is read as the start point, then green pick-ups and white drop-offs. */
+    /**
+     * YouDrive: the grey Pull-out is read as the start point, with its time beside its address,
+     * then green pick-ups and white drop-offs with their times below.
+     */
     @Test
     fun youDriveCardsGiveKindsAndTimes() {
         val stops = extractor.extract(DeviceFixtures.youDrive)
         assertEquals(
             listOf(
-                "PULL_OUT Depågatan 1, 653 40 Karlstad",
+                "PULL_OUT 06:42 Depågatan 1, 653 40 Karlstad",
                 "PICK_UP 06:55 Storgatan 14, 652 24 Karlstad",
                 "DROP_OFF 07:09 Lindvägen 9, 664 30 Grums",
                 "PICK_UP 08:29 Kyrkogatan 2, 652 24 Karlstad",
                 "DROP_OFF 08:53 Järnvägsgatan 3B, 688 30 Storfors",
             ),
-            stops.mapIndexed { i, s -> listOfNotNull(s.kind?.name, s.time.takeIf { i > 0 }, s.displayText).joinToString(" ") },
+            stops.map { s -> listOfNotNull(s.kind?.name, s.time, s.displayText).joinToString(" ") },
         )
     }
 
@@ -117,5 +120,16 @@ class DeviceFixturesTest {
     /** Lists without a name line above the address have no names (no guessing). */
     @Test
     fun noNameWithoutANameLine() = assertEquals(listOf(null, null, null, null), extractor.extract(DeviceFixtures.sameLine).map { it.name })
+
+    /**
+     * A name belongs to the address right below it. In the prefixes list Frida Uppdiktad stands
+     * right above 10:10 Gamla Kyrkogatan; Erik Påhittad has his phone line between him and 08:50,
+     * so no stop gets his name.
+     */
+    @Test
+    fun aNameBelongsToTheAddressRightBelowIt() = assertEquals(
+        listOf(null, null, null, null, null, null, "Frida Uppdiktad", null, null, null),
+        extractor.extract(DeviceFixtures.prefixes).map { it.name },
+    )
 }
 

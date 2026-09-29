@@ -196,17 +196,21 @@ fun SettingsScreen(
                     subtitle = when (streetMap) {
                         StreetMapStore.State.None -> stringResource(R.string.street_map_none)
                         StreetMapStore.State.Loading -> stringResource(R.string.street_map_loading)
-                        is StreetMapStore.State.Downloading -> stringResource(R.string.street_map_downloading, streetMap.done, streetMap.total)
+                        is StreetMapStore.State.Downloading -> stringResource(
+                            if (streetMap.busy) R.string.street_map_downloading_busy else R.string.street_map_downloading,
+                            streetMap.done,
+                            streetMap.total,
+                        )
                         is StreetMapStore.State.Ready -> stringResource(
                             R.string.street_map_ready,
                             streetMap.roads,
                             DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(streetMap.createdAtMs)),
                         )
-                        StreetMapStore.State.Failed -> stringResource(R.string.street_map_failed)
+                        is StreetMapStore.State.Failed -> stringResource(R.string.street_map_failed, streetMap.done, streetMap.total)
                     },
                     subtitleColor = when (streetMap) {
                         is StreetMapStore.State.Ready -> AppTheme.colors.success
-                        StreetMapStore.State.Failed -> AppTheme.colors.danger
+                        is StreetMapStore.State.Failed -> AppTheme.colors.danger
                         else -> null
                     },
                     onClick = if (streetMap is StreetMapStore.State.Downloading || streetMap is StreetMapStore.State.Loading) null else onDownloadStreetMap,

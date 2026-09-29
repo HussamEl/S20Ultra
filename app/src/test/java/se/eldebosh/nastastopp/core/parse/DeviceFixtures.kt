@@ -39,7 +39,8 @@ object DeviceFixtures {
 
     /**
      * Street names with prefixes and several words, two rows split after the prefix (as ML Kit
-     * did with "Västra"), plus names and phone numbers that must be dropped.
+     * did with "Västra"), plus names and phone numbers. A name is kept only for the address right
+     * below it (Frida Uppdiktad → 10:10); phone numbers are always dropped.
      */
     val prefixes = listOf(
         "12:03",

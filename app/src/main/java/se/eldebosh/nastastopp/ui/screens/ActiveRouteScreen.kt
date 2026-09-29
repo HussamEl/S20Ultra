@@ -7,8 +7,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -30,6 +30,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,6 +44,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
@@ -50,6 +52,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import se.eldebosh.nastastopp.R
@@ -170,26 +173,37 @@ fun ActiveRouteScreen(
             }
         }
         HorizontalDivider(thickness = 1.dp, color = AppTheme.colors.cardBorder)
-        // preferKeepClear: asks the system to keep floating windows (Maps' picture-in-picture) off
-        // the driving buttons. Honoured only where the system supports it (Android 13+, not all).
-        Column(
-            Modifier.fillMaxWidth().preferKeepClear().background(MaterialTheme.colorScheme.surfaceContainerLow).padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            ButtonRow {
-                AppButton(
-                    stringResource(R.string.overlay_back), onPreviousTrip, Modifier.ref(77).weight(1f),
-                    icon = R.drawable.ic_previous, primary = false, enabled = route.completed.isNotEmpty(), minHeight = 60.dp,
-                )
-                AppButton(
-                    stringResource(R.string.btn_next), onNext, Modifier.ref(78).weight(1.6f),
-                    icon = R.drawable.ic_next, minHeight = 60.dp, containerColor = AppTheme.colors.accent, contentColor = AppTheme.colors.onAccent,
-                )
-            }
-            ButtonRow {
-                ActionTile(R.drawable.ic_repeat, stringResource(R.string.btn_repeat), 79, onRepeat)
-                ActionTile(R.drawable.ic_navigation, stringResource(R.string.btn_open_maps), 80, onOpenMaps)
-                ActionTile(R.drawable.ic_edit, stringResource(R.string.btn_edit_list), 81, onEdit)
+        // Maps' picture-in-picture window sits in the screen's bottom-right corner (about a third of
+        // the width), and not every system moves it for preferKeepClear. So the driving buttons
+        // (Back, Next, Repeat) stay in the left part in every language, and the right part holds
+        // Open Maps and Edit list, which are not needed while that window is shown.
+        val direction = LocalLayoutDirection.current
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            Row(
+                Modifier.fillMaxWidth().preferKeepClear().background(MaterialTheme.colorScheme.surfaceContainerLow).padding(horizontal = 16.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                CompositionLocalProvider(LocalLayoutDirection provides direction) {
+                    Column(Modifier.weight(DRIVING_SHARE), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ButtonRow {
+                            AppButton(
+                                stringResource(R.string.overlay_back), onPreviousTrip, Modifier.ref(77).weight(1f),
+                                icon = R.drawable.ic_previous, primary = false, enabled = route.completed.isNotEmpty(), minHeight = 60.dp,
+                                contentPadding = DRIVING_BUTTON_PADDING,
+                            )
+                            AppButton(
+                                stringResource(R.string.btn_next), onNext, Modifier.ref(78).weight(1.4f),
+                                icon = R.drawable.ic_next, minHeight = 60.dp, containerColor = AppTheme.colors.accent, contentColor = AppTheme.colors.onAccent,
+                                contentPadding = DRIVING_BUTTON_PADDING,
+                            )
+                        }
+                        ActionTile(R.drawable.ic_repeat, stringResource(R.string.btn_repeat), 79, onRepeat, Modifier.fillMaxWidth())
+                    }
+                    Column(Modifier.weight(1f - DRIVING_SHARE), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ActionTile(R.drawable.ic_navigation, stringResource(R.string.btn_open_maps), 80, onOpenMaps, Modifier.fillMaxWidth())
+                        ActionTile(R.drawable.ic_edit, stringResource(R.string.btn_edit_list), 81, onEdit, Modifier.fillMaxWidth())
+                    }
+                }
             }
         }
     }
@@ -434,15 +448,14 @@ private fun DepotRow(depot: Stop) {
 
 /** A small square action under Next (icon above a short label). */
 @Composable
-private fun RowScope.ActionTile(@DrawableRes icon: Int, label: String, ref: Int, onClick: () -> Unit) {
+private fun ActionTile(@DrawableRes icon: Int, label: String, ref: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val shape = MaterialTheme.shapes.medium
     val color = MaterialTheme.colorScheme.onSurface
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
-        modifier = Modifier
+        modifier = modifier
             .ref(ref)
-            .weight(1f)
             .heightIn(min = 56.dp)
             .clip(shape)
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
@@ -458,3 +471,12 @@ private fun RowScope.ActionTile(@DrawableRes icon: Int, label: String, ref: Int,
 
 @Composable
 private fun statusText(): String = stringResource(R.string.status_tap_next)
+
+/**
+ * The part of the bottom bar's width for the driving buttons, kept clear of Maps'
+ * picture-in-picture window (which starts at about two thirds of the width).
+ */
+private const val DRIVING_SHARE = 0.62f
+
+/** The driving buttons are narrower than usual: less padding keeps their labels on one line. */
+private val DRIVING_BUTTON_PADDING = PaddingValues(horizontal = 8.dp, vertical = 8.dp)

@@ -327,8 +327,7 @@ class OverlayManager(
             addView(sub, LinearLayout.LayoutParams(WRAP, WRAP).apply { marginStart = dp(6f) })
         }
         val frame = FrameLayout(ui).apply {
-            val m = dp(SHADOW_ROOM_DP)
-            setPadding(m, m, m, m)
+            shadowRoom()
             addView(bubble, FrameLayout.LayoutParams(WRAP, dp(BUBBLE_H_DP)))
         }
         bubble.ref(17)
@@ -350,8 +349,7 @@ class OverlayManager(
             setPadding(dp(8f), dp(6f), dp(8f), dp(8f))
         }
         val window = FrameLayout(ui).apply {
-            val m = dp(SHADOW_ROOM_DP)
-            setPadding(m, m, m, m)
+            shadowRoom()
             addView(card, FrameLayout.LayoutParams(dp(PANEL_W_DP), WRAP))
         }
         fun drag(view: View, press: Boolean = false, onLongPress: (() -> Unit)? = null) =
@@ -763,12 +761,24 @@ class OverlayManager(
         Log.d(REF_LOG_TAG, parts.joinToString(" "))
     }
 
-    /** Moves the window back inside the screen (after a size change or a drag). */
+    /**
+     * Room around the card for its shadow. The window is a little larger than the card and takes
+     * the taps in that margin too, so it is kept small, mostly below the card where the shadow falls.
+     */
+    private fun View.shadowRoom() = setPadding(dp(SHADOW_SIDE_DP), dp(SHADOW_TOP_DP), dp(SHADOW_SIDE_DP), dp(SHADOW_BOTTOM_DP))
+
+    /**
+     * The highest the window may go: the card stays below the status bar and an app's top bar
+     * (the route screen's bar, Maps' turn banner), so it never covers their buttons.
+     */
+    private fun minY(): Int = dp(TOP_CLEAR_DP) - dp(SHADOW_TOP_DP)
+
+    /** Moves the window back inside the screen, below the top bars (after a size change or a drag). */
     private fun keepOnScreen(view: View, lp: WindowManager.LayoutParams) {
         if (root != view) return
         val dm = context.resources.displayMetrics
         val nx = lp.x.coerceIn(0, (dm.widthPixels - view.width).coerceAtLeast(0))
-        val ny = lp.y.coerceIn(0, (dm.heightPixels - view.height).coerceAtLeast(0))
+        val ny = lp.y.coerceIn(minY(), (dm.heightPixels - view.height).coerceAtLeast(minY()))
         if (nx == lp.x && ny == lp.y) return
         lp.x = nx
         lp.y = ny
@@ -839,7 +849,7 @@ class OverlayManager(
                     }
                     if (dragging && !longPressed) {
                         lp.x = (startX + dx).roundToInt()
-                        lp.y = (startY + dy).roundToInt()
+                        lp.y = (startY + dy).roundToInt().coerceAtLeast(minY())
                         runCatching { wm?.updateViewLayout(window, lp) }
                     }
                 }
@@ -881,8 +891,13 @@ class OverlayManager(
         private const val SPEED_DP = 60f
         private const val BUBBLE_H_DP = 52f
 
-        /** Room around the card for its shadow (the window is a little larger than the card). */
-        private const val SHADOW_ROOM_DP = 10f
+        /** Room around the card for its shadow: little above and beside it, more below. */
+        private const val SHADOW_TOP_DP = 2f
+        private const val SHADOW_SIDE_DP = 6f
+        private const val SHADOW_BOTTOM_DP = 12f
+
+        /** The card's top stays at least this far from the screen's top (status bar + top bar). */
+        private const val TOP_CLEAR_DP = 100f
         private const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
         private const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
         private const val REF_TEXT_PAD_DP = 17f

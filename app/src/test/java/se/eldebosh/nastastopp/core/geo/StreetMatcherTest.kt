@@ -62,6 +62,20 @@ class StreetMatcherTest {
     }
 
     @Test
+    fun aDownloadedTileSurvivesItsFileAndBuildsTheSameRoads() {
+        val part = StreetMapPart()
+        part.add(1, "Storgatan", listOf(lat0 to east(-200.0), lat0 to east(200.0)))
+        part.add(2, null, listOf(lat0 to lon0, north(10.0) to lon0)) // no name: left out
+        part.add(3, "Kungsgatan", listOf(north(-200.0) to lon0, north(200.0) to lon0))
+        val bytes = ByteArrayOutputStream().also { part.write(DataOutputStream(it)) }.toByteArray()
+        val again = StreetMapPart.read(DataInputStream(ByteArrayInputStream(bytes)))
+        assertEquals(2, again.roadCount)
+        val built = StreetMapBuilder().also { b -> again.replayInto(b); again.replayInto(b) }.build(0)
+        assertEquals("a road seen twice is kept once", 2, built.roadCount)
+        assertEquals("Kungsgatan", StreetMatcher.match(built, fix(-150.0, 6.0)))
+    }
+
+    @Test
     fun aNewStreetNeedsTwoReadingsAndFadesWithoutRoads() {
         val t = StreetTracker()
         assertNull(t.onReading("Storgatan", 0))

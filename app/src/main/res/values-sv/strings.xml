@@ -290,6 +290,7 @@
     <string name="street_map_loading">Läser in…</string>
     <string name="street_map_downloading">Hämtar… del %1$d av %2$d</string>
     <string name="street_map_ready">Klar · gator: %1$d · %2$s · tryck för att uppdatera</string>
-    <string name="street_map_failed">Hämtningen blev inte klar: tryck för att försöka igen</string>
+    <string name="street_map_downloading_busy">Hämtar… del %1$d av %2$d · servern är upptagen, väntar</string>
+    <string name="street_map_failed">Hämtningen stannade vid del %1$d av %2$d: tryck för att fortsätta</string>
     <string name="street_map_delete">Radera gatukartan</string>
 </resources>

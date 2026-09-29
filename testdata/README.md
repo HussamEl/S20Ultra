@@ -12,11 +12,12 @@
 | `fixture_youdrive.png` | **Start point** (grey card above the list, not a stop): 06:42 Depågatan 1, 653 40 Karlstad. **Stops: 4** · 06:55 Anna Testsson · Storgatan 14, 652 24 Karlstad (Pick-up, green) · 07:09 Anna Testsson · Lindvägen 9, 664 30 Grums (Drop-off, white) · 08:29 Bengt Provare · Kyrkogatan 2, 652 24 Karlstad (Pick-up) · 08:53 Bengt Provare · Järnvägsgatan 3B, 688 30 Storfors (Drop-off) |
 | `fixture_prefixes.png` | 08:10 Östra Storgatan 3, 652 24 Karlstad · 08:30 Norra allén 4, 652 25 Karlstad · 08:50 Södra Kyrkogatan 7, 681 30 Kristinehamn · 09:10 S:t Olofsgatan 2, 652 24 Karlstad · 09:30 Stora torget 1, 652 25 Karlstad · 09:50 Lilla Badhusgatan 5, 652 25 Karlstad · 10:10 Gamla Kyrkogatan 12, 664 30 Grums · 10:30 Övre Torggatan 8, 652 24 Karlstad · 10:50 Västra Skolgatan 9, 663 30 Skoghall · 11:10 Norra Strandvägen 21, 681 31 Kristinehamn |
 
-`fixture_youdrive.png` copies YouDrive's layout: grey Pull-out, green pick-up and white drop-off cards; name and address on top, then the time, the kind label and the status in the left column. Only the start point's time sits beside its address.
+`fixture_youdrive.png` copies YouDrive's layout: grey Pull-out, green pick-up and white drop-off cards; name and address on top, then the time, the kind label and the status in the left column. Only the start point's time sits beside its address; the start card shows it (06:42).
 
 `fixture_prefixes.png`:
 - The last two rows are split after the prefix ("10:50  Västra" on one line, "Skolgatan 9, …" on the next), as ML Kit once split a row on the phone. The app must put the prefix back.
 - "Norra allén" and "Stora torget" are written in lower case after the prefix, which is the Swedish style.
+- Names: a name belongs to the address right below it. "Frida Uppdiktad" is the passenger of **10:10 Gamla Kyrkogatan**. "Erik Påhittad" has his phone line between him and 08:50, so **no stop** shows his name. No other stop has a name.
 
 ## Putting them on the phone
 The system photo picker indexes files under `Pictures/`:

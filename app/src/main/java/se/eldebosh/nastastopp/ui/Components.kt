@@ -74,6 +74,7 @@ fun AppButton(
     minHeight: Dp = TouchTarget,
     containerColor: Color? = null,
     contentColor: Color? = null,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
 ) {
     val colors = if (primary) {
         ButtonDefaults.buttonColors(
@@ -96,7 +97,7 @@ fun AppButton(
         shape = MaterialTheme.shapes.medium,
         colors = colors,
         border = if (primary) null else BorderStroke(1.dp, AppTheme.colors.cardBorder),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        contentPadding = contentPadding,
         interactionSource = interaction,
         modifier = modifier.heightIn(min = minHeight).graphicsLayer { scaleX = scale; scaleY = scale },
     ) {

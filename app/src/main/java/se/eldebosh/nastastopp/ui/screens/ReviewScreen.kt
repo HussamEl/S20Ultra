@@ -223,11 +223,10 @@ private fun SwipeableStopRow(
         // A card being dragged lifts like the current trip.
         TripSurface(stop.kind, Modifier.fillMaxWidth(), current = dragging, shape = shape) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.heightIn(min = 72.dp)) {
-                // Drag handle
+                // Drag handle. Its number sits on the icon: at the card's edge it would be cut off.
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .refCorner(44)
                         .size(width = 44.dp, height = 72.dp)
                         .pointerInput(stop.id) {
                             detectDragGestures(
@@ -244,7 +243,7 @@ private fun SwipeableStopRow(
                             )
                         },
                 ) {
-                    Icon(painterResource(R.drawable.ic_drag), contentDescription = null, tint = AppTheme.colors.onTripMuted, modifier = Modifier.size(22.dp))
+                    Icon(painterResource(R.drawable.ic_drag), contentDescription = null, tint = AppTheme.colors.onTripMuted, modifier = Modifier.refCorner(44).size(22.dp))
                 }
                 Box(Modifier.weight(1f)) {
                     Column(

@@ -203,11 +203,17 @@ class StreetMap(
     }
 }
 
+/** Receives roads as they are read from the map data. */
+fun interface RoadSink {
+    /** One road: its [id] in the map data, its [name] (roads without one are left out) and its points. */
+    fun add(id: Long, name: String?, points: List<Pair<Double, Double>>)
+}
+
 /**
  * Collects roads while the map is downloaded, then makes the [StreetMap]: one entry per road, names
  * kept once, a road seen in two download tiles kept once.
  */
-class StreetMapBuilder {
+class StreetMapBuilder : RoadSink {
     private val nameIndex = HashMap<String, Int>()
     private val names = ArrayList<String>()
     private val seen = HashSet<Long>()
@@ -219,7 +225,7 @@ class StreetMapBuilder {
     val roadCount: Int get() = roadName.size
 
     /** Adds a road ([id] from the map data), unless it has no name, fewer than 2 points or was added. */
-    fun add(id: Long, name: String?, points: List<Pair<Double, Double>>) {
+    override fun add(id: Long, name: String?, points: List<Pair<Double, Double>>) {
         val n = name?.trim()?.takeIf { it.isNotEmpty() } ?: return
         if (points.size < 2 || !seen.add(id)) return
         roadName.add(nameIndex.getOrPut(n) { names += n; names.size - 1 })
