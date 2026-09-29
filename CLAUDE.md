@@ -60,4 +60,5 @@ An Android app for a Swedish shared-ride driver:
   1. Post `DEVICE-TEST READY <sha>` with the APK link and a numbered checklist.
   2. The tester replies `DEVICE-TEST RESULT <sha>`.
   - Until a PR exists, the user relays messages.
+  - **Hussam decides when the laptop session tests** and tells it himself. Post the READY on the PR and carry on. Don't write prompts for it, ask him to relay, or wait for it.
 - **YouDrive:** it is the real dispatch site, so the user signs in manually. The tester never types credentials.

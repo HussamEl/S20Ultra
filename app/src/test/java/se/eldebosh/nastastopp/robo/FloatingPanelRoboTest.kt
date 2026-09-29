@@ -260,6 +260,24 @@ class FloatingPanelRoboTest {
         graph.controller.end()
     }
 
+    /** Found on the S20 Ultra (V5): the faded Back at stop 1 let the map show through it. */
+    @Test
+    fun backAtFirstStopDimsOnlyItsContent() {
+        ShadowSettings.setCanDrawOverlays(true)
+        threeStops()
+        val c = graph.controller
+        c.start()
+        idle()
+        fun content(v: View) = (v as ViewGroup).let { b -> (0 until b.childCount).map { b.getChildAt(it).alpha } }
+        val back = overlayView(R.string.overlay_back)
+        assertEquals("the button itself stays opaque", 1f, back.alpha)
+        assertTrue("icon and caption dimmed", content(back).all { it < 1f })
+        overlayView(R.string.overlay_next).performClick()
+        idle()
+        assertTrue("full again once there is something to go back to", content(overlayView(R.string.overlay_back)).all { it == 1f })
+        c.end()
+    }
+
     @Test
     fun panelBackNextMinimiseCloseAndQuickRestore() {
         ShadowSettings.setCanDrawOverlays(true)

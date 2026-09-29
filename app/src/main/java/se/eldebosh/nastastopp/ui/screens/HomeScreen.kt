@@ -165,9 +165,9 @@ fun HomeScreen(
             title = { Text(stringResource(R.string.history_clear)) },
             text = { Text(stringResource(R.string.history_clear_confirm)) },
             confirmButton = {
-                TextButton(onClick = { confirmClearHistory = false; onClearHistory() }) { Text(stringResource(R.string.delete)) }
+                TextButton(onClick = { confirmClearHistory = false; onClearHistory() }, modifier = Modifier.ref(98)) { Text(stringResource(R.string.delete)) }
             },
-            dismissButton = { TextButton(onClick = { confirmClearHistory = false }) { Text(stringResource(R.string.cancel)) } },
+            dismissButton = { TextButton(onClick = { confirmClearHistory = false }, modifier = Modifier.ref(99)) { Text(stringResource(R.string.cancel)) } },
         )
     }
     if (confirmClear) {
@@ -176,9 +176,9 @@ fun HomeScreen(
             title = { Text(stringResource(R.string.confirm_clear_title)) },
             text = { Text(stringResource(R.string.confirm_clear_text)) },
             confirmButton = {
-                TextButton(onClick = { confirmClear = false; onClear() }) { Text(stringResource(R.string.delete)) }
+                TextButton(onClick = { confirmClear = false; onClear() }, modifier = Modifier.ref(96)) { Text(stringResource(R.string.delete)) }
             },
-            dismissButton = { TextButton(onClick = { confirmClear = false }) { Text(stringResource(R.string.cancel)) } },
+            dismissButton = { TextButton(onClick = { confirmClear = false }, modifier = Modifier.ref(97)) { Text(stringResource(R.string.cancel)) } },
         )
     }
 }

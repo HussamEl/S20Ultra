@@ -22,6 +22,7 @@ import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
+import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -154,7 +155,10 @@ class OverlayManager(
             text = area.orEmpty()
             visibility = if (area.isNullOrEmpty()) View.GONE else View.VISIBLE
         }
-        v.back?.alpha = if (r.completed.isEmpty()) 0.35f else 1f
+        // At the first stop Back does nothing: dim only its icon and caption, so the button stays
+        // opaque over the map and its reference number stays readable.
+        val backAlpha = if (r.completed.isEmpty()) 0.35f else 1f
+        (v.back as? ViewGroup)?.let { b -> for (i in 0 until b.childCount) b.getChildAt(i).alpha = backAlpha }
         v.progress?.text = progress(r.completedCount, r.stops.size)
         v.address?.text = current.displayText
         v.time?.apply {

@@ -396,3 +396,14 @@ The device session tested build 15 on the S20 Ultra: 10 pass, 2 pass with issues
   - It logs ids and bounds only, never stop data, and stays silent unless switched on (`Log.isLoggable`).
 - **`fixture_prefixes.png`:** ten invented stops with street prefixes and multi-word names. It covers Östra, Norra, Södra, S:t, Stora, Lilla, Gamla and Övre, plus two rows split after the prefix. `testdata/README.md` now lists every invented name, number, street and postcode for the privacy search.
 - **Test for B2:** the panel leaves while the passenger display suppresses it, and no "closed" reminder is posted.
+
+## 1.0.3 (versionCode 18): notes from the second device test (PR #1)
+
+The device session tested build 17: 7 pass, 1 pass with issue, sign-in not run yet, 0 fail. **B6 is confirmed fixed:** the YouDrive login page loads on the S20 Ultra.
+- **V5, the panel's Back at stop 1:** it was faded as a whole view (alpha 0.35), so the map showed through it and its number pill. Now only its icon and caption are dimmed; the button stays opaque.
+- **Test aid:** the Home confirmation dialogs get numbers: 96 / 97 (Delete / Cancel after Clear, 34) and 98 / 99 (Delete / Cancel after Clear history, 39). Home's own range (20–39) is full.
+- **V3, Maps' picture-in-picture covers End (82) and part of Next (78):** the driver left the choice to the build session.
+  - **End moved to the top bar** of the route screen: a red × icon, still number 82, still behind the confirmation dialog (83 / 84). The picture-in-picture window sits in the bottom-right corner by default, and ending is rare, so it doesn't belong beside Next. The bottom row keeps Repeat, Open Maps and Edit list.
+  - The bottom button area also sets `Modifier.preferKeepClear()`, which asks the system to keep floating windows off it. Systems that support keep-clear areas move the picture-in-picture window away; others ignore it.
+  - Not chosen: moving Next or the whole button block, which would break the Back-left / Next-right order shared with the floating panel.
+- **V6, the announcement names a district instead of the address's town:** intended. The default is 106 "District when available"; 107 "Town only" announces the town.

@@ -4,6 +4,7 @@ import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.preferKeepClear
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.graphics.Brush
@@ -130,6 +131,16 @@ fun ActiveRouteScreen(
                         )
                     }
                 }
+                // End sits up here, not with the driving buttons: Maps' picture-in-picture window
+                // covers the bottom-right corner (V3), and ending is rare and asks first anyway.
+                IconButton(onClick = { confirmEnd = true }, modifier = Modifier.refCorner(82).size(TouchTarget)) {
+                    Icon(
+                        painterResource(R.drawable.ic_stop),
+                        contentDescription = stringResource(R.string.btn_end),
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
             },
         )
         if (hasLocationPermission) StreetBar(street, onSpeakStreet)
@@ -160,8 +171,10 @@ fun ActiveRouteScreen(
                 UpcomingRow(index = i + 2, stop = stop, area = spokenName(stop))
             }
         }
+        // preferKeepClear: asks the system to keep floating windows (Maps' picture-in-picture) off
+        // the driving buttons. Honoured only where the system supports it (Android 13+, not all).
         Column(
-            Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerLow).padding(horizontal = 16.dp, vertical = 10.dp),
+            Modifier.fillMaxWidth().preferKeepClear().background(MaterialTheme.colorScheme.surfaceContainerLow).padding(horizontal = 16.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             ButtonRow {
@@ -175,7 +188,6 @@ fun ActiveRouteScreen(
                 ActionTile(R.drawable.ic_repeat, stringResource(R.string.btn_repeat), 79, onRepeat)
                 ActionTile(R.drawable.ic_navigation, stringResource(R.string.btn_open_maps), 80, onOpenMaps)
                 ActionTile(R.drawable.ic_edit, stringResource(R.string.btn_edit_list), 81, onEdit)
-                ActionTile(R.drawable.ic_stop, stringResource(R.string.btn_end), 82, { confirmEnd = true }, MaterialTheme.colorScheme.error)
             }
         }
     }
@@ -368,8 +380,9 @@ private fun UpcomingRow(index: Int, stop: Stop, area: String) {
 
 /** A small square action under Next (icon above a short label). */
 @Composable
-private fun RowScope.ActionTile(@DrawableRes icon: Int, label: String, ref: Int, onClick: () -> Unit, color: Color = MaterialTheme.colorScheme.onSurface) {
+private fun RowScope.ActionTile(@DrawableRes icon: Int, label: String, ref: Int, onClick: () -> Unit) {
     val shape = MaterialTheme.shapes.medium
+    val color = MaterialTheme.colorScheme.onSurface
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,

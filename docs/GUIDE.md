@@ -15,13 +15,13 @@
 | الشيء | القيمة |
 |---|---|
 | الحزمة | `se.eldebosh.nastastopp` |
-| الإصدار | `versionName "1.0"`، `versionCode 14` (في `app/build.gradle.kts`) |
+| الإصدار | `versionName "1.0.3"`، `versionCode 18` (في `app/build.gradle.kts`) |
 | اللغة والأدوات | Kotlin 2.4، AGP 9.4، Gradle 9.8، Jetpack Compose (Material 3) |
 | الأندرويد | `minSdk 29` (أندرويد 10)، `targetSdk/compileSdk 37` |
 | القراءة من الصور | ML Kit Text Recognition **المدمج** (نموذج Latin داخل التطبيق، دون Play Services) |
 | المكتبات الأخرى | `androidx.webkit` (هوية كروم لصفحة YouDrive)، kotlinx.serialization، coroutines |
 | لا يوجد | Hilt/DI framework، Firebase، تحليلات، تقارير أعطال، إذن الموقع، إذن التخزين |
-| الاختبارات | 145 اختباراً: وحدة (JUnit) + Robolectric (أندرويد 13، sdk 33) |
+| الاختبارات | 153 اختباراً: وحدة (JUnit) + Robolectric (أندرويد 13، sdk 33) |
 | R8/minify | **مطفأ** في release، لأنه كان يحذف مسجِّلات ML Kit (راجع DECISIONS 1.0.1) |
 
 ---
