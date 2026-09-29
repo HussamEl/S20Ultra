@@ -18,9 +18,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -35,10 +35,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,27 +56,21 @@ import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import se.eldebosh.nastastopp.R
-import se.eldebosh.nastastopp.ui.HelpDot
-import se.eldebosh.nastastopp.ui.ref
-import se.eldebosh.nastastopp.ui.refCorner
+import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.core.parse.TripTimes
 import se.eldebosh.nastastopp.route.model.GeoStatus
 import se.eldebosh.nastastopp.route.model.RouteData
 import se.eldebosh.nastastopp.route.model.Stop
 import se.eldebosh.nastastopp.ui.AppButton
 import se.eldebosh.nastastopp.ui.ButtonRow
+import se.eldebosh.nastastopp.ui.HelpDot
+import se.eldebosh.nastastopp.ui.KindLabel
 import se.eldebosh.nastastopp.ui.TopBar
 import se.eldebosh.nastastopp.ui.TouchTarget
-import se.eldebosh.nastastopp.core.parse.TripKind
-import se.eldebosh.nastastopp.ui.KindLabel
-import se.eldebosh.nastastopp.ui.theme.Accent
-import se.eldebosh.nastastopp.ui.theme.DepotGrey
-import se.eldebosh.nastastopp.ui.theme.Hairline
-import se.eldebosh.nastastopp.ui.theme.Ink
-import se.eldebosh.nastastopp.ui.theme.kindColor
-import se.eldebosh.nastastopp.ui.theme.TimeColor
-import se.eldebosh.nastastopp.ui.theme.Located
-import se.eldebosh.nastastopp.ui.theme.NotLocated
+import se.eldebosh.nastastopp.ui.TripSurface
+import se.eldebosh.nastastopp.ui.ref
+import se.eldebosh.nastastopp.ui.refCorner
+import se.eldebosh.nastastopp.ui.theme.AppTheme
 
 @Composable
 fun ReviewScreen(
@@ -167,7 +161,7 @@ fun ReviewScreen(
                 AppButton(
                     stringResource(R.string.review_start), onStart, Modifier.ref(52).fillMaxWidth(),
                     icon = R.drawable.ic_navigation, enabled = stops.isNotEmpty(), minHeight = 52.dp,
-                    containerColor = Accent, contentColor = Ink,
+                    containerColor = AppTheme.colors.accent, contentColor = AppTheme.colors.onAccent,
                 )
             }
         }
@@ -225,126 +219,130 @@ private fun SwipeableStopRow(
             }
         },
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(shape)
-                .background(if (dragging) MaterialTheme.colorScheme.surfaceContainerHighest else kindColor(stop.kind))
-                .border(1.dp, if (dragging) MaterialTheme.colorScheme.primary else Hairline, shape)
-                .heightIn(min = 72.dp),
-        ) {
-            // Drag handle
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .refCorner(44)
-                    .size(width = 44.dp, height = 72.dp)
-                    .pointerInput(stop.id) {
-                        detectDragGestures(
-                            onDragStart = {
-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                reorder.start(stop.id)
-                            },
-                            onDragEnd = { reorder.end() },
-                            onDragCancel = { reorder.end() },
-                            onDrag = { change, amount ->
-                                change.consume()
-                                reorder.drag(amount.y)
-                            },
-                        )
-                    },
-            ) {
-                Icon(painterResource(R.drawable.ic_drag), contentDescription = null, tint = Ink.copy(alpha = 0.45f), modifier = Modifier.size(22.dp))
-            }
-            Box(Modifier.weight(1f)) {
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .combinedClickable(
-                            onClick = onClick,
-                            onLongClick = {
-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                menu = true
-                            },
-                        )
-                        .padding(vertical = 10.dp, horizontal = 2.dp),
+        // A card being dragged lifts like the current trip.
+        TripSurface(stop.kind, Modifier.fillMaxWidth(), current = dragging, shape = shape) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.heightIn(min = 72.dp)) {
+                // Drag handle
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .refCorner(44)
+                        .size(width = 44.dp, height = 72.dp)
+                        .pointerInput(stop.id) {
+                            detectDragGestures(
+                                onDragStart = {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    reorder.start(stop.id)
+                                },
+                                onDragEnd = { reorder.end() },
+                                onDragCancel = { reorder.end() },
+                                onDrag = { change, amount ->
+                                    change.consume()
+                                    reorder.drag(amount.y)
+                                },
+                            )
+                        },
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(painterResource(R.drawable.ic_drag), contentDescription = null, tint = AppTheme.colors.onTripMuted, modifier = Modifier.size(22.dp))
+                }
+                Box(Modifier.weight(1f)) {
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .combinedClickable(
+                                onClick = onClick,
+                                onLongClick = {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    menu = true
+                                },
+                            )
+                            .padding(vertical = 10.dp, horizontal = 2.dp),
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "${index + 1}",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = AppTheme.colors.onTripMuted,
+                            )
+                            if (stop.time != null) {
+                                Spacer(Modifier.width(8.dp))
+                                Text(stop.time, style = MaterialTheme.typography.labelLarge, color = AppTheme.colors.time, modifier = Modifier.ref(46, centered = true))
+                            }
+                            if (stop.kind != null) {
+                                Spacer(Modifier.width(8.dp))
+                                KindLabel(stop.kind, Modifier.ref(126, centered = true))
+                            }
+                        }
+                        // The passenger's first and last name (the driver's screen only).
+                        if (stop.name != null) {
+                            Text(
+                                stop.name,
+                                style = MaterialTheme.typography.titleMedium.copy(textDirection = TextDirection.Content),
+                                color = AppTheme.colors.onTrip,
+                                modifier = Modifier.ref(134),
+                            )
+                        }
                         Text(
-                            "${index + 1}",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = Ink.copy(alpha = 0.7f),
+                            stop.displayText,
+                            style = MaterialTheme.typography.titleSmall.copy(textDirection = TextDirection.Content),
+                            color = AppTheme.colors.onTrip,
+                            modifier = Modifier.ref(47),
                         )
-                        if (stop.time != null) {
-                            Spacer(Modifier.width(8.dp))
-                            Text(stop.time, style = MaterialTheme.typography.labelLarge, color = TimeColor, modifier = Modifier.ref(46, centered = true))
+                        Text(
+                            stringResource(R.string.spoken_label, spoken),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = AppTheme.colors.onTripMuted,
+                            modifier = Modifier.ref(48),
+                        )
+                        if (stop.geoStatus == GeoStatus.NOT_LOCATED) {
+                            Text(stringResource(R.string.stop_not_located), style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.danger)
                         }
-                        if (stop.kind != null) {
-                            Spacer(Modifier.width(8.dp))
-                            KindLabel(stop.kind, Modifier.ref(126, centered = true))
+                    }
+                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.edit), style = MaterialTheme.typography.bodyLarge) },
+                            onClick = { menu = false; onClick() },
+                            modifier = Modifier.ref(57).heightIn(min = TouchTarget),
+                        )
+                        if (index > 0) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.menu_delete_above), style = MaterialTheme.typography.bodyLarge) },
+                                onClick = { menu = false; onDeleteAbove() },
+                                modifier = Modifier.ref(58).heightIn(min = TouchTarget),
+                            )
                         }
-                    }
-                    Text(
-                        stop.displayText,
-                        style = MaterialTheme.typography.titleSmall.copy(textDirection = TextDirection.Content),
-                        color = Ink,
-                        modifier = Modifier.ref(47),
-                    )
-                    Text(
-                        stringResource(R.string.spoken_label, spoken),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.ref(48),
-                    )
-                    if (stop.geoStatus == GeoStatus.NOT_LOCATED) {
-                        Text(stringResource(R.string.stop_not_located), style = MaterialTheme.typography.bodySmall, color = NotLocated)
-                    }
-                }
-                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.edit), style = MaterialTheme.typography.bodyLarge) },
-                        onClick = { menu = false; onClick() },
-                        modifier = Modifier.ref(57).heightIn(min = TouchTarget),
-                    )
-                    if (index > 0) {
+                        if (stop.geoStatus == GeoStatus.NOT_LOCATED) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.menu_retry), style = MaterialTheme.typography.bodyLarge) },
+                                onClick = { menu = false; onRetry() },
+                                modifier = Modifier.ref(59).heightIn(min = TouchTarget),
+                            )
+                        }
                         DropdownMenuItem(
-                            text = { Text(stringResource(R.string.menu_delete_above), style = MaterialTheme.typography.bodyLarge) },
-                            onClick = { menu = false; onDeleteAbove() },
-                            modifier = Modifier.ref(58).heightIn(min = TouchTarget),
+                            text = { Text(stringResource(R.string.delete), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error) },
+                            onClick = { menu = false; onDelete() },
+                            modifier = Modifier.ref(60).heightIn(min = TouchTarget),
                         )
                     }
-                    if (stop.geoStatus == GeoStatus.NOT_LOCATED) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.menu_retry), style = MaterialTheme.typography.bodyLarge) },
-                            onClick = { menu = false; onRetry() },
-                            modifier = Modifier.ref(59).heightIn(min = TouchTarget),
+                }
+                Box(Modifier.refCorner(49).size(width = 44.dp, height = 72.dp), contentAlignment = Alignment.Center) {
+                    when (stop.geoStatus) {
+                        GeoStatus.PENDING -> {
+                            val locating = stringResource(R.string.stop_locating)
+                            CircularProgressIndicator(Modifier.size(20.dp).semantics { contentDescription = locating }, strokeWidth = 2.dp)
+                        }
+                        GeoStatus.LOCATED -> Icon(
+                            painterResource(R.drawable.ic_located), contentDescription = stringResource(R.string.stop_located),
+                            tint = AppTheme.colors.success, modifier = Modifier.size(22.dp),
+                        )
+                        GeoStatus.NOT_LOCATED -> Icon(
+                            painterResource(R.drawable.ic_not_located), contentDescription = stringResource(R.string.stop_not_located),
+                            tint = AppTheme.colors.danger, modifier = Modifier.size(22.dp),
                         )
                     }
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.delete), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error) },
-                        onClick = { menu = false; onDelete() },
-                        modifier = Modifier.ref(60).heightIn(min = TouchTarget),
-                    )
                 }
+                Spacer(Modifier.width(4.dp))
             }
-            Box(Modifier.refCorner(49).size(width = 44.dp, height = 72.dp), contentAlignment = Alignment.Center) {
-                when (stop.geoStatus) {
-                    GeoStatus.PENDING -> {
-                        val locating = stringResource(R.string.stop_locating)
-                        CircularProgressIndicator(Modifier.size(20.dp).semantics { contentDescription = locating }, strokeWidth = 2.dp)
-                    }
-                    GeoStatus.LOCATED -> Icon(
-                        painterResource(R.drawable.ic_located), contentDescription = stringResource(R.string.stop_located),
-                        tint = Located, modifier = Modifier.size(22.dp),
-                    )
-                    GeoStatus.NOT_LOCATED -> Icon(
-                        painterResource(R.drawable.ic_not_located), contentDescription = stringResource(R.string.stop_not_located),
-                        tint = NotLocated, modifier = Modifier.size(22.dp),
-                    )
-                }
-            }
-            Spacer(Modifier.width(4.dp))
         }
     }
 }
@@ -352,23 +350,16 @@ private fun SwipeableStopRow(
 /** The day's start point (YouDrive's grey Pull-out): shown above the trips, but not one of them. */
 @Composable
 private fun DepotCard(depot: Stop) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-            .ref(127)
-            .fillMaxWidth()
-            .clip(MaterialTheme.shapes.large)
-            .background(DepotGrey)
-            .padding(start = 14.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
-    ) {
-        KindLabel(TripKind.PULL_OUT)
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            if (depot.time != null) Text(depot.time, style = MaterialTheme.typography.labelLarge, color = Ink)
-            Text(depot.displayText, style = MaterialTheme.typography.bodyMedium.copy(textDirection = TextDirection.Content), color = Ink)
+    TripSurface(TripKind.PULL_OUT, Modifier.padding(horizontal = 16.dp, vertical = 4.dp).ref(127).fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 14.dp, end = 4.dp, top = 8.dp, bottom = 8.dp)) {
+            KindLabel(TripKind.PULL_OUT)
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                if (depot.time != null) Text(depot.time, style = MaterialTheme.typography.labelLarge, color = AppTheme.colors.onTrip)
+                Text(depot.displayText, style = MaterialTheme.typography.bodyMedium.copy(textDirection = TextDirection.Content), color = AppTheme.colors.onTrip)
+            }
+            HelpDot(R.string.depot_hint, Modifier.refCorner(129), title = stringResource(R.string.kind_pull_out))
         }
-        HelpDot(R.string.depot_hint, Modifier.refCorner(129), title = stringResource(R.string.kind_pull_out))
     }
 }
 

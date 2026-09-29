@@ -1,5 +1,7 @@
 package se.eldebosh.nastastopp.ui.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -17,33 +19,30 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import se.eldebosh.nastastopp.R
-import se.eldebosh.nastastopp.ui.AppCard
-import se.eldebosh.nastastopp.ui.HelpDot
-import se.eldebosh.nastastopp.ui.IconBadge
-import se.eldebosh.nastastopp.ui.ListRow
-import se.eldebosh.nastastopp.ui.ref
-import se.eldebosh.nastastopp.ui.refCorner
 import se.eldebosh.nastastopp.core.display.DisplaySnapshot
 import se.eldebosh.nastastopp.link.DisplayLinkClient
 import se.eldebosh.nastastopp.link.PairedDevice
 import se.eldebosh.nastastopp.settings.AppSettings
 import se.eldebosh.nastastopp.ui.AppButton
+import se.eldebosh.nastastopp.ui.AppCard
+import se.eldebosh.nastastopp.ui.HelpDot
+import se.eldebosh.nastastopp.ui.IconBadge
+import se.eldebosh.nastastopp.ui.ListRow
 import se.eldebosh.nastastopp.ui.SectionTitle
 import se.eldebosh.nastastopp.ui.TopBar
-import se.eldebosh.nastastopp.ui.theme.Brand
-import se.eldebosh.nastastopp.ui.theme.Hairline
+import se.eldebosh.nastastopp.ui.ref
+import se.eldebosh.nastastopp.ui.refCorner
+import se.eldebosh.nastastopp.ui.theme.AppTheme
 
 /**
  * This device is a passenger display: first choose the driver's (paired) device, then show the
@@ -158,11 +157,11 @@ private fun DeviceRow(name: String, selected: Boolean, ref: Int, onClick: () -> 
             .heightIn(min = 56.dp)
             .clip(MaterialTheme.shapes.large)
             .background(if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer)
-            .border(1.dp, if (selected) Brand else Hairline, MaterialTheme.shapes.large)
+            .border(1.dp, if (selected) AppTheme.colors.info else AppTheme.colors.cardBorder, MaterialTheme.shapes.large)
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
-        IconBadge(R.drawable.ic_bluetooth, if (selected) Brand else MaterialTheme.colorScheme.onSurfaceVariant)
+        IconBadge(R.drawable.ic_bluetooth, if (selected) AppTheme.colors.info else MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.width(12.dp))
         Text(name, style = MaterialTheme.typography.bodyLarge)
     }

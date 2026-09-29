@@ -2,17 +2,12 @@ package se.eldebosh.nastastopp.util
 
 import android.content.Context
 import se.eldebosh.nastastopp.R
-import se.eldebosh.nastastopp.core.parse.TimeLevel
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /** Short texts for the next trip's time status, the waiting timer and distances. */
 object TimeLabels {
-    const val COLOR_AHEAD = 0xFF1E7A34.toInt()
-    const val COLOR_SOON = 0xFFB45309.toInt()
-    const val COLOR_LATE = 0xFFC62828.toInt()
-
     /**
      * "in 7 min" / "now" / "5 min late" for [minutes] until the scheduled time. Numbers are passed
      * as plain digits so they match the trip times ("12:48") in every language.
@@ -28,12 +23,6 @@ object TimeLabels {
             m < 60 -> context.getString(R.string.time_late_min, m.toString())
             else -> context.getString(R.string.time_late_hm, h, min)
         }
-    }
-
-    fun color(level: TimeLevel): Int = when (level) {
-        TimeLevel.AHEAD -> COLOR_AHEAD
-        TimeLevel.SOON -> COLOR_SOON
-        TimeLevel.LATE -> COLOR_LATE
     }
 
     /** Elapsed time as "mm:ss" (or "h:mm:ss"). */

@@ -23,9 +23,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,12 +52,7 @@ import se.eldebosh.nastastopp.ui.TouchTarget
 import se.eldebosh.nastastopp.ui.explain
 import se.eldebosh.nastastopp.ui.ref
 import se.eldebosh.nastastopp.ui.refCorner
-import se.eldebosh.nastastopp.ui.theme.Accent
-import se.eldebosh.nastastopp.ui.theme.Brand
-import se.eldebosh.nastastopp.ui.theme.Ink
-import se.eldebosh.nastastopp.ui.theme.Located
-import se.eldebosh.nastastopp.ui.theme.NotLocated
-import se.eldebosh.nastastopp.ui.theme.TimeColor
+import se.eldebosh.nastastopp.ui.theme.AppTheme
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -99,11 +94,11 @@ fun HomeScreen(
         // Header: name + "?" (what the app does), Settings and Help as small icons.
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
             // Logo mark: the app icon's black pin on taxi yellow.
-            Box(Modifier.size(36.dp).clip(MaterialTheme.shapes.small).background(Accent), contentAlignment = Alignment.Center) {
-                Icon(painterResource(R.drawable.ic_pin), contentDescription = null, tint = Ink, modifier = Modifier.size(22.dp))
+            Box(Modifier.size(36.dp).clip(MaterialTheme.shapes.small).background(AppTheme.colors.accent), contentAlignment = Alignment.Center) {
+                Icon(painterResource(R.drawable.ic_pin), contentDescription = null, tint = AppTheme.colors.onAccent, modifier = Modifier.size(22.dp))
             }
             Spacer(Modifier.width(10.dp))
-            Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineMedium, color = Brand)
+            Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineMedium, color = AppTheme.colors.text)
             HelpDot(R.string.home_subtitle, Modifier.refCorner(20), title = stringResource(R.string.app_name))
             Spacer(Modifier.weight(1f))
             IconButton(onClick = onSettings, modifier = Modifier.refCorner(31).size(TouchTarget)) {
@@ -119,7 +114,7 @@ fun HomeScreen(
                 ListRow(
                     title = stringResource(R.string.tts_missing_banner),
                     icon = R.drawable.ic_speaker,
-                    iconTint = NotLocated,
+                    iconTint = AppTheme.colors.danger,
                     trailing = { Chevron() },
                 )
             }
@@ -211,9 +206,9 @@ fun LinkCard(link: DisplayLinkServer.State, onToggle: (Boolean) -> Unit, onFix: 
         ListRow(
             title = stringResource(R.string.link_title),
             subtitle = status,
-            subtitleColor = if (needsFix) NotLocated else null,
+            subtitleColor = if (needsFix) AppTheme.colors.danger else null,
             icon = R.drawable.ic_bluetooth,
-            iconTint = if (link.status == DisplayLinkServer.Status.CONNECTED) Located else Brand,
+            iconTint = if (link.status == DisplayLinkServer.Status.CONNECTED) AppTheme.colors.success else AppTheme.colors.info,
             help = if (link.status == DisplayLinkServer.Status.WAITING) R.string.link_waiting_hint else null,
             onClick = { if (needsFix) onFix() else onToggle(!on) },
             trailing = { Switch(checked = on, onCheckedChange = onToggle, modifier = Modifier.refCorner(switchRef)) },
@@ -237,9 +232,9 @@ fun OverlayCard(permission: Boolean, hidden: Boolean, onVisible: (Boolean) -> Un
         ListRow(
             title = stringResource(R.string.home_overlay_title),
             subtitle = status,
-            subtitleColor = if (!permission) NotLocated else null,
+            subtitleColor = if (!permission) AppTheme.colors.danger else null,
             icon = if (shown) R.drawable.ic_visibility else R.drawable.ic_visibility_off,
-            iconTint = if (shown) Located else Brand,
+            iconTint = if (shown) AppTheme.colors.success else AppTheme.colors.info,
             help = if (permission) R.string.home_overlay_restore_hint else R.string.home_overlay_restricted_hint,
             onClick = { if (!permission) onPermission() else onVisible(hidden) },
             trailing = {
@@ -255,7 +250,7 @@ fun OverlayCard(permission: Boolean, hidden: Boolean, onVisible: (Boolean) -> Un
             ListRow(
                 title = stringResource(R.string.home_overlay_add_tile),
                 icon = R.drawable.ic_tile,
-                iconTint = Brand,
+                iconTint = AppTheme.colors.info,
                 onClick = onAddTile,
                 trailing = { Chevron() },
                 ref = 30,
@@ -300,7 +295,7 @@ private fun HistorySection(history: List<HistoryEntry>, retentionHours: Int, onC
                 Text(
                     e.time ?: "--:--",
                     style = MaterialTheme.typography.titleSmall,
-                    color = if (e.time != null) TimeColor else MaterialTheme.colorScheme.outline,
+                    color = if (e.time != null) AppTheme.colors.time else MaterialTheme.colorScheme.outline,
                     modifier = Modifier.ref(37, centered = true),
                 )
                 Spacer(Modifier.width(12.dp))
@@ -318,7 +313,7 @@ private fun HistorySection(history: List<HistoryEntry>, retentionHours: Int, onC
                 Text(
                     if (e.done) "✓ $finished" else stringResource(R.string.history_not_completed),
                     style = MaterialTheme.typography.labelMedium,
-                    color = if (e.done) Located else NotLocated,
+                    color = if (e.done) AppTheme.colors.success else AppTheme.colors.danger,
                     modifier = Modifier.ref(38, centered = true),
                 )
             }

@@ -12,6 +12,7 @@ package se.eldebosh.nastastopp.core.parse
  * @property sourceOrder index of the (first) OCR line this stop came from.
  * @property time scheduled time of the trip as shown in the screenshot ("12:48"), or null.
  * @property kind pick-up / drop-off / depot, from the list's label next to the trip, or null.
+ * @property name the passenger's first and last name from the line above the address, or null.
  */
 data class ExtractedStop(
     val displayText: String,
@@ -22,6 +23,7 @@ data class ExtractedStop(
     val parsedTownKnown: Boolean = false,
     val time: String? = null,
     val kind: TripKind? = null,
+    val name: String? = null,
 )
 
 /** Which detection rule accepted the line (see §5 of the spec). */
@@ -70,7 +72,10 @@ class AddressExtractor(private val localities: Localities) {
         val (times, kinds) = timesAndKinds(lines, found.map { it.second to it.third })
         return mergeConsecutiveDuplicates(
             found.mapIndexed { k, (p, first, _) ->
-                p.toStop(startOrder + first).copy(time = times.getOrNull(k), kind = kinds.getOrNull(k)) to p
+                // The passenger's name is the line right above the address (never past the previous trip).
+                val above = first - 1
+                val name = if (above >= 0 && (k == 0 || above > found[k - 1].third)) personName(lines[above]) else null
+                p.toStop(startOrder + first).copy(time = times.getOrNull(k), kind = kinds.getOrNull(k), name = name) to p
             },
         )
     }
@@ -114,6 +119,33 @@ class AddressExtractor(private val localities: Localities) {
         val townOk = a.parsedTown == null || b.parsedTown == null || TextNorm.fold(a.parsedTown) == TextNorm.fold(b.parsedTown)
         return postalOk && townOk
     }
+
+    /**
+     * A passenger's name line ("Per Johan Albin Stenbäck", "ANNA TESTSSON") as first + last name
+     * ("Per Stenbäck", "Anna Testsson"): the only part of it that is kept. Anything that is not
+     * clearly a name gives null: digits or commas, a lower-case word (other than "van", "af" …),
+     * a street, a town, or a kind / status word.
+     */
+    fun personName(line: String): String? {
+        val text = TextNorm.collapseSpaces(line)
+        if (text.any { it.isDigit() || it == ',' || it == ':' } || TripKinds.labelIn(text) != null) return null
+        val words = text.split(' ')
+        if (words.size !in 2..6) return null
+        val first = words.first()
+        val last = words.last()
+        val nameWord = { w: String -> w.length >= 2 && w.first().isUpperCase() && w.all { it.isLetter() || it == '-' || it == '\'' } }
+        if (!nameWord(first) || !nameWord(last)) return null
+        if (!words.drop(1).dropLast(1).all { nameWord(it) || TextNorm.fold(it) in NAME_PARTICLES }) return null
+        if (words.any { TextNorm.fold(it) in NOT_NAME_WORDS }) return null
+        if (localities.canonical(text) != null || findStreetToken(words + "1") >= 0) return null
+        if (words.any { w -> STREET_SUFFIXES.any { s -> w.length > s.length + 1 && w.lowercase(TextNorm.SWEDISH).endsWith(s) } }) return null
+        return "${nameCase(first)} ${nameCase(last)}"
+    }
+
+    /** "ANNA" → "Anna", "ANNA-KARIN" → "Anna-Karin"; a mixed-case word stays as written. */
+    private fun nameCase(word: String): String =
+        if (word.any { it.isLowerCase() }) word
+        else word.split('-').joinToString("-") { part -> part.lowercase(TextNorm.SWEDISH).replaceFirstChar { it.titlecase(TextNorm.SWEDISH) } }
 
     // ---------------------------------------------------------------------------------------
     // Line analysis
@@ -181,7 +213,7 @@ class AddressExtractor(private val localities: Localities) {
             return null
         }
 
-        var tokens = tokenize(streetPart)
+        var tokens = withoutRepeatedWords(tokenize(streetPart))
         var streetIdx = findStreetToken(tokens)
 
         if (town == null && streetIdx >= 0) {
@@ -283,10 +315,11 @@ class AddressExtractor(private val localities: Localities) {
                 // Keep the more complete of the two (more place info), at the first position.
                 val time = last.first.time ?: item.first.time
                 val kind = last.first.kind ?: item.first.kind
+                val name = last.first.name ?: item.first.name
                 val keep = if (placeScore(item.second) > placeScore(last.second)) {
-                    item.first.copy(sourceOrder = last.first.sourceOrder, time = time, kind = kind) to item.second
+                    item.first.copy(sourceOrder = last.first.sourceOrder, time = time, kind = kind, name = name) to item.second
                 } else {
-                    last.first.copy(time = time, kind = kind) to last.second
+                    last.first.copy(time = time, kind = kind, name = name) to last.second
                 }
                 out[out.lastIndex] = keep
             } else {
@@ -461,6 +494,11 @@ class AddressExtractor(private val localities: Localities) {
 
     private fun tokenize(text: String): List<String> = text.split(' ').filter { it.isNotEmpty() }
 
+    /** "Kasernhöjden Kasernhöjden 7" (a place named after its street) → "Kasernhöjden 7". */
+    private fun withoutRepeatedWords(tokens: List<String>): List<String> = tokens.filterIndexed { i, t ->
+        i == 0 || t.none { it.isLetter() } || !t.stripPunct().equals(tokens[i - 1].stripPunct(), ignoreCase = true)
+    }
+
     /** Index of the token carrying a street suffix that is followed by a house number, or -1. */
     private fun findStreetToken(tokens: List<String>): Int {
         for (i in tokens.indices) {
@@ -515,6 +553,15 @@ class AddressExtractor(private val localities: Localities) {
             "udden", "ringen", "allén", "allé", "gata", "torg", "plan", "väg",
             "vagen", "allen", "alle",
         ).sortedByDescending { it.length }
+
+        /** Lower-case words inside a name ("Anna van der Berg"), folded. */
+        private val NAME_PARTICLES = setOf("van", "von", "der", "den", "de", "af", "av", "la", "le", "el", "al", "bin", "ibn", "da", "di", "du")
+
+        /** Words that never occur in a passenger's name line (list headings, statuses, fees), folded. */
+        private val NOT_NAME_WORDS = setOf(
+            "performed", "departed", "arrive", "arrived", "compensation", "client", "fee", "status", "trips",
+            "start", "pull", "pick", "drop", "tel", "mobil", "resor", "idag", "korningar", "utford", "avgatt",
+        )
 
         /** Words that start a street name ("Västra Torggatan"), folded (no å ä ö, lower case). */
         val STREET_PREFIXES: Set<String> = setOf(

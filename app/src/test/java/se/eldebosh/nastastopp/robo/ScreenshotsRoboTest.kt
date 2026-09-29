@@ -43,6 +43,7 @@ import se.eldebosh.nastastopp.route.model.GeoPoint
 import se.eldebosh.nastastopp.route.model.GeoStatus
 import se.eldebosh.nastastopp.route.model.RouteData
 import se.eldebosh.nastastopp.route.model.Stop
+import se.eldebosh.nastastopp.settings.Appearance
 import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.settings.AppSettings
 import se.eldebosh.nastastopp.tts.TtsStatus
@@ -75,7 +76,7 @@ class ScreenshotsRoboTest {
 
     private val now = System.currentTimeMillis()
 
-    private fun stop(id: Long, text: String, time: String?, located: Boolean = true, kind: TripKind? = null) = Stop(
+    private fun stop(id: Long, text: String, time: String?, located: Boolean = true, kind: TripKind? = null, name: String? = null) = Stop(
         id = id,
         displayText = text,
         candidates = listOf(text),
@@ -83,13 +84,14 @@ class ScreenshotsRoboTest {
         geo = if (located) GeoPoint(59.38, 13.50) else null,
         time = time,
         kind = kind,
+        name = name,
     )
 
     private val stops = listOf(
-        stop(1, "Sjösalagatan 21, 66452 Vålberg", "07:30", kind = TripKind.PICK_UP),
-        stop(2, "Brattgårdsgatan 4, 66452 Vålberg", "07:36", kind = TripKind.PICK_UP),
-        stop(3, "Majeldsvägen 10, 66450 Vålberg", "08:00", kind = TripKind.DROP_OFF),
-        stop(4, "Storgatan 14, 65224 Karlstad", "08:25", located = false, kind = TripKind.DROP_OFF),
+        stop(1, "Sjösalagatan 21, 66452 Vålberg", "07:30", kind = TripKind.PICK_UP, name = "Anna Testsson"),
+        stop(2, "Brattgårdsgatan 4, 66452 Vålberg", "07:36", kind = TripKind.PICK_UP, name = "Bengt Provare"),
+        stop(3, "Majeldsvägen 10, 66450 Vålberg", "08:00", kind = TripKind.DROP_OFF, name = "Anna Testsson"),
+        stop(4, "Storgatan 14, 65224 Karlstad", "08:25", located = false, kind = TripKind.DROP_OFF, name = "Bengt Provare"),
         stop(5, "Lindvägen 9, 66430 Grums", "09:10"),
     )
 
@@ -103,10 +105,10 @@ class ScreenshotsRoboTest {
         File(dir, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
-    private fun shot(name: String, after: () -> Unit = {}, content: @Composable () -> Unit) {
+    private fun shot(name: String, after: () -> Unit = {}, night: Boolean = false, content: @Composable () -> Unit) {
         compose.setContent {
             val context = LocalContext.current
-            NastaTheme {
+            NastaTheme(if (night) Appearance.NIGHT else Appearance.DAY) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     CompositionLocalProvider(
                         LocalExplainResources provides LocaleHelper.explanationContext(context, "en", true).resources,
@@ -135,7 +137,10 @@ class ScreenshotsRoboTest {
 
     @Test
     @Config(qualifiers = "en-w412dp-h1500dp-xhdpi")
-    fun home() = shot("home") {
+    fun home() = shot("home") { HomeContent() }
+
+    @Composable
+    private fun HomeContent() {
         HomeScreen(
             route = RouteData(createdAtMs = now, stops = stops),
             ttsStatus = TtsStatus.READY,
@@ -155,7 +160,20 @@ class ScreenshotsRoboTest {
     }
 
     @Test
-    fun activeRoute() = shot("active") {
+    fun activeRouteNight() = shot("active_night", night = true) { ActiveContent() }
+
+    @Test
+    @Config(qualifiers = "en-w412dp-h1500dp-xhdpi")
+    fun homeNight() = shot("home_night", night = true) { HomeContent() }
+
+    @Test
+    fun reviewNight() = shot("review_night", night = true) { ReviewContent() }
+
+    @Test
+    fun activeRoute() = shot("active") { ActiveContent() }
+
+    @Composable
+    private fun ActiveContent() {
         ActiveRouteScreen(
             route = RouteData(createdAtMs = now, active = true, stops = stops.drop(1), completed = stops.take(1), depot = depot),
             tracking = TrackingState(),
@@ -170,7 +188,10 @@ class ScreenshotsRoboTest {
     }
 
     @Test
-    fun review() = shot("review") {
+    fun review() = shot("review") { ReviewContent() }
+
+    @Composable
+    private fun ReviewContent() {
         ReviewScreen(
             route = RouteData(createdAtMs = now, stops = stops, depot = depot),
             spokenName = ::spoken,
@@ -227,14 +248,22 @@ class ScreenshotsRoboTest {
 
     /** The floating panel over Maps (a window of its own): drawn into a bitmap. */
     @Test
-    fun floatingPanel() {
+    fun floatingPanel() = renderPanel("floating", Appearance.DAY)
+
+    @Test
+    fun floatingPanelNight() = renderPanel("floating_night", Appearance.NIGHT)
+
+    private fun renderPanel(name: String, appearance: Appearance) {
         val app = ApplicationProvider.getApplicationContext<App>()
         val graph = app.graph
         ShadowSettings.setCanDrawOverlays(true)
-        graph.settings.update { it.copy(overlayHidden = false, overlayMinimized = false) }
+        graph.settings.update { it.copy(overlayHidden = false, overlayMinimized = false, appearance = appearance) }
         graph.controller.clear()
-        graph.controller.addManual("Brattgårdsgatan 4, 66452 Vålberg", "07:36")
-        graph.controller.addManual("Majeldsvägen 10, 66450 Vålberg", "08:00")
+        graph.controller.addExtracted(
+            graph.extractor.extract(
+                listOf("2026-09-29", "07:36", "Pick-up", "Bengt Provare", "Brattgårdsgatan 4, 66452 Vålberg", "08:00", "Drop-off", "Bengt Provare", "Majeldsvägen 10, 66450 Vålberg"),
+            ),
+        )
         repeat(600) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1)) }
         graph.controller.start()
         shadowOf(Looper.getMainLooper()).idle()
@@ -248,8 +277,9 @@ class ScreenshotsRoboTest {
             translate(20f, 20f)
             panel.draw(this)
         }
-        save("floating", bitmap)
+        save(name, bitmap)
         graph.controller.end()
+        graph.settings.update { it.copy(appearance = Appearance.DAY) }
     }
 
     /**

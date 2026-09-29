@@ -7,7 +7,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasureResult
@@ -34,6 +33,7 @@ import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.offset
 import androidx.compose.ui.unit.sp
+import se.eldebosh.nastastopp.ui.theme.LocalAppColors
 
 /**
  * Reference numbers: a small number on every button, switch and piece of information, so the
@@ -123,8 +123,9 @@ private class RefDrawNode(var n: Int, var corner: Boolean) : Modifier.Node(), Dr
         drawContent()
         if (!RefNumbers.enabled) return
         val m = measurer ?: TextMeasurer(currentValueOf(LocalFontFamilyResolver), this, layoutDirection).also { measurer = it }
+        val colors = currentValueOf(LocalAppColors) // day or night
         if (corner) {
-            val text = m.measure(n.toString(), PILL_STYLE)
+            val text = m.measure(n.toString(), PILL_STYLE.copy(color = colors.onRefPill))
             val padX = 3.dp.toPx()
             val w = text.size.width + 2 * padX
             val h = text.size.height.toFloat()
@@ -132,18 +133,18 @@ private class RefDrawNode(var n: Int, var corner: Boolean) : Modifier.Node(), Dr
             // (a switch track, a "?" ring).
             val out = 4.dp.toPx()
             val x = if (layoutDirection == LayoutDirection.Ltr) -out else size.width - w + out
-            drawRoundRect(PILL, topLeft = Offset(x, -out), size = Size(w, h), cornerRadius = CornerRadius(h / 2))
+            drawRoundRect(colors.refPill, topLeft = Offset(x, -out), size = Size(w, h), cornerRadius = CornerRadius(h / 2))
             drawText(text, topLeft = Offset(x + padX, -out))
         } else {
-            val text = m.measure(n.toString(), STRIP_STYLE)
+            val text = m.measure(n.toString(), STRIP_STYLE.copy(color = colors.refText))
             val x = if (layoutDirection == LayoutDirection.Ltr) 2.dp.toPx() else size.width - text.size.width - 2.dp.toPx()
             drawText(text, topLeft = Offset(x, (STRIP.toPx() - text.size.height) / 2))
         }
     }
 
     companion object {
-        private val STRIP_STYLE = TextStyle(color = Color(0xFF6B7280), fontSize = 8.5.sp, fontWeight = FontWeight.Bold, lineHeight = 10.sp)
-        private val PILL = Color(0xE617171A)
-        private val PILL_STYLE = TextStyle(color = Color(0xFFF1F2F4), fontSize = 8.sp, fontWeight = FontWeight.Bold, lineHeight = 10.sp)
+        // Colours come from the look's roles (refText, refPill, onRefPill).
+        private val STRIP_STYLE = TextStyle(fontSize = 8.5.sp, fontWeight = FontWeight.Bold, lineHeight = 10.sp)
+        private val PILL_STYLE = TextStyle(fontSize = 8.sp, fontWeight = FontWeight.Bold, lineHeight = 10.sp)
     }
 }

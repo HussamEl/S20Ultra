@@ -9,11 +9,8 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,31 +18,32 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import se.eldebosh.nastastopp.R
+import se.eldebosh.nastastopp.tts.TtsStatus
+import se.eldebosh.nastastopp.ui.AppButton
 import se.eldebosh.nastastopp.ui.HelpDot
 import se.eldebosh.nastastopp.ui.ref
 import se.eldebosh.nastastopp.ui.refCorner
-import se.eldebosh.nastastopp.ui.theme.Accent
-import se.eldebosh.nastastopp.ui.theme.Ink
-import se.eldebosh.nastastopp.tts.TtsStatus
-import se.eldebosh.nastastopp.ui.AppButton
-import se.eldebosh.nastastopp.ui.theme.Located
+import se.eldebosh.nastastopp.ui.theme.AppTheme
 import se.eldebosh.nastastopp.util.SystemIntents
 
 private enum class Step(@StringRes val title: Int, @StringRes val body: Int, @DrawableRes val icon: Int) {
@@ -101,9 +99,9 @@ fun OnboardingScreen(
         Spacer(Modifier.height(20.dp))
         Box(
             contentAlignment = Alignment.Center,
-            modifier = Modifier.size(72.dp).clip(RoundedCornerShape(22.dp)).background(Accent),
+            modifier = Modifier.size(72.dp).clip(RoundedCornerShape(22.dp)).background(AppTheme.colors.accent),
         ) {
-            Icon(painterResource(step.icon), contentDescription = null, tint = Ink, modifier = Modifier.size(36.dp))
+            Icon(painterResource(step.icon), contentDescription = null, tint = AppTheme.colors.onAccent, modifier = Modifier.size(36.dp))
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(step.title), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.ref(181).weight(1f, fill = false))
@@ -113,7 +111,7 @@ fun OnboardingScreen(
             Text(
                 if (step == Step.VOICE) stringResource(R.string.voice_ready) else stringResource(R.string.onb_granted),
                 style = MaterialTheme.typography.titleMedium,
-                color = Located,
+                color = AppTheme.colors.success,
                 modifier = Modifier.ref(183),
             )
         }

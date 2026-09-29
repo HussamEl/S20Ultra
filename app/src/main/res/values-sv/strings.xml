@@ -262,4 +262,9 @@
     <string name="kind_pull_out">Start</string>
     <string name="kind_pull_in">Tillbaka till depån</string>
     <string name="depot_hint">Startpunkten (YouDrives Pull-out) är där dagen börjar. Den visas i grått ovanför resorna men är inget stopp: den skickas inte till Maps, annonseras inte och räknas inte.</string>
+    <string name="settings_appearance">Utseende</string>
+    <string name="appearance_day">Dag – YouDrives färger</string>
+    <string name="appearance_night">Natt – mörkt</string>
+    <string name="appearance_auto">Automatiskt – följer telefonens mörka läge</string>
+    <string name="appearance_hint">Dag är ljust, i YouDrives färger. Natt är mörkt och skonsamt för ögonen när du kör i mörker; resorna behåller sin betydelse (grön hämtning, grå start, gult för det du ska göra nu). Automatiskt följer telefonens mörka läge, som Samsung kan slå på från solnedgång till soluppgång.</string>
 </resources>

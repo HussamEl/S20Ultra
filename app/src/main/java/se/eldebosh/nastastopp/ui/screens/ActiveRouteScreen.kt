@@ -1,26 +1,26 @@
 package se.eldebosh.nastastopp.ui.screens
 
 import androidx.annotation.DrawableRes
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.preferKeepClear
-import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.preferKeepClear
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
@@ -32,10 +32,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,12 +47,12 @@ import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import se.eldebosh.nastastopp.R
-import se.eldebosh.nastastopp.ui.ref
 import se.eldebosh.nastastopp.core.geo.StreetInfo
 import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.core.parse.TripTimes
@@ -61,20 +61,14 @@ import se.eldebosh.nastastopp.route.TrackingState
 import se.eldebosh.nastastopp.route.model.RouteData
 import se.eldebosh.nastastopp.route.model.Stop
 import se.eldebosh.nastastopp.ui.AppButton
-import se.eldebosh.nastastopp.ui.KindLabel
 import se.eldebosh.nastastopp.ui.ButtonRow
+import se.eldebosh.nastastopp.ui.KindLabel
 import se.eldebosh.nastastopp.ui.TopBar
 import se.eldebosh.nastastopp.ui.TouchTarget
+import se.eldebosh.nastastopp.ui.TripSurface
+import se.eldebosh.nastastopp.ui.ref
 import se.eldebosh.nastastopp.ui.refCorner
-import se.eldebosh.nastastopp.ui.theme.Accent
-import se.eldebosh.nastastopp.ui.theme.Brand
-import se.eldebosh.nastastopp.ui.theme.DepotGrey
-import se.eldebosh.nastastopp.ui.theme.Ink
-import se.eldebosh.nastastopp.ui.theme.kindColor
-import se.eldebosh.nastastopp.ui.theme.Hairline
-import se.eldebosh.nastastopp.ui.theme.TimeColor
-import se.eldebosh.nastastopp.ui.theme.Located
-import se.eldebosh.nastastopp.ui.theme.NotLocated
+import se.eldebosh.nastastopp.ui.theme.AppTheme
 import se.eldebosh.nastastopp.util.TimeLabels
 import java.time.Instant
 import java.time.ZoneId
@@ -179,7 +173,7 @@ fun ActiveRouteScreen(
                 UpcomingRow(index = i + 2, stop = stop, area = spokenName(stop))
             }
         }
-        HorizontalDivider(thickness = 1.dp, color = Hairline)
+        HorizontalDivider(thickness = 1.dp, color = AppTheme.colors.cardBorder)
         // preferKeepClear: asks the system to keep floating windows (Maps' picture-in-picture) off
         // the driving buttons. Honoured only where the system supports it (Android 13+, not all).
         Column(
@@ -193,7 +187,7 @@ fun ActiveRouteScreen(
                 )
                 AppButton(
                     stringResource(R.string.btn_next), onNext, Modifier.ref(78).weight(1.6f),
-                    icon = R.drawable.ic_next, minHeight = 60.dp, containerColor = Accent, contentColor = Ink,
+                    icon = R.drawable.ic_next, minHeight = 60.dp, containerColor = AppTheme.colors.accent, contentColor = AppTheme.colors.onAccent,
                 )
             }
             ButtonRow {
@@ -221,10 +215,10 @@ private fun CompletedRow(stop: Stop, area: String) {
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.ref(67).fillMaxWidth().alpha(0.5f).padding(horizontal = 6.dp, vertical = 2.dp),
     ) {
-        Icon(painterResource(R.drawable.ic_located), contentDescription = null, tint = Located, modifier = Modifier.size(14.dp))
+        Icon(painterResource(R.drawable.ic_located), contentDescription = null, tint = AppTheme.colors.success, modifier = Modifier.size(14.dp))
         Spacer(Modifier.width(6.dp))
         if (stop.time != null) {
-            Text(stop.time, style = MaterialTheme.typography.labelMedium, color = TimeColor)
+            Text(stop.time, style = MaterialTheme.typography.labelMedium, color = AppTheme.colors.time)
             Spacer(Modifier.width(8.dp))
         }
         Text(
@@ -249,7 +243,7 @@ private fun StreetBar(street: StreetInfo?, onSpeak: () -> Unit) {
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .padding(start = 14.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
     ) {
-        Icon(painterResource(R.drawable.ic_pin), contentDescription = null, tint = Brand, modifier = Modifier.size(20.dp))
+        Icon(painterResource(R.drawable.ic_pin), contentDescription = null, tint = AppTheme.colors.info, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(stringResource(R.string.street_label), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -290,93 +284,96 @@ private fun TimeStatusChip(time: String, nowMs: Long) {
     val until = TripTimes.minutesUntil(time, now.hour * 60 + now.minute) ?: return
     val resources = LocalResources.current
     val context = LocalContext.current
-    val color = Color(TimeLabels.color(TripTimes.level(until)))
+    val color = AppTheme.colors.status(TripTimes.level(until))
     val label = remember(until, resources) { TimeLabels.until(context, until) }
     Text(
         label,
         style = MaterialTheme.typography.labelLarge,
-        color = Color.White,
+        color = AppTheme.colors.onStatus,
         modifier = Modifier.ref(70).clip(RoundedCornerShape(50)).background(color).padding(horizontal = 10.dp, vertical = 3.dp),
     )
 }
 
-/** Secondary text on a trip card (white, green or grey): ink, a little lighter. */
-private val CardMuted = Ink.copy(alpha = 0.72f)
-
 /**
  * The current trip, like YouDrive's active card: the trip's colour (green pick-up, white
- * drop-off) inside a thick black border, the time on a yellow pill.
+ * drop-off) inside a thick border, the time on a yellow pill, the passenger's name beside it.
  */
 @Composable
 private fun CurrentCard(current: Stop, area: String, status: String, arrivedAtMs: Long?) {
     val nowMs = rememberNowMs()
-    val shape = MaterialTheme.shapes.large
-    Column(
-        Modifier
-            .ref(68)
-            .fillMaxWidth()
-            .clip(shape)
-            .background(kindColor(current.kind))
-            .border(3.dp, Ink, shape)
-            .padding(16.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                stringResource(R.string.active_next_label),
-                style = MaterialTheme.typography.labelLarge,
-                color = Ink,
-            )
-            if (current.kind != null) {
-                Spacer(Modifier.width(8.dp))
-                KindLabel(current.kind, Modifier.ref(128, centered = true))
+    TripSurface(current.kind, Modifier.ref(68).fillMaxWidth(), current = true) {
+        Column(Modifier.animateContentSize().padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.active_next_label),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = AppTheme.colors.onTrip,
+                )
+                if (current.kind != null) {
+                    Spacer(Modifier.width(8.dp))
+                    KindLabel(current.kind, Modifier.ref(128, centered = true))
+                }
+                Spacer(Modifier.weight(1f))
+                if (current.time != null) TimeStatusChip(current.time, nowMs)
             }
-            Spacer(Modifier.weight(1f))
-            if (current.time != null) TimeStatusChip(current.time, nowMs)
-        }
-        if (current.time != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (current.time != null) {
+                    Text(
+                        current.time,
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = AppTheme.colors.onAccent,
+                        modifier = Modifier
+                            .ref(69)
+                            .padding(top = 6.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(AppTheme.colors.accent)
+                            .padding(horizontal = 10.dp, vertical = 2.dp),
+                    )
+                    Spacer(Modifier.width(12.dp))
+                }
+                if (current.name != null) {
+                    Text(
+                        current.name,
+                        style = MaterialTheme.typography.titleLarge.copy(textDirection = TextDirection.Content),
+                        color = AppTheme.colors.onTrip,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.ref(135, centered = true),
+                    )
+                }
+            }
             Text(
-                current.time,
-                style = MaterialTheme.typography.headlineSmall,
-                color = Ink,
-                modifier = Modifier
-                    .ref(69)
-                    .padding(top = 6.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Accent)
-                    .padding(horizontal = 10.dp, vertical = 2.dp),
+                area,
+                style = MaterialTheme.typography.headlineLarge.copy(textDirection = TextDirection.Content),
+                color = AppTheme.colors.onTrip,
+                modifier = Modifier.ref(71),
             )
-        }
-        Text(
-            area,
-            style = MaterialTheme.typography.headlineLarge.copy(textDirection = TextDirection.Content),
-            color = Ink,
-            modifier = Modifier.ref(71),
-        )
-        Spacer(Modifier.height(6.dp))
-        Row(verticalAlignment = Alignment.Top) {
-            Icon(
-                painterResource(if (current.isLocated) R.drawable.ic_located else R.drawable.ic_not_located),
-                contentDescription = stringResource(if (current.isLocated) R.string.stop_located else R.string.stop_not_located),
-                tint = if (current.isLocated) Located else NotLocated,
-                modifier = Modifier.padding(top = 2.dp).size(18.dp),
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(
-                current.displayText,
-                style = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Content),
-                color = Ink,
-                modifier = Modifier.ref(72),
-            )
-        }
-        Spacer(Modifier.height(8.dp))
-        Text(status, style = MaterialTheme.typography.bodySmall, color = CardMuted, modifier = Modifier.ref(73))
-        if (arrivedAtMs != null) {
-            Text(
-                stringResource(R.string.wait_at_stop, TimeLabels.duration(nowMs - arrivedAtMs)),
-                style = MaterialTheme.typography.titleMedium,
-                color = TimeColor,
-                modifier = Modifier.ref(74),
-            )
+            Spacer(Modifier.height(6.dp))
+            Row(verticalAlignment = Alignment.Top) {
+                Icon(
+                    painterResource(if (current.isLocated) R.drawable.ic_located else R.drawable.ic_not_located),
+                    contentDescription = stringResource(if (current.isLocated) R.string.stop_located else R.string.stop_not_located),
+                    tint = if (current.isLocated) AppTheme.colors.success else AppTheme.colors.danger,
+                    modifier = Modifier.padding(top = 2.dp).size(18.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    current.displayText,
+                    style = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Content),
+                    color = AppTheme.colors.onTrip,
+                    modifier = Modifier.ref(72),
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(status, style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.onTripMuted, modifier = Modifier.ref(73))
+            if (arrivedAtMs != null) {
+                Text(
+                    stringResource(R.string.wait_at_stop, TimeLabels.duration(nowMs - arrivedAtMs)),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = AppTheme.colors.time,
+                    modifier = Modifier.ref(74),
+                )
+            }
         }
     }
 }
@@ -384,34 +381,27 @@ private fun CurrentCard(current: Stop, area: String, status: String, arrivedAtMs
 /** A coming trip on its YouDrive colour (green pick-up, white drop-off, grey depot). */
 @Composable
 private fun UpcomingRow(index: Int, stop: Stop, area: String) {
-    val shape = MaterialTheme.shapes.medium
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .ref(76)
-            .fillMaxWidth()
-            .clip(shape)
-            .background(kindColor(stop.kind))
-            .border(1.dp, Hairline, shape)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-    ) {
-        Text(
-            stop.time ?: "--:--",
-            style = MaterialTheme.typography.labelLarge,
-            color = if (stop.time != null) TimeColor else MaterialTheme.colorScheme.outline,
-        )
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text("$index. $area", style = MaterialTheme.typography.titleSmall, color = Ink)
+    TripSurface(stop.kind, Modifier.ref(76).fillMaxWidth(), shape = MaterialTheme.shapes.medium) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
             Text(
-                stop.displayText,
-                style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Content),
-                color = CardMuted,
+                stop.time ?: "--:--",
+                style = MaterialTheme.typography.labelLarge,
+                color = if (stop.time != null) AppTheme.colors.time else MaterialTheme.colorScheme.outline,
             )
-        }
-        if (stop.kind != null) {
-            Spacer(Modifier.width(8.dp))
-            KindLabel(stop.kind)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("$index. $area", style = MaterialTheme.typography.titleSmall, color = AppTheme.colors.onTrip)
+                // The passenger's name before the address (the driver's screen only).
+                Text(
+                    listOfNotNull(stop.name, stop.displayText).joinToString(" · "),
+                    style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Content),
+                    color = AppTheme.colors.onTripMuted,
+                )
+            }
+            if (stop.kind != null) {
+                Spacer(Modifier.width(8.dp))
+                KindLabel(stop.kind)
+            }
         }
     }
 }
@@ -419,30 +409,23 @@ private fun UpcomingRow(index: Int, stop: Stop, area: String) {
 /** The day's start point (YouDrive's grey Pull-out card): shown, but not a stop. */
 @Composable
 private fun DepotRow(depot: Stop) {
-    val shape = MaterialTheme.shapes.medium
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .ref(85)
-            .fillMaxWidth()
-            .clip(shape)
-            .background(DepotGrey)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
-    ) {
-        KindLabel(TripKind.PULL_OUT)
-        Spacer(Modifier.width(10.dp))
-        if (depot.time != null) {
-            Text(depot.time, style = MaterialTheme.typography.labelLarge, color = Ink)
-            Spacer(Modifier.width(8.dp))
+    TripSurface(TripKind.PULL_OUT, Modifier.ref(85).fillMaxWidth(), shape = MaterialTheme.shapes.medium) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
+            KindLabel(TripKind.PULL_OUT)
+            Spacer(Modifier.width(10.dp))
+            if (depot.time != null) {
+                Text(depot.time, style = MaterialTheme.typography.labelLarge, color = AppTheme.colors.onTrip)
+                Spacer(Modifier.width(8.dp))
+            }
+            Text(
+                depot.displayText,
+                style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Content),
+                color = AppTheme.colors.onTrip,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
         }
-        Text(
-            depot.displayText,
-            style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Content),
-            color = Ink,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
     }
 }
 
@@ -460,7 +443,7 @@ private fun RowScope.ActionTile(@DrawableRes icon: Int, label: String, ref: Int,
             .heightIn(min = 56.dp)
             .clip(shape)
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .border(1.dp, Hairline, shape)
+            .border(1.dp, AppTheme.colors.cardBorder, shape)
             .clickable(onClick = onClick)
             .padding(horizontal = 4.dp, vertical = 6.dp),
     ) {

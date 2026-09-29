@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
+import android.content.res.Configuration
 import android.graphics.Canvas
 import android.graphics.ColorFilter
 import android.graphics.Paint
@@ -30,17 +31,22 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.annotation.DrawableRes
+import androidx.compose.ui.graphics.toArgb
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import se.eldebosh.nastastopp.MainActivity
 import se.eldebosh.nastastopp.R
+import se.eldebosh.nastastopp.core.parse.TimeLevel
 import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.core.parse.TripTimes
 import se.eldebosh.nastastopp.geo.CurrentStreet
 import se.eldebosh.nastastopp.route.RouteController
 import se.eldebosh.nastastopp.service.Notifications
 import se.eldebosh.nastastopp.settings.SettingsStore
+import se.eldebosh.nastastopp.ui.theme.AppColors
+import se.eldebosh.nastastopp.ui.theme.AppTheme
+import se.eldebosh.nastastopp.ui.theme.DayColors
 import se.eldebosh.nastastopp.util.LocaleHelper
 import se.eldebosh.nastastopp.util.TimeLabels
 import java.time.LocalTime
@@ -78,6 +84,9 @@ class OverlayManager(
     private var reminderShown: Boolean? = null
 
     /** Views that are updated while the panel (or bubble) is shown. */
+    /** The panel's colours for the current look; set each time the panel is built. */
+    private var pc = PanelColors(DayColors)
+
     private class Views {
         var street: TextView? = null
         var area: TextView? = null
@@ -131,7 +140,7 @@ class OverlayManager(
             return
         }
         street.want(WANT_KEY, !s.overlayMinimized)
-        val key = "${s.overlayMinimized}|${s.uiLanguage}|${s.showRefNumbers}"
+        val key = "${s.overlayMinimized}|${s.uiLanguage}|${s.showRefNumbers}|${AppTheme.isNight(s.appearance, systemNight())}"
         if (root == null || key != layoutKey) {
             hide()
             show(s.overlayMinimized)
@@ -139,6 +148,9 @@ class OverlayManager(
         }
         bind()
     }
+
+    private fun systemNight() =
+        (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
 
     private fun dp(v: Float): Int = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, context.resources.displayMetrics).roundToInt()
 
@@ -162,8 +174,9 @@ class OverlayManager(
         val backAlpha = if (r.completed.isEmpty()) 0.35f else 1f
         (v.back as? ViewGroup)?.let { b -> for (i in 0 until b.childCount) b.getChildAt(i).alpha = backAlpha }
         v.progress?.text = progress(r.completedCount, r.stops.size)
-        v.address?.text = current.displayText
-        v.infoBg?.setColor(infoColor(current.kind))
+        // The passenger's first + last name before the address: this panel is the driver's own.
+        v.address?.text = listOfNotNull(current.name, current.displayText).joinToString(" · ")
+        v.infoBg?.setColor(pc.info(current.kind))
         v.time?.apply {
             text = current.time.orEmpty()
             visibility = if (current.time == null) View.GONE else View.VISIBLE
@@ -184,7 +197,7 @@ class OverlayManager(
         val now = LocalTime.now()
         v.clock?.text = now.format(clockFormat)
         val until = TripTimes.minutesUntil(current.time, now.hour * 60 + now.minute)
-        val color = until?.let { TimeLabels.color(TripTimes.level(it)) }
+        val color = until?.let { pc.status(TripTimes.level(it)) }
         v.status?.apply {
             text = until?.let { TimeLabels.until(ui, it) }.orEmpty()
             visibility = if (until == null) View.GONE else View.VISIBLE
@@ -201,7 +214,7 @@ class OverlayManager(
             text = waited ?: if (current.time != null) progress(r.completedCount, r.stops.size) else ""
             visibility = if (text.isNullOrEmpty()) View.GONE else View.VISIBLE
         }
-        v.bubbleBg?.setStroke(dp(4f), color ?: HAIRLINE)
+        v.bubbleBg?.setStroke(dp(4f), color ?: pc.line)
     }
 
     private fun progress(done: Int, remaining: Int) = "${done + 1}/${done + remaining}"
@@ -213,6 +226,7 @@ class OverlayManager(
     @SuppressLint("RtlHardcoded")
     private fun show(minimized: Boolean) {
         ui = LocaleHelper.wrap(context, settings.current.uiLanguage)
+        pc = PanelColors(AppTheme.colorsFor(settings.current.appearance, systemNight()))
         val (x, y) = settings.overlayPosition() ?: (dp(16f) to dp(200f))
         val lp = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
@@ -249,11 +263,11 @@ class OverlayManager(
     private fun buildBubble(lp: WindowManager.LayoutParams, v: Views): View {
         val bg = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
-            setColor(BRAND)
-            setStroke(dp(4f), HAIRLINE)
+            setColor(pc.next)
+            setStroke(dp(4f), pc.line)
         }
-        val main = text(15f, ON_BRAND, bold = true)
-        val sub = text(11f, ON_BRAND)
+        val main = text(15f, pc.onNext, bold = true)
+        val sub = text(11f, pc.onNext)
         val bubble = LinearLayout(ui).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -285,13 +299,13 @@ class OverlayManager(
         fun drag(view: View, onLongPress: (() -> Unit)? = null) = view.setOnTouchListener(TouchHandler(lp, container, onLongPress))
 
         // Current street in the big circle.
-        val streetView = text(18f, WHITE, bold = true).apply {
+        val streetView = text(18f, pc.onCircle, bold = true).apply {
             maxLines = 3
             ellipsize = TextUtils.TruncateAt.END
             textDirection = View.TEXT_DIRECTION_FIRST_STRONG
             setAutoSizeTextTypeUniformWithConfiguration(10, 18, 1, TypedValue.COMPLEX_UNIT_SP)
         }
-        val areaView = text(11f, MUTED_ON_INK).apply {
+        val areaView = text(11f, pc.onCircleMuted).apply {
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
             maxWidth = dp(92f)
@@ -302,23 +316,23 @@ class OverlayManager(
             gravity = Gravity.CENTER
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(PANEL)
-                setStroke(dp(2.5f), BRAND)
+                setColor(pc.circle)
+                setStroke(dp(2.5f), pc.ring)
             }
             elevation = dp(6f).toFloat()
             contentDescription = ui.getString(R.string.overlay_street_desc)
             addView(streetView, LinearLayout.LayoutParams(dp(96f), dp(58f)))
             addView(areaView)
         }
-        val speaker = roundIcon(R.drawable.ic_speaker, 38f, RAISED, INK, R.string.overlay_speak_street_desc)
+        val speaker = roundIcon(R.drawable.ic_speaker, 38f, pc.button, pc.onButton, R.string.overlay_speak_street_desc)
         val circleFrame = FrameLayout(ui).apply {
             addView(circle, FrameLayout.LayoutParams(dp(CIRCLE_DP), dp(CIRCLE_DP), Gravity.TOP or Gravity.CENTER_HORIZONTAL))
             addView(speaker, FrameLayout.LayoutParams(dp(40f), dp(40f), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
         }
 
         // Back (with ×) and Next (with –) on either side.
-        val back = labeledButton(R.drawable.ic_previous, R.string.overlay_back, 58f, RAISED, INK)
-        val next = labeledButton(R.drawable.ic_next, R.string.overlay_next, 64f, BRAND, ON_BRAND)
+        val back = labeledButton(R.drawable.ic_previous, R.string.overlay_back, 58f, pc.button, pc.onButton)
+        val next = labeledButton(R.drawable.ic_next, R.string.overlay_next, 64f, pc.next, pc.onNext)
         val close = smallControl("×", R.string.overlay_close_desc)
         val minimize = smallControl("–", R.string.overlay_minimize_desc)
         val row = LinearLayout(ui).apply {
@@ -330,18 +344,18 @@ class OverlayManager(
         }
 
         // Info: clock, trip n/total, next trip's time + status + distance, address, waiting timer.
-        val clockView = text(18f, INK, bold = true)
-        val progressView = text(13f, MUTED).apply { setPadding(dp(8f), 0, dp(8f), 0) }
-        val timeView = text(15f, TIME, bold = true)
-        val statusView = text(14f, INK, bold = true).apply { setPadding(dp(8f), 0, dp(8f), 0) }
-        val distanceView = text(13f, MUTED)
-        val addressView = text(13f, INK).apply {
+        val clockView = text(18f, pc.text, bold = true)
+        val progressView = text(13f, pc.muted).apply { setPadding(dp(8f), 0, dp(8f), 0) }
+        val timeView = text(15f, pc.text, bold = true)
+        val statusView = text(14f, pc.text, bold = true).apply { setPadding(dp(8f), 0, dp(8f), 0) }
+        val distanceView = text(13f, pc.muted)
+        val addressView = text(13f, pc.text).apply {
             maxLines = 2
             ellipsize = TextUtils.TruncateAt.END
             gravity = Gravity.START
             textDirection = View.TEXT_DIRECTION_FIRST_STRONG
         }
-        val waitView = text(14f, TIME, bold = true).apply { visibility = View.GONE }
+        val waitView = text(14f, pc.text, bold = true).apply { visibility = View.GONE }
         val lines = LinearLayout(ui).apply {
             orientation = LinearLayout.VERTICAL
             addView(line(clockView, progressView))
@@ -351,10 +365,10 @@ class OverlayManager(
         }
         val infoBg = GradientDrawable().apply {
             cornerRadius = dp(16f).toFloat()
-            setColor(INFO_BG)
-            setStroke(dp(1f), HAIRLINE)
+            setColor(pc.info(null))
+            setStroke(dp(1f), pc.line)
         }
-        val repeat = roundIcon(R.drawable.ic_repeat, 38f, RAISED, INK, R.string.overlay_repeat_desc)
+        val repeat = roundIcon(R.drawable.ic_repeat, 38f, pc.button, pc.onButton, R.string.overlay_repeat_desc)
         val info = LinearLayout(ui).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -459,7 +473,7 @@ class OverlayManager(
         return LinearLayout(ui).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            background = oval(fill, if (fill == BRAND) BRAND else HAIRLINE, 1.5f)
+            background = oval(fill, if (fill == pc.next) pc.next else pc.line, 1.5f)
             elevation = dp(6f).toFloat()
             contentDescription = ui.getString(label)
             layoutParams = LinearLayout.LayoutParams(dp(sizeDp), dp(sizeDp))
@@ -473,7 +487,7 @@ class OverlayManager(
         imageTintList = ColorStateList.valueOf(fg)
         val pad = dp(sizeDp / 5f)
         setPadding(pad, pad, pad, pad)
-        background = oval(fill, HAIRLINE, 1.5f)
+        background = oval(fill, pc.line, 1.5f)
         elevation = dp(8f).toFloat()
         contentDescription = ui.getString(description)
     }
@@ -494,11 +508,11 @@ class OverlayManager(
 
     private inner class RefBadge(private val text: String, private val rtl: Boolean, private val bottomEnd: Boolean) : Drawable() {
         private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = 0xFFF1F2F4.toInt()
+            color = pc.onRefPill
             textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 8f, context.resources.displayMetrics)
             isFakeBoldText = true
         }
-        private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xCC17171A.toInt() }
+        private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = pc.refPill }
 
         override fun draw(canvas: Canvas) {
             val pad = dp(3f).toFloat()
@@ -520,9 +534,9 @@ class OverlayManager(
         override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
     }
 
-    private fun smallControl(symbol: String, description: Int) = text(18f, WHITE, bold = true).apply {
+    private fun smallControl(symbol: String, description: Int) = text(18f, pc.onCircle, bold = true).apply {
         text = symbol
-        background = oval(PANEL, HAIRLINE, 1.5f)
+        background = oval(pc.circle, pc.line, 1.5f)
         elevation = dp(8f).toFloat()
         contentDescription = ui.getString(description)
     }
@@ -690,27 +704,36 @@ class OverlayManager(
         /** All panel texts 10 % smaller than first designed (driver's request). */
         private const val FONT_SCALE = 0.9f
         // The app's "Night transit" colours (see ui/theme/Theme.kt).
-        // Colours mirror ui/theme/Theme.kt ("Route cards"): black ink, white and green trip cards,
-        // taxi yellow for Next. Surfaces are nearly opaque, so map labels do not show through.
-        private const val BRAND = 0xFFFFC61A.toInt() // Accent: Next, the bubble, the circle's ring
-        private const val ON_BRAND = 0xFF17171A.toInt() // ink on yellow
-        private const val INK = 0xFF17171A.toInt()
-        private const val TIME = INK
-        private const val PANEL = 0xFA17171A.toInt() // the circle and × / –: ink with white text
-        private const val RAISED = 0xFAFFFFFF.toInt() // Back, speaker, repeat: white with ink icons
-        private const val INFO_BG = 0xFAFFFFFF.toInt() // the next trip's card: white (drop-off) …
-        private const val INFO_PICK_UP = 0xFA9CD39C.toInt() // … green (pick-up) …
-        private const val INFO_DEPOT = 0xFACACACA.toInt() // … grey (back to the depot)
-        private const val HAIRLINE = 0xFFD0D4D9.toInt()
-        private const val MUTED = 0xFF4A4F55.toInt() // secondary text on the info card
-        private const val MUTED_ON_INK = 0xFFC7CBD1.toInt()
-        private const val WHITE = 0xFFFFFFFF.toInt()
+    }
+}
 
-        /** The info card's colour for the next trip, like its YouDrive card. */
-        fun infoColor(kind: TripKind?): Int = when (kind) {
-            TripKind.PICK_UP -> INFO_PICK_UP
-            TripKind.PULL_OUT, TripKind.PULL_IN -> INFO_DEPOT
-            TripKind.DROP_OFF, null -> INFO_BG
-        }
+/**
+ * The floating panel's colours as ARGB ints (the panel is made of Views), taken from the app's
+ * colour roles, so it follows the day and night looks with no colours of its own. Its surfaces
+ * are nearly opaque: map labels must not show through.
+ */
+private class PanelColors(c: AppColors) {
+    val next = c.accent.toArgb()
+    val onNext = c.onAccent.toArgb()
+    val button = c.card.copy(alpha = OPAQUE).toArgb()
+    val onButton = c.text.toArgb()
+    val circle = c.panelCircle.copy(alpha = OPAQUE).toArgb()
+    val onCircle = c.onPanelCircle.toArgb()
+    val onCircleMuted = c.onPanelCircleMuted.toArgb()
+    val ring = c.panelRing.toArgb()
+    val line = c.cardBorder.toArgb()
+    val text = c.onTrip.toArgb()
+    val muted = c.onTripMuted.toArgb()
+    val refPill = c.refPill.toArgb()
+    val onRefPill = c.onRefPill.toArgb()
+    private val colors = c
+
+    /** The info card in the next trip's colour, like its YouDrive card. */
+    fun info(kind: TripKind?): Int = colors.trip(kind).copy(alpha = OPAQUE).toArgb()
+
+    fun status(level: TimeLevel): Int = colors.status(level).toArgb()
+
+    private companion object {
+        const val OPAQUE = 0.98f
     }
 }

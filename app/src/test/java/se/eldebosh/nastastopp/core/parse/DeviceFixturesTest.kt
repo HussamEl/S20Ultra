@@ -100,5 +100,22 @@ class DeviceFixturesTest {
             stops.mapIndexed { i, s -> listOfNotNull(s.kind?.name, s.time.takeIf { i > 0 }, s.displayText).joinToString(" ") },
         )
     }
+
+    /** The passenger's first and last name comes from the line above the address. */
+    @Test
+    fun namesAreFirstAndLast() {
+        assertEquals(
+            listOf("Anna Testsson", "Bengt Provare", "Cecilia Exempel", "David Demo"),
+            extractor.extract(DeviceFixtures.timeAbove).map { it.name },
+        )
+        assertEquals(
+            listOf(null, "Anna Testsson", "Anna Testsson", "Bengt Provare", "Bengt Provare"),
+            extractor.extract(DeviceFixtures.youDrive).map { it.name },
+        )
+    }
+
+    /** Lists without a name line above the address have no names (no guessing). */
+    @Test
+    fun noNameWithoutANameLine() = assertEquals(listOf(null, null, null, null), extractor.extract(DeviceFixtures.sameLine).map { it.name })
 }
 

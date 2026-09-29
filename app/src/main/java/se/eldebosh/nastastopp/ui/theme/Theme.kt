@@ -1,106 +1,66 @@
 package se.eldebosh.nastastopp.ui.theme
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import se.eldebosh.nastastopp.core.parse.TripKind
+import se.eldebosh.nastastopp.settings.Appearance
 
 /*
- * Visual identity "Route cards" (1.1), taken from the YouDrive dispatch list the driver works with
- * every day: a light page, white trip cards, green pick-ups, a grey depot card and black actions
- * (YouDrive's "Arrive" button). Taxi yellow marks the one thing to act on next (Next, the current
- * trip's time). Green / amber / red are kept for status.
+ * The design system, in three layers:
+ *   1. Palette.kt    raw colours, named by what they are (YouDrive green, taxi yellow, sky blue …);
+ *   2. AppColors.kt  colour roles for day and night ("a pick-up's card", "the next action");
+ *   3. AppEffects.kt shadows, press feedback and colour fades.
+ * This file puts them together: NastaTheme picks day or night, provides the roles and effects
+ * (AppTheme.colors / AppTheme.effects) and maps the roles onto Material 3, so Material's own
+ * components (switches, dialogs, menus) follow too.
  */
 
-/** Ink: text, icons and the main actions. */
-val Ink = Color(0xFF17171A)
+internal val LocalAppColors = staticCompositionLocalOf { DayColors }
+internal val LocalAppEffects = staticCompositionLocalOf { DayEffects }
 
-/** Brand colour: the main actions, selected items, the app name. */
-val Brand = Ink
+/** The design system's entry point for screens and components. */
+object AppTheme {
+    /** The colour roles of the current look (day or night). */
+    val colors: AppColors
+        @Composable @ReadOnlyComposable
+        get() = LocalAppColors.current
 
-/** Taxi yellow: the next action (Next, Start route) and the current trip's time. Ink on top. */
-val Accent = Color(0xFFFFC61A)
+    /** Shadows, press feedback and colour fades of the current look. */
+    val effects: AppEffects
+        @Composable @ReadOnlyComposable
+        get() = LocalAppEffects.current
 
-/** Trip times (read at a glance; black like YouDrive's). */
-val TimeColor = Ink
+    /** True when [appearance] means night ([systemDark] = the phone's dark mode, for AUTOMATIC). */
+    fun isNight(appearance: Appearance, systemDark: Boolean): Boolean = when (appearance) {
+        Appearance.DAY -> false
+        Appearance.NIGHT -> true
+        Appearance.AUTOMATIC -> systemDark
+    }
 
-/** Status: located / on time / done (dark enough to read on white). */
-val Located = Color(0xFF1E7A34)
-
-/** Status: not found / late / problem. */
-val NotLocated = Color(0xFFC62828)
-
-/** Status: soon. */
-val Warning = Color(0xFFB45309)
-
-/** Hairline borders of cards. */
-val Hairline = Color(0xFFE1E3E6)
-
-/** YouDrive's pick-up card (green). */
-val PickUpGreen = Color(0xFF9CD39C)
-
-/** YouDrive's depot card (Pull-out / Pull-in, grey). */
-val DepotGrey = Color(0xFFCACACA)
-
-/** Card colour of a trip: green pick-up, grey depot, white drop-off (and trips of unknown kind). */
-fun kindColor(kind: TripKind?): Color = when (kind) {
-    TripKind.PICK_UP -> PickUpGreen
-    TripKind.PULL_OUT, TripKind.PULL_IN -> DepotGrey
-    TripKind.DROP_OFF, null -> Color.White
+    /** The colour roles for [appearance], also outside Compose (the floating panel is made of Views). */
+    fun colorsFor(appearance: Appearance, systemDark: Boolean): AppColors =
+        if (isNight(appearance, systemDark)) NightColors else DayColors
 }
-
-private val RouteCardColors = lightColorScheme(
-    primary = Ink,
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFFFFF1C2),
-    onPrimaryContainer = Ink,
-    secondary = Accent,
-    onSecondary = Ink,
-    secondaryContainer = Color(0xFFFFF1C2),
-    onSecondaryContainer = Ink,
-    tertiary = PickUpGreen,
-    onTertiary = Ink,
-    tertiaryContainer = Color(0xFFDDF1DD),
-    onTertiaryContainer = Ink,
-    background = Color(0xFFF4F5F7),
-    onBackground = Ink,
-    surface = Color(0xFFF4F5F7),
-    onSurface = Ink,
-    surfaceVariant = Color(0xFFECEEF1),
-    onSurfaceVariant = Color(0xFF5F6368),
-    surfaceTint = Color.Transparent,
-    surfaceContainerLowest = Color.White,
-    surfaceContainerLow = Color.White,
-    surfaceContainer = Color.White,
-    surfaceContainerHigh = Color(0xFFEFF1F4),
-    surfaceContainerHighest = Color(0xFFE6E8EC),
-    surfaceBright = Color.White,
-    surfaceDim = Color(0xFFE2E4E8),
-    inverseSurface = Ink,
-    inverseOnSurface = Color.White,
-    inversePrimary = Accent,
-    outline = Color(0xFF9AA0A6),
-    outlineVariant = Hairline,
-    error = NotLocated,
-    onError = Color.White,
-    errorContainer = Color(0xFFFDE2E1),
-    onErrorContainer = Color(0xFF5F1412),
-    scrim = Color(0xFF000000),
-)
 
 private fun style(size: Int, line: Int, weight: FontWeight = FontWeight.Normal, spacing: Float = 0f) =
     TextStyle(fontSize = size.sp, lineHeight = line.sp, fontWeight = weight, letterSpacing = spacing.sp)
 
 /** A compact, modern type scale (smaller than the first driving design, at the driver's request). */
-private val RouteTypography = Typography(
+private val AppTypography = Typography(
     displaySmall = style(34, 40, FontWeight.Bold, -0.5f),
     headlineLarge = style(30, 36, FontWeight.Bold, -0.3f),
     headlineMedium = style(26, 32, FontWeight.Bold, -0.2f),
@@ -116,7 +76,7 @@ private val RouteTypography = Typography(
     labelSmall = style(11, 14, FontWeight.Medium, 0.4f),
 )
 
-private val RouteShapes = Shapes(
+private val AppShapes = Shapes(
     extraSmall = RoundedCornerShape(8.dp),
     small = RoundedCornerShape(10.dp),
     medium = RoundedCornerShape(14.dp),
@@ -124,7 +84,54 @@ private val RouteShapes = Shapes(
     extraLarge = RoundedCornerShape(28.dp),
 )
 
+/** Material 3's colour scheme from the roles: sky blue for selection, yellow as secondary. */
+private fun AppColors.toMaterial(): ColorScheme {
+    val scheme = if (isDark) darkColorScheme() else lightColorScheme()
+    return scheme.copy(
+        primary = info,
+        onPrimary = onInfo,
+        primaryContainer = infoSoft,
+        onPrimaryContainer = text,
+        inversePrimary = accent,
+        secondary = accent,
+        onSecondary = onAccent,
+        secondaryContainer = accentSoft,
+        onSecondaryContainer = text,
+        tertiary = pickUp,
+        onTertiary = onTrip,
+        tertiaryContainer = pickUp,
+        onTertiaryContainer = onTrip,
+        background = background,
+        onBackground = text,
+        surface = background,
+        onSurface = text,
+        surfaceVariant = tonal,
+        onSurfaceVariant = textMuted,
+        surfaceTint = Color.Transparent,
+        inverseSurface = text,
+        inverseOnSurface = background,
+        error = danger,
+        onError = onStatus,
+        errorContainer = dangerSoft,
+        onErrorContainer = onDangerSoft,
+        outline = outline,
+        outlineVariant = cardBorder,
+        scrim = Color.Black,
+        surfaceBright = card,
+        surfaceDim = tonalHigh,
+        surfaceContainerLowest = card,
+        surfaceContainerLow = card,
+        surfaceContainer = card,
+        surfaceContainerHigh = tonal,
+        surfaceContainerHighest = tonalHigh,
+    )
+}
+
 @Composable
-fun NastaTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = RouteCardColors, typography = RouteTypography, shapes = RouteShapes, content = content)
+fun NastaTheme(appearance: Appearance = Appearance.DAY, content: @Composable () -> Unit) {
+    val night = AppTheme.isNight(appearance, isSystemInDarkTheme())
+    val colors = if (night) NightColors else DayColors
+    CompositionLocalProvider(LocalAppColors provides colors, LocalAppEffects provides if (night) NightEffects else DayEffects) {
+        MaterialTheme(colorScheme = colors.toMaterial(), typography = AppTypography, shapes = AppShapes, content = content)
+    }
 }

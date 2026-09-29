@@ -389,10 +389,11 @@ class YouDriveWatcher(
     fun readNow() {
         val web = webView ?: return
         web.evaluateJavascript(READ_PAGE_JS) { result ->
-            // {"t": visible text, "p": a login form (password field) is shown, "f": what was repaired}
+            // {"t": visible text, "c": each trip card's text, "p": a login form (password field) is
+            // shown, "f": what was repaired}
             val page = runCatching { json.decodeFromString<PageReading>(json.decodeFromString<String?>(result ?: "null") ?: "{}") }.getOrNull()
             if (!page?.f.isNullOrBlank()) DebugLog.d { "login form moved back on screen (${page.f.trim().take(60)})" }
-            onPageText(page?.t.orEmpty(), loginForm = page?.p ?: false)
+            onPageText(page?.t.orEmpty(), cards = page?.c.orEmpty(), loginForm = page?.p ?: false)
         }
     }
 
@@ -402,8 +403,9 @@ class YouDriveWatcher(
         nowMs: Long = System.currentTimeMillis(),
         nowTime: LocalTime = LocalTime.now(),
         loginForm: Boolean = TripWatch.looksLoggedOut(text),
+        cards: List<String> = emptyList(),
     ) {
-        val trips = TripWatch.tripsIn(text, extractor)
+        val trips = TripWatch.tripsIn(text, extractor, cards)
         val before = watch.baseline.orEmpty()
         var changes = watch.onReading(trips, nowTime.hour * 60 + nowTime.minute)
         // Another view or day was opened in YouDrive, or a new day's list came: the new list is
@@ -447,6 +449,10 @@ class YouDriveWatcher(
          * Reads the visible text and whether a password field (the login form) is shown. If the
          * login form is drawn off screen or hidden by a stuck slide animation (seen in the app's
          * WebView, never in Chrome), its containers are put back in place.
+         *
+         * It also returns each trip card's own text ("c"). A card is found without knowing the
+         * page's markup: from each visible kind label ("Pick-up", "Drop-off", "Pull-out",
+         * "Pull-in") it climbs to the largest element that holds no other kind label.
          */
         private val READ_PAGE_JS = """
             (function(){
@@ -467,7 +473,24 @@ class YouDriveWatcher(
                   }
                 }
               }
-              return JSON.stringify({ t: document.body ? document.body.innerText : '', p: !!pw && pw.offsetParent !== null, f: fixed });
+              var cards = [];
+              if (document.body) {
+                var KIND = /^(pull[- ]?out|pick[- ]?up|drop[- ]?off|pull[- ]?in)$/i;
+                var labels = [];
+                var all = document.body.getElementsByTagName('*');
+                for (var i = 0; i < all.length; i++) {
+                  var e = all[i], own = '';
+                  for (var k = 0; k < e.childNodes.length; k++) if (e.childNodes[k].nodeType === 3) own += e.childNodes[k].nodeValue;
+                  if (KIND.test(own.trim()) && e.getClientRects().length > 0) labels.push(e);
+                }
+                var holds = function (el) { var n = 0; for (var j = 0; j < labels.length; j++) if (el.contains(labels[j])) n++; return n; };
+                for (var m = 0; m < labels.length; m++) {
+                  var c = labels[m];
+                  while (c.parentElement && c.parentElement !== document.body && holds(c.parentElement) === 1) c = c.parentElement;
+                  cards.push(c.innerText);
+                }
+              }
+              return JSON.stringify({ t: document.body ? document.body.innerText : '', c: cards, p: !!pw && pw.offsetParent !== null, f: fixed });
             })()
         """.trimIndent()
         private const val CLEAR_STORAGE_JS = "(function(){try{sessionStorage.clear();localStorage.clear();}catch(e){}return 1;})()"
@@ -485,4 +508,4 @@ class YouDriveWatcher(
 
 /** What the page reading script returns. */
 @Serializable
-private data class PageReading(val t: String = "", val p: Boolean = false, val f: String = "")
+private data class PageReading(val t: String = "", val c: List<String> = emptyList(), val p: Boolean = false, val f: String = "")

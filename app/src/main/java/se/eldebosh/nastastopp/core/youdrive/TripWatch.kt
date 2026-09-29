@@ -6,12 +6,22 @@ import se.eldebosh.nastastopp.core.parse.TextNorm
 import se.eldebosh.nastastopp.core.parse.TripTimes
 
 /**
- * A trip read from the YouDrive page: its scheduled time and address only (the extractor drops
- * names and every other text). [stop] is what is added to the route.
+ * A trip read from the YouDrive page: its scheduled time, address, kind and the passenger's first
+ * and last name (the extractor drops every other text). [stop] is what is added to the route.
+ *
+ * @property booked the card's second time (a pick-up's booked time, a drop-off's latest arrival),
+ *   which stays put when the schedule is re-planned; null if the card shows one time.
+ * @property done the card's status says the trip is done ("Performed", "Departed").
  */
-data class WatchedTrip(val time: String?, val address: String, val stop: ExtractedStop? = null) {
-    /** Identity used to compare readings: time + normalised address. */
-    val key: String get() = "${time.orEmpty()}|${TextNorm.key(address)}"
+data class WatchedTrip(
+    val time: String?,
+    val address: String,
+    val stop: ExtractedStop? = null,
+    val booked: String? = null,
+    val done: Boolean = false,
+) {
+    /** Identity used to compare readings: the booked (else scheduled) time + normalised address. */
+    val key: String get() = "${(booked ?: time).orEmpty()}|${TextNorm.key(address)}"
 }
 
 /** A trip that appeared ([added]) or disappeared (cancelled) on the YouDrive page. */
@@ -97,8 +107,12 @@ class TripWatch(private val confirmReadings: Int = 2, private val doneGraceMin: 
             return before.size >= 2 && after.isNotEmpty() && before.none { it.key in keys }
         }
 
-        /** Trips on the page: the visible text is parsed like screenshot text (times + addresses only). */
-        fun tripsIn(pageText: String, extractor: AddressExtractor): List<WatchedTrip> {
+        /**
+         * Trips on the page: card by card when the page reader found the trip cards ([cards]),
+         * otherwise the visible text is parsed like screenshot text.
+         */
+        fun tripsIn(pageText: String, extractor: AddressExtractor, cards: List<String> = emptyList()): List<WatchedTrip> {
+            if (cards.isNotEmpty()) YouDriveCards.parse(cards, extractor).let { if (it.isNotEmpty()) return it }
             val lines = pageText.lines().map { it.trim() }.filter { it.isNotEmpty() }
             if (lines.isEmpty()) return emptyList()
             return extractor.extract(lines).map { WatchedTrip(it.time, streetAddress(it), it) }

@@ -94,6 +94,37 @@ class RouteControllerRoboTest {
         c.end()
     }
 
+    /**
+     * The passenger's name (first + last) is for the driver's own screens only: never spoken,
+     * sent to the passenger display, put in the route notification or the history (invented data).
+     */
+    @Test
+    fun namesStayOnTheDriversScreens() {
+        val tts = readyTts()
+        val lines = listOf(
+            "2026-09-29",
+            "06:55", "Pick-up", "Anna Maria Testsson", "Storgatan 14, 65224 Karlstad",
+            "07:09", "Drop-off", "Anna Maria Testsson", "Järnvägsgatan 3B, 68830 Storfors",
+        )
+        val c = graph.controller
+        assertEquals(2, c.addExtracted(graph.extractor.extract(lines)))
+        assertEquals(listOf("Anna Testsson", "Anna Testsson"), c.route.value!!.stops.map { it.name })
+        idleUntil { c.route.value!!.stops.none { it.geoStatus == GeoStatus.PENDING } }
+        assertTrue(c.start())
+        idle()
+        c.next()
+        idle()
+        assertFalse("spoken: ${tts.lastSpokenText}", tts.lastSpokenText.orEmpty().contains("Testsson"))
+        assertFalse("passenger display", c.display.value.toString().contains("Testsson"))
+        val notification = shadowOf(app.getSystemService(android.app.NotificationManager::class.java))
+            .getNotification(se.eldebosh.nastastopp.service.Notifications.ID_ROUTE)
+        assertNotNull(notification)
+        assertFalse("notification", notification.extras.keySet().any { notification.extras.get(it)?.toString()?.contains("Testsson") == true })
+        assertTrue(graph.history.entries.value.isNotEmpty())
+        assertFalse("history", graph.history.entries.value.toString().contains("Testsson"))
+        c.end()
+    }
+
     @Test
     fun fullRouteFlowAnnouncesOnlyAreaNames() {
         val tts = readyTts()

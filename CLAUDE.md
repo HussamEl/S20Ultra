@@ -13,7 +13,8 @@ An Android app for a Swedish shared-ride driver:
 - Deliver each build as a zip of `dist/NastaStopp.apk`, sent as a file.
 
 ## Hard rules (never break)
-- Images are never copied or stored. Keep only addresses, times and the trip kind (the list's Pick-up / Drop-off / Pull-out label): no names, phone numbers or other text.
+- Images are never copied or stored. Keep only addresses, times, the trip kind (the list's Pick-up / Drop-off / Pull-out label) and the passenger's **first + last name** (Hussam's decision, 1.2): no middle names, phone numbers or other text.
+- The name is for the driver's own screens only (review, route, floating panel). It is never spoken, sent to the passenger display, put in a notification or "Previous trips", or logged (`namesStayOnTheDriversScreens` guards this).
 - Never log addresses or OCR text in release (use `util/DebugLog`). `allowBackup=false`.
 - **No location permission at all** (removed with `tools:node="remove"`); only Google Maps uses location. The YouDrive WebView gets no geolocation.
 - INTERNET is only for the YouDrive page. No Firebase, analytics, crash reporting or Hilt.
@@ -22,8 +23,12 @@ An Android app for a Swedish shared-ride driver:
 - Nothing may appear on its own. Every dialog, toast, Maps launch or sound follows a driver action. The only exceptions are YouDrive trip alerts and the "open Maps" fallback notification.
 
 ## UI conventions
-- Theme tokens live in `ui/theme/Theme.kt` (the light "Route cards" identity, from YouDrive's colours): `Ink`, `Brand` (= Ink), `Accent` (yellow, the next action), `PickUpGreen`, `DepotGrey`, `kindColor(kind)`, `TimeColor`, `Located`, `NotLocated`, `Hairline`.
-- Use the components in `ui/Components.kt`: `AppButton`, `AppCard`, `ListRow`, `TopBar`, `SectionTitle`, `KindLabel`.
+- Design system in `ui/theme/` (see GUIDE §6), in three layers:
+  1. `Palette.kt`: raw colours.
+  2. `AppColors.kt`: colour roles, as `DayColors` and `NightColors`.
+  3. `AppEffects.kt`: shadows, press scale and colour fades.
+- Screens use `AppTheme.colors.<role>` and `AppTheme.effects`. **No `Color(0x…)` outside `Palette.kt`/`AppColors.kt`.** The looks are Day / Night / Automatic (setting 130–132). `ThemeContrastTest` must stay green.
+- Use the components in `ui/Components.kt`: `AppButton`, `AppCard`, `TripSurface` (every trip card), `ListRow`, `TopBar`, `SectionTitle`, `KindLabel`.
 - Explanations never sit inline. Use `HelpDot(R.string.…)` (a tiny "?"); its text is Arabic while setting 104 is on.
 - Every control or piece of info gets a reference number:
   - `Modifier.ref(n)` puts it in a strip above the element; use `centered = true` inside rows.
@@ -31,7 +36,7 @@ An Android app for a Swedish shared-ride driver:
   - Inside card rows, pass `ListRow(ref = n)`.
   - Keep the README tables in sync.
 - Strings: `values/` is **Arabic (default)**, `values-en/` is English (the current UI), `values-sv/` is Swedish. Add every key to all three.
-- The floating panel (`overlay/OverlayManager`) is built with Views. Its colours are constants that mirror `Theme.kt`.
+- The floating panel (`overlay/OverlayManager`) is built with Views. It has no colours of its own: `PanelColors` converts the `AppColors` roles when the panel is built.
 
 ## Build and release
 ```bash

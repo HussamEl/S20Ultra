@@ -1,6 +1,6 @@
 <div dir="rtl">
 
-# دليل المشروع الكامل — Nästa Stopp 1.1
+# دليل المشروع الكامل — Nästa Stopp 1.2
 
 هذا الدليل يشرح **كل الكود**: كيف يعمل التطبيق من الداخل، وأين يوجد كل جزء، وكيف تُضاف ميزة أو يُعدَّل شيء بأمان. هو نقطة البداية لأي محادثة جديدة عن المشروع.
 
@@ -15,13 +15,13 @@
 | الشيء | القيمة |
 |---|---|
 | الحزمة | `se.eldebosh.nastastopp` |
-| الإصدار | `versionName "1.1"`، `versionCode 19` (في `app/build.gradle.kts`) |
+| الإصدار | `versionName "1.2"`، `versionCode 20` (في `app/build.gradle.kts`) |
 | اللغة والأدوات | Kotlin 2.4، AGP 9.4، Gradle 9.8، Jetpack Compose (Material 3) |
 | الأندرويد | `minSdk 29` (أندرويد 10)، `targetSdk/compileSdk 37` |
 | القراءة من الصور | ML Kit Text Recognition **المدمج** (نموذج Latin داخل التطبيق، دون Play Services) |
 | المكتبات الأخرى | `androidx.webkit` (هوية كروم لصفحة YouDrive)، kotlinx.serialization، coroutines |
 | لا يوجد | Hilt/DI framework، Firebase، تحليلات، تقارير أعطال، إذن الموقع، إذن التخزين |
-| الاختبارات | 161 اختباراً: وحدة (JUnit) + Robolectric (أندرويد 13، sdk 33) |
+| الاختبارات | 177 اختباراً: وحدة (JUnit) + Robolectric (أندرويد 13، sdk 33) |
 | R8/minify | **مطفأ** في release، لأنه كان يحذف مسجِّلات ML Kit (راجع DECISIONS 1.0.1) |
 
 ---
@@ -67,7 +67,8 @@
    - يتجاهل الأسماء والهواتف والمبالغ وكل النص الآخر.
    - الوقت يأتي من `TripTimes`: الوقت على سطر العنوان نفسه، أو فوقه أو تحته حسب تصميم الصفحة.
    - **نوع الرحلة** (`TripKind`: PULL_OUT / PICK_UP / DROP_OFF / PULL_IN) يأتي من كلمة YouDrive القريبة ("Pick-up"، "Drop-off"، "Pull-out"، أو "Hämtning"/"Lämning") عبر `TripKinds.labelIn`. الوقت والنوع في بطاقة واحدة، لذلك يُختار لهما **اتجاه واحد** (فوق العنوان أو تحته) بأغلبية الاثنين معاً (`AddressExtractor.timesAndKinds`)، فلا تأخذ رحلة نوع جارتها.
-   - الناتج: `ExtractedStop(displayText, candidates, time, kind, …)`.
+   - **اسم الراكب**: السطر فوق العنوان مباشرة إن كان اسماً واضحاً (`AddressExtractor.personName`)، ويُحفظ منه **الاسم الأول والأخير فقط** ("Per Johan Albin Stenbäck" ← "Per Stenbäck"). سطر فيه أرقام أو فواصل أو كلمة بحرف صغير أو شارع أو مدينة ليس اسماً.
+   - الناتج: `ExtractedStop(displayText, candidates, time, kind, name, …)`.
 4. **القائمة** في `RouteController.addExtracted` ← `Stop` في `RouteData`. رحلة **Pull-out** لا تصبح محطة: تُحفظ في `RouteData.depot` (نقطة الانطلاق، بطاقة رمادية فوق الرحلات) ولا تُرسل إلى الخرائط ولا يُعلَن عنها. عنوانان متتاليان متطابقان يُدمجان، إلا إذا اختلف نوعهما (توصيل ثم التقاط في نفس المكان = محطتان).
    ثم يبدأ تحديد الموقع في الخلفية (`Geocoding.locate`، عبر `android.location.Geocoder` الخاص بالنظام، مع مهلة 15 ثانية لكل عنوان).
 5. **المراجعة** في `ReviewScreen`: نقل، حذف، تعديل، إضافة يدوية، ترتيب حسب الوقت.
@@ -99,7 +100,13 @@
 - **WebView واحد لكل التطبيق** داخل `YouDriveWatcher`، مبني على `MutableContextWrapper`:
   - `attach(activity)`: يعرض الصفحة في النافذة.
   - `detach()`: يُبقيها تعمل في الخلفية إذا كانت المراقبة مفعّلة، وإلا يغلقها.
-- **القراءة**: `READ_PAGE_JS` يعيد `{t: النص الظاهر, p: هل يوجد حقل كلمة سر, f: ما أُصلح}`، ثم `onPageText` ← `TripWatch.tripsIn`. هذه الدالة تستعمل نفس `AddressExtractor`، فلا يؤخذ إلا الوقت والعنوان.
+- **القراءة (نص وليس صورة)**: `READ_PAGE_JS` يعيد `{t: النص الظاهر, c: نص كل بطاقة رحلة, p: هل يوجد حقل كلمة سر, f: ما أُصلح}`، ثم `onPageText` ← `TripWatch.tripsIn`.
+  - **بطاقة بطاقة** (منذ 1.2): السكربت يجد كل بطاقة دون معرفة كود الصفحة. يبدأ من كلمة النوع الظاهرة ("Pick-up"…) ويصعد إلى أكبر عنصر لا يحوي كلمة نوع أخرى. ثم `YouDriveCards.parse` يقرأ كل بطاقة وحدها، فلا يختلط وقت بطاقة أو اسمها بجارتها:
+    - **الوقت** = الوقت الأول في البطاقة (المجدول، ساعة 🕘) لأن YouDrive يرتّب المسار به. الوقت الثاني (المحجوز 🤝 أو آخر موعد 🔒) يُحفظ في `WatchedTrip.booked` ويُستعمل في مفتاح المقارنة لأنه لا يتغيّر عند إعادة الجدولة.
+    - **العنوان** = أول سطر يقبله `AddressExtractor`. وإن لم يوجد (مكان بلا رقم مثل مدخل مستشفى) فالسطر بعد اسم الراكب، مع أكثر مدينة في القائمة كأول مرشّح للبحث.
+    - **الاسم** = السطر فوق العنوان (الأول والأخير فقط).
+    - **منتهية** = الحالة "Performed" أو "Departed": لا تُضاف بـ «Add all trips» (نقطة الانطلاق تُضاف دائماً).
+  - إن لم يجد السكربت بطاقات، يُقرأ النص كله كما في لقطات الشاشة (الطريقة القديمة).
 - **المقارنة** في `TripWatch.onReading`:
   - أول قراءة غير فارغة هي الأساس.
   - التغيير لا يُعتمد إلا إذا ظهر في **قراءتين متتاليتين**.
@@ -154,6 +161,7 @@
 | `link/LinkProtocol.kt`, `LinkTargets.kt` | رسائل JSON سطراً سطراً بين الجوال والتابلت، وترتيب الأجهزة المقترنة. |
 | `display/DisplaySnapshot.kt` | ما تعرضه شاشة الركاب: `DisplayItem(time, title, subtitle)`. |
 | `youdrive/TripWatch.kt` | مقارنة قراءات YouDrive (راجع القسم 4). |
+| `youdrive/YouDriveCards.kt` | قراءة بطاقات YouDrive واحدة واحدة: النوع، الوقت المجدول والمحجوز، الاسم، العنوان (ومكان بلا رقم)، والرحلات المنتهية (`toAdd`). |
 | `youdrive/BrowserIdentity.kt` | هوية كروم للصفحة. |
 
 ### طبقة أندرويد
@@ -186,7 +194,11 @@
 ### الواجهة `ui/`
 | الملف | الدور |
 |---|---|
-| `theme/Theme.kt` | **الهوية البصرية «بطاقات المسار»** (فاتحة، من ألوان YouDrive): `Ink` (الأسود)، `Brand` (= Ink)، `Accent` (الأصفر)، `PickUpGreen`، `DepotGrey`، `kindColor(kind)`، `TimeColor`، `Located`، `NotLocated`، `Warning`، `Hairline`، والخطوط، والأشكال. |
+| `theme/Palette.kt` | الطبقة 1: الألوان الخام (YouDrive، الأصفر، الأزرق الفاتح، ألوان الليل، الحالة). راجع القسم 6. |
+| `theme/AppColors.kt` | الطبقة 2: أدوار الألوان، و`DayColors` و`NightColors`، و`trip(kind)` و`status(level)`. |
+| `theme/AppEffects.kt` | الطبقة 3: الظلال، وتصغير الزر عند الضغط، وتلاشي الألوان. |
+| `theme/Theme.kt` | `NastaTheme(appearance)` و`AppTheme.colors` / `AppTheme.effects`، وتحويل الأدوار إلى Material 3، والخطوط والأشكال. |
+| `theme/SystemBars.kt` | `SystemBarsFollowTheme()`: أيقونات شريط الحالة وخلفية النافذة حسب المظهر. |
 | `Components.kt` | مكونات موحّدة: `AppButton`، `TopBar`، `SectionTitle`، `AppCard`، `CardDivider`، `ListRow`، `IconBadge`، `KindLabel` (نوع الرحلة كحبة بيضاء صغيرة)، `Chevron`، `Paragraph`. `TouchTarget = 48.dp`. |
 | `Explain.kt` | الشروح: `explain(id)` (بالعربية أثناء الإعداد)، و`HelpDot` (علامة «?» الصغيرة التي تفتح الشرح)، و`Hint` (نص شرح داخل نافذة حوار). |
 | `Refs.kt` | الأرقام المرجعية: `Modifier.ref(n)` (رقم في سطر خاص فوق العنصر، و`centered = true` داخل الصفوف) و`Modifier.refCorner(n)` (في زاوية الأيقونات والمفاتيح). `RefNumbers.enabled` يتبع الإعداد 105. |
@@ -206,23 +218,50 @@
 
 ---
 
-## 6. نظام التصميم (للحفاظ على مظهر موحّد)
+## 6. نظام التصميم (Design System)
 
-- **الألوان**: من `MaterialTheme.colorScheme` أو من ثوابت `Theme.kt` فقط، ولا ألوان عشوائية. الهوية **فاتحة** (lightColorScheme)، وأيقونات شريط النظام داكنة دائماً (`SystemBarStyle.light` في `MainActivity`).
-  - الإجراء الرئيسي: `primary` (الأسود `Ink`، مثل زر Arrive في YouDrive).
-  - ما يجب فعله الآن (Next، Start route، وقت الرحلة الحالية): `Accent` الأصفر مع نص `Ink`.
-  - بطاقة كل رحلة: `kindColor(stop.kind)` (أخضر التقاط، أبيض توصيل، رمادي للمرآب)، ونوعها `KindLabel`. الرحلة الحالية بإطار `Ink` سميك (3 dp).
-  - الأوقات: `TimeColor` (أسود).
-  - الحالة: `Located` و`NotLocated` و`Warning`.
-  - النص الثانوي: `onSurfaceVariant`.
-  - الحدود: `Hairline`.
+الهدف: تغيير الألوان أو إضافة تأثير **في مكان واحد**، دون لمس الشاشات. النظام ثلاث طبقات في `ui/theme/`، وكل طبقة تعتمد على التي قبلها فقط:
+
+| الطبقة | الملف | ما فيها | متى تعدّلها |
+|---|---|---|---|
+| 1. الألوان الخام | `Palette.kt` | كل لون بقيمته، مسمّى بما **هو** (YouDriveGreen، TaxiYellow، Sky…) لا بما يُستعمل له. | لتغيير درجة لون في كل مكان. |
+| 2. الأدوار | `AppColors.kt` | `data class AppColors`: دور كل لون («بطاقة التقاط»، «الإجراء التالي»، «نص ثانوي»…)، ومجموعتان: `DayColors` و`NightColors`. | لتغيير لون عنصر معيّن، أو لإضافة مظهر جديد (مجموعة ثالثة). |
+| 3. التأثيرات | `AppEffects.kt` | الظلال (`cardShadow`، `currentShadow`)، وتصغير الزر عند الضغط (`pressedScale`)، وتلاشي تغيّر الألوان (`colorFadeMs`). `0.dp` أو `1f` أو `0` يطفئ التأثير. | لإضافة تأثير أو ضبطه أو إطفائه. |
+
+- **`Theme.kt`** يجمعها:
+  - `NastaTheme(appearance)` يختار النهاري أو الليلي حسب الإعداد (130–132: Day / Night / Automatic).
+  - ويوفّر `AppTheme.colors` و`AppTheme.effects` لكل الشاشات.
+  - ويحوّل الأدوار إلى ألوان Material 3 (`toMaterial()`)، فتتبعها المفاتيح والنوافذ والقوائم تلقائياً.
+- **القاعدة**: لا قيمة لون (`Color(0x…)`) خارج `Palette.kt` و`AppColors.kt`. الشاشات تكتب `AppTheme.colors.دور`.
+- **الأدوار الأساسية**:
+
+| الدور | نهاري | ليلي | أين |
+|---|---|---|---|
+| `background` / `card` / `cardBorder` | رمادي فاتح / أبيض / خط رفيع | الأزرق الليلي الداكن | الصفحة والبطاقات |
+| `text` / `textMuted` | أسود / رمادي | أبيض مزرق / رمادي مزرق | النصوص |
+| `action` / `onAction` | **أسود** (مثل Arrive) | **الأزرق الفاتح** Sky | الأزرار الرئيسية (`AppButton`) |
+| `accent` / `onAccent` | **الأصفر** مع نص أسود | الأصفر | Next، Start route، وقت الرحلة الحالية، الشعار |
+| `info` | أزرق (SkyInk) | الأزرق الفاتح Sky | المفاتيح، العناوين، الروابط، أيقونات المعلومات (Material `primary`) |
+| `pickUp` / `dropOff` / `depot` | أخضر YouDrive / أبيض / رمادي | أخضر داكن / بطاقة داكنة / رمادي داكن | بطاقات الرحلات (`trip(kind)`) |
+| `currentBorder` | أسود | أصفر | إطار الرحلة الحالية |
+| `success` / `warning` / `danger` | أخضر / كهرماني / أحمر داكنة | نفسها فاتحة | الحالة (`status(level)`) |
+| `panelCircle` / `panelRing` | دائرة سوداء، حلقة زرقاء فاتحة | دائرة داكنة، حلقة زرقاء فاتحة | الزر العائم |
+
+- **المكوّنات** في `ui/Components.kt`:
+  - `AppButton` يأخذ `action` أو `tonal`، ويصغر قليلاً عند الضغط (`pressedScale`).
+  - `AppCard` بطاقة بظل خفيف في النهار.
+  - `TripSurface(kind, current)` بطاقة الرحلة بلونها. لونها يتلاشى عند التغيّر، والحالية بإطار سميك وظل أكبر. كل بطاقات الرحلات (المراجعة، المسار، نقطة الانطلاق) تستعملها.
+  - `KindLabel` حبة نوع الرحلة، و`ListRow` و`TopBar` و`SectionTitle`.
+- **الزر العائم** (Views وليس Compose): لا ألوان خاصة به. `PanelColors` في `OverlayManager.kt` يحوّل أدوار `AppColors` إلى أرقام ARGB عند بناء اللوحة، ويُعاد البناء عند تغيّر المظهر.
+- **الأرقام المرجعية** و**أشرطة النظام** تتبع المظهر أيضاً: `Refs.kt` يقرأ `LocalAppColors`، و`SystemBarsFollowTheme()` يجعل أيقونات شريط الحالة داكنة نهاراً وفاتحة ليلاً.
+- **التباين مضمون باختبار**: `ThemeContrastTest` يفحص كل زوج نص/خلفية في المظهرين حسب WCAG (4.5 للنص، و3 للحدود والنص العريض على البطاقات). أي تغيير لون يجعل شيئاً غير مقروء يفشل هنا.
+- **كيف أغيّر لوناً؟** غيّر القيمة في `Palette.kt` (تتبعها كل الأدوار)، أو غيّر الدور في `DayColors`/`NightColors`، ثم شغّل الاختبارات.
+- **كيف أضيف تأثيراً؟** أضف حقلاً في `AppEffects` بقيمته للنهار والليل، واستعمله في المكوّن عبر `AppTheme.effects` (مثال: `pressedScale` في `AppButton`).
+- **كيف أضيف مظهراً جديداً؟** مجموعة `AppColors` جديدة، وقيمة في `settings/Appearance`، وسطر في `AppTheme.colorsFor`.
 - **الأحجام**:
   - الأزرار 48 dp افتراضياً، و52 dp للأزرار الرئيسية، و60 dp لـ Next و Back.
   - الأيقونات 20–24 dp.
   - الزوايا: `shapes.medium` = 14، و`large` = 20.
-- **المكوّنات**:
-  - مجموعة إعدادات أو خيارات: `AppCard { ListRow(...); CardDivider(); ListRow(...) }`.
-  - زر: `AppButton(text, onClick, Modifier.ref(n)..., primary = true/false)`.
 - **الشرح**: لا تضع فقرة شرح في الشاشة؛ ضع `HelpDot(R.string.x_hint)` بجانب العنوان، أو استعمل `ListRow(help = ...)`.
 - **الأرقام المرجعية**:
   - كل عنصر جديد يأخذ رقماً غير مستعمل من نطاق شاشته (راجع جداول README)، ويُضاف إلى الجدول.
@@ -231,7 +270,6 @@
 - **الاتجاه**:
   - نص قد يكون عربياً أو سويدياً يُكتب بـ `style.copy(textDirection = TextDirection.Content)`.
   - الواجهة العربية RTL تلقائياً.
-- **الزر العائم** (Views): ألوانه ثوابت في `OverlayManager.companion`، وهي تطابق `Theme.kt`، فعدّلها معاً: Next أصفر، والدائرة سوداء بحلقة صفراء، وبطاقة المعلومات بلون الرحلة التالية (`infoColor`).
 
 ---
 
@@ -267,7 +305,7 @@
 ## 8. قواعد لا تُكسر
 
 1. **الصور** لا تُنسخ ولا تُحفظ. تُقرأ في الذاكرة فقط.
-2. **لا يُحفظ إلا العنوان والوقت ونوع الرحلة** (كلمة القائمة Pick-up / Drop-off / Pull-out)، ولا أسماء ولا هواتف ولا نص آخر، سواء من اللقطات أو من YouDrive.
+2. **لا يُحفظ إلا العنوان والوقت ونوع الرحلة واسم الراكب الأول والأخير** (قرار السائق في 1.2)، ولا هواتف ولا أسماء وسطى ولا نص آخر. الاسم يظهر على شاشات السائق فقط (المراجعة، المسار، الزر العائم): **لا يُنطق، ولا يُرسل إلى شاشة الركاب، ولا يوضع في إشعار أو في السجل، ولا يُسجَّل في logcat**. يضمن ذلك الاختبار `namesStayOnTheDriversScreens`.
 3. **لا سجلات** لعناوين أو نص OCR في release. استعمل `DebugLog` فقط.
 4. **النسخ الاحتياطي**: `allowBackup="false"`، وقواعد الاستخراج تستثني كل شيء.
 5. **لا إذن موقع أبداً** (قرار السائق في 1.4.5). خرائط Google وحدها تستخدم الموقع. الأذونات محذوفة بـ `tools:node="remove"` في الـ manifest.
@@ -292,7 +330,7 @@
 - **شكل صفحة YouDrive تغيّر** (لم تعد الرحلات تُقرأ):
   1. خذ لقطة للصفحة، بدون بيانات دخول.
   2. أضِف النص المقروء كحالة اختبار في `TripWatchTest` أو `YouDriveRoboTest`.
-  3. عدّل `TripWatch.tripsIn` أو `AddressExtractor`.
+  3. عدّل `YouDriveCards` (قراءة البطاقة) أو `TripWatch.tripsIn` أو `AddressExtractor`، واختبر في `YouDriveCardsTest`.
 - **صيغة عنوان جديدة من تطبيق آخر**: أضِف حالة في `AddressExtractorTest` أولاً، ثم عدّل `AddressExtractor`.
 - **إرجاع الموقع** (إن غيّر السائق رأيه):
   - الكود الخامل موجود: `ArrivalDetector` و`CurrentStreet` و`StreetLookup` و`Geocoding.reverse`.

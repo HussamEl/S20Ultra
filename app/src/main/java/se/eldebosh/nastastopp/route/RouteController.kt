@@ -1,10 +1,9 @@
 package se.eldebosh.nastastopp.route
 
-import androidx.annotation.VisibleForTesting
 import android.content.Context
+import androidx.annotation.VisibleForTesting
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -20,6 +19,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import se.eldebosh.nastastopp.core.display.DisplayItem
 import se.eldebosh.nastastopp.core.display.DisplaySnapshot
 import se.eldebosh.nastastopp.core.geo.GeoLogic
@@ -195,7 +195,7 @@ class RouteController(
         update { r ->
             r.copy(
                 stops = r.stops.map {
-                    if (it.id == id) e.toStop(id).copy(sourceOrder = it.sourceOrder, time = time, kind = it.kind) else it
+                    if (it.id == id) e.toStop(id).copy(sourceOrder = it.sourceOrder, time = time, kind = it.kind, name = it.name) else it
                 },
             )
         }
@@ -589,9 +589,10 @@ class RouteController(
         sourceOrder = sourceOrder,
         time = time,
         kind = kind,
+        name = name,
     )
 
-    private fun Stop.toExtracted() = ExtractedStop(displayText, candidates, parsedPostalCode, parsedTown, sourceOrder, parsedTownKnown, time, kind)
+    private fun Stop.toExtracted() = ExtractedStop(displayText, candidates, parsedPostalCode, parsedTown, sourceOrder, parsedTownKnown, time, kind, name)
 
     companion object {
         const val SAME_PLACE_M = 30.0

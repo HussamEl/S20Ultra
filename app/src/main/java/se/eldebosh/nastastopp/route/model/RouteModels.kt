@@ -18,8 +18,10 @@ data class GeoPoint(
 )
 
 /**
- * One stop. Holds only address data, the trip's scheduled time and its kind (the list's label) —
- * never names, phone numbers or other OCR text.
+ * One stop. Holds only address data, the trip's scheduled time, its kind (the list's label) and
+ * the passenger's first + last name — never phone numbers or other OCR text. The name is shown
+ * on the driver's own screens only: it is never spoken, sent to the passenger display, put in a
+ * notification or the history, or logged.
  */
 @Serializable
 data class Stop(
@@ -36,6 +38,8 @@ data class Stop(
     val time: String? = null,
     /** Pick-up / drop-off / back to the depot, from the dispatch list's label, or null. */
     val kind: TripKind? = null,
+    /** The passenger's first and last name ("Anna Testsson"), or null. Driver's screens only. */
+    val name: String? = null,
 ) {
     val isLocated: Boolean get() = geoStatus == GeoStatus.LOCATED && geo != null
 

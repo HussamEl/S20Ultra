@@ -17,6 +17,9 @@ enum class DeviceRole {
     DISPLAY,
 }
 
+/** The app's look: day (YouDrive's light colours), night (dark), or following the phone. */
+enum class Appearance { DAY, NIGHT, AUTOMATIC }
+
 data class AppSettings(
     /** "en" (default since 1.4.0), "ar" or "sv". */
     val uiLanguage: String = "en",
@@ -46,6 +49,8 @@ data class AppSettings(
     val historyRetentionHours: Int = 12,
     /** Keep the YouDrive page open in the background and alert when trips are added or cancelled. */
     val youDriveWatch: Boolean = false,
+    /** Day, night or automatic (the phone's dark mode). */
+    val appearance: Appearance = Appearance.DAY,
 )
 
 /** Small settings store on SharedPreferences (no addresses are ever stored here). */
@@ -75,6 +80,7 @@ class SettingsStore(context: Context) {
             putBoolean(K_EXPLAIN_AR, next.explanationsArabic)
             putBoolean(K_REF_NUMBERS, next.showRefNumbers)
             putBoolean(K_YD_WATCH, next.youDriveWatch)
+            putString(K_APPEARANCE, next.appearance.name)
         }
         _state.value = next
     }
@@ -105,6 +111,7 @@ class SettingsStore(context: Context) {
         overlayHidden = prefs.getBoolean(K_OVERLAY_HIDDEN, false),
         overlayMinimized = prefs.getBoolean(K_OVERLAY_MIN, false),
         historyRetentionHours = prefs.getInt(K_HISTORY_HOURS, 12),
+        appearance = runCatching { Appearance.valueOf(prefs.getString(K_APPEARANCE, null) ?: "") }.getOrDefault(Appearance.DAY),
     )
 
     companion object {
@@ -128,6 +135,7 @@ class SettingsStore(context: Context) {
         private const val K_EXPLAIN_AR = "explanations_arabic"
         private const val K_REF_NUMBERS = "show_ref_numbers"
         private const val K_YD_WATCH = "youdrive_watch"
+        private const val K_APPEARANCE = "appearance"
         private const val K_SCHEMA = "settings_schema"
         private const val SCHEMA = 2
         private const val DEFAULT_LANGUAGE = "en"

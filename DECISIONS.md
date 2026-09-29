@@ -435,3 +435,52 @@ The driver showed a YouDrive day list and asked for two things: understand its c
 - Passenger display: light, with "Next stop" on a yellow pill and a yellow speaker button.
 - Icon: a black pin with a yellow chevron on a yellow gradient. Home shows the same mark before the app name.
 - Not done: a separate dark (night) variant. The driver asked for YouDrive's colours; a night variant can follow if the light screens are too bright in the dark.
+
+## 1.2 (versionCode 20): YouDrive read card by card, passenger names, night look, design tokens
+
+The driver compared the app's list with the real YouDrive page and found mix-ups. **The app reads YouDrive as page text, not as a screenshot.** The mix-ups came from interpreting that text as one long list. They were reproduced with an invented copy of the same structure (see `YouDriveCardsTest`):
+1. **A drop-off at a place without a house number was lost** (a hospital's main entrance), so pick-ups and drop-offs no longer paired up.
+2. **The wrong one of a card's two times was taken.** The app took the booked time (🤝 pick-up) or the latest arrival (🔒 drop-off) instead of the scheduled time (🕘) that YouDrive orders the route by: 09:30 instead of 09:35, 10:00 instead of 09:48.
+3. **The start point showed a repeated word**: the depot's name, which is also its street, before the street and number.
+
+**Fix: read the page card by card.**
+- `READ_PAGE_JS` now also returns each trip card's own text (`c`). It finds a card without knowing the page's markup: from each visible kind label, it climbs to the largest element that holds no other kind label.
+- `YouDriveCards` parses each card on its own:
+  - kind;
+  - the **first time** (scheduled) as the trip's time, and the second (booked) time as the change-detection key, because it does not move when the schedule is re-planned;
+  - the address: the first line the parser accepts, else the line after the passenger's name (a place), with the list's most common town tried first;
+  - the name;
+  - done trips ("Performed", "Departed").
+- The old whole-text reading stays as a fallback, and for screenshots.
+- A repeated word in an address is shown once ("Depågatan Depågatan 1" → "Depågatan 1"). This is generic: `withoutRepeatedWords`.
+- **Add all trips skips trips that are already done.** The start point is always kept.
+- Screenshots of YouDrive still go through the whole-text reader, where a place without a number is not recognised. The in-app YouDrive page is the reliable path.
+
+**Passenger names (the driver's decision):**
+- The rule "no names" becomes "first + last name only": "Per Johan Albin Stenbäck" → "Per Stenbäck".
+- `AddressExtractor.personName` accepts a line only when it is clearly a name: 2–6 capitalised words, with no digits, commas, streets, towns, kind or status words.
+- It is shown on the driver's own screens only: review 134, route 135, upcoming rows, the floating panel, and YouDrive's change rows.
+- It is **never** spoken, sent to the passenger display over Bluetooth, put in a notification or "Previous trips", or logged. `RouteControllerRoboTest.namesStayOnTheDriversScreens` guards all of these.
+
+**Design tokens, a night look, and the old light blue:**
+- `ui/theme` is now three layers:
+  - `Palette`: raw colours;
+  - `AppColors`: roles, with `DayColors` / `NightColors`;
+  - `AppEffects`: shadows, press scale, colour fades.
+- `Theme.kt` maps the roles onto Material 3. Screens use `AppTheme.colors.<role>`. No hex value is left outside the two colour files.
+- The floating panel has no colours of its own any more (`PanelColors` converts the roles). The same goes for the reference numbers (`LocalAppColors`) and the system bars (`SystemBarsFollowTheme`).
+- The Appearance setting: Day (default) / Night / Automatic (130–132).
+- **Night** is the first design's calm blue-grey. Main buttons are its light blue; pick-ups dark green, the depot dark grey; yellow still marks the next action, and the current trip's border is yellow.
+- **The first design's light blue `#6EA8FF` is back**:
+  - by day as the selection/information colour (switches, section titles, "Then", links; a darker `#2563EB` for text contrast) and the panel's ring;
+  - by night as the main action colour.
+- **Effects**, all set in `AppEffects`:
+  - a soft card shadow by day;
+  - buttons shrink to 97 % while pressed;
+  - a trip card's colour fades over 250 ms;
+  - the current card lifts (6 dp).
+- `TripSurface` is the one trip-card component: review, route, start point.
+- `ThemeContrastTest` checks every text/background pair of both looks against WCAG: 4.5 for text, 3 for borders and bold status text on trip cards. It caught two weak pairs, now fixed:
+  - the day "soon" amber on green: `#B45309` → `#A04A07`;
+  - the night secondary text on a green card: → `#AEB8C9`.
+- Not done: YouDrive's own page stays light at night, because it is their site.

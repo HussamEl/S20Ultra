@@ -17,9 +17,9 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,6 +31,7 @@ import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.core.geo.AnnouncementDetail
 import se.eldebosh.nastastopp.link.DisplayLinkServer
 import se.eldebosh.nastastopp.settings.AppSettings
+import se.eldebosh.nastastopp.settings.Appearance
 import se.eldebosh.nastastopp.tts.TtsStatus
 import se.eldebosh.nastastopp.ui.AppButton
 import se.eldebosh.nastastopp.ui.AppCard
@@ -41,8 +42,7 @@ import se.eldebosh.nastastopp.ui.SectionTitle
 import se.eldebosh.nastastopp.ui.TopBar
 import se.eldebosh.nastastopp.ui.ref
 import se.eldebosh.nastastopp.ui.refCorner
-import se.eldebosh.nastastopp.ui.theme.Located
-import se.eldebosh.nastastopp.ui.theme.NotLocated
+import se.eldebosh.nastastopp.ui.theme.AppTheme
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -86,6 +86,18 @@ fun SettingsScreen(
                 CardDivider()
                 SwitchRow(R.string.settings_ref_numbers, R.string.settings_ref_numbers_hint, settings.showRefNumbers, 105) { v ->
                     onUpdate { it.copy(showRefNumbers = v) }
+                }
+            }
+
+            SectionTitle(stringResource(R.string.settings_appearance), help = R.string.appearance_hint, helpRef = 133)
+            AppCard {
+                listOf(
+                    Triple(Appearance.DAY, R.string.appearance_day, 130),
+                    Triple(Appearance.NIGHT, R.string.appearance_night, 131),
+                    Triple(Appearance.AUTOMATIC, R.string.appearance_auto, 132),
+                ).forEachIndexed { i, (mode, label, ref) ->
+                    if (i > 0) CardDivider()
+                    RadioRow(stringResource(label), settings.appearance == mode, ref) { onUpdate { it.copy(appearance = mode) } }
                 }
             }
 
@@ -165,7 +177,7 @@ fun SettingsScreen(
                     title = stringResource(R.string.help_privacy_title),
                     help = R.string.settings_privacy_note,
                     icon = R.drawable.ic_located,
-                    iconTint = Located,
+                    iconTint = AppTheme.colors.success,
                     ref = 124,
                 )
             }
@@ -200,7 +212,7 @@ private fun StatusRow(label: String, ok: Boolean, ref: Int, onClick: () -> Unit,
     ListRow(
         title = label,
         subtitle = statusOverride ?: stringResource(if (ok) R.string.perm_granted else R.string.perm_tap),
-        subtitleColor = if (ok) Located else NotLocated,
+        subtitleColor = if (ok) AppTheme.colors.success else AppTheme.colors.danger,
         onClick = onClick,
         trailing = { Chevron() },
         ref = ref,
