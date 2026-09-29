@@ -105,7 +105,7 @@
     <string name="help_share_title">Share a screenshot to the app</string>
     <string name="help_share_body">1. Take a screenshot of the page with the addresses (any app: dispatch app, SMS, email, web page). Use scroll capture for long lists.\n2. Tap Share in the screenshot toolbar or in the gallery and pick Nästa Stopp. Several images are fine; they are added in order.\n3. Or open the app and tap \"Import screenshots\".\n4. Review the list and tap \"Start route\". Google Maps opens with the stops (up to 10 at a time).</string>
     <string name="help_overlay_title">Floating button</string>
-    <string name="help_overlay_body">If you allow \"display over other apps\", a floating card of smoked glass is shown over Google Maps during the route:\n• The wide bar at the top = the street you are on now, with location allowed (without it: the next stop\'s area). Tap it to hear it; its speaker button turns saying each new street by itself on and off. Beside the clock: the car\'s speed.\n• Below it, the next trip: its time with the stop\'s street and number beside it (tap them to hear them), the passenger and how early or late (green = plenty of time, yellow = soon, red = late), then the town. The stripe on its side has the trip\'s YouDrive colour. Tap the rest to open the app.\n• \"Next\" = next stop + announcement (long-press = repeat the announcement).\n• \"Back\" = undo the last \"Next\".\n• \"–\" = shrink it to a small capsule (tap it to expand). \"×\" = close; bring it back from the notification or the Quick Settings tile.\n• Drag it to move it.\nWithout it everything works from the notification.</string>
+    <string name="help_overlay_body">If you allow \"display over other apps\", a floating card of smoked glass is shown over Google Maps during the route:\n• The wide bar at the top = the street you are on now, with location allowed (without it: the next stop\'s area). Tap it to hear it; its speaker button turns saying each new street by itself on and off. Beside it, in its own circle: the car\'s speed (km/h).\n• Below it, the next trip: its time with the stop\'s street and number beside it (tap them to hear them), the passenger and how early or late (green = plenty of time, yellow = soon, red = late), then the town. The stripe on its side has the trip\'s YouDrive colour. Tap the rest to open the app.\n• \"Next\" = next stop + announcement (long-press = repeat the announcement).\n• \"Back\" = undo the last \"Next\".\n• \"–\" = shrink it to a small capsule (tap it to expand). \"×\" = close; bring it back from the notification or the Quick Settings tile.\n• Drag it to move it.\nWithout it everything works from the notification.</string>
     <string name="help_how_title">How announcements work</string>
     <string name="help_how_body">When you tap Next (in the app, on the floating button or in the notification) the app announces the next stop and the one after it in Swedish, e.g. \"Nästa stopp: Storgatan 14, Skoghall, Hammarö. Därefter: Kungsgatan 5, Kil.\"\nThe next stop is said with its street and number, then its district and town; the one after it with its street and number and district (Settings can make both shorter). A passenger\'s name is never said.\nIf you allow location, the app uses it only to name the street you are on; YouDrive\'s page never gets it.</string>
     <string name="help_privacy_title">Privacy</string>
@@ -282,7 +282,17 @@
     <string name="youdrive_sign_in_failed">Automatic sign-in did not work. Check the login saved in Settings, or sign in yourself.</string>
     <string name="overlay_say_street_on">Saying the street when it changes: on (tap to turn off)</string>
     <string name="overlay_say_street_off">Saying the street when it changes: off (tap to turn on)</string>
-    <string name="speed_kmh">%1$s km/h</string>
     <string name="settings_say_street">Say the street when it changes</string>
     <string name="help_say_street">During a route, with location allowed, the app says the name of each new street you turn into (after any announcement, never over it). The speaker button on the floating panel turns this on and off quickly. A tap on the panel\'s street bar always says it.</string>
+    <string name="overlay_speed_desc">Speed, km/h</string>
+    <string name="location_approximate">Approximate only: street names need precise location. Tap to allow it.</string>
+    <string name="settings_street_map">Street names (offline map)</string>
+    <string name="help_street_map">To name the street you are on exactly, the app matches your GPS position to the roads of Värmland from OpenStreetMap, downloaded once to this phone (© OpenStreetMap contributors). The download asks for the whole region, never your position, and is kept on the phone only, not in the app; Wi-Fi is best. Without the map, the street comes from the nearest address and is shown only when that address is very close, so it may be missing but not wrong.</string>
+    <string name="street_map_title">Street map for Värmland</string>
+    <string name="street_map_none">Not downloaded: tap to download it (once, over the internet)</string>
+    <string name="street_map_loading">Loading…</string>
+    <string name="street_map_downloading">Downloading… part %1$d of %2$d</string>
+    <string name="street_map_ready">Ready · streets: %1$d · %2$s · tap to update</string>
+    <string name="street_map_failed">The download did not finish: tap to try again</string>
+    <string name="street_map_delete">Delete the street map</string>
 </resources>

@@ -81,7 +81,9 @@ class StreetService : Service() {
         val request = LocationRequestCompat.Builder(INTERVAL_MS)
             .setMinUpdateIntervalMillis(INTERVAL_MS)
             .setMinUpdateDistanceMeters(MIN_DISTANCE_M)
-            .setQuality(LocationRequestCompat.QUALITY_BALANCED_POWER_ACCURACY)
+            // High accuracy (1.8): "balanced" positions came from Wi-Fi and masts, often 30–60 m
+            // off and without a speed, which named the wrong street and left the speed empty.
+            .setQuality(LocationRequestCompat.QUALITY_HIGH_ACCURACY)
             .build()
         try {
             LocationManagerCompat.requestLocationUpdates(manager, provider, request, listener, Looper.getMainLooper())
@@ -93,13 +95,16 @@ class StreetService : Service() {
         }
     }
 
-    /** The system's fused provider when there is one, else GPS (precise) or the network. */
+    /**
+     * GPS itself when precise location is allowed (1.8): exact positions with the speed and heading
+     * the street matching needs. Otherwise the fused provider, or the network.
+     */
     private fun provider(manager: LocationManager): String? {
         val all = manager.allProviders
         val precise = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
         return when {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && LocationManager.FUSED_PROVIDER in all -> LocationManager.FUSED_PROVIDER
             precise && LocationManager.GPS_PROVIDER in all -> LocationManager.GPS_PROVIDER
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && LocationManager.FUSED_PROVIDER in all -> LocationManager.FUSED_PROVIDER
             LocationManager.NETWORK_PROVIDER in all -> LocationManager.NETWORK_PROVIDER
             else -> all.firstOrNull { it != LocationManager.PASSIVE_PROVIDER }
         }
@@ -134,6 +139,7 @@ class StreetService : Service() {
         lng = longitude,
         speedMps = if (hasSpeed()) speed else null,
         accuracyM = if (hasAccuracy()) accuracy else null,
+        bearingDeg = if (hasBearing()) bearing else null,
     )
 
     companion object {

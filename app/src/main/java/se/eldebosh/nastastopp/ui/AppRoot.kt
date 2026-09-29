@@ -92,6 +92,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
     val history by graph.history.entries.collectAsStateWithLifecycle()
     val street by graph.street.state.collectAsStateWithLifecycle()
     val youDriveLoginSaved by graph.youDriveLogin.saved.collectAsStateWithLifecycle()
+    val streetMap by graph.streetMap.state.collectAsStateWithLifecycle()
     val youDrive by graph.youDrive.state.collectAsStateWithLifecycle()
     val importing = importState is ImportUi.Running
     val snackbar = remember { SnackbarHostState() }
@@ -129,8 +130,9 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
     val startPermissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { startRoute() }
     fun requestStart() {
         val needed = buildList {
-            // Location only names the street the vehicle is on (never for the YouDrive page).
-            if (!SystemIntents.hasLocation(context)) {
+            // Location only names the street the vehicle is on (never for the YouDrive page). Precise
+            // location is needed for that: with approximate only, Android offers to upgrade it.
+            if (!SystemIntents.hasPreciseLocation(context)) {
                 add(Manifest.permission.ACCESS_FINE_LOCATION)
                 add(Manifest.permission.ACCESS_COARSE_LOCATION)
             }
@@ -344,6 +346,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             permissions = remember(resumeTick) {
                                 PermissionStatus(
                                     location = SystemIntents.hasLocation(context),
+                                    locationApproximate = SystemIntents.hasLocation(context) && !SystemIntents.hasPreciseLocation(context),
                                     notifications = SystemIntents.hasNotifications(context),
                                     overlay = SystemIntents.canDrawOverlays(context),
                                     battery = SystemIntents.isIgnoringBatteryOptimizations(context),
@@ -364,7 +367,8 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             },
                             onTestVoice = ::testVoice,
                             onLocation = {
-                                if (SystemIntents.hasLocation(context)) SystemIntents.openAppDetails(context)
+                                // Approximate only: asking again lets Android offer "precise" (street names need it).
+                                if (SystemIntents.hasPreciseLocation(context)) SystemIntents.openAppDetails(context)
                                 else locationPermission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
                             },
                             onNotifications = {
@@ -382,6 +386,9 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             youDriveLoginSaved = youDriveLoginSaved,
                             onSaveYouDriveLogin = { u, p -> graph.youDriveLogin.save(u, p) },
                             onDeleteYouDriveLogin = { graph.youDriveLogin.delete() },
+                            streetMap = streetMap,
+                            onDownloadStreetMap = { graph.streetMap.download() },
+                            onDeleteStreetMap = { graph.streetMap.delete() },
                             onVoice = {
                                 if (ttsStatus == se.eldebosh.nastastopp.tts.TtsStatus.READY) testVoice() else vm.navigate(Screen.TTS_MISSING)
                             },

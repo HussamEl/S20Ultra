@@ -18,6 +18,7 @@ import se.eldebosh.nastastopp.App
 import se.eldebosh.nastastopp.core.geo.GeoResult
 import se.eldebosh.nastastopp.core.route.Fix
 import se.eldebosh.nastastopp.geo.CurrentStreet
+import se.eldebosh.nastastopp.geo.StreetMapStore
 import se.eldebosh.nastastopp.overlay.OverlayManager
 import se.eldebosh.nastastopp.ui.screens.OnboardingScreen
 import java.time.Duration
@@ -217,6 +218,7 @@ class ScreenshotsRoboTest {
             link = DisplayLinkServer.State(DisplayLinkServer.Status.WAITING, localName = "Galaxy S20 Ultra"),
             onToggleLink = {}, onFixLink = {},
             youDriveLoginSaved = false, onSaveYouDriveLogin = { _, _ -> }, onDeleteYouDriveLogin = {},
+            streetMap = StreetMapStore.State.Ready(41_230, 1_790_000_000_000), onDownloadStreetMap = {}, onDeleteStreetMap = {},
         )
     }
 
@@ -245,6 +247,7 @@ class ScreenshotsRoboTest {
             onBack = {}, onUpdate = {}, onLanguage = {}, onTestVoice = {}, onLocation = {}, onNotifications = {}, onOverlay = {}, onBattery = {}, onVoice = {},
             link = DisplayLinkServer.State(), onToggleLink = {}, onFixLink = {},
             youDriveLoginSaved = true, onSaveYouDriveLogin = { _, _ -> }, onDeleteYouDriveLogin = {},
+            streetMap = StreetMapStore.State.None, onDownloadStreetMap = {}, onDeleteStreetMap = {},
         )
     }
 
@@ -275,6 +278,7 @@ class ScreenshotsRoboTest {
         val app = ApplicationProvider.getApplicationContext<App>()
         val graph = app.graph
         ShadowSettings.setCanDrawOverlays(true)
+        shadowOf(app).grantPermissions(android.Manifest.permission.ACCESS_FINE_LOCATION) // the speed circle shows
         graph.settings.update { it.copy(overlayHidden = false, overlayMinimized = minimized, appearance = appearance, uiLanguage = language) }
         LocaleHelper.applyAppLocale(app, language)
         graph.controller.clear()
@@ -289,6 +293,9 @@ class ScreenshotsRoboTest {
         val street = CurrentStreet(graph.scope) { _, _ -> listOf(GeoResult(59.38, 13.5, null, null, "Karlstad", "Centrum", "Västra Torggatan")) }
         street.want("render", true)
         street.onFix(Fix(0, 59.38, 13.5, 12.5f, 5f)) // 45 km/h
+        shadowOf(Looper.getMainLooper()).idle()
+        street.onFix(Fix(10_000, 59.38, 13.5, 12.5f, 5f)) // the confirming reading (1.8)
+        shadowOf(Looper.getMainLooper()).idle()
         val panelManager = OverlayManager(app, graph.controller, graph.settings, street, graph.scope)
         graph.controller.start()
         shadowOf(Looper.getMainLooper()).idle()

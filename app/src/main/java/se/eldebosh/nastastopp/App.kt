@@ -11,6 +11,7 @@ import se.eldebosh.nastastopp.core.parse.Localities
 import se.eldebosh.nastastopp.geo.CurrentStreet
 import se.eldebosh.nastastopp.geo.Geocoding
 import se.eldebosh.nastastopp.geo.StreetCaller
+import se.eldebosh.nastastopp.geo.StreetMapStore
 import se.eldebosh.nastastopp.importer.ScreenshotImporter
 import se.eldebosh.nastastopp.link.DisplayLinkClient
 import se.eldebosh.nastastopp.link.DisplayLinkServer
@@ -44,6 +45,9 @@ class AppGraph(app: Application) {
 
     /** The street the vehicle is on now (floating button and route screen). */
     val street = CurrentStreet(scope, lookup = geocoding::reverse)
+
+    /** The offline street map (downloaded in Settings), for exact street names. */
+    val streetMap = StreetMapStore(app, street, scope)
 
     /** Says the street's name when it changes (the driver can switch it off). */
     val streetCaller = StreetCaller(street, controller, scope)

@@ -54,4 +54,12 @@ class StreetLookupTest {
         assertNull(StreetLookup.pick(emptyList()))
         assertNull(StreetLookup.pick(listOf(GeoResult(0.0, 0.0, null, null, null, null, " "))))
     }
+
+    /** 1.8: without the street map, a street counts only when its address is very close. */
+    @Test
+    fun aFarAddressGivesTheAreaButNoStreet() {
+        val here = GeoResult(59.38, 13.5, "Drottninggatan 3", "65225", "Karlstad", "Centrum", "Drottninggatan")
+        assertEquals(StreetInfo("Drottninggatan", "Centrum"), StreetLookup.pickNear(listOf(here), 59.38 + 20 / 111_195.0, 13.5))
+        assertEquals(StreetInfo(null, "Centrum"), StreetLookup.pickNear(listOf(here), 59.38 + 80 / 111_195.0, 13.5))
+    }
 }

@@ -82,7 +82,7 @@ class StreetServiceRoboTest {
 
         val service = Robolectric.buildService(StreetService::class.java, started).create().startCommand(0, 1)
         val locations = app.getSystemService(LocationManager::class.java)
-        val provider = listOf(LocationManager.FUSED_PROVIDER, LocationManager.GPS_PROVIDER).first { it in locations.allProviders }
+        val provider = listOf(LocationManager.GPS_PROVIDER, LocationManager.FUSED_PROVIDER).first { it in locations.allProviders }
         assertEquals("the street service listens", 1, shadowOf(locations).getLocationUpdateListeners(provider).size)
         val first = graph.controller.route.value!!.stops.first().id
 

@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import se.eldebosh.nastastopp.BuildConfig
 import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.core.geo.AnnouncementDetail
+import se.eldebosh.nastastopp.geo.StreetMapStore
 import se.eldebosh.nastastopp.link.DisplayLinkServer
 import se.eldebosh.nastastopp.settings.AppSettings
 import se.eldebosh.nastastopp.settings.Appearance
@@ -50,11 +51,15 @@ import se.eldebosh.nastastopp.ui.TopBar
 import se.eldebosh.nastastopp.ui.ref
 import se.eldebosh.nastastopp.ui.refCorner
 import se.eldebosh.nastastopp.ui.theme.AppTheme
+import java.text.DateFormat
+import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
 
 data class PermissionStatus(
     val location: Boolean,
+    /** Location is allowed, but only approximately (no street names). */
+    val locationApproximate: Boolean = false,
     val notifications: Boolean,
     val overlay: Boolean,
     val battery: Boolean,
@@ -81,6 +86,9 @@ fun SettingsScreen(
     youDriveLoginSaved: Boolean,
     onSaveYouDriveLogin: (username: String, password: String) -> Unit,
     onDeleteYouDriveLogin: () -> Unit,
+    streetMap: StreetMapStore.State,
+    onDownloadStreetMap: () -> Unit,
+    onDeleteStreetMap: () -> Unit,
 ) {
     var loginDialog by remember { mutableStateOf(false) }
     if (loginDialog) {
@@ -180,6 +188,37 @@ fun SettingsScreen(
                 }
             }
 
+            // The offline street map for exact street names (1.8, the driver's choice).
+            SectionTitle(stringResource(R.string.settings_street_map), help = R.string.help_street_map)
+            AppCard {
+                ListRow(
+                    title = stringResource(R.string.street_map_title),
+                    subtitle = when (streetMap) {
+                        StreetMapStore.State.None -> stringResource(R.string.street_map_none)
+                        StreetMapStore.State.Loading -> stringResource(R.string.street_map_loading)
+                        is StreetMapStore.State.Downloading -> stringResource(R.string.street_map_downloading, streetMap.done, streetMap.total)
+                        is StreetMapStore.State.Ready -> stringResource(
+                            R.string.street_map_ready,
+                            streetMap.roads,
+                            DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(streetMap.createdAtMs)),
+                        )
+                        StreetMapStore.State.Failed -> stringResource(R.string.street_map_failed)
+                    },
+                    subtitleColor = when (streetMap) {
+                        is StreetMapStore.State.Ready -> AppTheme.colors.success
+                        StreetMapStore.State.Failed -> AppTheme.colors.danger
+                        else -> null
+                    },
+                    onClick = if (streetMap is StreetMapStore.State.Downloading || streetMap is StreetMapStore.State.Loading) null else onDownloadStreetMap,
+                    trailing = { Chevron() },
+                    ref = 138,
+                )
+                if (streetMap is StreetMapStore.State.Ready) {
+                    CardDivider()
+                    ListRow(title = stringResource(R.string.street_map_delete), onClick = onDeleteStreetMap, ref = 139)
+                }
+            }
+
             // YouDrive's automatic sign-in (1.6, the driver's choice).
             SectionTitle(stringResource(R.string.settings_youdrive))
             AppCard {
@@ -200,7 +239,14 @@ fun SettingsScreen(
             SectionTitle(stringResource(R.string.settings_permissions))
             AppCard {
                 // Location only names the street the vehicle is on; the YouDrive page never gets it.
-                StatusRow(stringResource(R.string.settings_location), permissions.location, 119, onLocation, help = R.string.help_location)
+                StatusRow(
+                    stringResource(R.string.settings_location),
+                    permissions.location && !permissions.locationApproximate,
+                    119,
+                    onLocation,
+                    statusOverride = if (permissions.locationApproximate) stringResource(R.string.location_approximate) else null,
+                    help = R.string.help_location,
+                )
                 CardDivider()
                 StatusRow(stringResource(R.string.settings_notifications), permissions.notifications, 120, onNotifications)
                 CardDivider()

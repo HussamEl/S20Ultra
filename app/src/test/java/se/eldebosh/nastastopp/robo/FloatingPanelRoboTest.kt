@@ -1,5 +1,6 @@
 package se.eldebosh.nastastopp.robo
 
+import android.Manifest
 import android.app.NotificationManager
 import android.content.Intent
 import android.os.Looper
@@ -30,6 +31,7 @@ import se.eldebosh.nastastopp.AppGraph
 import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.core.geo.GeoResult
 import se.eldebosh.nastastopp.core.geo.StreetInfo
+import se.eldebosh.nastastopp.core.geo.StreetMapBuilder
 import se.eldebosh.nastastopp.core.route.DetectorPhase
 import se.eldebosh.nastastopp.core.route.Fix
 import se.eldebosh.nastastopp.geo.CurrentStreet
@@ -188,12 +190,16 @@ class FloatingPanelRoboTest {
         graph.controller.start()
         idle()
         var answer = "Drottninggatan"
-        val street = CurrentStreet(graph.scope) { _, _ -> listOf(GeoResult(59.38, 13.5, null, null, "Karlstad", "Centrum", answer)) }
+        // The geocoder finds an address right where the vehicle is.
+        val street = CurrentStreet(graph.scope) { lat, lng -> listOf(GeoResult(lat, lng, null, null, "Karlstad", "Centrum", answer)) }
         StreetCaller(street, graph.controller, graph.scope)
         street.want("test", true)
         fun fix(s: Long, m: Double) = Fix(s * 1000, 59.38 + m / 111_195.0, 13.5, 10f, 5f)
 
         street.onFix(fix(0, 0.0))
+        idle()
+        assertTrue("one reading is not enough (1.8)", tts.lastSpokenText!!.startsWith("Nästa stopp"))
+        street.onFix(fix(10, 0.0)) // the confirming reading, also when standing still
         idle()
         assertEquals("Drottninggatan", tts.lastSpokenText)
         assertEquals("queued after an announcement, never over it", TextToSpeech.QUEUE_ADD, tts.queueMode)
@@ -204,12 +210,16 @@ class FloatingPanelRoboTest {
         answer = "Kungsgatan"
         street.onFix(fix(40, 200.0))
         idle()
+        street.onFix(fix(50, 200.0))
+        idle()
         assertEquals("Kungsgatan", tts.lastSpokenText)
 
         graph.settings.update { it.copy(sayStreetChanges = false) }
         graph.controller.repeat()
         answer = "Västra Torggatan"
         street.onFix(fix(60, 300.0))
+        idle()
+        street.onFix(fix(70, 300.0))
         idle()
         assertTrue("switched off", tts.lastSpokenText!!.startsWith("Nästa stopp"))
         graph.settings.update { it.copy(sayStreetChanges = true) }
@@ -224,22 +234,30 @@ class FloatingPanelRoboTest {
         assertNull(street.speedNow())
         street.onFix(Fix(0, 59.38, 13.5, 12.5f, 5f))
         assertEquals(45, street.speedNow())
-        street.onFix(Fix(2_000, 59.38, 13.5, null, 5f)) // no speed in this fix: the last one stays
-        assertEquals(45, street.speedNow())
+        street.onFix(Fix(2_000, 59.38, 13.5, null, 5f)) // no speed in this fix: worked out, it did not move
+        assertEquals(0, street.speedNow())
         now += 11_000
         assertNull("no recent position", street.speedNow())
 
-        // On the panel (the app's own street): "45 km/h" in the header, hidden without a speed.
+        // Without a speed in the fixes (some phones): worked out from two exact positions 2 s apart.
+        val derived = CurrentStreet(graph.scope, clockMs = { now }) { _, _ -> null }
+        derived.onFix(Fix(0, 59.38, 13.5, null, 5f))
+        derived.onFix(Fix(2_000, 59.38 + 25.0 / 111_195.0, 13.5, null, 5f))
+        assertEquals(45, derived.speedNow())
+
+        // On the panel (1.8): the number alone in its own circle; "–" until a position has a speed.
+        shadowOf(app).grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
         ShadowSettings.setCanDrawOverlays(true)
         threeStops()
         graph.controller.start()
         idle()
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
         val speed = wm.views.single().findViewById<TextView>(R.id.ref_15)
-        assertEquals(View.GONE, speed.visibility)
+        assertEquals(View.VISIBLE, speed.visibility)
+        assertEquals("–", speed.text.toString())
         graph.street.onFix(Fix(System.currentTimeMillis(), 59.38, 13.5, 12.5f, 5f))
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
-        assertEquals(View.VISIBLE, speed.visibility)
-        assertEquals(ui(R.string.speed_kmh).replace("%1\$s", "45"), speed.text.toString())
+        assertEquals("45", speed.text.toString())
         graph.controller.end()
     }
 
@@ -260,11 +278,37 @@ class FloatingPanelRoboTest {
         graph.controller.end()
     }
 
+    /** 1.8: with the offline street map the road comes from the map, on every position, and the geocoder gives only the area. */
+    @Test
+    fun withTheStreetMapTheRoadComesFromTheMap() {
+        val lat0 = 59.38
+        val east = { m: Double -> 13.5 + m / (111_195.0 * Math.cos(Math.toRadians(lat0))) }
+        val map = StreetMapBuilder().apply {
+            add(1, "Testgatan", listOf(lat0 to east(-300.0), lat0 to east(300.0)))
+        }.build(0)
+        // The geocoder's nearest address is on another street: with the map it is not used for the street.
+        val street = CurrentStreet(graph.scope) { lat, lng -> listOf(GeoResult(lat, lng, null, null, "Karlstad", "Centrum", "Sidogatan")) }
+        street.map = map
+        street.want("test", true)
+        street.onFix(Fix(0, lat0 + 4 / 111_195.0, east(-100.0), 10f, 5f, 90f))
+        idle()
+        assertEquals(StreetInfo(null, "Centrum"), street.state.value)
+        street.onFix(Fix(2_000, lat0 + 3 / 111_195.0, east(-80.0), 10f, 5f, 90f))
+        idle()
+        assertEquals(StreetInfo("Testgatan", "Centrum"), street.state.value)
+        // A position far from every road of the map: no name is invented (after a short hold).
+        street.onFix(Fix(4_000, lat0 + 200 / 111_195.0, east(-80.0), 10f, 5f, 90f))
+        idle()
+        assertEquals("Testgatan", street.state.value?.street)
+        street.reset()
+    }
+
     @Test
     fun currentStreetLooksUpOnlyWhenWantedAndThrottles() {
         val calls = mutableListOf<Pair<Double, Double>>()
         var answer: List<GeoResult>? = listOf(GeoResult(59.38, 13.5, null, null, "Karlstad", "Centrum", "Drottninggatan"))
-        val street = CurrentStreet(graph.scope) { lat, lng -> calls += lat to lng; answer }
+        // The geocoder finds its address right where the vehicle is.
+        val street = CurrentStreet(graph.scope) { lat, lng -> calls += lat to lng; answer?.map { it.copy(lat = lat, lng = lng) } }
         fun fix(s: Long, m: Double) = Fix(s * 1000, 59.38 + m / 111_195.0, 13.5, null, 5f)
 
         street.onFix(fix(0, 0.0))
@@ -274,15 +318,22 @@ class FloatingPanelRoboTest {
         street.onFix(fix(1, 0.0))
         idle()
         assertEquals(1, calls.size)
-        assertEquals(StreetInfo("Drottninggatan", "Centrum"), street.state.value)
-        street.onFix(fix(3, 100.0))
-        street.onFix(fix(20, 5.0))
+        assertEquals("a street needs a second reading (1.8)", StreetInfo(null, "Centrum"), street.state.value)
+        street.onFix(fix(5, 0.0))
         idle()
         assertEquals("throttled", 1, calls.size)
+        street.onFix(fix(10, 0.0)) // the confirming reading, standing still
+        idle()
+        assertEquals(2, calls.size)
+        assertEquals(StreetInfo("Drottninggatan", "Centrum"), street.state.value)
+        street.onFix(fix(12, 100.0))
+        street.onFix(fix(20, 5.0))
+        idle()
+        assertEquals("throttled", 2, calls.size)
         answer = null // geocoder failed: the last street stays
         street.onFix(fix(30, 200.0))
         idle()
-        assertEquals(2, calls.size)
+        assertEquals(3, calls.size)
         assertEquals("Drottninggatan", street.state.value!!.street)
         street.reset()
         assertNull(street.state.value)

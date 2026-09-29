@@ -651,3 +651,44 @@ Tests:
 - `theSpeedIsShownWhilePositionsComeIn`: 12.5 m/s → "45 km/h", gone after 10 s;
 - `theStreetBarsSpeakerSwitchesStreetSpeech`;
 - the announcement tests now expect the street after "Därefter".
+
+## 1.8 (versionCode 26): the street named exactly, and the speed in its own circle
+
+The driver's report on 1.7: "the speed did not show", and "the current street was better before; now it often invents streets". He asked for it to be exact, with an offline map on the phone (not inside the app) if needed.
+
+**Causes found:**
+- The street service asked for "balanced power" positions. The phone then often gives Wi-Fi/mast positions, 30–60 m off (up to 60 m was accepted) and without a speed. That made the speed empty and the street wrong.
+- The street came from the reverse geocoder's **nearest address**. On a main road without addresses, or near a crossing, that address is on a side street. Since 1.7 every such change was also **said aloud**, so the wrong names stood out.
+
+**Fix (street):**
+- **GPS itself** when precise location is allowed, with high accuracy, plus the heading.
+  - Positions less exact than 25 m (map) / 30 m (geocoder) are not used.
+  - Settings 119 now says in red when location is only approximate. Start route and 119 ask for precise location.
+- **The offline street map** (the driver's decision), Settings **138** (download or update) and **139** (delete):
+  - the named roads a car can use in Värmland, from OpenStreetMap (© OpenStreetMap contributors), downloaded once when the driver taps;
+  - 48 fixed tiles over the region (a margin included) from the Overpass API, one at a time with a pause, with a retry and a second server;
+  - the requests name the region, never the position;
+  - read as a stream and saved in a compact file in app-private storage without backup (`noBackupFilesDir/streetmap`), not in the app. A new download replaces it only when complete.
+- **Matching** (`core/geo/StreetMatcher`):
+  - every position is matched to the nearest named road within 30 m;
+  - at a crossing, the road along the heading wins (a road across it counts 25 m farther), once the car moves faster than 3 m/s;
+  - no road within reach means **no name**, never a guess.
+- **Without the map**, the geocoder's street counts only when its address lies within 40 m of the position (`StreetLookup.pickNear`); otherwise only the area is shown.
+- **Either way a new street needs two agreeing readings** (`StreetTracker`), so one stray position never changes (or says) the name. Without the map, the confirming lookup is made after 8 s even when standing still.
+- The area (district) still comes from the geocoder, throttled as before.
+
+**Fix (speed):**
+- The speed comes from GPS. When a position has none, it is worked out from the previous position (both better than 20 m, 0.5–10 s apart).
+- It sits in **a big circle of its own** (60 dp, yellow ring) beside the street bar (part 15): the number only, "–" until a position has one, shown only with location allowed.
+- The small arrow before the street was removed to give the bar room.
+
+**Rules updated:** the internet is now also for the map download (driver's tap only), and the street must never be invented.
+
+**Not verifiable here:** the build environment's network policy blocks `overpass-api.de`, so the real download was not run. It is tested with invented Overpass answers (`StreetMapDownloadRoboTest`) and on the device.
+
+**Tests:**
+- `StreetMatcherTest`: nearest road, heading at a crossing, nothing far away or with a poor position, the file round trip, confirmations and hold;
+- `StreetMapDownloadRoboTest`: tiles, query, streamed reading, a cut-short answer refused;
+- `FloatingPanelRoboTest.withTheStreetMapTheRoadComesFromTheMap`;
+- the speed circle and the worked-out speed;
+- `StreetLookupTest.aFarAddressGivesTheAreaButNoStreet`.

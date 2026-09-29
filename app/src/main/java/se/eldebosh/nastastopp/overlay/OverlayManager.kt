@@ -51,6 +51,7 @@ import se.eldebosh.nastastopp.ui.theme.AppTheme
 import se.eldebosh.nastastopp.ui.theme.DayColors
 import se.eldebosh.nastastopp.ui.theme.DayEffects
 import se.eldebosh.nastastopp.util.LocaleHelper
+import se.eldebosh.nastastopp.util.SystemIntents
 import se.eldebosh.nastastopp.util.TimeLabels
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -63,10 +64,10 @@ import kotlin.math.roundToInt
  *
  *     ┌──────────────────────────────────────┐
  *     │ 13:14  1/11                  (–)  (×) │   clock, trip n/total, minimise, close
- *     │ ┌──────────────────────────────────┐ │
- *     │ │ ➤ Drottninggatan                 │ │   the street we are on (a wide bar; tap = say it)
- *     │ │   Centrum                        │ │
- *     │ └──────────────────────────────────┘ │
+ *     │  ⎛45⎞ ┌────────────────────────────┐ │   the speed (km/h) in its own circle;
+ *     │  ⎝  ⎠ │ Drottninggatan         (🔊) │ │   the street we are on (tap = say it; 🔊 =
+ *     │       │ Centrum                    │ │   say each new street by itself: on / off)
+ *     │       └────────────────────────────┘ │
  *     │ ┌──────────────────────────────────┐ │
  *     │ ▌ [14:33] Storgatan 14             │ │   the next trip: time, the stop's street (tap = say it),
  *     │ ▌ Anna Testsson         ● in 7 min │ │   passenger and on-time status
@@ -239,12 +240,11 @@ class OverlayManager(
         val current = r.stops.firstOrNull() ?: return
         val now = LocalTime.now()
         v.clock?.text = now.format(clockFormat)
-        // The vehicle's speed from the last position (hidden without a recent one).
+        // The vehicle's speed: just the number (km/h), in Western digits in every language like the
+        // clock; "–" until a recent position has one. Only with location allowed.
         v.speed?.apply {
-            val kmh = street.speedNow()
-            // Western digits in every language, like the clock beside it.
-            text = kmh?.let { ui.getString(R.string.speed_kmh, it.toString()) }.orEmpty()
-            visibility = if (kmh == null) View.GONE else View.VISIBLE
+            text = street.speedNow()?.toString() ?: "–"
+            visibility = if (SystemIntents.hasLocation(context)) View.VISIBLE else View.GONE
         }
         val until = TripTimes.minutesUntil(current.time, now.hour * 60 + now.minute)
         val color = until?.let { pc.status(TripTimes.level(it)) }
@@ -380,19 +380,12 @@ class OverlayManager(
         }
         val minimize = roundControl("–", R.string.overlay_minimize_desc)
         val close = roundControl("×", R.string.overlay_close_desc)
-        // The vehicle's speed, from the same positions as the street (1.7).
-        val speedView = text(15f, pc.text, bold = true).apply {
-            background = rounded(pc.control, 20f)
-            setPadding(dp(9f), dp(1f), dp(9f), dp(1f))
-            visibility = View.GONE
-        }
         val header = LinearLayout(ui).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPaddingRelative(dp(6f), 0, 0, dp(6f))
             addView(clockView)
             addView(progressView, LinearLayout.LayoutParams(WRAP, WRAP).apply { marginStart = dp(8f) })
-            addView(speedView, LinearLayout.LayoutParams(WRAP, WRAP).apply { marginStart = dp(8f) })
             addView(View(ui), LinearLayout.LayoutParams(0, 1, 1f))
             addView(minimize, LinearLayout.LayoutParams(dp(CONTROL_DP), dp(CONTROL_DP)))
             addView(close, LinearLayout.LayoutParams(dp(CONTROL_DP), dp(CONTROL_DP)).apply { marginStart = dp(8f) })
@@ -400,10 +393,6 @@ class OverlayManager(
 
         // The street we are on: a wide bar, so the name stays on one line at a large size
         // (shrinking to fit, never broken inside a word).
-        val streetIcon = ImageView(ui).apply {
-            setImageResource(R.drawable.ic_navigation)
-            imageTintList = ColorStateList.valueOf(pc.next)
-        }
         val streetView = text(22f, pc.text, bold = true).apply {
             gravity = Gravity.START or Gravity.CENTER_VERTICAL
             maxLines = 1
@@ -438,11 +427,29 @@ class OverlayManager(
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             background = rounded(pc.well, WELL_RADIUS_DP)
-            setPaddingRelative(dp(12f), dp(7f), dp(12f), dp(7f))
+            setPaddingRelative(dp(12f), dp(7f), dp(10f), dp(7f))
             contentDescription = ui.getString(R.string.overlay_street_desc)
-            addView(streetIcon, LinearLayout.LayoutParams(dp(22f), dp(22f)))
-            addView(streetText, LinearLayout.LayoutParams(0, WRAP, 1f).apply { marginStart = dp(10f) })
+            addView(streetText, LinearLayout.LayoutParams(0, WRAP, 1f))
             addView(sayStreet, LinearLayout.LayoutParams(dp(36f), dp(36f)).apply { marginStart = dp(6f) })
+        }
+        // The vehicle's speed (1.8): a big circle of its own beside the street, the number only.
+        val speedView = text(26f, pc.text, bold = true).apply {
+            background = LayerDrawable(arrayOf(oval(pc.well), GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(pc.clear)
+                setStroke(dp(3f), pc.next)
+            }))
+            maxLines = 1
+            setAutoSizeTextTypeUniformWithConfiguration(sp(14f), sp(26f), 1, TypedValue.COMPLEX_UNIT_PX)
+            setPadding(dp(6f), 0, dp(6f), 0)
+            contentDescription = ui.getString(R.string.overlay_speed_desc)
+            text = "–"
+        }
+        val streetRow = LinearLayout(ui).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(speedView, LinearLayout.LayoutParams(dp(SPEED_DP), dp(SPEED_DP)))
+            addView(streetBar, LinearLayout.LayoutParams(0, WRAP, 1f).apply { marginStart = dp(8f) })
         }
 
         // The next trip, with a stripe in its kind's colour (the time says the rest, so no
@@ -543,7 +550,7 @@ class OverlayManager(
         }
 
         card.addView(header, LinearLayout.LayoutParams(MATCH, WRAP))
-        card.addView(streetBar, LinearLayout.LayoutParams(MATCH, WRAP))
+        card.addView(streetRow, LinearLayout.LayoutParams(MATCH, WRAP))
         card.addView(trip, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(8f) })
         card.addView(actions, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(8f) })
 
@@ -903,6 +910,7 @@ class OverlayManager(
         /** The next stop's street beside its time: two steps larger than the address was (13 sp). */
         private const val STOP_STREET_SP = 17f
         private const val CONTROL_DP = 34f
+        private const val SPEED_DP = 60f
         private const val BUBBLE_H_DP = 52f
 
         /** Room around the card for its shadow (the window is a little larger than the card). */

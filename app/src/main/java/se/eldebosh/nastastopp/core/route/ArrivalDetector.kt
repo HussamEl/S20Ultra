@@ -2,13 +2,17 @@ package se.eldebosh.nastastopp.core.route
 
 import se.eldebosh.nastastopp.core.geo.GeoLogic
 
-/** A location fix fed to [ArrivalDetector]. Speed in m/s (null if unknown), accuracy in metres. */
+/**
+ * A location fix. Speed in m/s and heading in degrees from north (null if unknown), accuracy in
+ * metres.
+ */
 data class Fix(
     val timeMs: Long,
     val lat: Double,
     val lng: Double,
     val speedMps: Float?,
     val accuracyM: Float?,
+    val bearingDeg: Float? = null,
 )
 
 data class ArrivalConfig(

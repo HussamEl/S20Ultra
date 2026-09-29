@@ -18,7 +18,13 @@ An Android app for a Swedish shared-ride driver:
 - Never log addresses or OCR text in release (use `util/DebugLog`). `allowBackup=false`.
 - **Location only names the street the vehicle is on** (Hussam's decision, 1.3). While-in-use only, never background (`ACCESS_BACKGROUND_LOCATION` stays removed). `service/StreetService` (LocationManager, no Play services) feeds `CurrentStreet` (street + speed, 1.7) and nothing else: never `controller.onLocation` (no automatic advance), never stored, logged or sent. Asked at "Start route" and in Settings (119).
 - **The YouDrive WebView never gets location**: `setGeolocationEnabled(false)` and every page prompt is denied (`theYouDrivePageNeverGetsTheLocation`).
-- INTERNET is only for the YouDrive page. No Firebase, analytics, crash reporting or Hilt.
+- INTERNET is only for the YouDrive page and the offline street map's download (1.8). The download starts only when the driver taps Settings 138. It fetches fixed OpenStreetMap tiles over Värmland from Overpass, never the position. No Firebase, analytics, crash reporting or Hilt.
+- The street name must never be invented (1.8):
+  - GPS with high accuracy; positions less exact than 25–30 m are not used;
+  - with the downloaded map, the road is matched by distance and heading (`StreetMatcher`);
+  - without the map, the geocoder's street counts only when its address is within 40 m;
+  - a new street needs two agreeing readings (`StreetTracker`);
+  - no match means no name.
 - YouDrive credentials never go into code, the repo, logs or replies, and Claude never uses them. The app keeps them only if the driver typed them into Settings (157) on his phone (Hussam's decision, 1.6):
   - `youdrive/YouDriveLogin`: encrypted with an Android Keystore key, in app-private storage with no backup;
   - filled only into YouDrive's own login form on `https://youdrive.regionvarmland.se` (`SignInScript`);
