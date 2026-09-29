@@ -14,7 +14,7 @@ import se.eldebosh.nastastopp.core.geo.StreetLookup
 import se.eldebosh.nastastopp.core.geo.StreetMap
 import se.eldebosh.nastastopp.core.geo.StreetMatcher
 import se.eldebosh.nastastopp.core.geo.StreetTracker
-import se.eldebosh.nastastopp.core.route.Fix
+import se.eldebosh.nastastopp.core.geo.Fix
 import kotlin.math.roundToInt
 
 /**

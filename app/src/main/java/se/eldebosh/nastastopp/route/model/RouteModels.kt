@@ -70,5 +70,4 @@ data class RouteData(
     val depot: Stop? = null,
 ) {
     val completedCount: Int get() = completed.size
-    val previousStop: Stop? get() = completed.lastOrNull()
 }

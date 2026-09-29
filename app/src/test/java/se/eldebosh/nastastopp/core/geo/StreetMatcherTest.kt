@@ -3,7 +3,6 @@ package se.eldebosh.nastastopp.core.geo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
-import se.eldebosh.nastastopp.core.route.Fix
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.DataInputStream

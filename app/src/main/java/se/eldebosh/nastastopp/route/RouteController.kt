@@ -14,8 +14,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -33,11 +31,6 @@ import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.core.parse.TripTimes
 import se.eldebosh.nastastopp.core.route.Announcement
 import se.eldebosh.nastastopp.core.route.Announcements
-import se.eldebosh.nastastopp.core.route.ArrivalConfig
-import se.eldebosh.nastastopp.core.route.ArrivalDetector
-import se.eldebosh.nastastopp.core.route.DetectorEvent
-import se.eldebosh.nastastopp.core.route.DetectorPhase
-import se.eldebosh.nastastopp.core.route.Fix
 import se.eldebosh.nastastopp.core.route.MapsUrlBuilder
 import se.eldebosh.nastastopp.geo.Geocoding
 import se.eldebosh.nastastopp.geo.LocateResult
@@ -51,16 +44,6 @@ import se.eldebosh.nastastopp.service.StreetService
 import se.eldebosh.nastastopp.settings.SettingsStore
 import se.eldebosh.nastastopp.tts.Announcer
 import kotlin.math.abs
-
-/** Live tracking info for the UI. */
-data class TrackingState(
-    val phase: DetectorPhase = DetectorPhase.IDLE,
-    val distanceM: Double? = null,
-    /** False when the current stop is not located or shares its place with a neighbour. */
-    val autoEnabled: Boolean = false,
-    /** Wall-clock time the vehicle arrived at the current stop (waiting timer), or null. */
-    val arrivedAtMs: Long? = null,
-)
 
 /**
  * Single source of truth for the route (draft and active). All calls on the main thread.
@@ -81,9 +64,6 @@ class RouteController(
     private val _route = MutableStateFlow(repo.load())
     val route: StateFlow<RouteData?> = _route.asStateFlow()
 
-    private val _tracking = MutableStateFlow(TrackingState())
-    val tracking: StateFlow<TrackingState> = _tracking.asStateFlow()
-
     /** Every announcement this controller speaks (forwarded to connected passenger displays). */
     private val _announcements = MutableSharedFlow<Announcement>(extraBufferCapacity = 8)
     val announcements: SharedFlow<Announcement> = _announcements.asSharedFlow()
@@ -92,21 +72,12 @@ class RouteController(
     val display: StateFlow<DisplaySnapshot> = combine(_route, settings.state) { r, _ -> buildDisplay(r) }
         .stateIn(scope, SharingStarted.Eagerly, buildDisplay(_route.value))
 
-    private val detector = ArrivalDetector(ArrivalConfig.forRadius(settings.current.arrivalRadiusM))
-    private var detectorKey: String? = null
     private val persistDispatcher = Dispatchers.IO.limitedParallelism(1)
     private var geocodeJob: Job? = null
     private var editBaseline: List<Long>? = null
-    private var arrivedAtMs: Long? = null
 
     init {
         _route.value?.let { repo.scheduleExpiry(it.createdAtMs) }
-        scope.launch {
-            settings.state.map { it.arrivalRadiusM }.distinctUntilChanged().collect {
-                detector.config = ArrivalConfig.forRadius(it)
-            }
-        }
-        syncDetector()
         ensureGeocoding()
     }
 
@@ -466,8 +437,8 @@ class RouteController(
         if (isActive) StreetService.start(context)
     }
 
-    /** Marks the current stop done, advances and announces. Automatic or manual ("Nästa"). */
-    fun next(auto: Boolean = false) {
+    /** Marks the current stop done, advances and announces ("Nästa": always the driver's tap). */
+    fun next() {
         val r = _route.value ?: return
         if (!r.active) return
         val done = r.stops.firstOrNull()
@@ -495,7 +466,7 @@ class RouteController(
     }
 
     /**
-     * "Back": undoes the last "Nästa" (manual or automatic). The previous trip becomes the current
+     * "Back": undoes the last "Nästa". The previous trip becomes the current
      * one again, its history entry is removed and the announcement is repeated. If Google Maps was
      * launched starting at the current trip (end of a batch, or "Open Maps"), it is launched again
      * from the restored trip so the navigation includes it. Returns false if there is no trip to
@@ -609,15 +580,6 @@ class RouteController(
         if (repo.isExpired(r)) endInternal()
     }
 
-    fun onLocation(fix: Fix) {
-        val r = _route.value ?: return
-        if (!r.active) return
-        val event = detector.onFix(fix)
-        if (event == DetectorEvent.Arrived) arrivedAtMs = System.currentTimeMillis()
-        publishTracking()
-        if (event == DetectorEvent.Departed) next(auto = true)
-    }
-
     // ------------------------------------------------------------------------------------------
     // Internals
 
@@ -638,45 +600,11 @@ class RouteController(
         scope.launch(persistDispatcher) {
             if (value == null) repo.clear() else repo.save(value)
         }
-        syncDetector()
     }
 
     /** Waits until every queued save / delete of the route file is done (tests only). */
     @VisibleForTesting
     internal fun awaitPersisted() = runBlocking(persistDispatcher) {}
-
-    /** Points the arrival detector at the current stop when automatic detection is allowed. */
-    private fun syncDetector() {
-        val r = _route.value
-        val current = r?.takeIf { it.active }?.stops?.firstOrNull()
-        val auto = current != null && current.isLocated &&
-            !samePlace(current, r.stops.getOrNull(1)) && !samePlace(r.previousStop, current)
-        val geo = current?.geo
-        val key = if (auto && geo != null) "${current.id}:${geo.lat}:${geo.lng}" else null
-        if (key != detectorKey) {
-            detectorKey = key
-            arrivedAtMs = null
-            if (key != null && geo != null) detector.setTarget(geo.lat, geo.lng) else detector.setTarget(null, null)
-        }
-        publishTracking()
-    }
-
-    private fun publishTracking() {
-        val arrived = detector.phase == DetectorPhase.ARRIVED
-        if (!arrived) arrivedAtMs = null
-        _tracking.value = TrackingState(detector.phase, detector.lastDistanceM, detectorKey != null, arrivedAtMs.takeIf { arrived })
-    }
-
-    /** Two stops at the same place (≤ 30 m, or the same address text) — advance only manually. */
-    fun samePlace(a: Stop?, b: Stop?): Boolean {
-        if (a == null || b == null) return false
-        val ga = a.geo
-        val gb = b.geo
-        if (a.isLocated && b.isLocated && ga != null && gb != null) {
-            return GeoLogic.distanceMeters(ga.lat, ga.lng, gb.lat, gb.lng) <= SAME_PLACE_M
-        }
-        return TextNorm.key(a.navigationText) == TextNorm.key(b.navigationText)
-    }
 
     private fun ensureGeocoding() {
         if (geocodeJob?.isActive == true) return
@@ -742,8 +670,6 @@ class RouteController(
     private fun Stop.toExtracted() = ExtractedStop(displayText, candidates, parsedPostalCode, parsedTown, sourceOrder, parsedTownKnown, time, kind, name)
 
     companion object {
-        const val SAME_PLACE_M = 30.0
-
         /** Two readings of one YouDrive trip are at most this many minutes apart (see [sameTrip]). */
         const val SAME_TRIP_MIN = 45
     }

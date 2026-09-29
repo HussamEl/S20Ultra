@@ -56,7 +56,6 @@ import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.core.geo.StreetInfo
 import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.core.parse.TripTimes
-import se.eldebosh.nastastopp.route.TrackingState
 import se.eldebosh.nastastopp.route.model.RouteData
 import se.eldebosh.nastastopp.route.model.Stop
 import se.eldebosh.nastastopp.ui.AppButton
@@ -79,7 +78,6 @@ import java.time.ZoneId
 @Composable
 fun ActiveRouteScreen(
     route: RouteData,
-    tracking: TrackingState,
     hasLocationPermission: Boolean,
     spokenName: (Stop) -> String,
     overlayAvailable: Boolean,
@@ -154,7 +152,7 @@ fun ActiveRouteScreen(
             }
             if (current != null) {
                 item(key = "current-${current.id}") {
-                    CurrentCard(current, spokenName(current), statusText(), tracking.arrivedAtMs)
+                    CurrentCard(current, spokenName(current), statusText())
                 }
             }
             if (route.stops.size > 1) {
@@ -297,7 +295,7 @@ private fun TimeStatusChip(time: String, nowMs: Long) {
  * drop-off) inside a thick border, the time on a yellow pill, the passenger's name beside it.
  */
 @Composable
-private fun CurrentCard(current: Stop, area: String, status: String, arrivedAtMs: Long?) {
+private fun CurrentCard(current: Stop, area: String, status: String) {
     val nowMs = rememberNowMs()
     TripSurface(current.kind, Modifier.ref(68).fillMaxWidth(), current = true) {
         Column(Modifier.animateContentSize().padding(16.dp)) {
@@ -367,14 +365,6 @@ private fun CurrentCard(current: Stop, area: String, status: String, arrivedAtMs
             }
             Spacer(Modifier.height(8.dp))
             Text(status, style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.onTripMuted, modifier = Modifier.ref(73))
-            if (arrivedAtMs != null) {
-                Text(
-                    stringResource(R.string.wait_at_stop, TimeLabels.duration(nowMs - arrivedAtMs)),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = AppTheme.colors.time,
-                    modifier = Modifier.ref(74),
-                )
-            }
         }
     }
 }

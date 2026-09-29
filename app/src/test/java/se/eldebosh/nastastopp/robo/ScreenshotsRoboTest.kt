@@ -16,7 +16,7 @@ import org.robolectric.shadows.ShadowSettings
 import org.robolectric.shadows.ShadowWindowManagerImpl
 import se.eldebosh.nastastopp.App
 import se.eldebosh.nastastopp.core.geo.GeoResult
-import se.eldebosh.nastastopp.core.route.Fix
+import se.eldebosh.nastastopp.core.geo.Fix
 import se.eldebosh.nastastopp.geo.CurrentStreet
 import se.eldebosh.nastastopp.geo.StreetMapStore
 import se.eldebosh.nastastopp.overlay.OverlayManager
@@ -44,7 +44,6 @@ import se.eldebosh.nastastopp.core.youdrive.TripChange
 import se.eldebosh.nastastopp.core.youdrive.WatchedTrip
 import se.eldebosh.nastastopp.link.DisplayLinkServer
 import se.eldebosh.nastastopp.route.HistoryEntry
-import se.eldebosh.nastastopp.route.TrackingState
 import se.eldebosh.nastastopp.route.model.GeoPoint
 import se.eldebosh.nastastopp.route.model.GeoStatus
 import se.eldebosh.nastastopp.route.model.RouteData
@@ -182,7 +181,6 @@ class ScreenshotsRoboTest {
     private fun ActiveContent() {
         ActiveRouteScreen(
             route = RouteData(createdAtMs = now, active = true, stops = stops.drop(1), completed = stops.take(1), depot = depot),
-            tracking = TrackingState(),
             hasLocationPermission = false,
             spokenName = ::spoken,
             overlayAvailable = true,

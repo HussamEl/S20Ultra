@@ -155,9 +155,11 @@
 | `ocr/TilePlanner.kt`, `OcrLineMerger.kt`, `OcrLine.kt` | تقسيم الصور الطويلة، ثم دمج النتائج وإزالة التكرار وترتيب القراءة. |
 | `geo/GeoLogic.kt` | اختيار أفضل نتيجة Geocoder، واسم المنطقة المنطوق، والمسافة. |
 | `geo/StreetLookup.kt` | منطق «الشارع الحالي»: متى نسأل الـ Geocoder من جديد، واختيار الشارع من النتائج. |
+| `geo/Fix.kt` | موقع واحد (الوقت، الإحداثيات، السرعة، الدقة، الاتجاه) لاسم الشارع والسرعة فقط. |
+| `geo/StreetMap.kt` | خريطة الشوارع المسمّاة (نقاط بأجزاء المليون من الدرجة) وشبكة خلايا ~110 م للبحث السريع، وملفها الثنائي، و`StreetMapBuilder`. |
+| `geo/StreetMatcher.kt` | `StreetMatcher`: الطريق الذي أنت عليه من المسافة والاتجاه، ولا اسم إن لم يكن طريق قريب. `StreetTracker`: شارع جديد يحتاج قراءتين متفقتين. |
 | `route/Announcements.kt` | نصوص الإعلانات السويدية والإنجليزية. |
 | `route/MapsUrlBuilder.kt` | رابط اتجاهات خرائط Google، بحد أقصى 10 محطات لكل فتح. |
-| `route/ArrivalDetector.kt` | آلة حالة الوصول والمغادرة من GPS. **خاملة**: الموقع لاسم الشارع فقط، ولا يتقدّم المسار وحده. |
 | `link/LinkProtocol.kt`, `LinkTargets.kt` | رسائل JSON سطراً سطراً بين الجوال والتابلت، وترتيب الأجهزة المقترنة. |
 | `display/DisplaySnapshot.kt` | ما تعرضه شاشة الركاب: `DisplayItem(time, title, subtitle)`. |
 | `youdrive/TripWatch.kt` | مقارنة قراءات YouDrive (راجع القسم 4). |
@@ -176,11 +178,9 @@
 | `importer/ScreenshotImporter.kt` | يمرّر الصور إلى OCR ثم الاستخراج، ويعيد عدد العناوين والأخطاء. |
 | `geo/Geocoding.kt` | `locate` (من العنوان إلى الإحداثيات، يجرّب عدة صيغ)، و`reverse` (من الإحداثيات إلى الشارع الحالي). |
 | `geo/CurrentStreet.kt` | الشارع الحالي (شريط الشارع في الزر العائم وفي شاشة المسار)، يُحسب فقط حين تعرضه شاشة، والسرعة من آخر موقع (`speedNow`، تختفي بعد 10 ثوانٍ بلا موقع). |
-| `core/geo/StreetMap.kt` | خريطة الشوارع المسمّاة (نقاط بأجزاء المليون من الدرجة) وشبكة خلايا ~110 م للبحث السريع، وملفها الثنائي، و`StreetMapBuilder`. |
-| `core/geo/StreetMatcher.kt` | `StreetMatcher`: الطريق الذي أنت عليه من المسافة والاتجاه، ولا اسم إن لم يكن طريق قريب. `StreetTracker`: شارع جديد يحتاج قراءتين متفقتين. |
 | `geo/StreetMapStore.kt` | تنزيل الخريطة من Overpass (مربعات Värmland)، وقراءتها بالتدفق، وحفظها في `noBackupFilesDir/streetmap`، وتحميلها عند التشغيل. |
 | `geo/StreetCaller.kt` | ينطق اسم الشارع كلما تغيّر (مرة واحدة لكل شارع)، إن كان السائق تركه مفعّلاً. |
-| `service/StreetService.kt` | خدمة أمامية من نوع location أثناء المسار (بإذن «أثناء الاستخدام» فقط، عبر `LocationManager`). ترسل المواقع إلى `CurrentStreet` **فقط** (الشارع والسرعة)، لا إلى `RouteController.onLocation`، ولا تحفظها ولا تسجّلها. |
+| `service/StreetService.kt` | خدمة أمامية من نوع location أثناء المسار (بإذن «أثناء الاستخدام» فقط، عبر `LocationManager`). ترسل المواقع إلى `CurrentStreet` **فقط** (الشارع والسرعة)، ولا تحفظها ولا تسجّلها. `RouteController` لا يستقبل أي موقع: «Nästa» بضغطة السائق فقط. |
 | `tts/Announcer.kt` | TextToSpeech بالسويدية، مع خفض صوت الخرائط مؤقتاً أثناء الكلام، والتحقق من وجود الصوت السويدي (`TtsStatus`). |
 | `maps/MapsLauncher.kt` | فتح خرائط Google. من الخلفية يضيف إشعار «افتح الخرائط» لأن أندرويد قد يمنع فتح نشاط من الخلفية. |
 | `overlay/OverlayManager.kt` | الزر العائم (Views، وليس Compose): بطاقة الزجاج (`glass()`)، والكبسولة بعد التصغير، والسحب، وتصغير الأزرار عند الضغط، والأرقام المرجعية 1–19، وتذكير الإشعار عند الإغلاق. الألوان من `PanelColors` (أدوار `AppColors.panel`). |
@@ -192,7 +192,7 @@
 | `settings/SettingsStore.kt` | كل الإعدادات (`AppSettings`) في SharedPreferences، بلا عناوين. فيه ترحيل `SCHEMA` واللغة. |
 | `util/LocaleHelper.kt` | لغة الواجهة داخل التطبيق، و`explanationContext` (موارد الشروح بالعربية). |
 | `util/SystemIntents.kt` | فحص الأذونات وفتح صفحات إعدادات النظام. |
-| `util/TimeLabels.kt` | «in 7 min»، «5 min late»، وألوانها، والمدة والمسافة. |
+| `util/TimeLabels.kt` | «in 7 min»، «5 min late». |
 | `util/DebugLog.kt` | سجلات في debug فقط. **ممنوع** تسجيل عنوان أو نص OCR في release. |
 | `youdrive/*` | راجع القسم 4. |
 
@@ -359,7 +359,7 @@
   2. أضِف النص المقروء كحالة اختبار في `TripWatchTest` أو `YouDriveRoboTest`.
   3. عدّل `YouDriveCards` (قراءة البطاقة) أو `TripWatch.tripsIn` أو `AddressExtractor`، واختبر في `YouDriveCardsTest`.
 - **صيغة عنوان جديدة من تطبيق آخر**: أضِف حالة في `AddressExtractorTest` أولاً، ثم عدّل `AddressExtractor`.
-- **التقدّم التلقائي عند المغادرة** (إن طلبه السائق): `ArrivalDetector` و`RouteController.onLocation` موجودان لكنهما خاملان. يكفي أن ترسل `StreetService` المواقع إلى `controller.onLocation` أيضاً، لكن ذلك يُعلن المحطة التالية دون ضغطة من السائق، فيحتاج قراره أولاً (القاعدة 10).
+- **التقدّم التلقائي عند المغادرة** (إن طلبه السائق يوماً): أُزيل كاشف الوصول الخامل في 1.9 (في تاريخ git قبل 1.9: `core/route/ArrivalDetector.kt`). إعادته تُعلن المحطة التالية دون ضغطة من السائق، فتحتاج قراره أولاً (القاعدة 10).
 
 ---
 

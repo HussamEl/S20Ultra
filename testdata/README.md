@@ -18,6 +18,15 @@
 - The last two rows are split after the prefix ("10:50  Västra" on one line, "Skolgatan 9, …" on the next), as ML Kit once split a row on the phone. The app must put the prefix back.
 - "Norra allén" and "Stora torget" are written in lower case after the prefix, which is the Swedish style.
 
+## Putting them on the phone
+The system photo picker indexes files under `Pictures/`:
+```
+adb push testdata/screenshots/fixture_time_above.png /sdcard/Pictures/NastaStoppTest/
+adb push testdata/screenshots/fixture_same_line.png /sdcard/Pictures/NastaStoppTest/
+adb push testdata/screenshots/fixture_prefixes.png /sdcard/Pictures/NastaStoppTest/
+adb push testdata/screenshots/fixture_youdrive.png /sdcard/Pictures/NastaStoppTest/
+```
+
 ## All invented terms (for the privacy log search)
 None of these may appear in logcat from the app. Since 1.2 the app shows the passenger's **first and last name** (e.g. "Anna Testsson") on the driver's own screens: the review list, the route screen and the floating panel. A name must still never appear on the passenger display, in a notification, in "Previous trips" or in a spoken announcement, and phone numbers and middle names never appear anywhere.
 - **Names:** Anna Testsson, Bengt Provare, Cecilia Exempel, David Demo, Erik Påhittad, Frida Uppdiktad
@@ -30,12 +39,4 @@ None of these may appear in logcat from the app. Since 1.2 the app shows the pas
 adb shell setprop log.tag.NastaStoppRefs DEBUG
 adb logcat -s NastaStoppRefs
 ```
-Every layout or move of the panel then logs `ref_<n>=[left,top][right,bottom]` in screen pixels for the visible parts 1–19. It logs ids and bounds only, never stop data. Turn it off with `adb shell setprop log.tag.NastaStoppRefs ""`.
-
-To put them on the phone (the system photo picker indexes files under `Pictures/`):
-```
-adb push testdata/screenshots/fixture_time_above.png /sdcard/Pictures/NastaStoppTest/
-adb push testdata/screenshots/fixture_same_line.png /sdcard/Pictures/NastaStoppTest/
-adb push testdata/screenshots/fixture_prefixes.png /sdcard/Pictures/NastaStoppTest/
-adb push testdata/screenshots/fixture_youdrive.png /sdcard/Pictures/NastaStoppTest/
-```
+Every layout or move of the panel then logs `ref_<n>=[left,top][right,bottom]` in screen pixels for the visible parts (1–19; 12 and 14 retired in 1.9). It logs ids and bounds only, never stop data. Turn it off with `adb shell setprop log.tag.NastaStoppRefs ""`.

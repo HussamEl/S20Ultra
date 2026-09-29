@@ -22,8 +22,8 @@ required it. Each one says **what** was chosen and **why**.
 | compileSdk / targetSdk | **37** (Android 17, `android-37.0`) | latest stable API level |
 | minSdk | 29 | spec |
 | Compose BOM | **2026.09.00** (Material3 1.4.0) | latest stable |
+| kotlinx-coroutines-play-services | 1.11.0 | only for ML Kit's `Task.await()` (no Play services location: the street uses the system `LocationManager`) |
 | ML Kit text-recognition (bundled) | **16.0.1** | latest stable |
-| play-services-location | **21.4.0** | latest stable |
 | core-ktx 1.19.1, activity-compose 1.13.0, lifecycle 2.11.0 | latest stable | |
 | kotlinx-coroutines 1.11.0, kotlinx-serialization-json 1.11.0 | latest stable (1.12.0 is RC) | |
 | Robolectric 4.17, androidx.test core 1.7.0 / ext-junit 1.3.0 | test only | |
@@ -32,7 +32,7 @@ No fallback to an older version was needed: every latest stable version built.
 
 ## Architecture
 
-- A single `app` module. The pure-Kotlin logic lives in `se.eldebosh.nastastopp.core.*` (parser, tiling, geo selection, Maps URLs, arrival state machine, phrases) with no Android imports, and is fully unit-tested.
+- A single `app` module. The pure-Kotlin logic lives in `se.eldebosh.nastastopp.core.*` (parser, tiling, geo selection, street matching, Maps URLs, phrases) with no Android imports, and is fully unit-tested.
 - No DI framework: a manual `AppGraph` is created in `App.onCreate`. `RouteController` is the single source of truth (a `StateFlow`) for both the draft and the active route.
 - Settings use `SharedPreferences` (no DataStore) to keep dependencies small. Route persistence uses `kotlinx.serialization` JSON in **`noBackupFilesDir`**, with an atomic write through a temp file.
 - Icons are hand-written vector drawables (Material icon paths), so there is no `material-icons-extended` dependency.
@@ -69,7 +69,10 @@ No fallback to an older version was needed: every latest stable version built.
 - ML Kit's internal telemetry component (datatransport) is still in the merged manifest. With INTERNET removed it cannot send anything, and it never receives recognised text.
 - **12-hour expiry is measured from the route's creation** (strict reading). It is enforced when data is loaded, on every app resume, and by an inexact `AlarmManager` alarm, which needs no exact-alarm permission. A route still active after 12 h is ended.
 
-## Arrival / departure (§9)
+## Arrival / departure (§9) — removed in 1.9
+
+The automatic advance below was switched off in 1.3 (location only names the street) and its code was removed in 1.9. Kept here as history.
+
 
 - The **arrival-radius setting (25–150 m)** replaces the 75 m. So that thresholds never contradict each other, arming distance = max(150, radius + 75) and departure distance = max(100, radius + 25). With the default 75 m these are exactly the spec's 150 m and 100 m.
 - **"No two automatic advances within 30 s"**: a departure that happens earlier is *deferred* until 30 s have passed (on the next fix), not dropped.
@@ -692,3 +695,25 @@ The driver's report on 1.7: "the speed did not show", and "the current street wa
 - `FloatingPanelRoboTest.withTheStreetMapTheRoadComesFromTheMap`;
 - the speed circle and the worked-out speed;
 - `StreetLookupTest.aFarAddressGivesTheAreaButNoStreet`.
+
+## 1.9 (versionCode 27): a full check-up and clean-up
+
+The driver's request: inspect the whole project, clean the code, files, structure and paths, and remove whatever is not needed.
+
+**Removed (dead since 1.3, when location began to only name the street):**
+- `core/route/ArrivalDetector` (arrival / departure state machine) and its test; `RouteController.onLocation`, `TrackingState`, `samePlace` and `next(auto)`. Only the driver's "Nästa" moves the route on, as before.
+- The panel's distance (12) and waiting timer (14), and the route screen's waiting timer (74). They could never show. The numbers are retired, not reused.
+- The arrival-radius setting (`arrival_radius`, never on screen since 1.3). Settings schema 3 deletes it, and the unread `announcement_detail` (replaced in 1.6), from the phone.
+- `TimeLabels.duration` / `distance` and their strings (`wait_at_stop`, `dist_m`, `dist_km`), `TripTimes.assign`, `RouteData.previousStop`.
+- The Compose tooling dependencies (`ui-tooling`, `ui-tooling-preview`): the app has no previews.
+
+**Tidied:**
+- `Fix` (one position) moved to `core/geo/Fix.kt`, beside the street code that uses it.
+- The tests no longer use deprecated Robolectric / Bundle calls (no compiler warnings left).
+- GUIDE: the street-map files sit in the `core/` table; testdata README: the "put on the phone" steps under their own heading. The stale `play-services-location` row left the versions table.
+
+**Checked and kept:** `kotlinx-coroutines-play-services` (ML Kit's `Task.await()`), `ui-test-manifest` (Compose UI tests), `proguard-rules.pro` (for the day R8 can be switched on again), the Telia root certificate (YouDrive on Android 13), the four invented test screenshots.
+
+**GitHub:** only `main` and this branch exist, so there were no stale branches to delete. The repository is large because all 27 builds of `dist/NastaStopp.apk` (~47 MB each) stay in the git history. Removing them needs a history rewrite and a force push, which changes every commit id (old APK links break). It was left for the driver to decide.
+
+**Behaviour:** unchanged for the driver, apart from the retired numbers.

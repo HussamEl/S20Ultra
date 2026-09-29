@@ -36,16 +36,10 @@ object TripTimes {
         index == 0 && TextNorm.letterCount(lines[index]) <= 3
 
     /**
-     * @param spans for every address, the first and last OCR line index it was read from
-     *   (in reading order, not overlapping).
-     * @return the time of every address, or null.
+     * The times around every address span (see [Nearby]); the status bar clock is skipped.
+     * [spans] holds, for every address, the first and last OCR line index it was read from (in
+     * reading order, not overlapping).
      */
-    fun assign(lines: List<String>, spans: List<Pair<Int, Int>>): List<String?> {
-        val times = timesNearby(lines, spans)
-        return times.values(above = times.count(above = true) >= times.count(above = false))
-    }
-
-    /** The times around every address span (see [Nearby]); the status bar clock is skipped. */
     fun timesNearby(lines: List<String>, spans: List<Pair<Int, Int>>): Nearby<String> =
         nearby(lines, spans) { i -> if (isStatusBar(lines, i)) null else timeIn(lines[i]) }
 

@@ -30,7 +30,6 @@ data class AppSettings(
     val detail: AnnouncementDetail = AnnouncementDetail.FULL,
     val englishRepeat: Boolean = false,
     val speechRate: Float = 0.9f,
-    val arrivalRadiusM: Int = 75,
     val onboardingDone: Boolean = false,
     val role: DeviceRole = DeviceRole.CONTROLLER,
     /** Controller: accept passenger displays over Bluetooth. */
@@ -71,7 +70,6 @@ class SettingsStore(context: Context) {
             putString(K_DETAIL, next.detail.name)
             putBoolean(K_EN, next.englishRepeat)
             putFloat(K_RATE, next.speechRate)
-            putInt(K_RADIUS, next.arrivalRadiusM)
             putBoolean(K_ONBOARD, next.onboardingDone)
             putString(K_ROLE, next.role.name)
             putBoolean(K_LINK, next.displayLinkEnabled)
@@ -109,7 +107,6 @@ class SettingsStore(context: Context) {
             .getOrDefault(AnnouncementDetail.FULL),
         englishRepeat = prefs.getBoolean(K_EN, false),
         speechRate = prefs.getFloat(K_RATE, 0.9f),
-        arrivalRadiusM = prefs.getInt(K_RADIUS, 75),
         onboardingDone = prefs.getBoolean(K_ONBOARD, false),
         role = runCatching { DeviceRole.valueOf(prefs.getString(K_ROLE, null) ?: "") }.getOrDefault(DeviceRole.CONTROLLER),
         displayLinkEnabled = prefs.getBoolean(K_LINK, false),
@@ -130,7 +127,6 @@ class SettingsStore(context: Context) {
         private const val K_DETAIL = "announcement_detail_v2"
         private const val K_EN = "english_repeat"
         private const val K_RATE = "speech_rate"
-        private const val K_RADIUS = "arrival_radius"
         private const val K_ONBOARD = "onboarding_done"
         private const val K_ROLE = "device_role"
         private const val K_LINK = "display_link_enabled"
@@ -149,7 +145,10 @@ class SettingsStore(context: Context) {
         private const val K_SAY_STREET = "say_street_changes"
         private const val K_APPEARANCE = "appearance"
         private const val K_SCHEMA = "settings_schema"
-        private const val SCHEMA = 2
+        private const val SCHEMA = 3
+
+        /** Keys no version reads any more (removed from the phone by [migrate], schema 3). */
+        private val RETIRED_KEYS = listOf("announcement_detail", "arrival_radius")
         private const val DEFAULT_LANGUAGE = "en"
 
         /**
@@ -161,19 +160,24 @@ class SettingsStore(context: Context) {
             private set
 
         /**
-         * 1.4.0: the app UI becomes English (the driver's request; explanations stay Arabic via
-         * [AppSettings.explanationsArabic]) and the passenger display shows the street address.
+         * Schema 2 (1.4.0): the app UI becomes English (the driver's request; explanations stay
+         * Arabic via [AppSettings.explanationsArabic]) and the passenger display shows the street
+         * address. Schema 3 (1.9): settings no version reads any more are removed.
          */
         @Synchronized
         private fun migrate(prefs: SharedPreferences) {
-            if (prefs.getInt(K_SCHEMA, 0) >= SCHEMA) return
+            val schema = prefs.getInt(K_SCHEMA, 0)
+            if (schema >= SCHEMA) return
             val existing = prefs.contains(K_LANG)
             prefs.edit(commit = true) {
-                putString(K_LANG, DEFAULT_LANGUAGE)
-                putBoolean(K_FULL_ADDR, true)
+                if (schema < 2) {
+                    putString(K_LANG, DEFAULT_LANGUAGE)
+                    putBoolean(K_FULL_ADDR, true)
+                }
+                RETIRED_KEYS.forEach { remove(it) }
                 putInt(K_SCHEMA, SCHEMA)
             }
-            languageMigrated = existing
+            if (schema < 2) languageMigrated = existing
         }
 
         /** Read synchronously in attachBaseContext (before the Application graph is needed). */

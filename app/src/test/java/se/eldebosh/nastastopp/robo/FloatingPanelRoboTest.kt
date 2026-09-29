@@ -32,11 +32,9 @@ import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.core.geo.GeoResult
 import se.eldebosh.nastastopp.core.geo.StreetInfo
 import se.eldebosh.nastastopp.core.geo.StreetMapBuilder
-import se.eldebosh.nastastopp.core.route.DetectorPhase
-import se.eldebosh.nastastopp.core.route.Fix
+import se.eldebosh.nastastopp.core.geo.Fix
 import se.eldebosh.nastastopp.geo.CurrentStreet
 import se.eldebosh.nastastopp.geo.StreetCaller
-import se.eldebosh.nastastopp.route.model.GeoPoint
 import se.eldebosh.nastastopp.route.model.GeoStatus
 import se.eldebosh.nastastopp.service.Notifications
 import se.eldebosh.nastastopp.service.RouteActionReceiver
@@ -341,38 +339,10 @@ class FloatingPanelRoboTest {
     }
 
     @Test
-    fun waitingTimerRunsWhileAtTheStop() {
-        threeStops()
-        val c = graph.controller
-        val r = c.route.value!!
-        c.restoreStops(
-            r.stops.mapIndexed { i, s ->
-                s.copy(geoStatus = GeoStatus.LOCATED, geo = GeoPoint(59.38 + i * 0.01, 13.50, "addr $i", locality = "Karlstad"))
-            },
-        )
-        c.start()
-        idle()
-        fun fix(t: Long, m: Double, v: Float) = Fix(t * 1000, 59.38 + m / 111_195.0, 13.50, v, 5f)
-        assertNull(c.tracking.value.arrivedAtMs)
-        c.onLocation(fix(0, 400.0, 12f))
-        c.onLocation(fix(2, 10.0, 0f))
-        assertEquals(DetectorPhase.ARRIVED, c.tracking.value.phase)
-        assertNotNull(c.tracking.value.arrivedAtMs)
-        c.onLocation(fix(40, 150.0, 8f)) // departed → next stop
-        idle()
-        assertNull(c.tracking.value.arrivedAtMs)
-        c.end()
-    }
-
-    @Test
     fun timeLabels() {
-        assertEquals("03:12", TimeLabels.duration(192_000))
-        assertEquals("1:02:05", TimeLabels.duration(3_725_000))
         assertEquals(app.getString(R.string.time_in_min, "7"), TimeLabels.until(app, 7))
         assertEquals(app.getString(R.string.time_late_hm, "1", "5"), TimeLabels.until(app, -65))
         assertEquals(app.getString(R.string.time_now), TimeLabels.until(app, 0))
-        assertEquals(app.getString(R.string.dist_m, "350"), TimeLabels.distance(app, 347.0))
-        assertEquals(app.getString(R.string.dist_km, "1.2"), TimeLabels.distance(app, 1_234.0))
     }
 
     // ------------------------------------------------------------------------------------------

@@ -204,9 +204,6 @@
     <string name="time_in_hm">in %1$s h %2$s min</string>
     <string name="time_late_min">%1$s min late</string>
     <string name="time_late_hm">%1$s h %2$s min late</string>
-    <string name="wait_at_stop">At the stop for %1$s</string>
-    <string name="dist_m">%1$s m</string>
-    <string name="dist_km">%1$s km</string>
     <string name="notif_overlay_hidden_title">Floating button closed</string>
     <string name="notif_overlay_hidden_text">Tap here to bring it back</string>
     <string name="tile_label">Floating button</string>

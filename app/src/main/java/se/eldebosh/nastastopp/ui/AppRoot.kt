@@ -82,7 +82,6 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
     val controller = graph.controller
     val stack by vm.stack.collectAsStateWithLifecycle()
     val route by controller.route.collectAsStateWithLifecycle()
-    val tracking by controller.tracking.collectAsStateWithLifecycle()
     val settings by graph.settings.state.collectAsStateWithLifecycle()
     val ttsStatus by graph.announcer.status.collectAsStateWithLifecycle()
     val importState by vm.importState.collectAsStateWithLifecycle()
@@ -267,11 +266,10 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                         Screen.ACTIVE -> route?.takeIf { it.active }?.let { r ->
                             ActiveRouteScreen(
                                 route = r,
-                                tracking = tracking,
                                 hasLocationPermission = remember(resumeTick) { SystemIntents.hasLocation(context) },
                                 spokenName = spokenName,
                                 onBack = { if (!vm.back()) vm.resetTo(Screen.HOME) },
-                                onNext = { controller.next(auto = false) },
+                                onNext = { controller.next() },
                                 onRepeat = { controller.repeat() },
                                 onOpenMaps = { controller.openMaps() },
                                 onEdit = { vm.navigate(Screen.REVIEW) },

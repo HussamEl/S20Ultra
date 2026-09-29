@@ -16,7 +16,7 @@ An Android app for a Swedish shared-ride driver:
 - Images are never copied or stored. Keep only addresses, times, the trip kind (the list's Pick-up / Drop-off / Pull-out label) and the passenger's **first + last name** (Hussam's decision, 1.2): no middle names, phone numbers or other text.
 - The name is for the driver's own screens only (review, route, floating panel). It is never spoken, sent to the passenger display, put in a notification or "Previous trips", or logged (`namesStayOnTheDriversScreens` guards this).
 - Never log addresses or OCR text in release (use `util/DebugLog`). `allowBackup=false`.
-- **Location only names the street the vehicle is on** (Hussam's decision, 1.3). While-in-use only, never background (`ACCESS_BACKGROUND_LOCATION` stays removed). `service/StreetService` (LocationManager, no Play services) feeds `CurrentStreet` (street + speed, 1.7) and nothing else: never `controller.onLocation` (no automatic advance), never stored, logged or sent. Asked at "Start route" and in Settings (119).
+- **Location only names the street the vehicle is on** (Hussam's decision, 1.3). While-in-use only, never background (`ACCESS_BACKGROUND_LOCATION` stays removed). `service/StreetService` (LocationManager, no Play services) feeds `CurrentStreet` (street + speed, 1.7) and nothing else: never the route (no automatic advance; the dormant arrival detector was removed in 1.9), never stored, logged or sent. Asked at "Start route" and in Settings (119).
 - **The YouDrive WebView never gets location**: `setGeolocationEnabled(false)` and every page prompt is denied (`theYouDrivePageNeverGetsTheLocation`).
 - INTERNET is only for the YouDrive page and the offline street map's download (1.8). The download starts only when the driver taps Settings 138. It fetches fixed OpenStreetMap tiles over Värmland from Overpass, never the position. No Firebase, analytics, crash reporting or Hilt.
 - The street name must never be invented (1.8):
@@ -77,7 +77,7 @@ An Android app for a Swedish shared-ride driver:
 - **Delivery:** `dist/NastaStopp.apk` on this branch. It is release-signed with the same key every time, so `adb install -r` updates in place. Always bump `versionCode`.
   - Raw URL: `https://github.com/HussamEl/S20Ultra/raw/<sha>/dist/NastaStopp.apk`. The repo is public.
 - **Stable ids for UI Automator:**
-  - Every numbered Compose control has resource-id `ref_<n>` (test tag + `testTagsAsResourceId` on the roots). Floating-panel parts are `se.eldebosh.nastastopp:id/ref_<1..19>`.
+  - Every numbered Compose control has resource-id `ref_<n>` (test tag + `testTagsAsResourceId` on the roots). Floating-panel parts are `se.eldebosh.nastastopp:id/ref_<1..19>` (12 and 14 retired in 1.9).
   - The numbers are the README tables. Keep new controls numbered.
 - **Test inputs:** the invented screenshots in `testdata/screenshots/`. `testdata/README.md` lists the expected stops and every invented term for the privacy search, and `DeviceFixturesTest` asserts the stops.
 - **Floating-panel positions:** UI Automator can't see overlay windows. After `adb shell setprop log.tag.NastaStoppRefs DEBUG`, the panel logs its parts' screen bounds (`ref_<n>=[l,t][r,b]`), ids and bounds only.

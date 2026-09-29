@@ -204,9 +204,6 @@
     <string name="time_in_hm">om %1$s h %2$s min</string>
     <string name="time_late_min">%1$s min sen</string>
     <string name="time_late_hm">%1$s h %2$s min sen</string>
-    <string name="wait_at_stop">På plats i %1$s</string>
-    <string name="dist_m">%1$s m</string>
-    <string name="dist_km">%1$s km</string>
     <string name="notif_overlay_hidden_title">Den flytande knappen är stängd</string>
     <string name="notif_overlay_hidden_text">Tryck här för att visa den igen</string>
     <string name="tile_label">Flytande knapp</string>

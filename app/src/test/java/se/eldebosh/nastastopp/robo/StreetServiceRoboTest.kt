@@ -83,7 +83,7 @@ class StreetServiceRoboTest {
         val service = Robolectric.buildService(StreetService::class.java, started).create().startCommand(0, 1)
         val locations = app.getSystemService(LocationManager::class.java)
         val provider = listOf(LocationManager.GPS_PROVIDER, LocationManager.FUSED_PROVIDER).first { it in locations.allProviders }
-        assertEquals("the street service listens", 1, shadowOf(locations).getLocationUpdateListeners(provider).size)
+        assertEquals("the street service listens", 1, shadowOf(locations).getLocationRequests(provider).size)
         val first = graph.controller.route.value!!.stops.first().id
 
         // Drive to the first stop, wait there and drive off: the route stays where the driver left it.
@@ -100,12 +100,11 @@ class StreetServiceRoboTest {
         }
         assertEquals(first, graph.controller.route.value!!.stops.first().id)
         assertEquals(0, graph.controller.route.value!!.completedCount)
-        assertNull("the route's arrival detector gets no positions", graph.controller.tracking.value.distanceM)
 
         // The route ends: the service stops listening.
         graph.controller.end()
         idle()
         assertTrue(shadowOf(service.get()).isStoppedBySelf)
-        assertTrue(shadowOf(locations).getLocationUpdateListeners(provider).isEmpty())
+        assertTrue(shadowOf(locations).getLocationRequests(provider).isEmpty())
     }
 }

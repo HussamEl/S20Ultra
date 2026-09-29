@@ -1,6 +1,5 @@
 package se.eldebosh.nastastopp.core.geo
 
-import se.eldebosh.nastastopp.core.route.Fix
 
 /** The street the vehicle is on now and its area. Shown to the driver only; never stored. */
 data class StreetInfo(val street: String?, val area: String?) {

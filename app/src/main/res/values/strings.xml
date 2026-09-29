@@ -205,9 +205,6 @@
     <string name="time_in_hm">بعد %1$s س %2$s د</string>
     <string name="time_late_min">متأخر %1$s د</string>
     <string name="time_late_hm">متأخر %1$s س %2$s د</string>
-    <string name="wait_at_stop">في الموقع منذ %1$s</string>
-    <string name="dist_m">%1$s م</string>
-    <string name="dist_km">%1$s كم</string>
     <string name="notif_overlay_hidden_title">الزر العائم مغلق</string>
     <string name="notif_overlay_hidden_text">اضغط هنا لإرجاعه فوراً</string>
     <string name="tile_label">الزر العائم</string>

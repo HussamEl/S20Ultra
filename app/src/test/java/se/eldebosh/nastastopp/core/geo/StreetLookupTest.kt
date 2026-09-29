@@ -5,7 +5,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import se.eldebosh.nastastopp.core.route.Fix
 
 /** When the current street is looked up, and which street is shown. */
 class StreetLookupTest {

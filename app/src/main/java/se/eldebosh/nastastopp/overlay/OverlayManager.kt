@@ -117,11 +117,8 @@ class OverlayManager(
         var status: TextView? = null
         var statusDot: GradientDrawable? = null
         var stripe: GradientDrawable? = null
-        var distance: TextView? = null
         var address: TextView? = null
         var town: TextView? = null
-        var wait: TextView? = null
-        var extra: View? = null
         var bubbleMain: TextView? = null
         var bubbleSub: TextView? = null
         var bubbleRing: GradientDrawable? = null
@@ -137,7 +134,7 @@ class OverlayManager(
 
     init {
         scope.launch {
-            combine(controller.route, settings.state, controller.tracking, street.state) { _, _, _, _ -> }.collect { refresh() }
+            combine(controller.route, settings.state, street.state) { _, _, _ -> }.collect { refresh() }
         }
     }
 
@@ -225,15 +222,10 @@ class OverlayManager(
             text = current.time.orEmpty()
             visibility = if (current.time == null) View.GONE else View.VISIBLE
         }
-        v.distance?.apply {
-            val d = controller.tracking.value.distanceM
-            text = d?.let { TimeLabels.distance(ui, it) }.orEmpty()
-            visibility = if (d == null) View.GONE else View.VISIBLE
-        }
         updateTimes()
     }
 
-    /** Clock, on-time status and waiting timer (every second). */
+    /** Clock, speed and on-time status (every second). */
     private fun updateTimes() {
         val v = views ?: return
         val r = controller.route.value ?: return
@@ -254,16 +246,9 @@ class OverlayManager(
             if (color != null) setTextColor(color)
         }
         if (color != null) v.statusDot?.setColor(color)
-        val arrivedAt = controller.tracking.value.arrivedAtMs
-        val waited = arrivedAt?.let { TimeLabels.duration(System.currentTimeMillis() - it) }
-        v.wait?.apply {
-            text = waited?.let { ui.getString(R.string.wait_at_stop, it) }.orEmpty()
-            visibility = if (waited == null) View.GONE else View.VISIBLE
-        }
-        v.extra?.visibility = if (v.wait?.visibility == View.VISIBLE || v.distance?.visibility == View.VISIBLE) View.VISIBLE else View.GONE
         v.bubbleMain?.text = current.time ?: progress(r.completedCount, r.stops.size)
         v.bubbleSub?.apply {
-            text = waited ?: if (current.time != null) progress(r.completedCount, r.stops.size) else ""
+            text = if (current.time != null) progress(r.completedCount, r.stops.size) else ""
             visibility = if (text.isNullOrEmpty()) View.GONE else View.VISIBLE
         }
         // The capsule's ring and dot say on time / soon / late at a glance.
@@ -454,8 +439,7 @@ class OverlayManager(
 
         // The next trip, with a stripe in its kind's colour (the time says the rest, so no
         // "Pick-up" word): the time with the stop's street and number beside it, large (tap =
-        // say them); the passenger and how late or early; the postal code and town; distance and
-        // waiting timer when known. Tap elsewhere = open the app.
+        // say them); the passenger and how late or early; the town. Tap elsewhere = open the app.
         val stripe = GradientDrawable().apply {
             cornerRadius = dp(2f).toFloat()
             setColor(pc.trip(null))
@@ -498,15 +482,6 @@ class OverlayManager(
             textDirection = View.TEXT_DIRECTION_FIRST_STRONG
             textAlignment = View.TEXT_ALIGNMENT_VIEW_START
         }
-        val distanceView = text(12f, pc.muted)
-        val waitView = text(13f, pc.text, bold = true).apply { visibility = View.GONE }
-        val extra = LinearLayout(ui).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            visibility = View.GONE
-            addView(distanceView)
-            addView(waitView, LinearLayout.LayoutParams(WRAP, WRAP).apply { marginStart = dp(10f) })
-        }
         val tripLines = LinearLayout(ui).apply {
             orientation = LinearLayout.VERTICAL
             addView(
@@ -527,7 +502,6 @@ class OverlayManager(
                 LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(5f) },
             )
             addView(townView, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(2f) })
-            addView(extra, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(4f) })
         }
         val trip = LinearLayout(ui).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -555,7 +529,8 @@ class OverlayManager(
         card.addView(actions, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(8f) })
 
         // Reference numbers 1–19 (listed in the README), so the driver can name each part. Since
-        // 1.7, 4 is the street-speech switch and 15 the speed (the 1.4 speaker and repeat are gone).
+        // 1.7, 4 is the street-speech switch and 15 the speed (the 1.4 speaker and repeat are gone);
+        // 12 and 14 (distance and waiting timer) went with the arrival detector in 1.9 and are not reused.
         back.ref(1)
         streetBar.ref(2)
         areaView.ref(3)
@@ -568,14 +543,12 @@ class OverlayManager(
         speedView.ref(15)
         timeView.ref(10)
         statusView.ref(11)
-        distanceView.ref(12)
         addressView.ref(13)
-        waitView.ref(14)
         trip.ref(16, bottomEnd = true)
         nameView.ref(18)
         townView.ref(19)
 
-        next.setOnClickListener { controller.next(auto = false) }
+        next.setOnClickListener { controller.next() }
         drag(next, press = true) { controller.repeat() }
         back.setOnClickListener { if (!controller.back()) toast(R.string.overlay_no_previous) }
         drag(back, press = true)
@@ -607,11 +580,8 @@ class OverlayManager(
         v.status = statusView
         v.statusDot = statusDot
         v.stripe = stripe
-        v.distance = distanceView
         v.address = addressView
         v.town = townView
-        v.wait = waitView
-        v.extra = extra
         return window
     }
 

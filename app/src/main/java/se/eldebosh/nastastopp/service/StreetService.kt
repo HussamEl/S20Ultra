@@ -22,7 +22,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import se.eldebosh.nastastopp.App
-import se.eldebosh.nastastopp.core.route.Fix
+import se.eldebosh.nastastopp.core.geo.Fix
 import se.eldebosh.nastastopp.util.DebugLog
 import se.eldebosh.nastastopp.util.SystemIntents
 

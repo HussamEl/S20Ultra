@@ -20,7 +20,6 @@ import se.eldebosh.nastastopp.App
 import se.eldebosh.nastastopp.AppGraph
 import se.eldebosh.nastastopp.core.geo.AnnouncementDetail
 import se.eldebosh.nastastopp.core.parse.TripKind
-import se.eldebosh.nastastopp.core.route.Fix
 import se.eldebosh.nastastopp.core.youdrive.YouDriveCards
 import se.eldebosh.nastastopp.route.RouteController
 import se.eldebosh.nastastopp.route.RouteRepository
@@ -154,7 +153,10 @@ class RouteControllerRoboTest {
         val notification = shadowOf(app.getSystemService(android.app.NotificationManager::class.java))
             .getNotification(se.eldebosh.nastastopp.service.Notifications.ID_ROUTE)
         assertNotNull(notification)
-        assertFalse("notification", notification.extras.keySet().any { notification.extras.get(it)?.toString()?.contains("Testsson") == true })
+        // Every extra, whatever its type (only the deprecated Bundle.get reads them all).
+        @Suppress("DEPRECATION")
+        val extras = notification.extras.keySet().map { notification.extras.get(it)?.toString().orEmpty() }
+        assertFalse("notification", extras.any { it.contains("Testsson") })
         assertTrue(graph.history.entries.value.isNotEmpty())
         assertFalse("history", graph.history.entries.value.toString().contains("Testsson"))
         c.end()
@@ -247,7 +249,7 @@ class RouteControllerRoboTest {
     }
 
     @Test
-    fun departureAdvancesAutomaticallyAndSamePlaceIsManual() {
+    fun startAndNextAnnounceTheStopsInFull() {
         val tts = readyTts()
         graph.controller.addManual("Storgatan 14, 65224 Karlstad")
         graph.controller.addManual("Kungsgatan 5, 65225 Karlstad")
@@ -262,19 +264,10 @@ class RouteControllerRoboTest {
         graph.controller.start()
         idle()
         assertEquals("Nästa stopp: Storgatan 14, Herrhagen, Karlstad. Därefter: Kungsgatan 5, Kronoparken.", tts.lastSpokenText)
-        assertTrue(graph.controller.tracking.value.autoEnabled)
-
-        // Drive in from 400 m, stop at the address, drive away.
-        val lat0 = 59.38
-        fun fix(t: Long, m: Double, v: Float) = Fix(t * 1000, lat0 + m / 111_195.0, 13.50, v, 5f)
-        graph.controller.onLocation(fix(0, 400.0, 12f))
-        graph.controller.onLocation(fix(2, 10.0, 0f))
-        assertEquals(se.eldebosh.nastastopp.core.route.DetectorPhase.ARRIVED, graph.controller.tracking.value.phase)
-        graph.controller.onLocation(fix(40, 150.0, 8f))
+        // Only the driver's "Nästa" moves the route on (positions never do, see StreetServiceRoboTest).
+        graph.controller.next()
         idle()
         assertEquals("Nästa stopp: Kungsgatan 5, Kronoparken, Karlstad. Därefter: Kungsgatan 5, Kronoparken.", tts.lastSpokenText)
-        // Next two stops are at the same place → automatic detection off (manual only).
-        assertFalse(graph.controller.tracking.value.autoEnabled)
         graph.controller.end()
         idle()
         assertNull(graph.controller.route.value)

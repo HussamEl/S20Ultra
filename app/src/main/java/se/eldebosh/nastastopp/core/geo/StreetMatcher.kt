@@ -1,6 +1,5 @@
 package se.eldebosh.nastastopp.core.geo
 
-import se.eldebosh.nastastopp.core.route.Fix
 
 /**
  * Which road the vehicle is on, from the offline street map (1.8): the nearest named road, with
