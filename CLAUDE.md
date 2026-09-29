@@ -4,7 +4,7 @@ An Android app for a Swedish shared-ride driver:
 - It reads addresses and times from screenshots (bundled ML Kit OCR) or from the driver's YouDrive page.
 - It orders the stops, opens Google Maps in batches of 10, and announces the next stops in Swedish.
 
-**Read `docs/GUIDE.md` first.** It explains all the code, the data flow, the design system, the build/release steps and the hard rules. User-facing docs: `README.md`. Decisions and their reasons: `DECISIONS.md`. The code and docs describe the app as it is; the git history before the tag `v2.0` is an archive.
+**Read `docs/GUIDE.md` first.** It explains all the code, the data flow, the design system, the build/release steps and the hard rules. User-facing docs: `README.md`. Decisions and their reasons: `DECISIONS.md`. The code and docs describe the app as it is; the git history before the tag `v1.0` is an archive.
 
 ## The user
 - Hussam, the driver and the project's owner, writes in Arabic. **Reply in Arabic**, concisely.
@@ -66,7 +66,7 @@ An Android app for a Swedish shared-ride driver:
 ./gradlew test assembleRelease lintDebug lintRelease   # must exit 0: all tests pass, lint "No issues found"
 ```
 - **Check the exit status before committing.** Never chain a commit after a build that may have failed.
-- Bump `versionCode` (always +1) and `versionName` in `app/build.gradle.kts`. 2.0 is versionCode 1.
+- Bump `versionCode` (always +1) and `versionName` in `app/build.gradle.kts`. 1.0 is versionCode 1.
 - Verify the APK (build tools in `/opt/android-sdk/build-tools/37.0.0/`):
   - `aapt2 dump badging`: version; FINE/COARSE location present, BACKGROUND location absent.
   - `apksigner verify --print-certs`: the SHA-256 starts `1ae627778bdd`.
@@ -76,7 +76,8 @@ An Android app for a Swedish shared-ride driver:
   - write short English release notes (no passenger data) to a file in the scratchpad;
   - run `tools/publish-apk.sh <notes>`. It pushes the APK on a short-lived branch `apk-drop/v<versionName>`;
   - `.github/workflows/publish-apk.yml` then creates the Release `v<versionName>` on the source commit and deletes the branch;
-  - check that the Release exists (`get_release_by_tag`) before posting the READY.
+  - check that the Release exists (`get_release_by_tag`) before posting the READY;
+  - a wrong Release is removed with the `Delete release` workflow (`.github/workflows/delete-release.yml`, run by hand with the tag).
 - Signing uses `keystore.properties` (gitignored), which points to `~/.nastastopp-signing/`. Hussam holds a private backup of the key; never commit it or post it anywhere. R8 stays disabled because it strips the ML Kit registrars.
 
 ## Device testing (with the local Claude session on the user's laptop)

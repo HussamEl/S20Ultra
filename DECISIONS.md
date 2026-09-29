@@ -1,7 +1,7 @@
 # Decisions
 
 The decisions that shape Nästa Stopp as it is, each with its reason. This is not a changelog. The
-code and docs describe the app as it is now; the git history before the tag `v2.0` is an archive
+code and docs describe the app as it is now; the git history before the tag `v1.0` is an archive
 and is not needed to work on the app.
 
 ## 1. Privacy and data
@@ -133,8 +133,8 @@ Every dialog, toast, sound and Maps launch follows a driver action. The only exc
 | **R8 is off** for release. `proguard-rules.pro` keeps ML Kit's registrars for the day it is switched on again. Every release is checked with `dexdump` for `TextRegistrar`. | R8 full mode removed the constructors ML Kit creates by reflection, and text recognition failed on every image. Tests cannot catch it: they run un-minified code. |
 | Release packages only `arm64-v8a` and `armeabi-v7a`. | The OCR native library is about 11 MB per ABI; the target devices are phones and tablets. |
 | The release key is kept outside the repository (`keystore.properties` → `~/.nastastopp-signing/`); Hussam holds a private backup. Every build is signed with it. | Updates install over the previous build only with the same key. |
-| **versionCode restarted at 1 with 2.0.** 2.0 is installed fresh (the old app removed first); from then on versionCode rises by one each build. | A clean start: no data or settings from earlier builds to carry over, so the app has no migration code. |
-| Builds are published as **GitHub Releases** `v<versionName>`: `tools/publish-apk.sh` pushes the APK on a short-lived branch `apk-drop/v<version>`, and `.github/workflows/publish-apk.yml` creates the Release on the source commit and deletes the branch. APKs are never committed. | The signing key never reaches GitHub, and the repository does not grow with every build. |
+| **The version starts at 1.0, versionCode 1.** 1.0 is installed fresh (any earlier app removed first); from then on versionCode rises by one each build. The Releases of earlier builds were deleted, so no old tag clashes with a new version. | A clean start: no data or settings from earlier builds to carry over, so the app has no migration code. |
+| Builds are published as **GitHub Releases** `v<versionName>`: `tools/publish-apk.sh` pushes the APK on a short-lived branch `apk-drop/v<version>`, and `.github/workflows/publish-apk.yml` creates the Release on the source commit and deletes the branch. APKs are never committed. A wrong Release is removed with `.github/workflows/delete-release.yml` (run by hand). | The signing key never reaches GitHub, and the repository does not grow with every build. |
 | Every build is tested on the S20 Ultra by a second Claude session on the driver's laptop (adb), using invented screenshots (`testdata/`). | The cloud session cannot reach the devices. |
 
 ## Tool versions
