@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -33,13 +34,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import se.eldebosh.nastastopp.R
+import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.ui.theme.Hairline
+import se.eldebosh.nastastopp.ui.theme.Ink
 
 /** Minimum touch target for everything the driver taps. */
 val TouchTarget: Dp = 48.dp
@@ -229,6 +233,32 @@ fun ListRow(
             trailing()
         }
     }
+}
+
+/** The name of a trip's kind ("Pick-up", "Drop-off", "Start", "Back to depot"). */
+@StringRes
+fun kindName(kind: TripKind): Int = when (kind) {
+    TripKind.PICK_UP -> R.string.kind_pick_up
+    TripKind.DROP_OFF -> R.string.kind_drop_off
+    TripKind.PULL_OUT -> R.string.kind_pull_out
+    TripKind.PULL_IN -> R.string.kind_pull_in
+}
+
+/** A trip's kind as a small white pill, like YouDrive's status pills; readable on every card colour. */
+@Composable
+fun KindLabel(kind: TripKind, modifier: Modifier = Modifier) {
+    val shape = RoundedCornerShape(50)
+    Text(
+        stringResource(kindName(kind)),
+        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+        color = Ink,
+        maxLines = 1,
+        modifier = modifier
+            .clip(shape)
+            .background(Color.White.copy(alpha = 0.9f))
+            .border(1.dp, Ink.copy(alpha = 0.14f), shape)
+            .padding(horizontal = 8.dp, vertical = 1.dp),
+    )
 }
 
 /** A trailing chevron (the row opens something). */

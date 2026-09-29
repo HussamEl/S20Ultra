@@ -1,6 +1,8 @@
 package se.eldebosh.nastastopp.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -28,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextDirection
@@ -49,7 +52,9 @@ import se.eldebosh.nastastopp.ui.TouchTarget
 import se.eldebosh.nastastopp.ui.explain
 import se.eldebosh.nastastopp.ui.ref
 import se.eldebosh.nastastopp.ui.refCorner
+import se.eldebosh.nastastopp.ui.theme.Accent
 import se.eldebosh.nastastopp.ui.theme.Brand
+import se.eldebosh.nastastopp.ui.theme.Ink
 import se.eldebosh.nastastopp.ui.theme.Located
 import se.eldebosh.nastastopp.ui.theme.NotLocated
 import se.eldebosh.nastastopp.ui.theme.TimeColor
@@ -93,6 +98,11 @@ fun HomeScreen(
     ) {
         // Header: name + "?" (what the app does), Settings and Help as small icons.
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
+            // Logo mark: the app icon's black pin on taxi yellow.
+            Box(Modifier.size(36.dp).clip(MaterialTheme.shapes.small).background(Accent), contentAlignment = Alignment.Center) {
+                Icon(painterResource(R.drawable.ic_pin), contentDescription = null, tint = Ink, modifier = Modifier.size(22.dp))
+            }
+            Spacer(Modifier.width(10.dp))
             Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineMedium, color = Brand)
             HelpDot(R.string.home_subtitle, Modifier.refCorner(20), title = stringResource(R.string.app_name))
             Spacer(Modifier.weight(1f))

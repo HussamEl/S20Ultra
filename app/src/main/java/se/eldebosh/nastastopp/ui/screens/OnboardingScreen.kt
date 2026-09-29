@@ -41,7 +41,8 @@ import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.ui.HelpDot
 import se.eldebosh.nastastopp.ui.ref
 import se.eldebosh.nastastopp.ui.refCorner
-import se.eldebosh.nastastopp.ui.theme.Brand
+import se.eldebosh.nastastopp.ui.theme.Accent
+import se.eldebosh.nastastopp.ui.theme.Ink
 import se.eldebosh.nastastopp.tts.TtsStatus
 import se.eldebosh.nastastopp.ui.AppButton
 import se.eldebosh.nastastopp.ui.theme.Located
@@ -100,9 +101,9 @@ fun OnboardingScreen(
         Spacer(Modifier.height(20.dp))
         Box(
             contentAlignment = Alignment.Center,
-            modifier = Modifier.size(72.dp).clip(RoundedCornerShape(22.dp)).background(Brand.copy(alpha = 0.14f)),
+            modifier = Modifier.size(72.dp).clip(RoundedCornerShape(22.dp)).background(Accent),
         ) {
-            Icon(painterResource(step.icon), contentDescription = null, tint = Brand, modifier = Modifier.size(36.dp))
+            Icon(painterResource(step.icon), contentDescription = null, tint = Ink, modifier = Modifier.size(36.dp))
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(step.title), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.ref(181).weight(1f, fill = false))

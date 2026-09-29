@@ -18,6 +18,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowTextToSpeech
 import se.eldebosh.nastastopp.App
 import se.eldebosh.nastastopp.AppGraph
+import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.core.route.Fix
 import se.eldebosh.nastastopp.route.RouteRepository
 import se.eldebosh.nastastopp.route.model.GeoPoint
@@ -64,6 +65,33 @@ class RouteControllerRoboTest {
         idle()
         assertEquals(TtsStatus.READY, graph.announcer.status.value)
         return shadow
+    }
+
+    /** A YouDrive list: the grey "Pull-out" is the start point, not a stop (invented data). */
+    @Test
+    fun pullOutBecomesTheStartPointNotAStop() {
+        val tts = readyTts()
+        val lines = listOf(
+            "2026-09-29",
+            "06:42", "Pull-out", "Depågatan 1, 65340 Karlstad",
+            "06:55", "Pick-up", "Anna Testsson", "Storgatan 14, 65224 Karlstad",
+            "07:09", "Drop-off", "Anna Testsson", "Järnvägsgatan 3B, 68830 Storfors",
+        )
+        val c = graph.controller
+        assertEquals(2, c.addExtracted(graph.extractor.extract(lines)))
+        val r = c.route.value!!
+        assertEquals("Depågatan 1, 653 40 Karlstad", r.depot?.displayText)
+        assertEquals(listOf(TripKind.PICK_UP, TripKind.DROP_OFF), r.stops.map { it.kind })
+        assertTrue("the depot counts as already in the list", c.hasTrip(graph.extractor.extract(lines).first()))
+        idleUntil { c.route.value!!.stops.none { it.geoStatus == GeoStatus.PENDING } }
+
+        assertTrue(c.start())
+        idle()
+        assertEquals("Nästa stopp: Karlstad. Därefter: Storfors.", tts.lastSpokenText)
+        val url = shadowOf(app).nextStartedActivity.dataString!!
+        assertTrue(url, url.contains("Storgatan") && url.contains("J%C3%A4rnv%C3%A4gsgatan"))
+        assertFalse("Maps is not sent to the depot: $url", url.contains("Dep"))
+        c.end()
     }
 
     @Test

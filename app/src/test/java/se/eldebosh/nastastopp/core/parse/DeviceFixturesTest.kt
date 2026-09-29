@@ -77,5 +77,28 @@ class DeviceFixturesTest {
         ),
         read(DeviceFixtures.prefixes),
     )
+
+    /** The Swedish labels in the time-above list give the kinds too. */
+    @Test
+    fun timeAboveLabelsGiveTheKinds() = assertEquals(
+        listOf(TripKind.PICK_UP, TripKind.DROP_OFF, TripKind.PICK_UP, TripKind.DROP_OFF),
+        extractor.extract(DeviceFixtures.timeAbove).map { it.kind },
+    )
+
+    /** YouDrive: the grey Pull-out is read as the start point, then green pick-ups and white drop-offs. */
+    @Test
+    fun youDriveCardsGiveKindsAndTimes() {
+        val stops = extractor.extract(DeviceFixtures.youDrive)
+        assertEquals(
+            listOf(
+                "PULL_OUT Depågatan 1, 653 40 Karlstad",
+                "PICK_UP 06:55 Storgatan 14, 652 24 Karlstad",
+                "DROP_OFF 07:09 Lindvägen 9, 664 30 Grums",
+                "PICK_UP 08:29 Kyrkogatan 2, 652 24 Karlstad",
+                "DROP_OFF 08:53 Järnvägsgatan 3B, 688 30 Storfors",
+            ),
+            stops.mapIndexed { i, s -> listOfNotNull(s.kind?.name, s.time.takeIf { i > 0 }, s.displayText).joinToString(" ") },
+        )
+    }
 }
 

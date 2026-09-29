@@ -1,6 +1,7 @@
 package se.eldebosh.nastastopp.route.model
 
 import kotlinx.serialization.Serializable
+import se.eldebosh.nastastopp.core.parse.TripKind
 
 @Serializable
 enum class GeoStatus { PENDING, LOCATED, NOT_LOCATED }
@@ -17,8 +18,8 @@ data class GeoPoint(
 )
 
 /**
- * One stop. Holds only address data and the trip's scheduled time — never names, phone numbers
- * or other OCR text.
+ * One stop. Holds only address data, the trip's scheduled time and its kind (the list's label) —
+ * never names, phone numbers or other OCR text.
  */
 @Serializable
 data class Stop(
@@ -33,6 +34,8 @@ data class Stop(
     val geo: GeoPoint? = null,
     /** Scheduled time from the screenshot ("12:48"), or null. */
     val time: String? = null,
+    /** Pick-up / drop-off / back to the depot, from the dispatch list's label, or null. */
+    val kind: TripKind? = null,
 ) {
     val isLocated: Boolean get() = geoStatus == GeoStatus.LOCATED && geo != null
 
@@ -56,6 +59,11 @@ data class RouteData(
     val nextId: Long = 1,
     /** First stop of the batch last handed to Google Maps (decides whether "back" re-launches it). */
     val batchStartStopId: Long? = null,
+    /**
+     * The day's start point (YouDrive's "Pull-out", the depot): shown above the trips, but not a
+     * stop — it is not navigated to, announced or counted.
+     */
+    val depot: Stop? = null,
 ) {
     val completedCount: Int get() = completed.size
     val previousStop: Stop? get() = completed.lastOrNull()

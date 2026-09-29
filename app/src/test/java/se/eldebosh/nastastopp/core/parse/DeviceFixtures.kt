@@ -61,5 +61,46 @@ object DeviceFixtures {
         "Strandvägen 21, 681 31 Kristinehamn",
         "Tel 070-000 00 06",
     )
+
+    /** One card of [youDriveCards]: its colour (ARGB) and its rows as (left column, right column). */
+    class Card(val color: Long, val rows: List<Pair<String?, String?>>)
+
+    /**
+     * YouDrive's layout: a grey Pull-out (the depot) with its time beside the address, then green
+     * pick-up and white drop-off cards with the name and address on top and the time, the kind
+     * label and the status below them in the left column.
+     */
+    val youDriveCards = listOf(
+        Card(0xFFCACACA, listOf("06:42" to "Depågatan 1, 65340 Karlstad", "Pull-out" to "Compensation 0 KR", "Performed" to null)),
+        Card(
+            0xFF9CD39C,
+            listOf(
+                null to "Anna Testsson", null to "STORGATAN 14 LGH 1101, 65224 KARLSTAD", null to "070-000 00 01",
+                "06:55" to "HLI, SP1", "Pick-up" to "Compensation 0 KR", "Performed" to null,
+            ),
+        ),
+        Card(
+            0xFFFFFFFF,
+            listOf(
+                null to "Anna Testsson", null to "Lindvägen 9, 66430 Grums",
+                "07:09" to "HLI, SP1", "Drop-off" to "Compensation 83.51 KR", "Departed" to null,
+            ),
+        ),
+        Card(
+            0xFF9CD39C,
+            listOf(
+                null to "Bengt Provare", null to "Kyrkogatan 2, 65224 Karlstad", null to "070-000 00 02",
+                "08:29" to "RU1", "Pick-up" to "Client fee 0 KR",
+            ),
+        ),
+        Card(
+            0xFFFFFFFF,
+            listOf(null to "Bengt Provare", null to "Järnvägsgatan 3B, 68830 Storfors", "08:53" to "RU1", "Drop-off" to "Compensation 48.81 KR"),
+        ),
+    )
+
+    /** [youDriveCards] as the OCR reads them: status bar, date, then row by row, left column first. */
+    val youDrive: List<String> = listOf("12:03", "2026-09-29") +
+        youDriveCards.flatMap { card -> card.rows.flatMap { (left, right) -> listOfNotNull(left, right) } }
 }
 

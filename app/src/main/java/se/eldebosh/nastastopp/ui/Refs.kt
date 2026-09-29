@@ -142,8 +142,8 @@ private class RefDrawNode(var n: Int, var corner: Boolean) : Modifier.Node(), Dr
     }
 
     companion object {
-        private val STRIP_STYLE = TextStyle(color = Color(0xFF7F8BA0), fontSize = 8.5.sp, fontWeight = FontWeight.Bold, lineHeight = 10.sp)
-        private val PILL = Color(0xE60B0F17)
-        private val PILL_STYLE = TextStyle(color = Color(0xFFB8C2D4), fontSize = 8.sp, fontWeight = FontWeight.Bold, lineHeight = 10.sp)
+        private val STRIP_STYLE = TextStyle(color = Color(0xFF6B7280), fontSize = 8.5.sp, fontWeight = FontWeight.Bold, lineHeight = 10.sp)
+        private val PILL = Color(0xE617171A)
+        private val PILL_STYLE = TextStyle(color = Color(0xFFF1F2F4), fontSize = 8.sp, fontWeight = FontWeight.Bold, lineHeight = 10.sp)
     }
 }

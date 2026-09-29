@@ -258,4 +258,9 @@
     <string name="youdrive_start_page">صفحة بداية YouDrive</string>
     <string name="youdrive_problem">مشكلة في الصفحة: %1$s</string>
     <string name="youdrive_more">المزيد</string>
+    <string name="kind_pick_up">التقاط</string>
+    <string name="kind_drop_off">توصيل</string>
+    <string name="kind_pull_out">الانطلاق</string>
+    <string name="kind_pull_in">العودة للمرآب</string>
+    <string name="depot_hint">نقطة الانطلاق (Pull-out في YouDrive) هي المكان الذي تبدأ منه يومك. تظهر فوق الرحلات بلون رمادي، لكنها ليست محطة: لا تُرسل إلى الخرائط ولا يُعلَن عنها ولا تُعدّ.</string>
 </resources>

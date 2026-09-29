@@ -1,6 +1,6 @@
 <div dir="rtl">
 
-# دليل المشروع الكامل — Nästa Stopp 1.0
+# دليل المشروع الكامل — Nästa Stopp 1.1
 
 هذا الدليل يشرح **كل الكود**: كيف يعمل التطبيق من الداخل، وأين يوجد كل جزء، وكيف تُضاف ميزة أو يُعدَّل شيء بأمان. هو نقطة البداية لأي محادثة جديدة عن المشروع.
 
@@ -15,13 +15,13 @@
 | الشيء | القيمة |
 |---|---|
 | الحزمة | `se.eldebosh.nastastopp` |
-| الإصدار | `versionName "1.0.3"`، `versionCode 18` (في `app/build.gradle.kts`) |
+| الإصدار | `versionName "1.1"`، `versionCode 19` (في `app/build.gradle.kts`) |
 | اللغة والأدوات | Kotlin 2.4، AGP 9.4، Gradle 9.8، Jetpack Compose (Material 3) |
 | الأندرويد | `minSdk 29` (أندرويد 10)، `targetSdk/compileSdk 37` |
 | القراءة من الصور | ML Kit Text Recognition **المدمج** (نموذج Latin داخل التطبيق، دون Play Services) |
 | المكتبات الأخرى | `androidx.webkit` (هوية كروم لصفحة YouDrive)، kotlinx.serialization، coroutines |
 | لا يوجد | Hilt/DI framework، Firebase، تحليلات، تقارير أعطال، إذن الموقع، إذن التخزين |
-| الاختبارات | 153 اختباراً: وحدة (JUnit) + Robolectric (أندرويد 13، sdk 33) |
+| الاختبارات | 161 اختباراً: وحدة (JUnit) + Robolectric (أندرويد 13، sdk 33) |
 | R8/minify | **مطفأ** في release، لأنه كان يحذف مسجِّلات ML Kit (راجع DECISIONS 1.0.1) |
 
 ---
@@ -65,9 +65,11 @@
 3. **الاستخراج** في `core/parse/AddressExtractor.extract(lines)`:
    - يبحث عن رمز بريدي سويدي، وشارع مع رقم، ومدينة من `Localities` (الملف `assets/localities_se.txt`).
    - يتجاهل الأسماء والهواتف والمبالغ وكل النص الآخر.
-   - الوقت يأتي من `TripTimes.assign`: الوقت على سطر العنوان نفسه، أو فوقه أو تحته حسب تصميم الصفحة.
-   - الناتج: `ExtractedStop(displayText, candidates, time, …)`.
-4. **القائمة** في `RouteController.addExtracted` ← `Stop` في `RouteData`، ثم يبدأ تحديد الموقع في الخلفية (`Geocoding.locate`، عبر `android.location.Geocoder` الخاص بالنظام، مع مهلة 15 ثانية لكل عنوان).
+   - الوقت يأتي من `TripTimes`: الوقت على سطر العنوان نفسه، أو فوقه أو تحته حسب تصميم الصفحة.
+   - **نوع الرحلة** (`TripKind`: PULL_OUT / PICK_UP / DROP_OFF / PULL_IN) يأتي من كلمة YouDrive القريبة ("Pick-up"، "Drop-off"، "Pull-out"، أو "Hämtning"/"Lämning") عبر `TripKinds.labelIn`. الوقت والنوع في بطاقة واحدة، لذلك يُختار لهما **اتجاه واحد** (فوق العنوان أو تحته) بأغلبية الاثنين معاً (`AddressExtractor.timesAndKinds`)، فلا تأخذ رحلة نوع جارتها.
+   - الناتج: `ExtractedStop(displayText, candidates, time, kind, …)`.
+4. **القائمة** في `RouteController.addExtracted` ← `Stop` في `RouteData`. رحلة **Pull-out** لا تصبح محطة: تُحفظ في `RouteData.depot` (نقطة الانطلاق، بطاقة رمادية فوق الرحلات) ولا تُرسل إلى الخرائط ولا يُعلَن عنها. عنوانان متتاليان متطابقان يُدمجان، إلا إذا اختلف نوعهما (توصيل ثم التقاط في نفس المكان = محطتان).
+   ثم يبدأ تحديد الموقع في الخلفية (`Geocoding.locate`، عبر `android.location.Geocoder` الخاص بالنظام، مع مهلة 15 ثانية لكل عنوان).
 5. **المراجعة** في `ReviewScreen`: نقل، حذف، تعديل، إضافة يدوية، ترتيب حسب الوقت.
 6. **البدء** بـ `RouteController.start()`:
    - يعلن أول محطتين (`Announcer.speak`).
@@ -138,6 +140,7 @@
 | الملف | الدور |
 |---|---|
 | `parse/AddressExtractor.kt` | قلب القراءة: من أسطر OCR إلى `ExtractedStop`. أيضاً `fromManualText` للإدخال اليدوي، و`isSameAddress` للمقارنة، و`STREET_SUFFIXES`. |
+| `parse/TripKinds.kt` | `TripKind` (Pull-out / Pick-up / Drop-off / Pull-in) و`labelIn`: الكلمة كاملة فقط، فجملة فيها الكلمة لا تُحسب. |
 | `parse/TripTimes.kt` | إيجاد وقت كل رحلة، و`minutesUntil` (متأخر حتى 8 ساعات كحد أقصى)، و`level` (AHEAD/SOON/LATE)، و`normalizeTyped` للإدخال اليدوي. |
 | `parse/Localities.kt` | قائمة المدن السويدية (من `assets/localities_se.txt`)، بحث لا يتأثر بحالة الأحرف ولا بعلامات å ä ö. |
 | `parse/TextNorm.kt` | أدوات نص: `fold` (إزالة العلامات)، و`key`، وتشابه ليفنشتاين. |
@@ -183,8 +186,8 @@
 ### الواجهة `ui/`
 | الملف | الدور |
 |---|---|
-| `theme/Theme.kt` | **الهوية البصرية**: الألوان (`Brand`، `TimeColor`، `Located`، `NotLocated`، `Warning`، `Hairline`)، والخطوط، والأشكال. |
-| `Components.kt` | مكونات موحّدة: `AppButton`، `TopBar`، `SectionTitle`، `AppCard`، `CardDivider`، `ListRow`، `IconBadge`، `Chevron`، `Paragraph`. `TouchTarget = 48.dp`. |
+| `theme/Theme.kt` | **الهوية البصرية «بطاقات المسار»** (فاتحة، من ألوان YouDrive): `Ink` (الأسود)، `Brand` (= Ink)، `Accent` (الأصفر)، `PickUpGreen`، `DepotGrey`، `kindColor(kind)`، `TimeColor`، `Located`، `NotLocated`، `Warning`، `Hairline`، والخطوط، والأشكال. |
+| `Components.kt` | مكونات موحّدة: `AppButton`، `TopBar`، `SectionTitle`، `AppCard`، `CardDivider`، `ListRow`، `IconBadge`، `KindLabel` (نوع الرحلة كحبة بيضاء صغيرة)، `Chevron`، `Paragraph`. `TouchTarget = 48.dp`. |
 | `Explain.kt` | الشروح: `explain(id)` (بالعربية أثناء الإعداد)، و`HelpDot` (علامة «?» الصغيرة التي تفتح الشرح)، و`Hint` (نص شرح داخل نافذة حوار). |
 | `Refs.kt` | الأرقام المرجعية: `Modifier.ref(n)` (رقم في سطر خاص فوق العنصر، و`centered = true` داخل الصفوف) و`Modifier.refCorner(n)` (في زاوية الأيقونات والمفاتيح). `RefNumbers.enabled` يتبع الإعداد 105. |
 | `AppRoot.kt` | يوزّع الشاشات، ويطلب الأذونات، ويعرض رسائل snackbar، ويوفّر `LocalExplainResources`. |
@@ -198,16 +201,18 @@
   - `values-sv/strings.xml` = السويدية.
   - **كل مفتاح جديد يجب أن يُضاف إلى الملفات الثلاثة.**
   - `strings_fixed.xml` فيه نصوص لا تُترجم.
-- **الأيقونات**: `res/drawable/ic_*.xml` (vector). أيقونة التطبيق: `ic_launcher_background.xml` (تدرّج أزرق) + `ic_launcher_foreground.xml` (دبوس + سهم) + `ic_launcher_monochrome.xml`.
+- **الأيقونات**: `res/drawable/ic_*.xml` (vector). أيقونة التطبيق: `ic_launcher_background.xml` (تدرّج أصفر) + `ic_launcher_foreground.xml` (دبوس + سهم) + `ic_launcher_monochrome.xml`.
 - **ملفات xml**: `backup_rules.xml` و`data_extraction_rules.xml` (تستثني كل شيء)، و`locales_config.xml`.
 
 ---
 
 ## 6. نظام التصميم (للحفاظ على مظهر موحّد)
 
-- **الألوان**: من `MaterialTheme.colorScheme` أو من ثوابت `Theme.kt` فقط، ولا ألوان عشوائية.
-  - الإجراء الرئيسي: `primary` (Brand).
-  - الأوقات: `TimeColor`.
+- **الألوان**: من `MaterialTheme.colorScheme` أو من ثوابت `Theme.kt` فقط، ولا ألوان عشوائية. الهوية **فاتحة** (lightColorScheme)، وأيقونات شريط النظام داكنة دائماً (`SystemBarStyle.light` في `MainActivity`).
+  - الإجراء الرئيسي: `primary` (الأسود `Ink`، مثل زر Arrive في YouDrive).
+  - ما يجب فعله الآن (Next، Start route، وقت الرحلة الحالية): `Accent` الأصفر مع نص `Ink`.
+  - بطاقة كل رحلة: `kindColor(stop.kind)` (أخضر التقاط، أبيض توصيل، رمادي للمرآب)، ونوعها `KindLabel`. الرحلة الحالية بإطار `Ink` سميك (3 dp).
+  - الأوقات: `TimeColor` (أسود).
   - الحالة: `Located` و`NotLocated` و`Warning`.
   - النص الثانوي: `onSurfaceVariant`.
   - الحدود: `Hairline`.
@@ -226,7 +231,7 @@
 - **الاتجاه**:
   - نص قد يكون عربياً أو سويدياً يُكتب بـ `style.copy(textDirection = TextDirection.Content)`.
   - الواجهة العربية RTL تلقائياً.
-- **الزر العائم** (Views): ألوانه ثوابت في `OverlayManager.companion`، وهي تطابق `Theme.kt`، فعدّلها معاً.
+- **الزر العائم** (Views): ألوانه ثوابت في `OverlayManager.companion`، وهي تطابق `Theme.kt`، فعدّلها معاً: Next أصفر، والدائرة سوداء بحلقة صفراء، وبطاقة المعلومات بلون الرحلة التالية (`infoColor`).
 
 ---
 
@@ -262,7 +267,7 @@
 ## 8. قواعد لا تُكسر
 
 1. **الصور** لا تُنسخ ولا تُحفظ. تُقرأ في الذاكرة فقط.
-2. **لا يُحفظ إلا العنوان والوقت**، ولا أسماء ولا هواتف ولا نص آخر، سواء من اللقطات أو من YouDrive.
+2. **لا يُحفظ إلا العنوان والوقت ونوع الرحلة** (كلمة القائمة Pick-up / Drop-off / Pull-out)، ولا أسماء ولا هواتف ولا نص آخر، سواء من اللقطات أو من YouDrive.
 3. **لا سجلات** لعناوين أو نص OCR في release. استعمل `DebugLog` فقط.
 4. **النسخ الاحتياطي**: `allowBackup="false"`، وقواعد الاستخراج تستثني كل شيء.
 5. **لا إذن موقع أبداً** (قرار السائق في 1.4.5). خرائط Google وحدها تستخدم الموقع. الأذونات محذوفة بـ `tools:node="remove"` في الـ manifest.

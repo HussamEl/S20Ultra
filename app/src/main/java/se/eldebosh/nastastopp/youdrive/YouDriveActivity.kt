@@ -171,7 +171,7 @@ class YouDriveActivity : ComponentActivity() {
 
     private companion object {
         /** The bar's colour (theme surfaceContainerLow), also behind the status bar. */
-        const val BAR_COLOR = 0xFF0F1520.toInt()
+        const val BAR_COLOR = 0xFFFFFFFF.toInt()
     }
 
     override fun onDestroy() {

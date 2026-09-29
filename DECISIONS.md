@@ -407,3 +407,31 @@ The device session tested build 17: 7 pass, 1 pass with issue, sign-in not run y
   - The bottom button area also sets `Modifier.preferKeepClear()`, which asks the system to keep floating windows off it. Systems that support keep-clear areas move the picture-in-picture window away; others ignore it.
   - Not chosen: moving Next or the whole button block, which would break the Back-left / Next-right order shared with the floating panel.
 - **V6, the announcement names a district instead of the address's town:** intended. The default is 106 "District when available"; 107 "Town only" announces the town.
+
+## 1.1 (versionCode 19): trip kinds from YouDrive and the "Route cards" identity
+
+The driver showed a YouDrive day list and asked for two things: understand its cards, and a complete new look in YouDrive's colours plus yellow. The screenshot had real passengers, so nothing from it was copied; only its colours and layout were used, and every test uses invented data.
+
+**Trip kinds**
+- YouDrive's cards are: a grey **Pull-out** (the depot, the same start point every day), then green **Pick-up** and white **Drop-off** cards, and at the end a **Pull-in** back to the depot.
+- `core/parse/TripKinds.kt`: `TripKind` and `labelIn`. Only a whole label counts ("Pick-up", "12:48 Pick-up", "Drop off", "Hämtning", "Lämning"); a sentence containing the word does not.
+- The label sits in the same card as the time, so `AddressExtractor.timesAndKinds` chooses **one direction for both** (above or below the address) by the majority of times and labels together. A trip therefore never takes its neighbour's kind. This also fixes a time tie: a YouDrive screenshot, where the depot's time sits beside its address, had equal counts in both directions and took the times from above (the wrong card).
+- Consecutive identical addresses are still merged, except when their kinds differ: a drop-off and then a pick-up at the same place are two stops.
+- **The Pull-out becomes `RouteData.depot`**, the start point: a grey "Start" card above the trips (review 127, route 85, "?" 129). It is not a stop, so it is not sent to Maps, announced or counted. A Pull-in stays a normal (grey) stop, because the driver does drive back.
+- `Stop.kind` is saved with the route (a new field with a default, so older saved routes still load). Editing a stop's text keeps its kind.
+- Privacy: the kind is the list's label, not personal data. The rule is now "addresses, times and the trip kind only".
+- Test aid: `testdata/screenshots/fixture_youdrive.png`, drawn in YouDrive's two-column card layout with invented data. Expected: start point Depågatan 1 + 4 stops (pick-up, drop-off, pick-up, drop-off). `fixture_time_above.png` now also gives kinds (its "Hämtning" / "Lämning" labels).
+
+**Visual identity "Route cards" (replaces "Night transit")**
+- Light, from YouDrive's own colours (sampled from the screenshot):
+  - page `#F4F5F7`, white cards;
+  - pick-up green `#9CD39C`, depot grey `#CACACA`;
+  - black `Ink #17171A` for text and main actions, like YouDrive's "Arrive" button.
+- **Taxi yellow `#FFC61A`** (`Accent`) marks the next action: Next, Start route, the current trip's time, the logo.
+- Every trip card has its YouDrive colour (`kindColor`) and a white `KindLabel` pill. The current trip has a thick black border, like YouDrive's active card.
+- Time status on white: green `#1E7A34`, amber `#B45309`, red `#C62828`; the status pill now has white text.
+- System bars: dark icons always (`SystemBarStyle.light`), also when the phone is in dark mode. The framework theme is now `Theme.Material.Light`, so the YouDrive page's own form controls are light too.
+- Floating panel: white buttons with black icons, yellow Next, a black circle with a yellow ring, and an info card in the next trip's colour (`infoColor`). The disabled Back (V5) stays opaque.
+- Passenger display: light, with "Next stop" on a yellow pill and a yellow speaker button.
+- Icon: a black pin with a yellow chevron on a yellow gradient. Home shows the same mark before the app name.
+- Not done: a separate dark (night) variant. The driver asked for YouDrive's colours; a night variant can follow if the light screens are too bright in the dark.

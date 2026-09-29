@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import se.eldebosh.nastastopp.MainActivity
 import se.eldebosh.nastastopp.R
+import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.core.parse.TripTimes
 import se.eldebosh.nastastopp.geo.CurrentStreet
 import se.eldebosh.nastastopp.route.RouteController
@@ -91,6 +92,7 @@ class OverlayManager(
         var bubbleMain: TextView? = null
         var bubbleSub: TextView? = null
         var bubbleBg: GradientDrawable? = null
+        var infoBg: GradientDrawable? = null
     }
 
     private val tick = object : Runnable {
@@ -161,6 +163,7 @@ class OverlayManager(
         (v.back as? ViewGroup)?.let { b -> for (i in 0 until b.childCount) b.getChildAt(i).alpha = backAlpha }
         v.progress?.text = progress(r.completedCount, r.stops.size)
         v.address?.text = current.displayText
+        v.infoBg?.setColor(infoColor(current.kind))
         v.time?.apply {
             text = current.time.orEmpty()
             visibility = if (current.time == null) View.GONE else View.VISIBLE
@@ -288,7 +291,7 @@ class OverlayManager(
             textDirection = View.TEXT_DIRECTION_FIRST_STRONG
             setAutoSizeTextTypeUniformWithConfiguration(10, 18, 1, TypedValue.COMPLEX_UNIT_SP)
         }
-        val areaView = text(11f, MUTED).apply {
+        val areaView = text(11f, MUTED_ON_INK).apply {
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
             maxWidth = dp(92f)
@@ -307,14 +310,14 @@ class OverlayManager(
             addView(streetView, LinearLayout.LayoutParams(dp(96f), dp(58f)))
             addView(areaView)
         }
-        val speaker = roundIcon(R.drawable.ic_speaker, 38f, RAISED, WHITE, R.string.overlay_speak_street_desc)
+        val speaker = roundIcon(R.drawable.ic_speaker, 38f, RAISED, INK, R.string.overlay_speak_street_desc)
         val circleFrame = FrameLayout(ui).apply {
             addView(circle, FrameLayout.LayoutParams(dp(CIRCLE_DP), dp(CIRCLE_DP), Gravity.TOP or Gravity.CENTER_HORIZONTAL))
             addView(speaker, FrameLayout.LayoutParams(dp(40f), dp(40f), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
         }
 
         // Back (with ×) and Next (with –) on either side.
-        val back = labeledButton(R.drawable.ic_previous, R.string.overlay_back, 58f, RAISED, WHITE)
+        val back = labeledButton(R.drawable.ic_previous, R.string.overlay_back, 58f, RAISED, INK)
         val next = labeledButton(R.drawable.ic_next, R.string.overlay_next, 64f, BRAND, ON_BRAND)
         val close = smallControl("×", R.string.overlay_close_desc)
         val minimize = smallControl("–", R.string.overlay_minimize_desc)
@@ -327,12 +330,12 @@ class OverlayManager(
         }
 
         // Info: clock, trip n/total, next trip's time + status + distance, address, waiting timer.
-        val clockView = text(18f, WHITE, bold = true)
+        val clockView = text(18f, INK, bold = true)
         val progressView = text(13f, MUTED).apply { setPadding(dp(8f), 0, dp(8f), 0) }
         val timeView = text(15f, TIME, bold = true)
-        val statusView = text(14f, WHITE, bold = true).apply { setPadding(dp(8f), 0, dp(8f), 0) }
+        val statusView = text(14f, INK, bold = true).apply { setPadding(dp(8f), 0, dp(8f), 0) }
         val distanceView = text(13f, MUTED)
-        val addressView = text(13f, WHITE).apply {
+        val addressView = text(13f, INK).apply {
             maxLines = 2
             ellipsize = TextUtils.TruncateAt.END
             gravity = Gravity.START
@@ -346,16 +349,17 @@ class OverlayManager(
             addView(addressView)
             addView(waitView)
         }
-        val repeat = roundIcon(R.drawable.ic_repeat, 38f, RAISED, WHITE, R.string.overlay_repeat_desc)
+        val infoBg = GradientDrawable().apply {
+            cornerRadius = dp(16f).toFloat()
+            setColor(INFO_BG)
+            setStroke(dp(1f), HAIRLINE)
+        }
+        val repeat = roundIcon(R.drawable.ic_repeat, 38f, RAISED, INK, R.string.overlay_repeat_desc)
         val info = LinearLayout(ui).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(10f), dp(6f), dp(8f), dp(6f))
-            background = GradientDrawable().apply {
-                cornerRadius = dp(16f).toFloat()
-                setColor(INFO_BG)
-                setStroke(dp(1f), HAIRLINE)
-            }
+            background = infoBg
             contentDescription = ui.getString(R.string.overlay_open_app_desc)
             addView(lines, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
             addView(repeat, LinearLayout.LayoutParams(dp(40f), dp(40f)).apply { marginStart = dp(6f) })
@@ -412,6 +416,7 @@ class OverlayManager(
         v.distance = distanceView
         v.address = addressView
         v.wait = waitView
+        v.infoBg = infoBg
         return container
     }
 
@@ -489,11 +494,11 @@ class OverlayManager(
 
     private inner class RefBadge(private val text: String, private val rtl: Boolean, private val bottomEnd: Boolean) : Drawable() {
         private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = 0xFFB8C2D4.toInt()
+            color = 0xFFF1F2F4.toInt()
             textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 8f, context.resources.displayMetrics)
             isFakeBoldText = true
         }
-        private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x990B0F17.toInt() }
+        private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xCC17171A.toInt() }
 
         override fun draw(canvas: Canvas) {
             val pad = dp(3f).toFloat()
@@ -685,14 +690,27 @@ class OverlayManager(
         /** All panel texts 10 % smaller than first designed (driver's request). */
         private const val FONT_SCALE = 0.9f
         // The app's "Night transit" colours (see ui/theme/Theme.kt).
-        private const val BRAND = 0xFF6EA8FF.toInt()
-        private const val ON_BRAND = 0xFF06142B.toInt()
-        private const val TIME = 0xFFFFC56B.toInt()
-        private const val PANEL = 0xFA131A26.toInt()
-        private const val RAISED = 0xFA1A2231.toInt()
-        private const val INFO_BG = 0xFA0B0F17.toInt() // nearly opaque: map labels must not show through
-        private const val HAIRLINE = 0xFF2F3B52.toInt()
-        private const val MUTED = 0xFF9AA6BA.toInt()
+        // Colours mirror ui/theme/Theme.kt ("Route cards"): black ink, white and green trip cards,
+        // taxi yellow for Next. Surfaces are nearly opaque, so map labels do not show through.
+        private const val BRAND = 0xFFFFC61A.toInt() // Accent: Next, the bubble, the circle's ring
+        private const val ON_BRAND = 0xFF17171A.toInt() // ink on yellow
+        private const val INK = 0xFF17171A.toInt()
+        private const val TIME = INK
+        private const val PANEL = 0xFA17171A.toInt() // the circle and × / –: ink with white text
+        private const val RAISED = 0xFAFFFFFF.toInt() // Back, speaker, repeat: white with ink icons
+        private const val INFO_BG = 0xFAFFFFFF.toInt() // the next trip's card: white (drop-off) …
+        private const val INFO_PICK_UP = 0xFA9CD39C.toInt() // … green (pick-up) …
+        private const val INFO_DEPOT = 0xFACACACA.toInt() // … grey (back to the depot)
+        private const val HAIRLINE = 0xFFD0D4D9.toInt()
+        private const val MUTED = 0xFF4A4F55.toInt() // secondary text on the info card
+        private const val MUTED_ON_INK = 0xFFC7CBD1.toInt()
         private const val WHITE = 0xFFFFFFFF.toInt()
+
+        /** The info card's colour for the next trip, like its YouDrive card. */
+        fun infoColor(kind: TripKind?): Int = when (kind) {
+            TripKind.PICK_UP -> INFO_PICK_UP
+            TripKind.PULL_OUT, TripKind.PULL_IN -> INFO_DEPOT
+            TripKind.DROP_OFF, null -> INFO_BG
+        }
     }
 }

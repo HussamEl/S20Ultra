@@ -28,6 +28,7 @@ import se.eldebosh.nastastopp.core.parse.AddressExtractor
 import se.eldebosh.nastastopp.core.parse.ExtractedStop
 import se.eldebosh.nastastopp.core.parse.Localities
 import se.eldebosh.nastastopp.core.parse.TextNorm
+import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.core.parse.TripTimes
 import se.eldebosh.nastastopp.core.route.Announcement
 import se.eldebosh.nastastopp.core.route.Announcements
@@ -149,15 +150,22 @@ class RouteController(
     // ------------------------------------------------------------------------------------------
     // Editing (review screen)
 
-    /** Appends extracted stops (merging a duplicate of the current last stop). Returns count added. */
+    /**
+     * Appends extracted stops (merging a duplicate of the current last stop). A "Pull-out" becomes
+     * the route's start point instead of a stop. Returns how many stops were added.
+     */
     fun addExtracted(extracted: List<ExtractedStop>): Int {
         if (extracted.isEmpty()) return 0
-        val base = _route.value ?: newRoute()
+        var base = _route.value ?: newRoute()
         var nextId = base.nextId
         val added = ArrayList<Stop>()
         for (e in extracted) {
+            if (e.kind == TripKind.PULL_OUT) {
+                base = base.copy(depot = e.toStop(nextId++))
+                continue
+            }
             val prev = added.lastOrNull() ?: base.stops.lastOrNull()
-            if (prev != null && extractor.isSameAddress(prev.toExtracted(), e)) continue
+            if (prev != null && extractor.isSameAddress(prev.toExtracted(), e) && extractor.sameKindOrUnknown(prev.toExtracted(), e)) continue
             added += e.toStop(nextId++)
         }
         set(base.copy(stops = base.stops + added, nextId = nextId))
@@ -187,7 +195,7 @@ class RouteController(
         update { r ->
             r.copy(
                 stops = r.stops.map {
-                    if (it.id == id) e.toStop(id).copy(sourceOrder = it.sourceOrder, time = time) else it
+                    if (it.id == id) e.toStop(id).copy(sourceOrder = it.sourceOrder, time = time, kind = it.kind) else it
                 },
             )
         }
@@ -229,11 +237,14 @@ class RouteController(
     // ------------------------------------------------------------------------------------------
     // YouDrive (trips added / cancelled on the dispatch page)
 
-    /** True if [e] (time + address) is already one of the remaining trips. */
+    /** True if [e] (time + address) is already one of the remaining trips, or the start point. */
     fun hasTrip(e: ExtractedStop): Boolean = findTrip(e) != null
 
-    private fun findTrip(e: ExtractedStop): Stop? =
-        _route.value?.stops?.firstOrNull { it.time == e.time && extractor.isSameAddress(it.toExtracted(), e) }
+    private fun findTrip(e: ExtractedStop): Stop? {
+        val r = _route.value ?: return null
+        val candidates = if (e.kind == TripKind.PULL_OUT) listOfNotNull(r.depot) else r.stops
+        return candidates.firstOrNull { it.time == e.time && extractor.isSameAddress(it.toExtracted(), e) }
+    }
 
     /**
      * Adds a trip from YouDrive in time order among the remaining trips (the current trip of an
@@ -252,6 +263,12 @@ class RouteController(
         for (e in trips) {
             if (hasTrip(e)) continue
             val base = _route.value ?: newRoute()
+            if (e.kind == TripKind.PULL_OUT) {
+                // The day's start point: shown above the trips, never navigated to.
+                set(base.copy(depot = e.toStop(base.nextId), nextId = base.nextId + 1))
+                added++
+                continue
+            }
             val list = base.stops.toMutableList()
             val first = if (base.active) minOf(1, list.size) else 0
             val t = TripTimes.minutes(e.time)
@@ -277,7 +294,7 @@ class RouteController(
     fun removeTrip(e: ExtractedStop): Boolean {
         val stop = findTrip(e) ?: return false
         beginEdit()
-        update { r -> r.copy(stops = r.stops.filterNot { it.id == stop.id }) }
+        update { r -> r.copy(stops = r.stops.filterNot { it.id == stop.id }, depot = r.depot?.takeUnless { it.id == stop.id }) }
         finishEdit()
         return true
     }
@@ -571,9 +588,10 @@ class RouteController(
         parsedTownKnown = parsedTownKnown,
         sourceOrder = sourceOrder,
         time = time,
+        kind = kind,
     )
 
-    private fun Stop.toExtracted() = ExtractedStop(displayText, candidates, parsedPostalCode, parsedTown, sourceOrder, parsedTownKnown, time)
+    private fun Stop.toExtracted() = ExtractedStop(displayText, candidates, parsedPostalCode, parsedTown, sourceOrder, parsedTownKnown, time, kind)
 
     companion object {
         const val SAME_PLACE_M = 30.0

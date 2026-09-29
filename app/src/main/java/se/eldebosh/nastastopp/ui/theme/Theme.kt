@@ -4,69 +4,95 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
-import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import se.eldebosh.nastastopp.core.parse.TripKind
 
 /*
- * Visual identity "Night transit" (release 1.0): a calm dark blue-grey base that is easy on the
- * eyes at night, one sky-blue brand colour for actions, warm amber for trip times, and green /
- * red only for status. Cards are soft surfaces with a hairline border; buttons are compact (48 dp).
+ * Visual identity "Route cards" (1.1), taken from the YouDrive dispatch list the driver works with
+ * every day: a light page, white trip cards, green pick-ups, a grey depot card and black actions
+ * (YouDrive's "Arrive" button). Taxi yellow marks the one thing to act on next (Next, the current
+ * trip's time). Green / amber / red are kept for status.
  */
 
-/** Brand colour: actions, selected items, the app name. */
-val Brand = Color(0xFF6EA8FF)
+/** Ink: text, icons and the main actions. */
+val Ink = Color(0xFF17171A)
 
-/** Trip times (read at a glance). */
-val TimeColor = Color(0xFFFFC56B)
+/** Brand colour: the main actions, selected items, the app name. */
+val Brand = Ink
 
-/** Status: located / on time / done. */
-val Located = Color(0xFF4ADE80)
+/** Taxi yellow: the next action (Next, Start route) and the current trip's time. Ink on top. */
+val Accent = Color(0xFFFFC61A)
+
+/** Trip times (read at a glance; black like YouDrive's). */
+val TimeColor = Ink
+
+/** Status: located / on time / done (dark enough to read on white). */
+val Located = Color(0xFF1E7A34)
 
 /** Status: not found / late / problem. */
-val NotLocated = Color(0xFFF87171)
+val NotLocated = Color(0xFFC62828)
 
 /** Status: soon. */
-val Warning = Color(0xFFFBBF24)
+val Warning = Color(0xFFB45309)
 
 /** Hairline borders of cards. */
-val Hairline = Color(0xFF243044)
+val Hairline = Color(0xFFE1E3E6)
 
-private val NightColors = darkColorScheme(
-    primary = Brand,
-    onPrimary = Color(0xFF06142B),
-    primaryContainer = Color(0xFF16305A),
-    onPrimaryContainer = Color(0xFFD6E6FF),
-    secondary = Color(0xFF5BE0C2),
-    onSecondary = Color(0xFF00261F),
-    secondaryContainer = Color(0xFF0F3A33),
-    onSecondaryContainer = Color(0xFFC9FBF1),
-    tertiary = TimeColor,
-    onTertiary = Color(0xFF2B1A00),
-    background = Color(0xFF0B0F17),
-    onBackground = Color(0xFFEEF2F8),
-    surface = Color(0xFF0B0F17),
-    onSurface = Color(0xFFEEF2F8),
-    surfaceVariant = Color(0xFF1A2231),
-    onSurfaceVariant = Color(0xFF9AA6BA),
-    surfaceContainerLowest = Color(0xFF080B11),
-    surfaceContainerLow = Color(0xFF0F1520),
-    surfaceContainer = Color(0xFF131A26),
-    surfaceContainerHigh = Color(0xFF1A2231),
-    surfaceContainerHighest = Color(0xFF222B3D),
-    surfaceBright = Color(0xFF2A3447),
-    inverseSurface = Color(0xFFEEF2F8),
-    inverseOnSurface = Color(0xFF131A26),
-    outline = Color(0xFF3A475E),
+/** YouDrive's pick-up card (green). */
+val PickUpGreen = Color(0xFF9CD39C)
+
+/** YouDrive's depot card (Pull-out / Pull-in, grey). */
+val DepotGrey = Color(0xFFCACACA)
+
+/** Card colour of a trip: green pick-up, grey depot, white drop-off (and trips of unknown kind). */
+fun kindColor(kind: TripKind?): Color = when (kind) {
+    TripKind.PICK_UP -> PickUpGreen
+    TripKind.PULL_OUT, TripKind.PULL_IN -> DepotGrey
+    TripKind.DROP_OFF, null -> Color.White
+}
+
+private val RouteCardColors = lightColorScheme(
+    primary = Ink,
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFFFF1C2),
+    onPrimaryContainer = Ink,
+    secondary = Accent,
+    onSecondary = Ink,
+    secondaryContainer = Color(0xFFFFF1C2),
+    onSecondaryContainer = Ink,
+    tertiary = PickUpGreen,
+    onTertiary = Ink,
+    tertiaryContainer = Color(0xFFDDF1DD),
+    onTertiaryContainer = Ink,
+    background = Color(0xFFF4F5F7),
+    onBackground = Ink,
+    surface = Color(0xFFF4F5F7),
+    onSurface = Ink,
+    surfaceVariant = Color(0xFFECEEF1),
+    onSurfaceVariant = Color(0xFF5F6368),
+    surfaceTint = Color.Transparent,
+    surfaceContainerLowest = Color.White,
+    surfaceContainerLow = Color.White,
+    surfaceContainer = Color.White,
+    surfaceContainerHigh = Color(0xFFEFF1F4),
+    surfaceContainerHighest = Color(0xFFE6E8EC),
+    surfaceBright = Color.White,
+    surfaceDim = Color(0xFFE2E4E8),
+    inverseSurface = Ink,
+    inverseOnSurface = Color.White,
+    inversePrimary = Accent,
+    outline = Color(0xFF9AA0A6),
     outlineVariant = Hairline,
-    error = Color(0xFFFF7A7A),
-    onError = Color(0xFF2D0607),
-    errorContainer = Color(0xFF4A1417),
-    onErrorContainer = Color(0xFFFFDAD8),
+    error = NotLocated,
+    onError = Color.White,
+    errorContainer = Color(0xFFFDE2E1),
+    onErrorContainer = Color(0xFF5F1412),
     scrim = Color(0xFF000000),
 )
 
@@ -74,7 +100,7 @@ private fun style(size: Int, line: Int, weight: FontWeight = FontWeight.Normal, 
     TextStyle(fontSize = size.sp, lineHeight = line.sp, fontWeight = weight, letterSpacing = spacing.sp)
 
 /** A compact, modern type scale (smaller than the first driving design, at the driver's request). */
-private val NightTypography = Typography(
+private val RouteTypography = Typography(
     displaySmall = style(34, 40, FontWeight.Bold, -0.5f),
     headlineLarge = style(30, 36, FontWeight.Bold, -0.3f),
     headlineMedium = style(26, 32, FontWeight.Bold, -0.2f),
@@ -90,7 +116,7 @@ private val NightTypography = Typography(
     labelSmall = style(11, 14, FontWeight.Medium, 0.4f),
 )
 
-private val NightShapes = Shapes(
+private val RouteShapes = Shapes(
     extraSmall = RoundedCornerShape(8.dp),
     small = RoundedCornerShape(10.dp),
     medium = RoundedCornerShape(14.dp),
@@ -100,5 +126,5 @@ private val NightShapes = Shapes(
 
 @Composable
 fun NastaTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = NightColors, typography = NightTypography, shapes = NightShapes, content = content)
+    MaterialTheme(colorScheme = RouteCardColors, typography = RouteTypography, shapes = RouteShapes, content = content)
 }

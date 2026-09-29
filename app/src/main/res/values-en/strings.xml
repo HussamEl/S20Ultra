@@ -257,4 +257,9 @@
     <string name="youdrive_start_page">YouDrive start page</string>
     <string name="youdrive_problem">Page problem: %1$s</string>
     <string name="youdrive_more">More</string>
+    <string name="kind_pick_up">Pick-up</string>
+    <string name="kind_drop_off">Drop-off</string>
+    <string name="kind_pull_out">Start</string>
+    <string name="kind_pull_in">Back to depot</string>
+    <string name="depot_hint">The start point (YouDrive’s Pull-out) is where your day begins. It is shown in grey above the trips, but it is not a stop: it is not sent to Maps, announced or counted.</string>
 </resources>

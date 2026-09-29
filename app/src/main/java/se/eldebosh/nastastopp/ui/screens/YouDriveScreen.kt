@@ -39,6 +39,7 @@ import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.ui.AppCard
 import se.eldebosh.nastastopp.ui.Chevron
 import se.eldebosh.nastastopp.ui.Hint
+import se.eldebosh.nastastopp.ui.KindLabel
 import se.eldebosh.nastastopp.ui.ListRow
 import se.eldebosh.nastastopp.ui.TouchTarget
 import se.eldebosh.nastastopp.ui.ref
@@ -196,12 +197,18 @@ private fun ChangeRow(
             .padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
     ) {
         Column(Modifier.weight(1f)) {
-            Text(
-                stringResource(if (added) R.string.trip_added_title else R.string.trip_cancelled_title, trip.time ?: "--:--"),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = if (added) Located else NotLocated,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(if (added) R.string.trip_added_title else R.string.trip_cancelled_title, trip.time ?: "--:--"),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = if (added) Located else NotLocated,
+                )
+                trip.stop?.kind?.let {
+                    Spacer(Modifier.width(8.dp))
+                    KindLabel(it)
+                }
+            }
             Text(
                 trip.address,
                 style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Content),

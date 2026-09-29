@@ -13,7 +13,7 @@ An Android app for a Swedish shared-ride driver:
 - Deliver each build as a zip of `dist/NastaStopp.apk`, sent as a file.
 
 ## Hard rules (never break)
-- Images are never copied or stored. Keep only addresses and times: no names, phone numbers or other text.
+- Images are never copied or stored. Keep only addresses, times and the trip kind (the list's Pick-up / Drop-off / Pull-out label): no names, phone numbers or other text.
 - Never log addresses or OCR text in release (use `util/DebugLog`). `allowBackup=false`.
 - **No location permission at all** (removed with `tools:node="remove"`); only Google Maps uses location. The YouDrive WebView gets no geolocation.
 - INTERNET is only for the YouDrive page. No Firebase, analytics, crash reporting or Hilt.
@@ -22,8 +22,8 @@ An Android app for a Swedish shared-ride driver:
 - Nothing may appear on its own. Every dialog, toast, Maps launch or sound follows a driver action. The only exceptions are YouDrive trip alerts and the "open Maps" fallback notification.
 
 ## UI conventions
-- Theme tokens live in `ui/theme/Theme.kt`: `Brand`, `TimeColor`, `Located`, `NotLocated`, `Hairline`.
-- Use the components in `ui/Components.kt`: `AppButton`, `AppCard`, `ListRow`, `TopBar`, `SectionTitle`.
+- Theme tokens live in `ui/theme/Theme.kt` (the light "Route cards" identity, from YouDrive's colours): `Ink`, `Brand` (= Ink), `Accent` (yellow, the next action), `PickUpGreen`, `DepotGrey`, `kindColor(kind)`, `TimeColor`, `Located`, `NotLocated`, `Hairline`.
+- Use the components in `ui/Components.kt`: `AppButton`, `AppCard`, `ListRow`, `TopBar`, `SectionTitle`, `KindLabel`.
 - Explanations never sit inline. Use `HelpDot(R.string.…)` (a tiny "?"); its text is Arabic while setting 104 is on.
 - Every control or piece of info gets a reference number:
   - `Modifier.ref(n)` puts it in a strip above the element; use `centered = true` inside rows.

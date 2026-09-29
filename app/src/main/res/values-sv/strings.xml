@@ -257,4 +257,9 @@
     <string name="youdrive_start_page">YouDrives startsida</string>
     <string name="youdrive_problem">Problem på sidan: %1$s</string>
     <string name="youdrive_more">Mer</string>
+    <string name="kind_pick_up">Hämtning</string>
+    <string name="kind_drop_off">Lämning</string>
+    <string name="kind_pull_out">Start</string>
+    <string name="kind_pull_in">Tillbaka till depån</string>
+    <string name="depot_hint">Startpunkten (YouDrives Pull-out) är där dagen börjar. Den visas i grått ovanför resorna men är inget stopp: den skickas inte till Maps, annonseras inte och räknas inte.</string>
 </resources>

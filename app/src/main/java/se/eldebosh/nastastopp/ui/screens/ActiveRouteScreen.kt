@@ -7,7 +7,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.preferKeepClear
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -24,6 +23,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -54,17 +54,23 @@ import kotlinx.coroutines.delay
 import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.ui.ref
 import se.eldebosh.nastastopp.core.geo.StreetInfo
+import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.core.parse.TripTimes
 import se.eldebosh.nastastopp.core.route.DetectorPhase
 import se.eldebosh.nastastopp.route.TrackingState
 import se.eldebosh.nastastopp.route.model.RouteData
 import se.eldebosh.nastastopp.route.model.Stop
 import se.eldebosh.nastastopp.ui.AppButton
+import se.eldebosh.nastastopp.ui.KindLabel
 import se.eldebosh.nastastopp.ui.ButtonRow
 import se.eldebosh.nastastopp.ui.TopBar
 import se.eldebosh.nastastopp.ui.TouchTarget
 import se.eldebosh.nastastopp.ui.refCorner
+import se.eldebosh.nastastopp.ui.theme.Accent
 import se.eldebosh.nastastopp.ui.theme.Brand
+import se.eldebosh.nastastopp.ui.theme.DepotGrey
+import se.eldebosh.nastastopp.ui.theme.Ink
+import se.eldebosh.nastastopp.ui.theme.kindColor
 import se.eldebosh.nastastopp.ui.theme.Hairline
 import se.eldebosh.nastastopp.ui.theme.TimeColor
 import se.eldebosh.nastastopp.ui.theme.Located
@@ -107,9 +113,10 @@ fun ActiveRouteScreen(
     var confirmEnd by remember { mutableStateOf(false) }
     val current = route.stops.firstOrNull()
     val listState = rememberLazyListState()
-    // Keep one completed trip visible above the current one.
-    LaunchedEffect(route.completed.size) {
-        listState.scrollToItem((route.completed.size - 1).coerceAtLeast(0))
+    // Keep one completed trip (or the start point) visible above the current one.
+    val lead = if (route.depot != null) 1 else 0
+    LaunchedEffect(route.completed.size, lead) {
+        listState.scrollToItem((lead + route.completed.size - 1).coerceAtLeast(0))
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -149,6 +156,7 @@ fun ActiveRouteScreen(
             modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            route.depot?.let { depot -> item(key = "depot") { DepotRow(depot) } }
             itemsIndexed(route.completed, key = { _, s -> "done-${s.id}" }) { _, stop ->
                 CompletedRow(stop, spokenName(stop))
             }
@@ -171,6 +179,7 @@ fun ActiveRouteScreen(
                 UpcomingRow(index = i + 2, stop = stop, area = spokenName(stop))
             }
         }
+        HorizontalDivider(thickness = 1.dp, color = Hairline)
         // preferKeepClear: asks the system to keep floating windows (Maps' picture-in-picture) off
         // the driving buttons. Honoured only where the system supports it (Android 13+, not all).
         Column(
@@ -182,7 +191,10 @@ fun ActiveRouteScreen(
                     stringResource(R.string.overlay_back), onPreviousTrip, Modifier.ref(77).weight(1f),
                     icon = R.drawable.ic_previous, primary = false, enabled = route.completed.isNotEmpty(), minHeight = 60.dp,
                 )
-                AppButton(stringResource(R.string.btn_next), onNext, Modifier.ref(78).weight(1.6f), icon = R.drawable.ic_next, minHeight = 60.dp)
+                AppButton(
+                    stringResource(R.string.btn_next), onNext, Modifier.ref(78).weight(1.6f),
+                    icon = R.drawable.ic_next, minHeight = 60.dp, containerColor = Accent, contentColor = Ink,
+                )
             }
             ButtonRow {
                 ActionTile(R.drawable.ic_repeat, stringResource(R.string.btn_repeat), 79, onRepeat)
@@ -283,11 +295,18 @@ private fun TimeStatusChip(time: String, nowMs: Long) {
     Text(
         label,
         style = MaterialTheme.typography.labelLarge,
-        color = Color(0xFF0B0F17),
+        color = Color.White,
         modifier = Modifier.ref(70).clip(RoundedCornerShape(50)).background(color).padding(horizontal = 10.dp, vertical = 3.dp),
     )
 }
 
+/** Secondary text on a trip card (white, green or grey): ink, a little lighter. */
+private val CardMuted = Ink.copy(alpha = 0.72f)
+
+/**
+ * The current trip, like YouDrive's active card: the trip's colour (green pick-up, white
+ * drop-off) inside a thick black border, the time on a yellow pill.
+ */
 @Composable
 private fun CurrentCard(current: Stop, area: String, status: String, arrivedAtMs: Long?) {
     val nowMs = rememberNowMs()
@@ -297,26 +316,40 @@ private fun CurrentCard(current: Stop, area: String, status: String, arrivedAtMs
             .ref(68)
             .fillMaxWidth()
             .clip(shape)
-            .background(Brush.verticalGradient(listOf(Color(0xFF1C3968), Color(0xFF132A4D))))
-            .border(1.dp, Brand.copy(alpha = 0.35f), shape)
+            .background(kindColor(current.kind))
+            .border(3.dp, Ink, shape)
             .padding(16.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 stringResource(R.string.active_next_label),
                 style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.weight(1f),
+                color = Ink,
             )
+            if (current.kind != null) {
+                Spacer(Modifier.width(8.dp))
+                KindLabel(current.kind, Modifier.ref(128, centered = true))
+            }
+            Spacer(Modifier.weight(1f))
             if (current.time != null) TimeStatusChip(current.time, nowMs)
         }
         if (current.time != null) {
-            Text(current.time, style = MaterialTheme.typography.headlineSmall, color = TimeColor, modifier = Modifier.ref(69).padding(top = 4.dp))
+            Text(
+                current.time,
+                style = MaterialTheme.typography.headlineSmall,
+                color = Ink,
+                modifier = Modifier
+                    .ref(69)
+                    .padding(top = 6.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Accent)
+                    .padding(horizontal = 10.dp, vertical = 2.dp),
+            )
         }
         Text(
             area,
             style = MaterialTheme.typography.headlineLarge.copy(textDirection = TextDirection.Content),
-            color = Color.White,
+            color = Ink,
             modifier = Modifier.ref(71),
         )
         Spacer(Modifier.height(6.dp))
@@ -331,12 +364,12 @@ private fun CurrentCard(current: Stop, area: String, status: String, arrivedAtMs
             Text(
                 current.displayText,
                 style = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Content),
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                color = Ink,
                 modifier = Modifier.ref(72),
             )
         }
         Spacer(Modifier.height(8.dp))
-        Text(status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f), modifier = Modifier.ref(73))
+        Text(status, style = MaterialTheme.typography.bodySmall, color = CardMuted, modifier = Modifier.ref(73))
         if (arrivedAtMs != null) {
             Text(
                 stringResource(R.string.wait_at_stop, TimeLabels.duration(nowMs - arrivedAtMs)),
@@ -348,6 +381,7 @@ private fun CurrentCard(current: Stop, area: String, status: String, arrivedAtMs
     }
 }
 
+/** A coming trip on its YouDrive colour (green pick-up, white drop-off, grey depot). */
 @Composable
 private fun UpcomingRow(index: Int, stop: Stop, area: String) {
     val shape = MaterialTheme.shapes.medium
@@ -357,7 +391,7 @@ private fun UpcomingRow(index: Int, stop: Stop, area: String) {
             .ref(76)
             .fillMaxWidth()
             .clip(shape)
-            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .background(kindColor(stop.kind))
             .border(1.dp, Hairline, shape)
             .padding(horizontal = 14.dp, vertical = 10.dp),
     ) {
@@ -368,13 +402,47 @@ private fun UpcomingRow(index: Int, stop: Stop, area: String) {
         )
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text("$index. $area", style = MaterialTheme.typography.titleSmall)
+            Text("$index. $area", style = MaterialTheme.typography.titleSmall, color = Ink)
             Text(
                 stop.displayText,
                 style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Content),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = CardMuted,
             )
         }
+        if (stop.kind != null) {
+            Spacer(Modifier.width(8.dp))
+            KindLabel(stop.kind)
+        }
+    }
+}
+
+/** The day's start point (YouDrive's grey Pull-out card): shown, but not a stop. */
+@Composable
+private fun DepotRow(depot: Stop) {
+    val shape = MaterialTheme.shapes.medium
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .ref(85)
+            .fillMaxWidth()
+            .clip(shape)
+            .background(DepotGrey)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+    ) {
+        KindLabel(TripKind.PULL_OUT)
+        Spacer(Modifier.width(10.dp))
+        if (depot.time != null) {
+            Text(depot.time, style = MaterialTheme.typography.labelLarge, color = Ink)
+            Spacer(Modifier.width(8.dp))
+        }
+        Text(
+            depot.displayText,
+            style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Content),
+            color = Ink,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 

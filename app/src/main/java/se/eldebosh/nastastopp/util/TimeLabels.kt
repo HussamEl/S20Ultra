@@ -9,9 +9,9 @@ import kotlin.math.roundToInt
 
 /** Short texts for the next trip's time status, the waiting timer and distances. */
 object TimeLabels {
-    const val COLOR_AHEAD = 0xFF4ADE80.toInt()
-    const val COLOR_SOON = 0xFFFBBF24.toInt()
-    const val COLOR_LATE = 0xFFF87171.toInt()
+    const val COLOR_AHEAD = 0xFF1E7A34.toInt()
+    const val COLOR_SOON = 0xFFB45309.toInt()
+    const val COLOR_LATE = 0xFFC62828.toInt()
 
     /**
      * "in 7 min" / "now" / "5 min late" for [minutes] until the scheduled time. Numbers are passed

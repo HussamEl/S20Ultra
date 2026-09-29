@@ -11,6 +11,7 @@ package se.eldebosh.nastastopp.core.parse
  * @property parsedTownKnown true if [parsedTown] is in the bundled locality list.
  * @property sourceOrder index of the (first) OCR line this stop came from.
  * @property time scheduled time of the trip as shown in the screenshot ("12:48"), or null.
+ * @property kind pick-up / drop-off / depot, from the list's label next to the trip, or null.
  */
 data class ExtractedStop(
     val displayText: String,
@@ -20,6 +21,7 @@ data class ExtractedStop(
     val sourceOrder: Int,
     val parsedTownKnown: Boolean = false,
     val time: String? = null,
+    val kind: TripKind? = null,
 )
 
 /** Which detection rule accepted the line (see §5 of the spec). */
@@ -65,15 +67,28 @@ class AddressExtractor(private val localities: Localities) {
             if (single != null) found += Triple(single, i, i)
             i++
         }
-        val times = try {
-            TripTimes.assign(lines, found.map { it.second to it.third })
-        } catch (_: RuntimeException) {
-            List(found.size) { null }
-        }
+        val (times, kinds) = timesAndKinds(lines, found.map { it.second to it.third })
         return mergeConsecutiveDuplicates(
-            found.mapIndexed { k, (p, first, _) -> p.toStop(startOrder + first).copy(time = times.getOrNull(k)) to p },
+            found.mapIndexed { k, (p, first, _) ->
+                p.toStop(startOrder + first).copy(time = times.getOrNull(k), kind = kinds.getOrNull(k)) to p
+            },
         )
     }
+
+    /**
+     * The time and kind label ("Pick-up") of every address span. Both sit in the same card, so one
+     * direction (above or below the address) is chosen for both, by whichever gives more spans a
+     * time or a label: a trip never takes its neighbour's kind while keeping its own time.
+     */
+    private fun timesAndKinds(lines: List<String>, spans: List<Pair<Int, Int>>): Pair<List<String?>, List<TripKind?>> =
+        try {
+            val times = TripTimes.timesNearby(lines, spans)
+            val kinds = TripTimes.nearby(lines, spans) { TripKinds.labelIn(lines[it]) }
+            val above = times.count(above = true) + kinds.count(above = true) >= times.count(above = false) + kinds.count(above = false)
+            times.values(above) to kinds.values(above)
+        } catch (_: RuntimeException) {
+            List(spans.size) { null } to List(spans.size) { null }
+        }
 
     /**
      * Parses a manually typed (or edited) address. Never rejects: if the text does not look like an
@@ -264,12 +279,14 @@ class AddressExtractor(private val localities: Localities) {
         val out = ArrayList<Pair<ExtractedStop, ParsedAddress>>()
         for (item in items) {
             val last = out.lastOrNull()
-            if (last != null && sameParsed(last.second, item.second)) {
+            if (last != null && sameParsed(last.second, item.second) && sameKindOrUnknown(last.first, item.first)) {
                 // Keep the more complete of the two (more place info), at the first position.
+                val time = last.first.time ?: item.first.time
+                val kind = last.first.kind ?: item.first.kind
                 val keep = if (placeScore(item.second) > placeScore(last.second)) {
-                    item.first.copy(sourceOrder = last.first.sourceOrder, time = last.first.time ?: item.first.time) to item.second
+                    item.first.copy(sourceOrder = last.first.sourceOrder, time = time, kind = kind) to item.second
                 } else {
-                    last.first.copy(time = last.first.time ?: item.first.time) to last.second
+                    last.first.copy(time = time, kind = kind) to last.second
                 }
                 out[out.lastIndex] = keep
             } else {
@@ -278,6 +295,9 @@ class AddressExtractor(private val localities: Localities) {
         }
         return out.map { it.first }
     }
+
+    /** A drop-off and a pick-up at the same address are two stops, not one read twice. */
+    fun sameKindOrUnknown(a: ExtractedStop, b: ExtractedStop): Boolean = a.kind == null || b.kind == null || a.kind == b.kind
 
     private fun placeScore(p: ParsedAddress) = (if (p.postalCode != null) 2 else 0) + (if (p.town != null) 1 else 0)
 

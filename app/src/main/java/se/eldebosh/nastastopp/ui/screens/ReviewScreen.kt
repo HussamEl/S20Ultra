@@ -67,7 +67,13 @@ import se.eldebosh.nastastopp.ui.AppButton
 import se.eldebosh.nastastopp.ui.ButtonRow
 import se.eldebosh.nastastopp.ui.TopBar
 import se.eldebosh.nastastopp.ui.TouchTarget
+import se.eldebosh.nastastopp.core.parse.TripKind
+import se.eldebosh.nastastopp.ui.KindLabel
+import se.eldebosh.nastastopp.ui.theme.Accent
+import se.eldebosh.nastastopp.ui.theme.DepotGrey
 import se.eldebosh.nastastopp.ui.theme.Hairline
+import se.eldebosh.nastastopp.ui.theme.Ink
+import se.eldebosh.nastastopp.ui.theme.kindColor
 import se.eldebosh.nastastopp.ui.theme.TimeColor
 import se.eldebosh.nastastopp.ui.theme.Located
 import se.eldebosh.nastastopp.ui.theme.NotLocated
@@ -112,6 +118,7 @@ fun ReviewScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.ref(42).padding(horizontal = 20.dp),
         )
+        route?.depot?.let { DepotCard(it) }
         if (stops.isEmpty()) {
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 if (importing) CircularProgressIndicator()
@@ -160,6 +167,7 @@ fun ReviewScreen(
                 AppButton(
                     stringResource(R.string.review_start), onStart, Modifier.ref(52).fillMaxWidth(),
                     icon = R.drawable.ic_navigation, enabled = stops.isNotEmpty(), minHeight = 52.dp,
+                    containerColor = Accent, contentColor = Ink,
                 )
             }
         }
@@ -222,7 +230,7 @@ private fun SwipeableStopRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(shape)
-                .background(if (dragging) MaterialTheme.colorScheme.surfaceContainerHighest else MaterialTheme.colorScheme.surfaceContainer)
+                .background(if (dragging) MaterialTheme.colorScheme.surfaceContainerHighest else kindColor(stop.kind))
                 .border(1.dp, if (dragging) MaterialTheme.colorScheme.primary else Hairline, shape)
                 .heightIn(min = 72.dp),
         ) {
@@ -247,7 +255,7 @@ private fun SwipeableStopRow(
                         )
                     },
             ) {
-                Icon(painterResource(R.drawable.ic_drag), contentDescription = null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(22.dp))
+                Icon(painterResource(R.drawable.ic_drag), contentDescription = null, tint = Ink.copy(alpha = 0.45f), modifier = Modifier.size(22.dp))
             }
             Box(Modifier.weight(1f)) {
                 Column(
@@ -266,16 +274,21 @@ private fun SwipeableStopRow(
                         Text(
                             "${index + 1}",
                             style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = Ink.copy(alpha = 0.7f),
                         )
                         if (stop.time != null) {
                             Spacer(Modifier.width(8.dp))
                             Text(stop.time, style = MaterialTheme.typography.labelLarge, color = TimeColor, modifier = Modifier.ref(46, centered = true))
                         }
+                        if (stop.kind != null) {
+                            Spacer(Modifier.width(8.dp))
+                            KindLabel(stop.kind, Modifier.ref(126, centered = true))
+                        }
                     }
                     Text(
                         stop.displayText,
                         style = MaterialTheme.typography.titleSmall.copy(textDirection = TextDirection.Content),
+                        color = Ink,
                         modifier = Modifier.ref(47),
                     )
                     Text(
@@ -333,6 +346,29 @@ private fun SwipeableStopRow(
             }
             Spacer(Modifier.width(4.dp))
         }
+    }
+}
+
+/** The day's start point (YouDrive's grey Pull-out): shown above the trips, but not one of them. */
+@Composable
+private fun DepotCard(depot: Stop) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .ref(127)
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.large)
+            .background(DepotGrey)
+            .padding(start = 14.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+    ) {
+        KindLabel(TripKind.PULL_OUT)
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            if (depot.time != null) Text(depot.time, style = MaterialTheme.typography.labelLarge, color = Ink)
+            Text(depot.displayText, style = MaterialTheme.typography.bodyMedium.copy(textDirection = TextDirection.Content), color = Ink)
+        }
+        HelpDot(R.string.depot_hint, Modifier.refCorner(129), title = stringResource(R.string.kind_pull_out))
     }
 }
 

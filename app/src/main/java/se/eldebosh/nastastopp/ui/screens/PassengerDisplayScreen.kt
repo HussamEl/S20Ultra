@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.FilledIconButton
@@ -33,8 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -56,7 +56,8 @@ import se.eldebosh.nastastopp.core.display.DisplayItem
 import se.eldebosh.nastastopp.core.display.DisplaySnapshot
 import se.eldebosh.nastastopp.ui.TouchTarget
 import se.eldebosh.nastastopp.ui.refCorner
-import se.eldebosh.nastastopp.ui.theme.Brand
+import se.eldebosh.nastastopp.ui.theme.Accent
+import se.eldebosh.nastastopp.ui.theme.Ink
 import se.eldebosh.nastastopp.ui.theme.TimeColor
 import se.eldebosh.nastastopp.ui.theme.Located
 import se.eldebosh.nastastopp.ui.theme.NotLocated
@@ -84,13 +85,13 @@ fun PassengerDisplayScreen(
     Column(
         Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(Color(0xFF0B0F17), Color(0xFF05070B))))
+            .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 20.dp, vertical = 8.dp),
     ) {
         // Top: exit, connection status, clock.
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             IconButton(onClick = onExit, modifier = Modifier.refCorner(86).size(TouchTarget)) {
-                Icon(painterResource(R.drawable.ic_stop), contentDescription = stringResource(R.string.display_exit), tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(22.dp))
+                Icon(painterResource(R.drawable.ic_stop), contentDescription = stringResource(R.string.display_exit), tint = Ink.copy(alpha = 0.5f), modifier = Modifier.size(22.dp))
             }
             if (status != null) {
                 Box(
@@ -102,7 +103,7 @@ fun PassengerDisplayScreen(
                 Text(
                     status,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White.copy(alpha = 0.6f),
+                    color = Ink.copy(alpha = 0.6f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.ref(87),
@@ -116,7 +117,7 @@ fun PassengerDisplayScreen(
             Text(
                 detail,
                 style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Content),
-                color = Color.White.copy(alpha = 0.5f),
+                color = Ink.copy(alpha = 0.5f),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.ref(95).padding(start = 12.dp),
@@ -129,7 +130,7 @@ fun PassengerDisplayScreen(
                 Text(
                     stringResource(R.string.display_waiting_route),
                     style = MaterialTheme.typography.headlineMedium,
-                    color = Color.White.copy(alpha = 0.7f),
+                    color = Ink.copy(alpha = 0.7f),
                     textAlign = TextAlign.Center,
                 )
             }
@@ -146,7 +147,13 @@ fun PassengerDisplayScreen(
             verticalArrangement = Arrangement.Center,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.ref(90)) {
-                Text(stringResource(R.string.display_next_label), color = Brand, fontSize = 26.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    stringResource(R.string.display_next_label),
+                    color = Ink,
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clip(RoundedCornerShape(50)).background(Accent).padding(horizontal = 16.dp, vertical = 2.dp),
+                )
                 if (current.time != null) {
                     Spacer(Modifier.width(14.dp))
                     Text(current.time, color = TimeColor, fontSize = 26.sp, fontWeight = FontWeight.Bold)
@@ -154,7 +161,7 @@ fun PassengerDisplayScreen(
             }
             BoxWithConstraints(Modifier.ref(91).weight(1f, fill = false).fillMaxWidth()) {
                 val style = TextStyle(
-                    color = Color.White,
+                    color = Ink,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
                     textDirection = TextDirection.Content,
@@ -179,7 +186,7 @@ fun PassengerDisplayScreen(
             current.subtitle?.let {
                 Text(
                     it,
-                    color = Color.White.copy(alpha = 0.75f),
+                    color = Ink.copy(alpha = 0.75f),
                     fontSize = 28.sp,
                     textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.titleLarge.copy(textDirection = TextDirection.Content),
@@ -192,7 +199,7 @@ fun PassengerDisplayScreen(
             FilledIconButton(
                 onClick = onSpeak,
                 modifier = Modifier.refCorner(93).size(80.dp),
-                colors = IconButtonDefaults.filledIconButtonColors(containerColor = Brand, contentColor = Color(0xFF06142B)),
+                colors = IconButtonDefaults.filledIconButtonColors(containerColor = Accent, contentColor = Ink),
             ) {
                 Icon(painterResource(R.drawable.ic_speaker), contentDescription = stringResource(R.string.display_repeat), modifier = Modifier.size(40.dp))
             }
@@ -217,7 +224,7 @@ private fun TripLine(item: DisplayItem, fontSize: Int, alpha: Float, modifier: M
             }
             Text(
                 item.title,
-                color = Color.White,
+                color = Ink,
                 fontSize = fontSize.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -225,7 +232,7 @@ private fun TripLine(item: DisplayItem, fontSize: Int, alpha: Float, modifier: M
             )
         }
         item.subtitle?.let {
-            Text(it, color = Color.White, fontSize = (fontSize * 0.7f).sp, maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(textDirection = TextDirection.Content))
+            Text(it, color = Ink, fontSize = (fontSize * 0.7f).sp, maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(textDirection = TextDirection.Content))
         }
     }
 }
@@ -240,7 +247,7 @@ fun Clock(modifier: Modifier = Modifier, fontSize: Int = 26) {
             delay(1_000)
         }
     }
-    Text(now, modifier = modifier, color = Color.White.copy(alpha = 0.7f), fontSize = fontSize.sp, fontWeight = FontWeight.SemiBold)
+    Text(now, modifier = modifier, color = Ink.copy(alpha = 0.7f), fontSize = fontSize.sp, fontWeight = FontWeight.SemiBold)
 }
 
 /** Full screen (system bars hidden, swipe to show) and screen always on while visible. */

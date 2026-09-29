@@ -43,6 +43,7 @@ import se.eldebosh.nastastopp.route.model.GeoPoint
 import se.eldebosh.nastastopp.route.model.GeoStatus
 import se.eldebosh.nastastopp.route.model.RouteData
 import se.eldebosh.nastastopp.route.model.Stop
+import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.settings.AppSettings
 import se.eldebosh.nastastopp.tts.TtsStatus
 import se.eldebosh.nastastopp.ui.LocalExplainResources
@@ -74,22 +75,26 @@ class ScreenshotsRoboTest {
 
     private val now = System.currentTimeMillis()
 
-    private fun stop(id: Long, text: String, time: String?, located: Boolean = true) = Stop(
+    private fun stop(id: Long, text: String, time: String?, located: Boolean = true, kind: TripKind? = null) = Stop(
         id = id,
         displayText = text,
         candidates = listOf(text),
         geoStatus = if (located) GeoStatus.LOCATED else GeoStatus.NOT_LOCATED,
         geo = if (located) GeoPoint(59.38, 13.50) else null,
         time = time,
+        kind = kind,
     )
 
     private val stops = listOf(
-        stop(1, "Sjösalagatan 21, 66452 Vålberg", "07:30"),
-        stop(2, "Brattgårdsgatan 4, 66452 Vålberg", "07:36"),
-        stop(3, "Majeldsvägen 10, 66450 Vålberg", "08:00"),
-        stop(4, "Storgatan 14, 65224 Karlstad", "08:25", located = false),
+        stop(1, "Sjösalagatan 21, 66452 Vålberg", "07:30", kind = TripKind.PICK_UP),
+        stop(2, "Brattgårdsgatan 4, 66452 Vålberg", "07:36", kind = TripKind.PICK_UP),
+        stop(3, "Majeldsvägen 10, 66450 Vålberg", "08:00", kind = TripKind.DROP_OFF),
+        stop(4, "Storgatan 14, 65224 Karlstad", "08:25", located = false, kind = TripKind.DROP_OFF),
         stop(5, "Lindvägen 9, 66430 Grums", "09:10"),
     )
+
+    /** The day's start point (YouDrive's Pull-out), invented. */
+    private val depot = stop(9, "Depågatan 1, 65340 Karlstad", "06:42", kind = TripKind.PULL_OUT)
 
     private fun spoken(s: Stop) = s.displayText.substringAfterLast(' ')
 
@@ -152,7 +157,7 @@ class ScreenshotsRoboTest {
     @Test
     fun activeRoute() = shot("active") {
         ActiveRouteScreen(
-            route = RouteData(createdAtMs = now, active = true, stops = stops.drop(1), completed = stops.take(1)),
+            route = RouteData(createdAtMs = now, active = true, stops = stops.drop(1), completed = stops.take(1), depot = depot),
             tracking = TrackingState(),
             hasLocationPermission = false,
             spokenName = ::spoken,
@@ -167,7 +172,7 @@ class ScreenshotsRoboTest {
     @Test
     fun review() = shot("review") {
         ReviewScreen(
-            route = RouteData(createdAtMs = now, stops = stops),
+            route = RouteData(createdAtMs = now, stops = stops, depot = depot),
             spokenName = ::spoken,
             importing = false,
             onBack = {}, onMove = { _, _ -> }, onDelete = {}, onDeleteAbove = {}, onEdit = { _, _, _ -> true }, onRetry = {},
@@ -275,6 +280,45 @@ class ScreenshotsRoboTest {
             }
             val dir = File("build/fixtures").apply { mkdirs() }
             File(dir, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        }
+        drawYouDriveFixture()
+    }
+
+    /** [DeviceFixtures.youDriveCards] drawn like YouDrive's list: coloured cards, two columns. */
+    private fun drawYouDriveFixture() {
+        val bitmap = Bitmap.createBitmap(1080, 2400, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap).apply { drawColor(0xFFF5F5F5.toInt()) }
+        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.BLACK }
+        val fill = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        paint.textSize = 34f
+        canvas.drawText(DeviceFixtures.youDrive[0], 48f, 50f, paint) // status bar clock
+        paint.textSize = 52f
+        paint.isFakeBoldText = true
+        canvas.drawText(DeviceFixtures.youDrive[1], 48f, 150f, paint)
+        val rowH = 60f
+        var top = 210f
+        for (card in DeviceFixtures.youDriveCards) {
+            val bottom = top + 40f + card.rows.size * rowH
+            val rect = android.graphics.RectF(24f, top, 1056f, bottom)
+            fill.style = android.graphics.Paint.Style.FILL
+            fill.color = card.color.toInt()
+            canvas.drawRoundRect(rect, 12f, 12f, fill)
+            fill.style = android.graphics.Paint.Style.STROKE
+            fill.color = 0xFFBDBDBD.toInt()
+            canvas.drawRoundRect(rect, 12f, 12f, fill)
+            card.rows.forEachIndexed { i, (left, right) ->
+                val y = top + 20f + (i + 1) * rowH - 16f
+                paint.textSize = 40f
+                paint.isFakeBoldText = true
+                left?.let { canvas.drawText(it, 48f, y, paint) }
+                paint.isFakeBoldText = false
+                paint.textSize = 36f
+                right?.let { canvas.drawText(it, 260f, y, paint) }
+            }
+            top = bottom + 24f
+        }
+        File(File("build/fixtures").apply { mkdirs() }, "fixture_youdrive.png").outputStream().use {
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
     }
 
