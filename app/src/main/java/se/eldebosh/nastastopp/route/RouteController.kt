@@ -490,6 +490,17 @@ class RouteController(
         return true
     }
 
+    /**
+     * Says the next stop's street and number ("Brattgårdsgatan 4"). Only when the driver taps them
+     * on the floating panel: automatic announcements stay district or town only. Never the
+     * passenger's name, and not sent to passenger displays. Returns false without a route.
+     */
+    fun speakStopStreet(): Boolean {
+        val stop = _route.value?.takeIf { it.active }?.stops?.firstOrNull() ?: return false
+        announcer.speak(Announcement(DisplayItem.streetPart(stop.displayText), null))
+        return true
+    }
+
     /** "Upprepa": repeats the announcement for the current state. */
     fun repeat() {
         val r = _route.value ?: return

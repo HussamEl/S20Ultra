@@ -20,7 +20,7 @@ An Android app for a Swedish shared-ride driver:
 - **The YouDrive WebView never gets location**: `setGeolocationEnabled(false)` and every page prompt is denied (`theYouDrivePageNeverGetsTheLocation`).
 - INTERNET is only for the YouDrive page. No Firebase, analytics, crash reporting or Hilt.
 - Never use or store the driver's YouDrive credentials. Never disable TLS verification. Never unset HTTPS_PROXY.
-- Spoken announcements name only the district or town. The passenger display may show street + number (setting 114).
+- Spoken announcements name only the district or town. The passenger display may show street + number (setting 114). Only on the driver's tap does the app say a street: the current street (the panel's street bar) or the next stop's street + number (panel part 13). Never a passenger's name.
 - Nothing may appear on its own. Every dialog, toast, Maps launch or sound follows a driver action. The only exceptions are YouDrive trip alerts and the "open Maps" fallback notification.
 
 ## UI conventions

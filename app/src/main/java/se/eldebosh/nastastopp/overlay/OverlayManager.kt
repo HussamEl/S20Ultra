@@ -39,6 +39,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import se.eldebosh.nastastopp.MainActivity
 import se.eldebosh.nastastopp.R
+import se.eldebosh.nastastopp.core.display.DisplayItem
 import se.eldebosh.nastastopp.core.parse.TimeLevel
 import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.core.parse.TripTimes
@@ -48,7 +49,6 @@ import se.eldebosh.nastastopp.service.Notifications
 import se.eldebosh.nastastopp.settings.SettingsStore
 import se.eldebosh.nastastopp.ui.theme.AppColors
 import se.eldebosh.nastastopp.ui.theme.AppTheme
-import se.eldebosh.nastastopp.ui.kindName
 import se.eldebosh.nastastopp.ui.theme.DayColors
 import se.eldebosh.nastastopp.ui.theme.DayEffects
 import se.eldebosh.nastastopp.util.LocaleHelper
@@ -65,19 +65,20 @@ import kotlin.math.roundToInt
  *     ┌──────────────────────────────────────┐
  *     │ 13:14  1/11                  (–)  (×) │   clock, trip n/total, minimise, close
  *     │ ┌──────────────────────────────────┐ │
- *     │ │ ➤ Sandelsgatan              (🔊) │ │   the street we are on (a wide bar: long names fit)
- *     │ │   Kil                            │ │
+ *     │ │ ➤ Drottninggatan                 │ │   the street we are on (a wide bar; tap = say it)
+ *     │ │   Centrum                        │ │
  *     │ └──────────────────────────────────┘ │
  *     │ ┌──────────────────────────────────┐ │
- *     │ ▌ [14:33] Anna Testsson             │ │   the next trip: time and passenger,
- *     │ ▌ (Pick-up) ● in 7 min              │ │   its kind (YouDrive's colour), on-time status
- *     │ ▌ Storgatan 14, 652 24 Karlstad     │ │   and address
+ *     │ ▌ [14:33] Storgatan 14             │ │   the next trip: time, the stop's street (tap = say it),
+ *     │ ▌ Anna Testsson         ● in 7 min │ │   passenger and on-time status,
+ *     │ ▌ 652 24 Karlstad                  │ │   postal code and town; the stripe: its kind's colour
  *     │ └──────────────────────────────────┘ │
- *     │ [⏮ Back] [↻] [══════ ⏭ Next ═══════] │   Next: the big yellow bar
+ *     │ [⏮ Back] [═════════ ⏭ Next ════════] │   compact; Next is the bright one
  *     └──────────────────────────────────────┘
  *
  * It follows the UI language (Arabic: mirrored). Next: tap = "Nästa", long-press = repeat. Back:
- * undo the last "Nästa". The street bar: tap = say the street, long-press = repeat. "–" shrinks it
+ * undo the last "Nästa". The street bar: tap = say the street, long-press = repeat. The stop's
+ * street: tap = say its street and number. "–" shrinks it
  * to a small glass capsule (tap to expand); "×" closes it, and it comes back from the notification
  * that appears, the Quick Settings tile or the app. Everything can be dragged; the position is
  * remembered and kept on screen.
@@ -113,11 +114,10 @@ class OverlayManager(
         var name: TextView? = null
         var status: TextView? = null
         var statusDot: GradientDrawable? = null
-        var kind: TextView? = null
-        var kindBg: GradientDrawable? = null
         var stripe: GradientDrawable? = null
         var distance: TextView? = null
         var address: TextView? = null
+        var town: TextView? = null
         var wait: TextView? = null
         var extra: View? = null
         var bubbleMain: TextView? = null
@@ -196,21 +196,21 @@ class OverlayManager(
         val backAlpha = if (r.completed.isEmpty()) 0.35f else 1f
         (v.back as? ViewGroup)?.let { b -> for (i in 0 until b.childCount) b.getChildAt(i).alpha = backAlpha }
         v.progress?.text = progress(r.completedCount, r.stops.size)
-        v.address?.text = current.displayText
+        // The stop's street and number beside the time; its postal code and town below.
+        v.address?.text = DisplayItem.streetPart(current.displayText)
+        v.town?.apply {
+            val rest = current.displayText.substringAfter(',', "").trim()
+            text = rest
+            visibility = if (rest.isEmpty()) View.GONE else View.VISIBLE
+        }
         // The passenger's first + last name level with the time, as on YouDrive's card: this
         // panel is the driver's own.
         v.name?.apply {
             text = current.name.orEmpty()
             visibility = if (current.name == null) View.GONE else View.VISIBLE
         }
-        // The trip's kind in YouDrive's card colour: the stripe and the chip.
-        val kindColor = pc.trip(current.kind)
-        v.stripe?.setColor(kindColor)
-        v.kindBg?.setColor(kindColor)
-        v.kind?.apply {
-            text = current.kind?.let { ui.getString(kindName(it)) }.orEmpty()
-            visibility = if (current.kind == null) View.GONE else View.VISIBLE
-        }
+        // The trip's kind in YouDrive's card colour, as a stripe (no word: the time says enough).
+        v.stripe?.setColor(pc.trip(current.kind))
         v.time?.apply {
             text = current.time.orEmpty()
             visibility = if (current.time == null) View.GONE else View.VISIBLE
@@ -403,20 +403,21 @@ class OverlayManager(
             addView(streetView, LinearLayout.LayoutParams(MATCH, dp(32f)))
             addView(areaView, LinearLayout.LayoutParams(MATCH, WRAP))
         }
-        val speaker = roundIcon(R.drawable.ic_speaker, 40f, R.string.overlay_speak_street_desc)
+        // Tap anywhere on the bar = say the street (no separate speaker button).
         val streetBar = LinearLayout(ui).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             background = rounded(pc.well, WELL_RADIUS_DP)
-            setPaddingRelative(dp(12f), dp(7f), dp(7f), dp(7f))
+            setPaddingRelative(dp(12f), dp(7f), dp(12f), dp(7f))
             contentDescription = ui.getString(R.string.overlay_street_desc)
             addView(streetIcon, LinearLayout.LayoutParams(dp(22f), dp(22f)))
-            addView(streetText, LinearLayout.LayoutParams(0, WRAP, 1f).apply { marginStart = dp(10f); marginEnd = dp(6f) })
-            addView(speaker, LinearLayout.LayoutParams(dp(40f), dp(40f)))
+            addView(streetText, LinearLayout.LayoutParams(0, WRAP, 1f).apply { marginStart = dp(10f) })
         }
 
-        // The next trip: a stripe in its kind's colour; time, passenger and on-time status; the
-        // kind and the address; distance and waiting timer when known. Tap = open the app.
+        // The next trip, with a stripe in its kind's colour (the time says the rest, so no
+        // "Pick-up" word): the time with the stop's street and number beside it, large (tap =
+        // say them); the passenger and how late or early; the postal code and town; distance and
+        // waiting timer when known. Tap elsewhere = open the app.
         val stripe = GradientDrawable().apply {
             cornerRadius = dp(2f).toFloat()
             setColor(pc.trip(null))
@@ -425,12 +426,21 @@ class OverlayManager(
             background = rounded(pc.next, 9f)
             setPadding(dp(8f), dp(1f), dp(8f), dp(1f))
         }
-        val nameView = text(16f, pc.text, bold = true).apply {
+        val addressView = text(STOP_STREET_SP, pc.text, bold = true).apply {
             gravity = Gravity.START or Gravity.CENTER_VERTICAL
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
             textDirection = View.TEXT_DIRECTION_FIRST_STRONG
             // Aligned with the panel's side (the right in Arabic), whatever the script.
+            textAlignment = View.TEXT_ALIGNMENT_VIEW_START
+            setAutoSizeTextTypeUniformWithConfiguration(sp(13f), sp(STOP_STREET_SP), 1, TypedValue.COMPLEX_UNIT_PX)
+            contentDescription = ui.getString(R.string.overlay_stop_street_desc)
+        }
+        val nameView = text(15f, pc.text, bold = true).apply {
+            gravity = Gravity.START or Gravity.CENTER_VERTICAL
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+            textDirection = View.TEXT_DIRECTION_FIRST_STRONG
             textAlignment = View.TEXT_ALIGNMENT_VIEW_START
         }
         val statusDot = GradientDrawable().apply {
@@ -443,18 +453,11 @@ class OverlayManager(
             setCompoundDrawablesRelativeWithIntrinsicBounds(statusDot, null, null, null)
             compoundDrawablePadding = dp(5f)
         }
-        val kindBg = rounded(pc.trip(null), 20f)
-        val kindView = text(11f, pc.onKind, bold = true).apply {
-            background = kindBg
-            maxLines = 1
-            setPadding(dp(8f), dp(1f), dp(8f), dp(1f))
-        }
-        val addressView = text(13f, pc.text).apply {
+        val townView = text(12f, pc.muted).apply {
             gravity = Gravity.START
-            maxLines = 2
+            maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
             textDirection = View.TEXT_DIRECTION_FIRST_STRONG
-            // Aligned with the panel's side (the right in Arabic), whatever the script.
             textAlignment = View.TEXT_ALIGNMENT_VIEW_START
         }
         val distanceView = text(12f, pc.muted)
@@ -468,54 +471,43 @@ class OverlayManager(
         }
         val tripLines = LinearLayout(ui).apply {
             orientation = LinearLayout.VERTICAL
-            // The time and the passenger, level with each other as on YouDrive's card; the name
-            // takes the rest of the line and is cut short only if very long.
             addView(
                 LinearLayout(ui).apply {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = Gravity.CENTER_VERTICAL
                     addView(timeView)
-                    addView(nameView, LinearLayout.LayoutParams(0, WRAP, 1f).apply { marginStart = dp(8f) })
+                    addView(addressView, LinearLayout.LayoutParams(0, dp(28f), 1f).apply { marginStart = dp(8f) })
                 },
             )
-            // The kind and how late or early.
             addView(
                 LinearLayout(ui).apply {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = Gravity.CENTER_VERTICAL
-                    addView(kindView, LinearLayout.LayoutParams(WRAP, WRAP).apply { marginEnd = dp(8f) })
-                    addView(statusView)
+                    addView(nameView, LinearLayout.LayoutParams(0, WRAP, 1f))
+                    addView(statusView, LinearLayout.LayoutParams(WRAP, WRAP).apply { marginStart = dp(8f) })
                 },
-                LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(6f) },
+                LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(5f) },
             )
-            addView(addressView, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(4f) })
+            addView(townView, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(2f) })
             addView(extra, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(4f) })
         }
         val trip = LinearLayout(ui).apply {
             orientation = LinearLayout.HORIZONTAL
             background = rounded(pc.well, WELL_RADIUS_DP)
-            setPaddingRelative(dp(8f), dp(9f), dp(10f), dp(9f))
+            setPaddingRelative(dp(8f), dp(8f), dp(10f), dp(8f))
             contentDescription = ui.getString(R.string.overlay_open_app_desc)
             addView(View(ui).apply { background = stripe }, LinearLayout.LayoutParams(dp(4f), MATCH))
             addView(tripLines, LinearLayout.LayoutParams(0, WRAP, 1f).apply { marginStart = dp(9f) })
         }
 
-        // Actions: Back and repeat on glass; Next is the one bright thing on the card.
-        val back = actionButton(R.drawable.ic_previous, R.string.overlay_back, rounded(pc.well, WELL_RADIUS_DP), pc.text, vertical = true)
-        val repeat = ImageView(ui).apply {
-            setImageResource(R.drawable.ic_repeat)
-            imageTintList = ColorStateList.valueOf(pc.text)
-            val pad = dp(15f)
-            setPadding(pad, pad, pad, pad)
-            background = rounded(pc.well, WELL_RADIUS_DP)
-            contentDescription = ui.getString(R.string.overlay_repeat_desc)
-        }
-        val next = actionButton(R.drawable.ic_next, R.string.overlay_next, glow(pc.next, WELL_RADIUS_DP), pc.onNext, vertical = false)
+        // Actions: a compact Back on glass and Next, the one bright thing on the card. Repeat is
+        // a long-press on Next (or on the street bar).
+        val back = actionButton(R.drawable.ic_previous, R.string.overlay_back, rounded(pc.well, ACTION_RADIUS_DP), pc.text)
+        val next = actionButton(R.drawable.ic_next, R.string.overlay_next, glow(pc.next, ACTION_RADIUS_DP), pc.onNext)
         val actions = LinearLayout(ui).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            addView(back, LinearLayout.LayoutParams(dp(66f), dp(ACTION_H_DP)))
-            addView(repeat, LinearLayout.LayoutParams(dp(ACTION_H_DP), dp(ACTION_H_DP)).apply { marginStart = dp(8f) })
+            addView(back, LinearLayout.LayoutParams(WRAP, dp(ACTION_H_DP)))
             addView(next, LinearLayout.LayoutParams(0, dp(ACTION_H_DP), 1f).apply { marginStart = dp(8f) })
         }
 
@@ -524,11 +516,11 @@ class OverlayManager(
         card.addView(trip, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(8f) })
         card.addView(actions, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(8f) })
 
-        // Reference numbers 1–19 (listed in the README), so the driver can name each part.
+        // Reference numbers (listed in the README), so the driver can name each part. 4 (the
+        // speaker) and 15 (repeat) were removed in 1.5; their numbers are not reused.
         back.ref(1)
         streetBar.ref(2)
         areaView.ref(3)
-        speaker.ref(4)
         next.ref(5)
         minimize.ref(6, padText = false)
         close.ref(7, padText = false)
@@ -539,10 +531,9 @@ class OverlayManager(
         distanceView.ref(12)
         addressView.ref(13)
         waitView.ref(14)
-        repeat.ref(15)
         trip.ref(16, bottomEnd = true)
         nameView.ref(18)
-        kindView.ref(19)
+        townView.ref(19)
 
         next.setOnClickListener { controller.next(auto = false) }
         drag(next, press = true) { controller.repeat() }
@@ -550,15 +541,13 @@ class OverlayManager(
         drag(back, press = true)
         streetBar.setOnClickListener { speakStreet() }
         drag(streetBar, press = true) { controller.repeat() }
-        speaker.setOnClickListener { speakStreet() }
-        drag(speaker, press = true)
+        addressView.setOnClickListener { controller.speakStopStreet() }
+        drag(addressView, press = true)
         // × and – only react to a real tap: dragging from them moves the panel like elsewhere.
         close.setOnClickListener { hideByUser() }
         drag(close, press = true)
         minimize.setOnClickListener { settings.update { it.copy(overlayMinimized = true) } }
         drag(minimize, press = true)
-        repeat.setOnClickListener { controller.repeat() }
-        drag(repeat, press = true)
         trip.setOnClickListener { openApp() }
         drag(trip)
         drag(header)
@@ -573,11 +562,10 @@ class OverlayManager(
         v.name = nameView
         v.status = statusView
         v.statusDot = statusDot
-        v.kind = kindView
-        v.kindBg = kindBg
         v.stripe = stripe
         v.distance = distanceView
         v.address = addressView
+        v.town = townView
         v.wait = waitView
         v.extra = extra
         return window
@@ -630,35 +618,25 @@ class OverlayManager(
         return LayerDrawable(arrayOf(rounded(fill, radiusDp), sheen))
     }
 
-    /** Back (icon above its label) or Next (icon beside a large label). */
-    private fun actionButton(@DrawableRes icon: Int, label: Int, bg: Drawable, fg: Int, vertical: Boolean): View {
+    /** A compact pill with an icon beside its label (Back, Next). */
+    private fun actionButton(@DrawableRes icon: Int, label: Int, bg: Drawable, fg: Int): View {
         val image = ImageView(ui).apply {
             setImageResource(icon)
             imageTintList = ColorStateList.valueOf(fg)
         }
-        val caption = text(if (vertical) 11f else 18f, fg, bold = true).apply {
+        val caption = text(15f, fg, bold = true).apply {
             text = ui.getString(label)
             maxLines = 1
         }
         return LinearLayout(ui).apply {
-            orientation = if (vertical) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+            orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
             background = bg
+            setPaddingRelative(dp(14f), 0, dp(16f), 0)
             contentDescription = ui.getString(label)
-            val size = dp(if (vertical) 24f else 28f)
-            addView(image, LinearLayout.LayoutParams(size, size))
-            addView(caption, LinearLayout.LayoutParams(WRAP, WRAP).apply { if (!vertical) marginStart = dp(8f) })
+            addView(image, LinearLayout.LayoutParams(dp(20f), dp(20f)))
+            addView(caption, LinearLayout.LayoutParams(WRAP, WRAP).apply { marginStart = dp(6f) })
         }
-    }
-
-    /** A round glass icon button (the speaker). */
-    private fun roundIcon(@DrawableRes icon: Int, sizeDp: Float, description: Int) = ImageView(ui).apply {
-        setImageResource(icon)
-        imageTintList = ColorStateList.valueOf(pc.text)
-        val pad = dp(sizeDp / 4.5f)
-        setPadding(pad, pad, pad, pad)
-        background = oval(pc.control)
-        contentDescription = ui.getString(description)
     }
 
     /** A small round glass control with a symbol (– and ×). */
@@ -879,7 +857,11 @@ class OverlayManager(
         private const val PANEL_W_DP = 300f
         private const val CARD_RADIUS_DP = 24f
         private const val WELL_RADIUS_DP = 16f
-        private const val ACTION_H_DP = 56f
+        private const val ACTION_H_DP = 44f
+        private const val ACTION_RADIUS_DP = 14f
+
+        /** The next stop's street beside its time: two steps larger than the address was (13 sp). */
+        private const val STOP_STREET_SP = 17f
         private const val CONTROL_DP = 34f
         private const val BUBBLE_H_DP = 52f
 
@@ -914,7 +896,6 @@ private class PanelColors(c: AppColors) {
     val edgeDark = p.edgeDark.toArgb()
     val text = p.text.toArgb()
     val muted = p.textMuted.toArgb()
-    val onKind = p.onKind.toArgb()
     val next = c.accent.toArgb()
     val onNext = c.onAccent.toArgb()
     val refPill = c.refPill.toArgb()

@@ -84,7 +84,7 @@ data class AppColors(
  * smoked glass in both looks: the map shows through its frame, while the parts that carry text
  * sit on a deeper layer of glass and stay readable whatever is behind (checked over white and
  * over black in ThemeContrastTest). Two hairline edges, one light and one dark, outline it on
- * every background. The trip's kind keeps YouDrive's light card colours, which glow on the glass.
+ * every background. The trip's kind keeps YouDrive's light card colours (its stripe), which glow on the glass.
  */
 @Immutable
 data class PanelRoles(
@@ -104,11 +104,10 @@ data class PanelRoles(
     val success: Color,
     val warning: Color,
     val danger: Color,
-    /** The kind chip and the trip's stripe, in YouDrive's card colours, with dark text. */
+    /** The trip's stripe, in YouDrive's card colours. */
     val pickUp: Color,
     val dropOff: Color,
     val depot: Color,
-    val onKind: Color,
 ) {
     fun trip(kind: TripKind?): Color = when (kind) {
         TripKind.PICK_UP -> pickUp
@@ -139,7 +138,6 @@ val DayPanel = PanelRoles(
     pickUp = Palette.YouDriveGreen,
     dropOff = Palette.White,
     depot = Palette.YouDriveGrey,
-    onKind = Palette.Ink,
 )
 
 /** By night: the night's navy glass, a little denser. */

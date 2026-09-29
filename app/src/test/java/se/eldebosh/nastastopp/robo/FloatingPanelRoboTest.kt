@@ -155,6 +155,29 @@ class FloatingPanelRoboTest {
         graph.controller.end()
     }
 
+    /** 1.5: tapping the next stop's street on the panel says the street and number, nothing more. */
+    @Test
+    fun tappingTheStopsStreetSaysStreetAndNumberOnly() {
+        val tts = readyTts()
+        ShadowSettings.setCanDrawOverlays(true)
+        graph.controller.addExtracted(graph.extractor.extract(listOf("2026-09-29", "07:36", "Pick-up", "Bengt Provare", "Brattgårdsgatan 4, 66452 Vålberg")))
+        settle()
+        assertEquals("Bengt Provare", graph.controller.route.value!!.stops.single().name)
+        assertFalse("no route yet", graph.controller.speakStopStreet())
+        graph.controller.start()
+        idle()
+        val spokenBefore = tts.lastSpokenText
+        val sent = mutableListOf<String>()
+        val job = graph.scope.launch { graph.controller.announcements.collect { sent += it.swedish } }
+        overlayView(R.string.overlay_stop_street_desc).performClick()
+        idle()
+        assertEquals("Brattgårdsgatan 4", tts.lastSpokenText) // never the passenger's name
+        assertTrue(spokenBefore != tts.lastSpokenText)
+        assertTrue("not forwarded to passenger displays", sent.isEmpty())
+        job.cancel()
+        graph.controller.end()
+    }
+
     @Test
     fun currentStreetLooksUpOnlyWhenWantedAndThrottles() {
         val calls = mutableListOf<Pair<Double, Double>>()
@@ -293,7 +316,7 @@ class FloatingPanelRoboTest {
         idle()
         assertEquals(0, c.route.value!!.completedCount)
         overlayView(R.string.overlay_street_desc)
-        overlayView(R.string.overlay_speak_street_desc)
+        overlayView(R.string.overlay_stop_street_desc)
         assertTrue("panel shows the street", graph.street.isWanted)
 
         // "–" → small bubble; tap → full panel again.

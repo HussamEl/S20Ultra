@@ -104,7 +104,7 @@
     <string name="help_share_title">Dela en skärmdump till appen</string>
     <string name="help_share_body">1. Ta en skärmdump av sidan med adresserna (från valfri app: beställningsapp, sms, mejl, webbsida). Använd rullande skärmdump för långa listor.\n2. Tryck Dela i skärmdumpsverktyget eller i galleriet och välj Nästa Stopp. Flera bilder går bra; de läggs till i ordning.\n3. Eller öppna appen och tryck \"Importera skärmdumpar\".\n4. Granska listan och tryck \"Starta rutt\". Google Maps öppnas med stoppen (upp till 10 åt gången).</string>
     <string name="help_overlay_title">Flytande knapp</string>
-    <string name="help_overlay_body">Om du tillåter \"visa ovanpå andra appar\" visas ett flytande kort av rökt glas över Google Maps under rutten:\n• Den breda raden överst = gatan du kör på nu, om platsen är tillåten (annars nästa stopps område). Tryck på den eller dess högtalare för att höra den.\n• Under den, nästa resa: tid och passagerare, typ av resa i YouDrives färg, hur tidigt eller sent (grön = gott om tid, gul = snart, röd = sen) och adressen. Tryck för att öppna appen.\n• \"Nästa\" = den stora gula knappen: nästa stopp + utrop (håll inne = upprepa utropet).\n• \"Bakåt\" = ångra senaste \"Nästa\". Den runda pilen upprepar utropet.\n• \"–\" = krymp till en liten kapsel (tryck för att förstora). \"×\" = stäng; visa igen via aviseringen eller snabbinställningsrutan.\n• Dra för att flytta den.\nUtan den fungerar allt via aviseringen.</string>
+    <string name="help_overlay_body">Om du tillåter \"visa ovanpå andra appar\" visas ett flytande kort av rökt glas över Google Maps under rutten:\n• Den breda raden överst = gatan du kör på nu, om platsen är tillåten (annars nästa stopps område). Tryck på den för att höra den.\n• Under den, nästa resa: tiden med stoppets gata och nummer bredvid (tryck för att höra dem), passageraren och hur tidigt eller sent (grön = gott om tid, gul = snart, röd = sen), sedan postnummer och ort. Randen på sidan har resans YouDrive-färg. Tryck på resten för att öppna appen.\n• \"Nästa\" = nästa stopp + utrop (håll inne = upprepa utropet).\n• \"Bakåt\" = ångra senaste \"Nästa\".\n• \"–\" = krymp till en liten kapsel (tryck för att förstora). \"×\" = stäng; visa igen via aviseringen eller snabbinställningsrutan.\n• Dra för att flytta den.\nUtan den fungerar allt via aviseringen.</string>
     <string name="help_how_title">Så fungerar utropen</string>
     <string name="help_how_body">När du trycker på Nästa (i appen, på den flytande knappen eller i aviseringen) ropar appen ut nästa stopp och stoppet därefter, t.ex. \"Nästa stopp: Skoghall. Därefter: Kil.\"\nBara stadsdel eller ort nämns – aldrig gatunamn, nummer eller namn.\nOm du tillåter platsen använder appen den bara för att säga gatan du kör på; YouDrive-sidan får den aldrig.</string>
     <string name="help_privacy_title">Integritet</string>
@@ -190,7 +190,7 @@
     <string name="overlay_next">Nästa</string>
     <string name="overlay_street_desc">Gatan du är på nu</string>
     <string name="overlay_speak_street_desc">Säg gatunamnet</string>
-    <string name="overlay_repeat_desc">Upprepa utropet för nästa resa</string>
+    <string name="overlay_stop_street_desc">Säg nästa stopps gata och nummer</string>
     <string name="overlay_minimize_desc">Minimera den flytande knappen</string>
     <string name="overlay_expand_desc">Förstora den flytande knappen</string>
     <string name="overlay_close_desc">Stäng den flytande knappen</string>

@@ -76,7 +76,7 @@ class ThemeContrastTest {
         }
         check(look, "panel edge on black", p.edgeLight, Palette.Black, 3.0)
         check(look, "panel edge on white", p.edgeDark, Palette.White, 3.0)
-        for (kind in TripKind.entries) check(look, "kind chip", p.onKind, p.trip(kind), 4.5)
+        for (kind in TripKind.entries) check(look, "kind stripe on the glass", p.trip(kind), p.well.compositeOver(p.glass.compositeOver(Palette.Black)), 3.0)
         check(look, "time pill / Next", c.onAccent, c.accent, 4.5)
     }
 

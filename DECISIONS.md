@@ -525,7 +525,7 @@ The driver compared the app's list with YouDrive again: "look at the original an
 ## 1.4 (versionCode 22): the floating panel as one card of smoked glass
 
 The driver sent a photo of the panel over the home screen and asked for a big visual step: a modern design that shows clearly on most backgrounds, a rectangle instead of the street circle, and transparency. The photo showed three problems:
-- the circle broke the street name inside a word ("Sandelsgat / an");
+- the circle broke a long street name inside the word, over two lines;
 - the loose round buttons (Back, ×, –, speaker) got lost among the app icons;
 - the white Back disappeared on a light background.
 
@@ -559,3 +559,30 @@ The driver sent a photo of the panel over the home screen and asked for a big vi
 **Test renders** (local only, `ScreenshotsRoboTest`):
 - `floating`, `floating_night`, `floating_ar` and `floating_bubble` draw the panel over half a light map (with a park and a route line) and half a dark wallpaper.
 - The street comes from an invented lookup.
+
+## 1.5 (versionCode 23): a simpler panel, with the next stop's street beside its time
+
+The driver's changes to the 1.4 glass panel:
+- **The repeat button is gone.** Long-press Next (or the street bar) still repeats the announcement. Its number, 15, is not reused.
+- **The street bar has no speaker button any more.** A tap anywhere on the bar says the current street. The speaker's number, 4, is not reused.
+- **The next stop's street and number sit beside the time, two steps larger** (13 → 17 sp, bold, shrinking to fit on one line). Tapping them says them (`RouteController.speakStopStreet`, part 13).
+- **No "Pick-up" / "Drop-off" word** on the panel: "the time is enough". The kind keeps only its coloured stripe. Part 19 is now the stop's postal code and town, on the third line.
+- The second line is the passenger's name and the on-time status.
+- **Back and Next are compact pills, 44 dp high** instead of 56. Each has its icon beside its label; Next still fills the rest of the row.
+
+**Speaking a street:** automatic announcements still name only the district or town. The app says a street only on the driver's tap:
+- the current street, from the street bar;
+- the next stop's street and number, from part 13.
+
+It never says a passenger's name, and it is not sent to the passenger display. `FloatingPanelRoboTest.tappingTheStopsStreetSaysStreetAndNumberOnly` checks this with a named stop.
+
+The kind chip's colour role (`onKind`) went with the chip. `ThemeContrastTest` now checks that the kind stripe stands out on the glass.
+
+**YouDrive login:** at the same time the driver sent his YouDrive username and password and asked for them to be typed in whenever the login page appears. They were **not** stored or used:
+- the repository and the APK are public, so anything built in could be read by anyone;
+- the cloud session cannot reach the phone;
+- the hard rule stands until the driver chooses one of the two options offered:
+  1. find why the "Remember Me" login is lost when leaving the page, and fix it;
+  2. an on-phone login that he types once, encrypted with the Android Keystore.
+
+The driver was again advised to change the password.
