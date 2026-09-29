@@ -61,11 +61,8 @@ data class AppColors(
     val refText: Color,
     val refPill: Color,
     val onRefPill: Color,
-    // The floating panel over Maps.
-    val panelCircle: Color,
-    val onPanelCircle: Color,
-    val onPanelCircleMuted: Color,
-    val panelRing: Color,
+    /** The floating panel over Maps: smoked glass in both looks (see [PanelRoles]). */
+    val panel: PanelRoles,
 ) {
     /** A trip's card: YouDrive's green pick-up, grey depot, white (by night: dark) drop-off. */
     fun trip(kind: TripKind?): Color = when (kind) {
@@ -81,6 +78,78 @@ data class AppColors(
         TimeLevel.LATE -> danger
     }
 }
+
+/**
+ * The floating panel's glass. It floats over any map or wallpaper, light or dark, so it is dark
+ * smoked glass in both looks: the map shows through its frame, while the parts that carry text
+ * sit on a deeper layer of glass and stay readable whatever is behind (checked over white and
+ * over black in ThemeContrastTest). Two hairline edges, one light and one dark, outline it on
+ * every background. The trip's kind keeps YouDrive's light card colours, which glow on the glass.
+ */
+@Immutable
+data class PanelRoles(
+    /** The card's frame: translucent. */
+    val glass: Color,
+    /** A soft white sheen across the top of the frame. */
+    val sheen: Color,
+    /** The deeper glass under text (street bar, trip, Back). */
+    val well: Color,
+    /** Small round controls (×, –, speaker, repeat) on the frame. */
+    val control: Color,
+    val edgeLight: Color,
+    val edgeDark: Color,
+    val text: Color,
+    val textMuted: Color,
+    /** On time / soon / late on the glass (lighter shades than on cards). */
+    val success: Color,
+    val warning: Color,
+    val danger: Color,
+    /** The kind chip and the trip's stripe, in YouDrive's card colours, with dark text. */
+    val pickUp: Color,
+    val dropOff: Color,
+    val depot: Color,
+    val onKind: Color,
+) {
+    fun trip(kind: TripKind?): Color = when (kind) {
+        TripKind.PICK_UP -> pickUp
+        TripKind.PULL_OUT, TripKind.PULL_IN -> depot
+        TripKind.DROP_OFF, null -> dropOff
+    }
+
+    fun status(level: TimeLevel): Color = when (level) {
+        TimeLevel.AHEAD -> success
+        TimeLevel.SOON -> warning
+        TimeLevel.LATE -> danger
+    }
+}
+
+/** By day: smoked black glass, like YouDrive's black buttons. */
+val DayPanel = PanelRoles(
+    glass = Palette.Smoke.copy(alpha = 0.74f),
+    sheen = Palette.White.copy(alpha = 0.14f),
+    well = Palette.Black.copy(alpha = 0.42f),
+    control = Palette.White.copy(alpha = 0.16f),
+    edgeLight = Palette.White.copy(alpha = 0.40f),
+    edgeDark = Palette.Black.copy(alpha = 0.45f),
+    text = Palette.White,
+    textMuted = Palette.Silver,
+    success = Palette.Green400,
+    warning = Palette.Amber400,
+    danger = Palette.Red300,
+    pickUp = Palette.YouDriveGreen,
+    dropOff = Palette.White,
+    depot = Palette.YouDriveGrey,
+    onKind = Palette.Ink,
+)
+
+/** By night: the night's navy glass, a little denser. */
+val NightPanel = DayPanel.copy(
+    glass = Palette.Night.copy(alpha = 0.78f),
+    sheen = Palette.Sky.copy(alpha = 0.12f),
+    well = Palette.Black.copy(alpha = 0.40f),
+    text = Palette.Moon,
+    textMuted = Palette.Haze,
+)
 
 /** Day ("Route cards"): YouDrive's light list, black actions, taxi yellow, sky-blue details. */
 val DayColors = AppColors(
@@ -119,10 +188,7 @@ val DayColors = AppColors(
     refText = Color(0xFF6B7280),
     refPill = Palette.Ink.copy(alpha = 0.9f),
     onRefPill = Color(0xFFF1F2F4),
-    panelCircle = Palette.Ink,
-    onPanelCircle = Palette.White,
-    onPanelCircleMuted = Color(0xFFC7CBD1),
-    panelRing = Palette.Sky,
+    panel = DayPanel,
 )
 
 /**
@@ -165,8 +231,5 @@ val NightColors = AppColors(
     refText = Color(0xFF7F8BA0),
     refPill = Palette.Night.copy(alpha = 0.9f),
     onRefPill = Color(0xFFB8C2D4),
-    panelCircle = Palette.NightCard,
-    onPanelCircle = Palette.Moon,
-    onPanelCircleMuted = Palette.Dusk,
-    panelRing = Palette.Sky,
+    panel = NightPanel,
 )

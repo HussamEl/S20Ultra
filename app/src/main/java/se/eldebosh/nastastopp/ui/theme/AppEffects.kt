@@ -19,6 +19,12 @@ data class AppEffects(
     val pressedScale: Float,
     /** A card's colour change (the next trip, a new kind) fades over this time. */
     val colorFadeMs: Int,
+    /** The floating panel's lift off the map (its shadow). */
+    val panelShadow: Dp = 12.dp,
+    /** The floating panel's buttons shrink this much while pressed (a clear feel through gloves). */
+    val panelPressedScale: Float = 0.93f,
+    /** How fast they shrink and come back. */
+    val panelPressMs: Long = 90,
 )
 
 /** By day: soft shadows, like YouDrive's cards. */

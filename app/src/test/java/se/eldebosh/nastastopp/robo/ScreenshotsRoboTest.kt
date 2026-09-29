@@ -2,6 +2,7 @@ package se.eldebosh.nastastopp.robo
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Paint
 import android.os.Looper
 import android.view.View
 import android.view.WindowManager
@@ -14,6 +15,10 @@ import org.robolectric.shadow.api.Shadow
 import org.robolectric.shadows.ShadowSettings
 import org.robolectric.shadows.ShadowWindowManagerImpl
 import se.eldebosh.nastastopp.App
+import se.eldebosh.nastastopp.core.geo.GeoResult
+import se.eldebosh.nastastopp.core.route.Fix
+import se.eldebosh.nastastopp.geo.CurrentStreet
+import se.eldebosh.nastastopp.overlay.OverlayManager
 import se.eldebosh.nastastopp.ui.screens.OnboardingScreen
 import java.time.Duration
 import androidx.compose.material3.MaterialTheme
@@ -253,11 +258,23 @@ class ScreenshotsRoboTest {
     @Test
     fun floatingPanelNight() = renderPanel("floating_night", Appearance.NIGHT)
 
-    private fun renderPanel(name: String, appearance: Appearance) {
+    @Test
+    fun floatingBubble() = renderPanel("floating_bubble", Appearance.DAY, minimized = true)
+
+    /** Arabic: the panel is mirrored (Back on the right). */
+    @Test
+    fun floatingArabic() = renderPanel("floating_ar", Appearance.DAY, language = "ar")
+
+    /**
+     * The panel (or its minimised capsule) over a background that is half a light day map with a
+     * park and a route line, half a dark wallpaper: the glass must read on all of them.
+     */
+    private fun renderPanel(name: String, appearance: Appearance, minimized: Boolean = false, language: String = "en") {
         val app = ApplicationProvider.getApplicationContext<App>()
         val graph = app.graph
         ShadowSettings.setCanDrawOverlays(true)
-        graph.settings.update { it.copy(overlayHidden = false, overlayMinimized = false, appearance = appearance) }
+        graph.settings.update { it.copy(overlayHidden = false, overlayMinimized = minimized, appearance = appearance, uiLanguage = language) }
+        LocaleHelper.applyAppLocale(app, language)
         graph.controller.clear()
         graph.controller.addExtracted(
             graph.extractor.extract(
@@ -265,21 +282,43 @@ class ScreenshotsRoboTest {
             ),
         )
         repeat(600) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1)) }
+        // The app's own panel stays away; this one knows the street (an invented lookup).
+        graph.overlay.suppress("render", true)
+        val street = CurrentStreet(graph.scope) { _, _ -> listOf(GeoResult(59.38, 13.5, null, null, "Karlstad", "Centrum", "Västra Torggatan")) }
+        street.want("render", true)
+        street.onFix(Fix(0, 59.38, 13.5, null, 5f))
+        val panelManager = OverlayManager(app, graph.controller, graph.settings, street, graph.scope)
         graph.controller.start()
         shadowOf(Looper.getMainLooper()).idle()
         val wm = Shadow.extract<ShadowWindowManagerImpl>(app.getSystemService(WindowManager::class.java))
         val panel = wm.views.last() // the compose rule's own window comes first
         panel.measure(View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
         panel.layout(0, 0, panel.measuredWidth, panel.measuredHeight)
-        val bitmap = Bitmap.createBitmap(panel.measuredWidth + 40, panel.measuredHeight + 40, Bitmap.Config.ARGB_8888)
+        val w = panel.measuredWidth + 40
+        val h = panel.measuredHeight + 40
+        val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         Canvas(bitmap).apply {
-            drawColor(0xFF5A6B57.toInt()) // a map-like background
+            val paint = Paint()
+            paint.color = 0xFFEDEBE6.toInt() // a light day map
+            drawRect(0f, 0f, w / 2f, h.toFloat(), paint)
+            paint.color = 0xFFC8E6C9.toInt() // a park
+            drawRect(0f, h * 0.55f, w / 2f, h.toFloat(), paint)
+            paint.color = 0xFF4285F4.toInt() // the route line
+            drawRect(w * 0.28f, 0f, w * 0.34f, h.toFloat(), paint)
+            paint.color = 0xFF202124.toInt() // a dark wallpaper
+            drawRect(w / 2f, 0f, w.toFloat(), h.toFloat(), paint)
+            paint.color = 0xFFFFC61A.toInt() // a bright app icon
+            drawRect(w * 0.78f, h * 0.2f, w * 0.92f, h * 0.45f, paint)
             translate(20f, 20f)
             panel.draw(this)
         }
         save(name, bitmap)
+        panelManager.hide()
+        graph.overlay.suppress("render", false)
+        street.want("render", false)
         graph.controller.end()
-        graph.settings.update { it.copy(appearance = Appearance.DAY) }
+        graph.settings.update { it.copy(appearance = Appearance.DAY, overlayMinimized = false, uiLanguage = "en") }
+        LocaleHelper.applyAppLocale(app, "en")
     }
 
     /**

@@ -521,3 +521,41 @@ The driver compared the app's list with YouDrive again: "look at the original an
 **Also:**
 - The privacy note now lists the trip kind and the passenger's first + last name among what is kept.
 - A stale colour comment was removed from `OverlayManager`.
+
+## 1.4 (versionCode 22): the floating panel as one card of smoked glass
+
+The driver sent a photo of the panel over the home screen and asked for a big visual step: a modern design that shows clearly on most backgrounds, a rectangle instead of the street circle, and transparency. The photo showed three problems:
+- the circle broke the street name inside a word ("Sandelsgat / an");
+- the loose round buttons (Back, ×, –, speaker) got lost among the app icons;
+- the white Back disappeared on a light background.
+
+**One card of smoked glass**, the same in both looks, because it floats over any map or wallpaper:
+- **Frame**: translucent (74 % by day, 78 % by night), so the map shows through. A soft sheen fades down from the top edge.
+- **Two hairline edges**: dark outside and light inside. They outline the card on a light day map and on a dark wallpaper or night map alike.
+- **Deeper glass** (`well`) under everything that carries text: the street bar, the trip and Back. The text stays readable whatever is behind.
+- **Readability is tested.** `ThemeContrastTest.checkPanel` checks every text on the panel over white, black, a green park and a blue route line (4.5), and both edges on white and black (3).
+  - It caught two weak pairs, now fixed: the grey trip number on its pill (now white), and the light edge on black (30 % → 40 %).
+- **Colours** are new roles, `AppColors.panel` (`PanelRoles`: `DayPanel` / `NightPanel`), in the design system. The panel still has no colours of its own.
+- **Effects** in `AppEffects`:
+  - `panelShadow` (12 dp lift);
+  - `panelPressedScale` (buttons shrink to 93 % while pressed, over `panelPressMs`).
+
+**Layout (300 dp wide):**
+1. **Header:** the clock, the trip number on a small pill, and round glass – and ×.
+2. **The street bar**, a wide rectangle instead of the circle (ref 2).
+   - The street is on one line, at up to 22 sp, shrinking to fit. It is never broken inside a word.
+   - Below it is the area (3), with a yellow arrow before the street and the speaker (4) at the end.
+   - Tap = say the street; long-press = repeat.
+3. **The next trip** (16), with a stripe in its kind's YouDrive colour:
+   - the time on a yellow pill (10) with the passenger's name level with it (18), with the whole line for the name;
+   - the kind as a chip in YouDrive's colour (**new part 19**) and the on-time status with a coloured dot (11);
+   - the address on its own line (13).
+4. **Actions:** Back (1) and repeat (15) on glass, and **Next** (5) as the one bright thing on the card, a wide yellow bar 56 dp high.
+- **Minimised:** a glass capsule with the time and the trip number (17). Its ring and dot are the on-time colour.
+- **Arabic:** the card mirrors, and Latin street names and addresses align with the panel's side (`TEXT_ALIGNMENT_VIEW_START`).
+
+**Not possible:** real background blur. Android blurs only behind an activity's own window (`setBackgroundBlurRadius`), not behind an overlay added with `WindowManager.addView`. The frosted look therefore comes from translucency, the sheen and the edges.
+
+**Test renders** (local only, `ScreenshotsRoboTest`):
+- `floating`, `floating_night`, `floating_ar` and `floating_bubble` draw the panel over half a light map (with a park and a route line) and half a dark wallpaper.
+- The street comes from an invented lookup.

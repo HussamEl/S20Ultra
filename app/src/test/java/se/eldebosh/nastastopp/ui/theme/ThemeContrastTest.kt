@@ -37,7 +37,6 @@ class ThemeContrastTest {
         check(look, "blue on blue", c.onInfo, c.info, 4.5)
         check(look, "blue text on card", c.info, c.card, 4.5)
         check(look, "blue text on page", c.info, c.background, 4.5)
-        check(look, "circle text", c.onPanelCircle, c.panelCircle, 4.5)
         for (status in listOf(c.success, c.warning, c.danger)) {
             check(look, "status pill", c.onStatus, status, 4.5)
             check(look, "status text on card", status, c.card, 4.5)
@@ -51,6 +50,34 @@ class ThemeContrastTest {
         }
         check(look, "reference numbers", c.refText, c.background, 3.0)
         check(look, "reference pill", c.onRefPill, c.refPill.compositeOver(c.card), 4.5)
+        checkPanel(look, c)
+    }
+
+    /**
+     * The floating panel is glass: what shows through depends on the map or wallpaper behind it.
+     * Its text must read over the extremes (white and black) and over a green park and a blue
+     * route line, and its edges must outline the card on both white and black.
+     */
+    private fun checkPanel(look: String, c: AppColors) {
+        val p = c.panel
+        val behind = listOf("white" to Palette.White, "black" to Palette.Black, "park" to Palette.YouDriveGreen, "route" to Palette.SkyInk)
+        for ((name, bg) in behind) {
+            val at = "$look panel over $name"
+            val frame = p.glass.compositeOver(bg)
+            val well = p.well.compositeOver(frame)
+            val control = p.control.compositeOver(frame)
+            check(at, "clock on the frame", p.text, frame, 4.5)
+            check(at, "trip number on its pill", p.text, control, 4.5)
+            check(at, "street / name / address", p.text, well, 4.5)
+            check(at, "area", p.textMuted, well, 4.5)
+            for (status in listOf(p.success, p.warning, p.danger)) check(at, "on-time status", status, well, 4.5)
+            check(at, "– and ×", p.text, control, 4.5)
+            check(at, "the yellow Next", c.accent, frame, 3.0)
+        }
+        check(look, "panel edge on black", p.edgeLight, Palette.Black, 3.0)
+        check(look, "panel edge on white", p.edgeDark, Palette.White, 3.0)
+        for (kind in TripKind.entries) check(look, "kind chip", p.onKind, p.trip(kind), 4.5)
+        check(look, "time pill / Next", c.onAccent, c.accent, 4.5)
     }
 
     @Test

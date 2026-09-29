@@ -56,4 +56,10 @@ object Palette {
     val RedDeep = Color(0xFF5F1412)
     val RedNight = Color(0xFF4A1417)
     val RedPale = Color(0xFFFFDAD8)
+    val Red300 = Color(0xFFFCA5A5)
+
+    // Glass for the floating panel: smoked black and night navy, a white sheen and edges.
+    val Black = Color(0xFF000000)
+    val Smoke = Color(0xFF111216)
+    val Silver = Color(0xFFC7CBD1)
 }

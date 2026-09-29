@@ -37,7 +37,7 @@ An Android app for a Swedish shared-ride driver:
   - Inside card rows, pass `ListRow(ref = n)`.
   - Keep the README tables in sync.
 - Strings: `values/` is **Arabic (default)**, `values-en/` is English (the current UI), `values-sv/` is Swedish. Add every key to all three.
-- The floating panel (`overlay/OverlayManager`) is built with Views. It has no colours of its own: `PanelColors` converts the `AppColors` roles when the panel is built.
+- The floating panel (`overlay/OverlayManager`) is built with Views. It has no colours of its own: `PanelColors` converts the `AppColors.panel` glass roles when the panel is built. It is smoked glass in both looks. Its text must stay readable over white, black, a park and a route line (`ThemeContrastTest.checkPanel`).
 
 ## Build and release
 ```bash
@@ -57,7 +57,7 @@ An Android app for a Swedish shared-ride driver:
 - **Delivery:** `dist/NastaStopp.apk` on this branch. It is release-signed with the same key every time, so `adb install -r` updates in place. Always bump `versionCode`.
   - Raw URL: `https://github.com/HussamEl/S20Ultra/raw/<sha>/dist/NastaStopp.apk`. The repo is public.
 - **Stable ids for UI Automator:**
-  - Every numbered Compose control has resource-id `ref_<n>` (test tag + `testTagsAsResourceId` on the roots). Floating-panel parts are `se.eldebosh.nastastopp:id/ref_<1..18>`.
+  - Every numbered Compose control has resource-id `ref_<n>` (test tag + `testTagsAsResourceId` on the roots). Floating-panel parts are `se.eldebosh.nastastopp:id/ref_<1..19>`.
   - The numbers are the README tables. Keep new controls numbered.
 - **Test inputs:** the invented screenshots in `testdata/screenshots/`. `testdata/README.md` lists the expected stops and every invented term for the privacy search, and `DeviceFixturesTest` asserts the stops.
 - **Floating-panel positions:** UI Automator can't see overlay windows. After `adb shell setprop log.tag.NastaStoppRefs DEBUG`, the panel logs its parts' screen bounds (`ref_<n>=[l,t][r,b]`), ids and bounds only.

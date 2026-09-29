@@ -54,6 +54,10 @@ object AppTheme {
     /** The colour roles for [appearance], also outside Compose (the floating panel is made of Views). */
     fun colorsFor(appearance: Appearance, systemDark: Boolean): AppColors =
         if (isNight(appearance, systemDark)) NightColors else DayColors
+
+    /** The effects for [appearance], also outside Compose (the floating panel). */
+    fun effectsFor(appearance: Appearance, systemDark: Boolean): AppEffects =
+        if (isNight(appearance, systemDark)) NightEffects else DayEffects
 }
 
 private fun style(size: Int, line: Int, weight: FontWeight = FontWeight.Normal, spacing: Float = 0f) =

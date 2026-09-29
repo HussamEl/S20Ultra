@@ -175,11 +175,11 @@
 | `ocr/OcrEngine.kt` | ML Kit + التقسيم. الأخطاء تُعرض بمرحلة الفشل (`ReadStage`) دون أي نص. |
 | `importer/ScreenshotImporter.kt` | يمرّر الصور إلى OCR ثم الاستخراج، ويعيد عدد العناوين والأخطاء. |
 | `geo/Geocoding.kt` | `locate` (من العنوان إلى الإحداثيات، يجرّب عدة صيغ)، و`reverse` (من الإحداثيات إلى الشارع الحالي). |
-| `geo/CurrentStreet.kt` | الشارع الحالي (الدائرة في الزر العائم وشريط الشارع)، يُحسب فقط حين تعرضه شاشة. |
+| `geo/CurrentStreet.kt` | الشارع الحالي (شريط الشارع في الزر العائم وفي شاشة المسار)، يُحسب فقط حين تعرضه شاشة. |
 | `service/StreetService.kt` | خدمة أمامية من نوع location أثناء المسار (بإذن «أثناء الاستخدام» فقط، عبر `LocationManager`). ترسل المواقع إلى `CurrentStreet` **فقط**، لا إلى `RouteController.onLocation`، ولا تحفظها ولا تسجّلها. |
 | `tts/Announcer.kt` | TextToSpeech بالسويدية، مع خفض صوت الخرائط مؤقتاً أثناء الكلام، والتحقق من وجود الصوت السويدي (`TtsStatus`). |
 | `maps/MapsLauncher.kt` | فتح خرائط Google. من الخلفية يضيف إشعار «افتح الخرائط» لأن أندرويد قد يمنع فتح نشاط من الخلفية. |
-| `overlay/OverlayManager.kt` | الزر العائم (Views، وليس Compose): اللوحة، والفقاعة، والسحب، والأرقام المرجعية 1–18، وتذكير الإشعار عند الإغلاق. الألوان من `PanelColors` (أدوار `AppColors`). |
+| `overlay/OverlayManager.kt` | الزر العائم (Views، وليس Compose): بطاقة الزجاج (`glass()`)، والكبسولة بعد التصغير، والسحب، وتصغير الأزرار عند الضغط، والأرقام المرجعية 1–19، وتذكير الإشعار عند الإغلاق. الألوان من `PanelColors` (أدوار `AppColors.panel`). |
 | `overlay/OverlayTileService.kt` | مربع «Floating button» في الإعدادات السريعة. |
 | `service/Notifications.kt` | القنوات، وإشعار المسار، وتنبيهات YouDrive، وإشعار «الزر العائم مغلق». |
 | `service/RouteNotifier.kt` | يُبقي إشعار المسار متزامناً مع المسار. |
@@ -227,7 +227,7 @@
 |---|---|---|---|
 | 1. الألوان الخام | `Palette.kt` | كل لون بقيمته، مسمّى بما **هو** (YouDriveGreen، TaxiYellow، Sky…) لا بما يُستعمل له. | لتغيير درجة لون في كل مكان. |
 | 2. الأدوار | `AppColors.kt` | `data class AppColors`: دور كل لون («بطاقة التقاط»، «الإجراء التالي»، «نص ثانوي»…)، ومجموعتان: `DayColors` و`NightColors`. | لتغيير لون عنصر معيّن، أو لإضافة مظهر جديد (مجموعة ثالثة). |
-| 3. التأثيرات | `AppEffects.kt` | الظلال (`cardShadow`، `currentShadow`)، وتصغير الزر عند الضغط (`pressedScale`)، وتلاشي تغيّر الألوان (`colorFadeMs`). `0.dp` أو `1f` أو `0` يطفئ التأثير. | لإضافة تأثير أو ضبطه أو إطفائه. |
+| 3. التأثيرات | `AppEffects.kt` | الظلال (`cardShadow`، `currentShadow`، `panelShadow`)، وتصغير الزر عند الضغط (`pressedScale`، وفي الزر العائم `panelPressedScale` خلال `panelPressMs`)، وتلاشي تغيّر الألوان (`colorFadeMs`). `0.dp` أو `1f` أو `0` يطفئ التأثير. | لإضافة تأثير أو ضبطه أو إطفائه. |
 
 - **`Theme.kt`** يجمعها:
   - `NastaTheme(appearance)` يختار النهاري أو الليلي حسب الإعداد (130–132: Day / Night / Automatic).
@@ -246,14 +246,16 @@
 | `pickUp` / `dropOff` / `depot` | أخضر YouDrive / أبيض / رمادي | أخضر داكن / بطاقة داكنة / رمادي داكن | بطاقات الرحلات (`trip(kind)`) |
 | `currentBorder` | أسود | أصفر | إطار الرحلة الحالية |
 | `success` / `warning` / `danger` | أخضر / كهرماني / أحمر داكنة | نفسها فاتحة | الحالة (`status(level)`) |
-| `panelCircle` / `panelRing` | دائرة سوداء، حلقة زرقاء فاتحة | دائرة داكنة، حلقة زرقاء فاتحة | الزر العائم |
+| `panel` (`PanelRoles`) | زجاج أسود مدخَّن | زجاج كحلي مدخَّن | الزر العائم: `glass` (الإطار الشفاف)، `sheen` (لمعة أعلاه)، `well` (زجاج أعمق تحت النصوص)، `control`، `edgeLight`/`edgeDark` (حافتان)، ونوع الرحلة بألوان YouDrive الفاتحة |
 
 - **المكوّنات** في `ui/Components.kt`:
   - `AppButton` يأخذ `action` أو `tonal`، ويصغر قليلاً عند الضغط (`pressedScale`).
   - `AppCard` بطاقة بظل خفيف في النهار.
   - `TripSurface(kind, current)` بطاقة الرحلة بلونها. لونها يتلاشى عند التغيّر، والحالية بإطار سميك وظل أكبر. كل بطاقات الرحلات (المراجعة، المسار، نقطة الانطلاق) تستعملها.
   - `KindLabel` حبة نوع الرحلة، و`ListRow` و`TopBar` و`SectionTitle`.
-- **الزر العائم** (Views وليس Compose): لا ألوان خاصة به. `PanelColors` في `OverlayManager.kt` يحوّل أدوار `AppColors` إلى أرقام ARGB عند بناء اللوحة، ويُعاد البناء عند تغيّر المظهر.
+- **الزر العائم** (Views وليس Compose): لا ألوان خاصة به. `PanelColors` في `OverlayManager.kt` يحوّل أدوار `AppColors.panel` (والأصفر) إلى أرقام ARGB عند بناء اللوحة، ويُعاد البناء عند تغيّر المظهر، و`AppTheme.effectsFor` يعطيه التأثيرات.
+  - هو زجاج مدخَّن في المظهرين لأنه يطفو فوق أي خلفية. الإطار شفاف (الخريطة تظهر خلفه)، والنصوص على `well` أعمق. `ThemeContrastTest.checkPanel` يفحص كل نص فوق أبيض وأسود وأخضر حديقة وأزرق طريق، ويفحص الحافتين.
+  - الصور في `ScreenshotsRoboTest` (`floating`، `floating_night`، `floating_ar`، `floating_bubble`) ترسمه فوق خلفية نصفها خريطة فاتحة ونصفها داكن.
 - **الأرقام المرجعية** و**أشرطة النظام** تتبع المظهر أيضاً: `Refs.kt` يقرأ `LocalAppColors`، و`SystemBarsFollowTheme()` يجعل أيقونات شريط الحالة داكنة نهاراً وفاتحة ليلاً.
 - **التباين مضمون باختبار**: `ThemeContrastTest` يفحص كل زوج نص/خلفية في المظهرين حسب WCAG (4.5 للنص، و3 للحدود والنص العريض على البطاقات). أي تغيير لون يجعل شيئاً غير مقروء يفشل هنا.
 - **كيف أغيّر لوناً؟** غيّر القيمة في `Palette.kt` (تتبعها كل الأدوار)، أو غيّر الدور في `DayColors`/`NightColors`، ثم شغّل الاختبارات.
@@ -346,7 +348,7 @@
 - **مكان النسخة:** `dist/NastaStopp.apk` في الفرع، موقّعة release بنفس المفتاح دائماً، فتُحدَّث فوق النسخة القديمة. الرابط المباشر: `https://github.com/HussamEl/S20Ultra/raw/<sha>/dist/NastaStopp.apk`.
 - **معرّفات ثابتة للاختبار الآلي:**
   - كل عنصر مرقّم له `resource-id` = `ref_<n>` (عبر `Modifier.ref` مع `testTagsAsResourceId`).
-  - أجزاء الزر العائم لها `id/ref_1` إلى `id/ref_18`.
+  - أجزاء الزر العائم لها `id/ref_1` إلى `id/ref_19`.
 - **صور اختبار مخترعة** (بلا ركاب حقيقيين): في `testdata/screenshots/`، ونتائجها المتوقعة في `testdata/README.md`.
 - **دورة العمل:**
   1. نرسل «DEVICE-TEST READY» مع الـ SHA وقائمة الخطوات.
