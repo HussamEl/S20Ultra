@@ -128,6 +128,11 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
     val startPermissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { startRoute() }
     fun requestStart() {
         val needed = buildList {
+            // Location only names the street the vehicle is on (never for the YouDrive page).
+            if (!SystemIntents.hasLocation(context)) {
+                add(Manifest.permission.ACCESS_FINE_LOCATION)
+                add(Manifest.permission.ACCESS_COARSE_LOCATION)
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !SystemIntents.hasNotifications(context)) {
                 add(Manifest.permission.POST_NOTIFICATIONS)
             }
@@ -135,6 +140,10 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
         if (needed.isEmpty()) startRoute() else startPermissions.launch(needed.toTypedArray())
     }
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { resumeTick++ }
+    val locationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        controller.ensureStreetService()
+        resumeTick++
+    }
 
     // Bluetooth (passenger display link): permission → then (re)start the link.
     val bluetoothPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
@@ -196,7 +205,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             ttsStatus = ttsStatus,
                             importing = importing,
                             onImport = ::pickImages,
-                            onResume = { vm.navigate(Screen.ACTIVE) },
+                            onResume = { controller.ensureStreetService(); vm.navigate(Screen.ACTIVE) },
                             onReview = { vm.navigate(Screen.REVIEW) },
                             onClear = { controller.clear() },
                             onSettings = { vm.navigate(Screen.SETTINGS) },
@@ -333,6 +342,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             settings = settings,
                             permissions = remember(resumeTick) {
                                 PermissionStatus(
+                                    location = SystemIntents.hasLocation(context),
                                     notifications = SystemIntents.hasNotifications(context),
                                     overlay = SystemIntents.canDrawOverlays(context),
                                     battery = SystemIntents.isIgnoringBatteryOptimizations(context),
@@ -352,6 +362,10 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 }
                             },
                             onTestVoice = ::testVoice,
+                            onLocation = {
+                                if (SystemIntents.hasLocation(context)) SystemIntents.openAppDetails(context)
+                                else locationPermission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                            },
                             onNotifications = {
                                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !SystemIntents.hasNotifications(context)) {
                                     notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)

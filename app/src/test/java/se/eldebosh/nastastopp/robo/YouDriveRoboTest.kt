@@ -14,6 +14,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.fakes.RoboWebSettings
 import se.eldebosh.nastastopp.App
 import se.eldebosh.nastastopp.AppGraph
 import se.eldebosh.nastastopp.route.model.GeoStatus
@@ -59,6 +60,19 @@ class YouDriveRoboTest {
     private val hammaro = "12:40" to "Björkvägen 7, 66341 Hammarö"
 
     private fun notifications() = shadowOf(app.getSystemService(NotificationManager::class.java)).allNotifications
+
+    @Test
+    fun theYouDrivePageNeverGetsTheLocation() {
+        // The app may hold location (to name the street), but YouDrive's page never gets it:
+        // geolocation is off in its WebView and any request from the page is refused.
+        val web = graph.youDrive.webView()
+        assertFalse((web.settings as RoboWebSettings).geolocationEnabled)
+        var answer: Pair<Boolean, Boolean>? = null
+        shadowOf(web).webChromeClient!!.onGeolocationPermissionsShowPrompt("https://youdrive.example") { _, allow, retain ->
+            answer = allow to retain
+        }
+        assertEquals(false to false, answer)
+    }
 
     @Test
     fun addedAndCancelledTripsAlertAndCanBeApplied() {

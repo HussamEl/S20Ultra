@@ -88,7 +88,7 @@ class UiSmokeRoboTest {
             assertEquals("en", app.graph.settings.current.uiLanguage)
             assertTrue(app.graph.settings.current.explanationsArabic)
             compose.onNodeWithText(s(R.string.role_controller)).performScrollTo().performClick()
-            // No location step (the app never asks for location). Skip through the permission steps.
+            // No location step (location is asked at "Start route"). Skip through the permission steps.
             repeat(3) {
                 compose.onNode(hasText(s(R.string.skip)).or(hasText(s(R.string.next_step)))).performScrollTo().performClick()
             }
@@ -249,7 +249,7 @@ class UiSmokeRoboTest {
             waitText(s(R.string.btn_next))
             // Manual mode: no street bar, a clear hint to tap Next.
             compose.onNodeWithText(s(R.string.street_label)).assertDoesNotExist()
-            compose.onNodeWithText(s(R.string.status_no_location)).assertExists()
+            compose.onNodeWithText(s(R.string.status_tap_next)).assertExists()
             // 30 min ahead (29 if a minute boundary passed meanwhile).
             val shown = listOf(30, 29).any { m -> compose.onAllNodesWithText(s(R.string.time_in_min, m.toString())).fetchSemanticsNodes().isNotEmpty() }
             assertTrue("time status shown", shown)

@@ -282,4 +282,14 @@ class AddressExtractorTest {
         val stops = extractor.extract(listOf("Storgatan 14, 65224 Karlstad"), startOrder = 40)
         assertEquals(40, stops.single().sourceOrder)
     }
+
+    /** A note written as a sentence is not an address, even when it names a street (invented). */
+    @Test
+    fun notesAreNotAddresses() {
+        assertRejected("070-000 00 01=mobil inne 0000, följes in till plan 3")
+        assertRejected("Storgatan 4, Karlstad så är det vid huset som kund ska hä/lä")
+        // Swedish street names with a lower-case word stay addresses.
+        single("Norra allén 4, 65225 Karlstad")
+        single("Karl Johans gata 5, 65224 Karlstad")
+    }
 }

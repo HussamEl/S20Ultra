@@ -20,7 +20,7 @@
 | الأندرويد | `minSdk 29` (أندرويد 10)، `targetSdk/compileSdk 37` |
 | القراءة من الصور | ML Kit Text Recognition **المدمج** (نموذج Latin داخل التطبيق، دون Play Services) |
 | المكتبات الأخرى | `androidx.webkit` (هوية كروم لصفحة YouDrive)، kotlinx.serialization، coroutines |
-| لا يوجد | Hilt/DI framework، Firebase، تحليلات، تقارير أعطال، إذن الموقع، إذن التخزين |
+| لا يوجد | Hilt/DI framework، Firebase، تحليلات، تقارير أعطال، موقع في الخلفية، إذن التخزين |
 | الاختبارات | 177 اختباراً: وحدة (JUnit) + Robolectric (أندرويد 13، sdk 33) |
 | R8/minify | **مطفأ** في release، لأنه كان يحذف مسجِّلات ML Kit (راجع DECISIONS 1.0.1) |
 
@@ -154,10 +154,10 @@
 | `parse/TitleCase.kt` | «STORGATAN 14» ← «Storgatan 14» بقواعد سويدية. |
 | `ocr/TilePlanner.kt`, `OcrLineMerger.kt`, `OcrLine.kt` | تقسيم الصور الطويلة، ثم دمج النتائج وإزالة التكرار وترتيب القراءة. |
 | `geo/GeoLogic.kt` | اختيار أفضل نتيجة Geocoder، واسم المنطقة المنطوق، والمسافة. |
-| `geo/StreetLookup.kt` | منطق «الشارع الحالي». **خامل** منذ 1.4.5 (لا موقع). |
+| `geo/StreetLookup.kt` | منطق «الشارع الحالي»: متى نسأل الـ Geocoder من جديد، واختيار الشارع من النتائج. |
 | `route/Announcements.kt` | نصوص الإعلانات السويدية والإنجليزية. |
 | `route/MapsUrlBuilder.kt` | رابط اتجاهات خرائط Google، بحد أقصى 10 محطات لكل فتح. |
-| `route/ArrivalDetector.kt` | آلة حالة الوصول والمغادرة من GPS. **خاملة** (لا موقع). |
+| `route/ArrivalDetector.kt` | آلة حالة الوصول والمغادرة من GPS. **خاملة**: الموقع لاسم الشارع فقط، ولا يتقدّم المسار وحده. |
 | `link/LinkProtocol.kt`, `LinkTargets.kt` | رسائل JSON سطراً سطراً بين الجوال والتابلت، وترتيب الأجهزة المقترنة. |
 | `display/DisplaySnapshot.kt` | ما تعرضه شاشة الركاب: `DisplayItem(time, title, subtitle)`. |
 | `youdrive/TripWatch.kt` | مقارنة قراءات YouDrive (راجع القسم 4). |
@@ -174,11 +174,12 @@
 | `route/ExpiryReceiver.kt` | منبّه يحذف البيانات المنتهية. |
 | `ocr/OcrEngine.kt` | ML Kit + التقسيم. الأخطاء تُعرض بمرحلة الفشل (`ReadStage`) دون أي نص. |
 | `importer/ScreenshotImporter.kt` | يمرّر الصور إلى OCR ثم الاستخراج، ويعيد عدد العناوين والأخطاء. |
-| `geo/Geocoding.kt` | `locate` (من العنوان إلى الإحداثيات، يجرّب عدة صيغ)، و`reverse` (خامل). |
-| `geo/CurrentStreet.kt` | الشارع الحالي، **خامل** (لا موقع). |
+| `geo/Geocoding.kt` | `locate` (من العنوان إلى الإحداثيات، يجرّب عدة صيغ)، و`reverse` (من الإحداثيات إلى الشارع الحالي). |
+| `geo/CurrentStreet.kt` | الشارع الحالي (الدائرة في الزر العائم وشريط الشارع)، يُحسب فقط حين تعرضه شاشة. |
+| `service/StreetService.kt` | خدمة أمامية من نوع location أثناء المسار (بإذن «أثناء الاستخدام» فقط، عبر `LocationManager`). ترسل المواقع إلى `CurrentStreet` **فقط**، لا إلى `RouteController.onLocation`، ولا تحفظها ولا تسجّلها. |
 | `tts/Announcer.kt` | TextToSpeech بالسويدية، مع خفض صوت الخرائط مؤقتاً أثناء الكلام، والتحقق من وجود الصوت السويدي (`TtsStatus`). |
 | `maps/MapsLauncher.kt` | فتح خرائط Google. من الخلفية يضيف إشعار «افتح الخرائط» لأن أندرويد قد يمنع فتح نشاط من الخلفية. |
-| `overlay/OverlayManager.kt` | الزر العائم (Views، وليس Compose): اللوحة، والفقاعة، والسحب، والأرقام المرجعية 1–17، وتذكير الإشعار عند الإغلاق. الألوان في `companion object`. |
+| `overlay/OverlayManager.kt` | الزر العائم (Views، وليس Compose): اللوحة، والفقاعة، والسحب، والأرقام المرجعية 1–18، وتذكير الإشعار عند الإغلاق. الألوان من `PanelColors` (أدوار `AppColors`). |
 | `overlay/OverlayTileService.kt` | مربع «Floating button» في الإعدادات السريعة. |
 | `service/Notifications.kt` | القنوات، وإشعار المسار، وتنبيهات YouDrive، وإشعار «الزر العائم مغلق». |
 | `service/RouteNotifier.kt` | يُبقي إشعار المسار متزامناً مع المسار. |
@@ -284,7 +285,7 @@
 1. **رفع الرقمين** في `app/build.gradle.kts`: `versionCode` دائماً +1 حتى يُثبَّت التطبيق فوق القديم، و`versionName` الجديد.
 2. **البناء الكامل** بالأمر أعلاه. **افحص رمز الخروج**: كل الاختبارات تنجح، و lint = «No issues found».
 3. **فحص الـ APK**:
-   - `aapt2 dump badging` للتأكد من الرقم ومن عدم وجود أي إذن موقع.
+   - `aapt2 dump badging` للتأكد من الرقم، ومن وجود إذن الموقع FINE/COARSE وعدم وجود إذن الموقع في الخلفية (BACKGROUND).
    - `apksigner verify --print-certs` للتأكد من التوقيع (SHA-256 يبدأ بـ `1ae62777…`).
    - `dexdump` للتأكد من وجود `TextRegistrar` (مسجّل ML Kit).
 4. **النسخ والتوثيق**: انسخ الملف إلى `dist/NastaStopp.apk` (الملف الوحيد المسموح به في git من نوع apk)، وحدّث DECISIONS.md وREADME.
@@ -308,7 +309,10 @@
 2. **لا يُحفظ إلا العنوان والوقت ونوع الرحلة واسم الراكب الأول والأخير** (قرار السائق في 1.2)، ولا هواتف ولا أسماء وسطى ولا نص آخر. الاسم يظهر على شاشات السائق فقط (المراجعة، المسار، الزر العائم): **لا يُنطق، ولا يُرسل إلى شاشة الركاب، ولا يوضع في إشعار أو في السجل، ولا يُسجَّل في logcat**. يضمن ذلك الاختبار `namesStayOnTheDriversScreens`.
 3. **لا سجلات** لعناوين أو نص OCR في release. استعمل `DebugLog` فقط.
 4. **النسخ الاحتياطي**: `allowBackup="false"`، وقواعد الاستخراج تستثني كل شيء.
-5. **لا إذن موقع أبداً** (قرار السائق في 1.4.5). خرائط Google وحدها تستخدم الموقع. الأذونات محذوفة بـ `tools:node="remove"` في الـ manifest.
+5. **الموقع لاسم الشارع فقط** (قرار السائق في 1.3):
+   - أثناء المسار وبإذن «أثناء استخدام التطبيق» فقط؛ إذن الموقع في الخلفية محذوف بـ `tools:node="remove"`.
+   - المواقع تذهب إلى `CurrentStreet` فقط: لا تنقل المسار وحدها، ولا تُحفظ ولا تُسجَّل ولا تُرسل.
+   - **صفحة YouDrive لا تحصل على الموقع أبداً**: `setGeolocationEnabled(false)` ورفض كل طلب من الصفحة (الاختبار `theYouDrivePageNeverGetsTheLocation`).
 6. **الإنترنت** لصفحة YouDrive فقط. تقارير ML Kit (datatransport) معطّلة في الـ manifest.
 7. **الإعلان الصوتي** يذكر الحي أو المدينة فقط. شاشة الركاب يمكن أن تعرض الشارع مع الرقم (إعداد 114، قرار السائق).
 8. **لا Hilt ولا Firebase** ولا تحليلات ولا تقارير أعطال.
@@ -332,10 +336,7 @@
   2. أضِف النص المقروء كحالة اختبار في `TripWatchTest` أو `YouDriveRoboTest`.
   3. عدّل `YouDriveCards` (قراءة البطاقة) أو `TripWatch.tripsIn` أو `AddressExtractor`، واختبر في `YouDriveCardsTest`.
 - **صيغة عنوان جديدة من تطبيق آخر**: أضِف حالة في `AddressExtractorTest` أولاً، ثم عدّل `AddressExtractor`.
-- **إرجاع الموقع** (إن غيّر السائق رأيه):
-  - الكود الخامل موجود: `ArrivalDetector` و`CurrentStreet` و`StreetLookup` و`Geocoding.reverse`.
-  - `RouteService` محذوف، ويمكن استرجاعه من تاريخ git (قبل 1.4.5).
-  - يحتاج أيضاً إعادة الأذونات في الـ manifest.
+- **التقدّم التلقائي عند المغادرة** (إن طلبه السائق): `ArrivalDetector` و`RouteController.onLocation` موجودان لكنهما خاملان. يكفي أن ترسل `StreetService` المواقع إلى `controller.onLocation` أيضاً، لكن ذلك يُعلن المحطة التالية دون ضغطة من السائق، فيحتاج قراره أولاً (القاعدة 10).
 
 ---
 
@@ -345,7 +346,7 @@
 - **مكان النسخة:** `dist/NastaStopp.apk` في الفرع، موقّعة release بنفس المفتاح دائماً، فتُحدَّث فوق النسخة القديمة. الرابط المباشر: `https://github.com/HussamEl/S20Ultra/raw/<sha>/dist/NastaStopp.apk`.
 - **معرّفات ثابتة للاختبار الآلي:**
   - كل عنصر مرقّم له `resource-id` = `ref_<n>` (عبر `Modifier.ref` مع `testTagsAsResourceId`).
-  - أجزاء الزر العائم لها `id/ref_1` إلى `id/ref_17`.
+  - أجزاء الزر العائم لها `id/ref_1` إلى `id/ref_18`.
 - **صور اختبار مخترعة** (بلا ركاب حقيقيين): في `testdata/screenshots/`، ونتائجها المتوقعة في `testdata/README.md`.
 - **دورة العمل:**
   1. نرسل «DEVICE-TEST READY» مع الـ SHA وقائمة الخطوات.

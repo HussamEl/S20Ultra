@@ -83,4 +83,17 @@ class YouDriveCardsTest {
         // Without cards the page text is parsed as before.
         assertFalse(TripWatch.tripsIn(cards.joinToString("\n"), extractor).any { it.stop?.displayText?.startsWith("Sjukhuset") == true })
     }
+
+    /** The card's first line is the name, whatever its case; a status such as "No show" is not. */
+    @Test
+    fun theFirstLineOfTheCardIsTheName() {
+        val lower = YouDriveCards.parseCard("10:00\nPick-up\nanna maria testsson\nStorgatan 14, 65224 Karlstad", 0, extractor)
+        assertEquals("Anna Testsson", lower?.stop?.name)
+        val noShow = YouDriveCards.parseCard("10:00\nPick-up\nNo show\nStorgatan 14, 65224 Karlstad", 0, extractor)
+        assertNull(noShow?.stop?.name)
+        // A place written before the street on the address line does not take the name's place.
+        val place = YouDriveCards.parseCard("15:51\n15:45\nPick-up\nBritta Exempel\nVårdhuset Öppenvård Parkgatan 4, 65224 Karlstad", 0, extractor)
+        assertEquals("Britta Exempel", place?.stop?.name)
+        assertEquals("15:51", place?.time)
+    }
 }

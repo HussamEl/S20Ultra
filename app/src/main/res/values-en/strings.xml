@@ -67,11 +67,7 @@
     <string name="btn_edit_list">Edit list</string>
     <string name="confirm_end_title">End the route?</string>
     <string name="confirm_end_text">The route and its list are deleted. Its trips stay under \"Previous trips\" on Home until their time runs out (see Settings) or you clear them. Google Maps keeps navigating until you close it there.</string>
-    <string name="status_arrived">Arrived – the next stop is announced when you drive off</string>
-    <string name="status_distance">Distance to stop: %1$d m</string>
-    <string name="status_manual_only">Manual advance for this stop (tap Next)</string>
-    <string name="status_no_location">Location is off (your choice) – tap Next when you leave a stop</string>
-    <string name="status_waiting_gps">Waiting for GPS…</string>
+    <string name="status_tap_next">Tap Next when you leave a stop</string>
 
     <string name="settings_title">Settings</string>
     <string name="settings_language">App language</string>
@@ -82,6 +78,8 @@
     <string name="settings_rate">Speech rate: %1$s</string>
     <string name="settings_test_voice">Test voice</string>
     <string name="settings_permissions">Permissions and system</string>
+    <string name="settings_location">Location (street name only)</string>
+    <string name="help_location">Location is used only while a route is active, to show and say the street you are on (the floating button\'s circle and the route screen). It is never stored, logged or sent, it never moves the route on by itself, and the YouDrive page never gets it (location is switched off for that page). Choose \"While using the app\".</string>
     <string name="settings_notifications">Notifications</string>
     <string name="settings_overlay">Floating button over Maps</string>
     <string name="settings_battery">Battery optimization exemption</string>
@@ -91,7 +89,7 @@
     <string name="voice_ready">Ready ✓</string>
     <string name="voice_missing">Missing – tap to install</string>
     <string name="voice_checking">Checking…</string>
-    <string name="settings_privacy_note">Privacy: images are read on the phone only and never stored. Only times and addresses are kept; the route list is deleted when the route ends, when you clear, or after 12 hours, and finished trips stay in the history for the chosen time (12 hours by default). The app uses the internet only to show your YouDrive page and sends no data anywhere itself; no analytics. The YouDrive login stays on this phone and can be deleted.</string>
+    <string name="settings_privacy_note">Privacy: images are read on the phone only and never stored. Only times, addresses, the trip kind and the passenger\'s first and last name (shown on your screens only) are kept; the route list is deleted when the route ends, when you clear, or after 12 hours, and finished trips stay in the history for the chosen time (12 hours by default). The app uses the internet only to show your YouDrive page and sends no data anywhere itself; no analytics. Location (if you allow it) only names the street you are on during a route; it is never stored or sent, and the YouDrive page never gets it. The YouDrive login stays on this phone and can be deleted.</string>
     <string name="settings_version">Version %1$s · %2$s</string>
 
     <string name="help_title">Help</string>
@@ -106,9 +104,9 @@
     <string name="help_share_title">Share a screenshot to the app</string>
     <string name="help_share_body">1. Take a screenshot of the page with the addresses (any app: dispatch app, SMS, email, web page). Use scroll capture for long lists.\n2. Tap Share in the screenshot toolbar or in the gallery and pick Nästa Stopp. Several images are fine; they are added in order.\n3. Or open the app and tap \"Import screenshots\".\n4. Review the list and tap \"Start route\". Google Maps opens with the stops (up to 10 at a time).</string>
     <string name="help_overlay_title">Floating button</string>
-    <string name="help_overlay_body">If you allow \"display over other apps\", a floating panel is shown over Google Maps during the route:\n• The big circle = the next stop\'s area (tap it, or the small speaker under it, to repeat the announcement).\n• \"Next\" = next stop + announcement (long-press = repeat the announcement).\n• \"Back\" = undo the last \"Next\".\n• Below: the clock, the trip number, the next trip\'s time (green = plenty of time, yellow = soon, red = late) and the address.\n• \"–\" = minimise to a small bubble (tap it to expand). \"×\" = close; bring it back from the notification or the Quick Settings tile.\n• Drag to move it.\nWithout it everything works from the notification.</string>
+    <string name="help_overlay_body">If you allow \"display over other apps\", a floating panel is shown over Google Maps during the route:\n• The big circle = the street you are on now, with location allowed (without it: the next stop\'s area). Tap it, or the small speaker under it, to hear it.\n• \"Next\" = next stop + announcement (long-press = repeat the announcement).\n• \"Back\" = undo the last \"Next\".\n• Below: the clock, the trip number, the next trip\'s time and passenger (green = plenty of time, yellow = soon, red = late) and the address.\n• \"–\" = minimise to a small bubble (tap it to expand). \"×\" = close; bring it back from the notification or the Quick Settings tile.\n• Drag to move it.\nWithout it everything works from the notification.</string>
     <string name="help_how_title">How announcements work</string>
-    <string name="help_how_body">When you tap Next (in the app, on the floating button or in the notification) the app announces the next stop and the one after it in Swedish, e.g. \"Nästa stopp: Skoghall. Därefter: Kil.\"\nOnly the district or town is said – never street names, numbers or names.\nThe app never uses the phone\'s location; only Google Maps does.</string>
+    <string name="help_how_body">When you tap Next (in the app, on the floating button or in the notification) the app announces the next stop and the one after it in Swedish, e.g. \"Nästa stopp: Skoghall. Därefter: Kil.\"\nOnly the district or town is said – never street names, numbers or names.\nIf you allow location, the app uses it only to name the street you are on; YouDrive\'s page never gets it.</string>
     <string name="help_privacy_title">Privacy</string>
 
     <string name="onb_step">Step %1$d of %2$d</string>
@@ -119,7 +117,7 @@
     <string name="onb_battery_title">Battery</string>
     <string name="onb_battery_body">Allow the app to ignore battery optimization so the system does not stop it while driving.\n\nOn Samsung also add the app to \"Never sleeping apps\" (see Help).</string>
     <string name="onb_overlay_title">Floating button (optional)</string>
-    <string name="onb_overlay_body">A floating panel over Google Maps: \"Next\" and \"Back\", the next stop and its time.\n\nTurn on \"Allow display over other apps\" for Nästa Stopp on the next screen. Without it everything works from the notification.</string>
+    <string name="onb_overlay_body">A floating panel over Google Maps: \"Next\" and \"Back\", the street you are on, the next stop and its time.\n\nTurn on \"Allow display over other apps\" for Nästa Stopp on the next screen. Without it everything works from the notification.</string>
     <string name="onb_voice_title">Swedish voice</string>
     <string name="onb_voice_body">Announcements are always in Swedish so the passengers understand, whatever the app language.</string>
     <string name="onb_granted">Allowed ✓</string>
@@ -267,4 +265,5 @@
     <string name="appearance_night">Night – dark</string>
     <string name="appearance_auto">Automatic – follows the phone’s dark mode</string>
     <string name="appearance_hint">Day is light, in YouDrive’s colours. Night is dark and easy on the eyes when driving in the dark; the trips keep their meanings (green pick-up, grey start, yellow for what to do now). Automatic follows the phone’s dark mode, which Samsung can switch on from sunset to sunrise.</string>
+    <string name="youdrive_updated">Trips updated from YouDrive: %1$d</string>
 </resources>

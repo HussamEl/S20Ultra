@@ -30,7 +30,7 @@ None of these may appear in logcat from the app. Since 1.2 the app shows the pas
 adb shell setprop log.tag.NastaStoppRefs DEBUG
 adb logcat -s NastaStoppRefs
 ```
-Every layout or move of the panel then logs `ref_<n>=[left,top][right,bottom]` in screen pixels for the visible parts 1–17. It logs ids and bounds only, never stop data. Turn it off with `adb shell setprop log.tag.NastaStoppRefs ""`.
+Every layout or move of the panel then logs `ref_<n>=[left,top][right,bottom]` in screen pixels for the visible parts 1–18. It logs ids and bounds only, never stop data. Turn it off with `adb shell setprop log.tag.NastaStoppRefs ""`.
 
 To put them on the phone (the system photo picker indexes files under `Pictures/`):
 ```

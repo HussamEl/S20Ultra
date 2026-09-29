@@ -53,6 +53,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import se.eldebosh.nastastopp.R
@@ -266,21 +267,27 @@ private fun SwipeableStopRow(
                             )
                             if (stop.time != null) {
                                 Spacer(Modifier.width(8.dp))
-                                Text(stop.time, style = MaterialTheme.typography.labelLarge, color = AppTheme.colors.time, modifier = Modifier.ref(46, centered = true))
+                                Text(stop.time, style = MaterialTheme.typography.titleMedium, color = AppTheme.colors.time, modifier = Modifier.ref(46, centered = true))
+                            }
+                            // The passenger's first and last name: the card's first line, level with
+                            // the time, as on YouDrive's card (the driver's screen only).
+                            if (stop.name != null) {
+                                Spacer(Modifier.width(10.dp))
+                                Text(
+                                    stop.name,
+                                    style = MaterialTheme.typography.titleMedium.copy(textDirection = TextDirection.Content),
+                                    color = AppTheme.colors.onTrip,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.ref(134, centered = true).weight(1f),
+                                )
+                            } else {
+                                Spacer(Modifier.weight(1f))
                             }
                             if (stop.kind != null) {
                                 Spacer(Modifier.width(8.dp))
                                 KindLabel(stop.kind, Modifier.ref(126, centered = true))
                             }
-                        }
-                        // The passenger's first and last name (the driver's screen only).
-                        if (stop.name != null) {
-                            Text(
-                                stop.name,
-                                style = MaterialTheme.typography.titleMedium.copy(textDirection = TextDirection.Content),
-                                color = AppTheme.colors.onTrip,
-                                modifier = Modifier.ref(134),
-                            )
                         }
                         Text(
                             stop.displayText,

@@ -67,11 +67,7 @@
     <string name="btn_edit_list">Redigera listan</string>
     <string name="confirm_end_title">Avsluta rutten?</string>
     <string name="confirm_end_text">Rutten och listan raderas. Resorna finns kvar under \"Tidigare resor\" på startsidan tills tiden löper ut (se Inställningar) eller du rensar dem. Google Maps fortsätter navigera tills du avslutar där.</string>
-    <string name="status_arrived">Framme – nästa stopp ropas ut när du kör vidare</string>
-    <string name="status_distance">Avstånd till stoppet: %1$d m</string>
-    <string name="status_manual_only">Manuell växling för detta stopp (tryck Nästa)</string>
-    <string name="status_no_location">Platsen är av (ditt val) – tryck Nästa när du lämnar ett stopp</string>
-    <string name="status_waiting_gps">Väntar på GPS…</string>
+    <string name="status_tap_next">Tryck Nästa när du lämnar ett stopp</string>
 
     <string name="settings_title">Inställningar</string>
     <string name="settings_language">Språk i appen</string>
@@ -82,6 +78,8 @@
     <string name="settings_rate">Talhastighet: %1$s</string>
     <string name="settings_test_voice">Testa rösten</string>
     <string name="settings_permissions">Behörigheter och system</string>
+    <string name="settings_location">Plats (bara gatunamnet)</string>
+    <string name="help_location">Platsen används bara medan en rutt är aktiv, för att visa och säga gatan du kör på (den flytande knappens cirkel och ruttskärmen). Den sparas, loggas och skickas aldrig, flyttar aldrig rutten framåt av sig själv, och YouDrive-sidan får den aldrig (platsen är avstängd för den sidan). Välj \"När appen används\".</string>
     <string name="settings_notifications">Aviseringar</string>
     <string name="settings_overlay">Flytande knapp över Maps</string>
     <string name="settings_battery">Undantag från batterioptimering</string>
@@ -91,7 +89,7 @@
     <string name="voice_ready">Klar ✓</string>
     <string name="voice_missing">Saknas – tryck för att installera</string>
     <string name="voice_checking">Kontrollerar…</string>
-    <string name="settings_privacy_note">Integritet: bilderna läses bara i telefonen och sparas aldrig. Bara tider och adresser sparas; ruttlistan raderas när rutten avslutas, när du rensar eller efter 12 timmar, och avslutade resor finns kvar i historiken under den valda tiden (standard 12 timmar). Appen använder internet bara för att visa din YouDrive-sida och skickar själv inga data någonstans; ingen analys. Inloggningen till YouDrive stannar i telefonen och kan raderas.</string>
+    <string name="settings_privacy_note">Integritet: bilderna läses bara i telefonen och sparas aldrig. Bara tider, adresser, typ av resa och passagerarens för- och efternamn (visas bara på dina skärmar) sparas; ruttlistan raderas när rutten avslutas, när du rensar eller efter 12 timmar, och avslutade resor finns kvar i historiken under den valda tiden (standard 12 timmar). Appen använder internet bara för att visa din YouDrive-sida och skickar själv inga data någonstans; ingen analys. Platsen (om du tillåter den) säger bara gatan du kör på under en rutt; den sparas eller skickas aldrig, och YouDrive-sidan får den aldrig. Inloggningen till YouDrive stannar i telefonen och kan raderas.</string>
     <string name="settings_version">Version %1$s · %2$s</string>
 
     <string name="help_title">Hjälp</string>
@@ -106,9 +104,9 @@
     <string name="help_share_title">Dela en skärmdump till appen</string>
     <string name="help_share_body">1. Ta en skärmdump av sidan med adresserna (från valfri app: beställningsapp, sms, mejl, webbsida). Använd rullande skärmdump för långa listor.\n2. Tryck Dela i skärmdumpsverktyget eller i galleriet och välj Nästa Stopp. Flera bilder går bra; de läggs till i ordning.\n3. Eller öppna appen och tryck \"Importera skärmdumpar\".\n4. Granska listan och tryck \"Starta rutt\". Google Maps öppnas med stoppen (upp till 10 åt gången).</string>
     <string name="help_overlay_title">Flytande knapp</string>
-    <string name="help_overlay_body">Om du tillåter \"visa ovanpå andra appar\" visas en flytande panel över Google Maps under rutten:\n• Den stora cirkeln = nästa stopps område (tryck på den eller på den lilla högtalaren under för att upprepa utropet).\n• \"Nästa\" = nästa stopp + utrop (håll inne = upprepa utropet).\n• \"Bakåt\" = ångra senaste \"Nästa\".\n• Under: klockan, resans nummer, nästa resas tid (grön = gott om tid, gul = snart, röd = sen) och adressen.\n• \"–\" = minimera till en liten bubbla (tryck för att förstora). \"×\" = stäng; visa igen via aviseringen eller snabbinställningsrutan.\n• Dra för att flytta den.\nUtan den fungerar allt via aviseringen.</string>
+    <string name="help_overlay_body">Om du tillåter \"visa ovanpå andra appar\" visas en flytande panel över Google Maps under rutten:\n• Den stora cirkeln = gatan du kör på nu, om platsen är tillåten (annars nästa stopps område). Tryck på den eller på den lilla högtalaren under för att höra den.\n• \"Nästa\" = nästa stopp + utrop (håll inne = upprepa utropet).\n• \"Bakåt\" = ångra senaste \"Nästa\".\n• Under: klockan, resans nummer, nästa resas tid och passagerare (grön = gott om tid, gul = snart, röd = sen) och adressen.\n• \"–\" = minimera till en liten bubbla (tryck för att förstora). \"×\" = stäng; visa igen via aviseringen eller snabbinställningsrutan.\n• Dra för att flytta den.\nUtan den fungerar allt via aviseringen.</string>
     <string name="help_how_title">Så fungerar utropen</string>
-    <string name="help_how_body">När du trycker på Nästa (i appen, på den flytande knappen eller i aviseringen) ropar appen ut nästa stopp och stoppet därefter, t.ex. \"Nästa stopp: Skoghall. Därefter: Kil.\"\nBara stadsdel eller ort nämns – aldrig gatunamn, nummer eller namn.\nAppen använder aldrig telefonens plats; bara Google Maps gör det.</string>
+    <string name="help_how_body">När du trycker på Nästa (i appen, på den flytande knappen eller i aviseringen) ropar appen ut nästa stopp och stoppet därefter, t.ex. \"Nästa stopp: Skoghall. Därefter: Kil.\"\nBara stadsdel eller ort nämns – aldrig gatunamn, nummer eller namn.\nOm du tillåter platsen använder appen den bara för att säga gatan du kör på; YouDrive-sidan får den aldrig.</string>
     <string name="help_privacy_title">Integritet</string>
 
     <string name="onb_step">Steg %1$d av %2$d</string>
@@ -119,7 +117,7 @@
     <string name="onb_battery_title">Batteri</string>
     <string name="onb_battery_body">Tillåt appen att ignorera batterioptimering så att systemet inte stänger den under körning.\n\nPå Samsung: lägg också till appen bland \"Appar som aldrig sover\" (se Hjälp).</string>
     <string name="onb_overlay_title">Flytande knapp (valfritt)</string>
-    <string name="onb_overlay_body">En flytande panel över Google Maps: \"Nästa\" och \"Bakåt\", nästa stopp och dess tid.\n\nSlå på \"Tillåt visning ovanpå andra appar\" för Nästa Stopp på nästa skärm. Utan den fungerar allt via aviseringen.</string>
+    <string name="onb_overlay_body">En flytande panel över Google Maps: \"Nästa\" och \"Bakåt\", gatan du kör på, nästa stopp och dess tid.\n\nSlå på \"Tillåt visning ovanpå andra appar\" för Nästa Stopp på nästa skärm. Utan den fungerar allt via aviseringen.</string>
     <string name="onb_voice_title">Svensk röst</string>
     <string name="onb_voice_body">Utropen är alltid på svenska så att passagerarna förstår, oavsett appens språk.</string>
     <string name="onb_granted">Tillåtet ✓</string>
@@ -267,4 +265,5 @@
     <string name="appearance_night">Natt – mörkt</string>
     <string name="appearance_auto">Automatiskt – följer telefonens mörka läge</string>
     <string name="appearance_hint">Dag är ljust, i YouDrives färger. Natt är mörkt och skonsamt för ögonen när du kör i mörker; resorna behåller sin betydelse (grön hämtning, grå start, gult för det du ska göra nu). Automatiskt följer telefonens mörka läge, som Samsung kan slå på från solnedgång till soluppgång.</string>
+    <string name="youdrive_updated">Resor uppdaterade från YouDrive: %1$d</string>
 </resources>

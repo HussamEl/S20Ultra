@@ -148,10 +148,11 @@ class YouDriveActivity : ComponentActivity() {
     }
 
     private fun importAll() {
-        // Trips already done today ("Performed", "Departed") are not added.
-        val added = graph.controller.importTrips(YouDriveCards.toAdd(graph.youDrive.state.value.trips))
+        // Trips already done today ("Performed", "Departed") are not added; trips already in the
+        // list are brought up to date instead of added twice.
+        val (added, updated) = graph.controller.syncTrips(YouDriveCards.toAdd(graph.youDrive.state.value.trips))
         if (added == 0) {
-            toast(getString(R.string.youdrive_nothing_new))
+            toast(if (updated > 0) getString(R.string.youdrive_updated, updated) else getString(R.string.youdrive_nothing_new))
             return
         }
         toast(getString(R.string.import_result, added))

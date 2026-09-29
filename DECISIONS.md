@@ -484,3 +484,40 @@ The driver compared the app's list with the real YouDrive page and found mix-ups
   - the day "soon" amber on green: `#B45309` → `#A04A07`;
   - the night secondary text on a green card: → `#AEB8C9`.
 - Not done: YouDrive's own page stays light at night, because it is their site.
+
+## 1.3 (versionCode 21): the name on the card's first line, the street we are on, no duplicated trips
+
+The driver compared the app's list with YouDrive again: "look at the original and what you transferred".
+
+**Where the mix-ups came from.** The list held two imports at once: one from 1.1 (booked times, no names, notes read as stops) and one from 1.2. The same trip was then listed twice, at 16:15 and at 16:25.
+- **Add all trips now syncs instead of adding.** A trip already in the list is brought up to date instead of added again: its time, kind and name, and its address while it is not located yet (`RouteController.syncTrips`).
+  - A trip matches when it has the same address, a compatible kind and name, and a time no more than 45 min apart.
+  - Duplicate copies left by an older import are removed, and a stop whose time moved is put back in time order.
+  - The toast says "Trips updated from YouDrive: n".
+- **A note is not an address.** A line with four or more lower-case words is a sentence ("… så är det vid …"), even when it mentions a street. This does not apply to text the driver types.
+- **The name is the card's first line.** On a YouDrive card the name is always the first line of the right column, so it is taken from there even when written in lower case ("anna testsson" → "Anna Testsson").
+- An existing list keeps its old rows until the next Add all trips. Clearing the list once and adding again is the quickest clean start.
+
+**The passenger's name is on each card's first line, level with the time**, as on YouDrive:
+- review (134);
+- route: the current trip (135) and the coming trips;
+- YouDrive's change rows;
+- the floating panel: a new part **18** on the time line, cut short when long. The address line no longer carries the name.
+
+**Location, only to name the street we are on (the driver's decision).** It reverses 1.4.5's "no location at all":
+- The floating button's circle shows the street the vehicle is on, and tapping it says the street. Without permission the circle shows the next stop's area, as before.
+- Location is asked at **Start route** (after the driver's tap) and in Settings (**119**, with "?").
+  - "While using the app" only: `ACCESS_BACKGROUND_LOCATION` stays removed from the manifest.
+  - `service/StreetService` is a foreground service of type location, running only while a route is active. It uses the system's `LocationManager` (no Play services), with a new position every 4 s or 15 m.
+- **Positions only name the street** (`CurrentStreet`). They never reach `RouteController.onLocation`, so the route never moves on by itself: Next stays the driver's tap.
+  - They are never stored, logged or sent. `Geocoding.reverse` uses the system's geocoder.
+  - `StreetServiceRoboTest` drives up to a stop, waits there and drives off, and checks that the route stays where it was.
+- **The YouDrive page never gets the location.**
+  - Its WebView keeps `setGeolocationEnabled(false)`, and every request from the page is refused.
+  - `YouDriveRoboTest.theYouDrivePageNeverGetsTheLocation` guards this.
+  - Android permissions belong to one app: the YouDrive app, if installed, never inherits ours.
+- The route screen's status line is now always "Tap Next when you leave a stop". The distance and waiting timer stay hidden, because they came from the arrival detector.
+
+**Also:**
+- The privacy note now lists the trip kind and the passenger's first + last name among what is kept.
+- A stale colour comment was removed from `OverlayManager`.

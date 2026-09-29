@@ -60,7 +60,8 @@ import kotlin.math.roundToInt
  *
  *     [Back]   ( street we are on )   [Next]      ← follows the UI language (Arabic: Back on the right)
  *                   (speaker)                     ← says the street name
- *     clock · trip n/total · next trip: time, on-time status, distance · address · waiting timer
+ *     clock · trip n/total
+ *     next trip: time, passenger's name, on-time status, distance · address · waiting timer
  *
  * Next: tap = "Nästa", long-press = repeat. Back: undo the last "Nästa". The street circle: tap =
  * say the street, long-press = repeat. "–" shrinks it to a small bubble (tap to expand); "×"
@@ -94,6 +95,7 @@ class OverlayManager(
         var clock: TextView? = null
         var progress: TextView? = null
         var time: TextView? = null
+        var name: TextView? = null
         var status: TextView? = null
         var distance: TextView? = null
         var address: TextView? = null
@@ -174,8 +176,13 @@ class OverlayManager(
         val backAlpha = if (r.completed.isEmpty()) 0.35f else 1f
         (v.back as? ViewGroup)?.let { b -> for (i in 0 until b.childCount) b.getChildAt(i).alpha = backAlpha }
         v.progress?.text = progress(r.completedCount, r.stops.size)
-        // The passenger's first + last name before the address: this panel is the driver's own.
-        v.address?.text = listOfNotNull(current.name, current.displayText).joinToString(" · ")
+        v.address?.text = current.displayText
+        // The passenger's first + last name level with the time, as on YouDrive's card: this
+        // panel is the driver's own.
+        v.name?.apply {
+            text = current.name.orEmpty()
+            visibility = if (current.name == null) View.GONE else View.VISIBLE
+        }
         v.infoBg?.setColor(pc.info(current.kind))
         v.time?.apply {
             text = current.time.orEmpty()
@@ -343,10 +350,17 @@ class OverlayManager(
             addView(sideColumn(minimize, next))
         }
 
-        // Info: clock, trip n/total, next trip's time + status + distance, address, waiting timer.
+        // Info: clock, trip n/total, next trip's time + name + status + distance, address, waiting timer.
         val clockView = text(18f, pc.text, bold = true)
         val progressView = text(13f, pc.muted).apply { setPadding(dp(8f), 0, dp(8f), 0) }
         val timeView = text(15f, pc.text, bold = true)
+        val nameView = text(15f, pc.text, bold = true).apply {
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+            gravity = Gravity.START or Gravity.CENTER_VERTICAL
+            textDirection = View.TEXT_DIRECTION_FIRST_STRONG
+            setPadding(dp(8f), 0, 0, 0)
+        }
         val statusView = text(14f, pc.text, bold = true).apply { setPadding(dp(8f), 0, dp(8f), 0) }
         val distanceView = text(13f, pc.muted)
         val addressView = text(13f, pc.text).apply {
@@ -359,7 +373,12 @@ class OverlayManager(
         val lines = LinearLayout(ui).apply {
             orientation = LinearLayout.VERTICAL
             addView(line(clockView, progressView))
-            addView(line(timeView, statusView, distanceView))
+            addView(
+                line(timeView, statusView, distanceView).apply {
+                    // The name takes the room left beside the time and is cut short if long.
+                    addView(nameView, 1, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                },
+            )
             addView(addressView)
             addView(waitView)
         }
@@ -384,7 +403,7 @@ class OverlayManager(
             LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(2f) },
         )
 
-        // Reference numbers 1–16 (listed in the README), so the driver can name each part.
+        // Reference numbers 1–18 (listed in the README), so the driver can name each part.
         back.ref(1)
         circle.ref(2)
         areaView.ref(3)
@@ -399,6 +418,7 @@ class OverlayManager(
         distanceView.ref(12)
         addressView.ref(13)
         waitView.ref(14)
+        nameView.ref(18)
         repeat.ref(15)
         info.ref(16, bottomEnd = true)
 
@@ -426,6 +446,7 @@ class OverlayManager(
         v.clock = clockView
         v.progress = progressView
         v.time = timeView
+        v.name = nameView
         v.status = statusView
         v.distance = distanceView
         v.address = addressView
@@ -699,11 +720,11 @@ class OverlayManager(
         private val REF_IDS = intArrayOf(
             R.id.ref_1, R.id.ref_2, R.id.ref_3, R.id.ref_4, R.id.ref_5, R.id.ref_6, R.id.ref_7, R.id.ref_8, R.id.ref_9,
             R.id.ref_10, R.id.ref_11, R.id.ref_12, R.id.ref_13, R.id.ref_14, R.id.ref_15, R.id.ref_16, R.id.ref_17,
+            R.id.ref_18,
         )
 
         /** All panel texts 10 % smaller than first designed (driver's request). */
         private const val FONT_SCALE = 0.9f
-        // The app's "Night transit" colours (see ui/theme/Theme.kt).
     }
 }
 

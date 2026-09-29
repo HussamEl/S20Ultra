@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Floating panel parts 1–17: view ids so device tests (UI Automator) find them as "…:id/ref_<n>". -->
+<!-- Floating panel parts 1–18: view ids so device tests (UI Automator) find them as "…:id/ref_<n>". -->
 <resources>
     <item name="ref_1" type="id" />
     <item name="ref_2" type="id" />
@@ -18,4 +18,5 @@
     <item name="ref_15" type="id" />
     <item name="ref_16" type="id" />
     <item name="ref_17" type="id" />
+    <item name="ref_18" type="id" />
 </resources>

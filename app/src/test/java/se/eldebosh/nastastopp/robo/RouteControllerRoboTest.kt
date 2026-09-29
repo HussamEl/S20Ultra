@@ -20,6 +20,8 @@ import se.eldebosh.nastastopp.App
 import se.eldebosh.nastastopp.AppGraph
 import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.core.route.Fix
+import se.eldebosh.nastastopp.core.youdrive.YouDriveCards
+import se.eldebosh.nastastopp.route.RouteController
 import se.eldebosh.nastastopp.route.RouteRepository
 import se.eldebosh.nastastopp.route.model.GeoPoint
 import se.eldebosh.nastastopp.route.model.GeoStatus
@@ -92,6 +94,38 @@ class RouteControllerRoboTest {
         assertTrue(url, url.contains("Storgatan") && url.contains("J%C3%A4rnv%C3%A4gsgatan"))
         assertFalse("Maps is not sent to the depot: $url", url.contains("Dep"))
         c.end()
+    }
+
+    /**
+     * "Add all trips" is a sync: a list read by an older version (booked instead of scheduled
+     * times, no names, a copy of the same trip) is brought up to date, never doubled (invented data).
+     */
+    @Test
+    fun addAllTripsRefreshesInsteadOfDoubling() {
+        val c = graph.controller
+        val old = graph.extractor
+        // An older reading: the booked times (16:15) and no names, and one trip read twice.
+        c.addManual("Storgatan 14, 65224 Karlstad", "16:15")
+        c.addManual("Lindvägen 9, 66430 Grums", "16:43")
+        c.addManual("Storgatan 14, 65224 Karlstad", "16:20")
+        c.addManual("Kyrkogatan 2, 65224 Karlstad", "17:30") // added by hand, not on YouDrive
+        val fresh = YouDriveCards.parse(
+            listOf(
+                "16:25\n16:15\nPick-up\nAnna Maria Testsson\nSTORGATAN 14 LGH 1402, 65224 KARLSTAD",
+                "16:43\nDrop-off\nAnna Maria Testsson\nLindvägen 9, 66430 Grums",
+            ),
+            old,
+        ).mapNotNull { it.stop }
+        val result = c.syncTrips(fresh)
+        assertEquals(0, result.added)
+        assertEquals(2, result.updated)
+        val stops = c.route.value!!.stops
+        assertEquals(
+            listOf("16:25 PICK_UP Anna Testsson", "16:43 DROP_OFF Anna Testsson", "17:30 null null"),
+            stops.map { "${it.time} ${it.kind} ${it.name}" },
+        )
+        // A second sync changes nothing.
+        assertEquals(RouteController.SyncResult(0, 0), c.syncTrips(fresh))
     }
 
     /**

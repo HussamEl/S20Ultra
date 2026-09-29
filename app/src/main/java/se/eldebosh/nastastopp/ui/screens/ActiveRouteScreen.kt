@@ -56,7 +56,6 @@ import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.core.geo.StreetInfo
 import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.core.parse.TripTimes
-import se.eldebosh.nastastopp.core.route.DetectorPhase
 import se.eldebosh.nastastopp.route.TrackingState
 import se.eldebosh.nastastopp.route.model.RouteData
 import se.eldebosh.nastastopp.route.model.Stop
@@ -72,7 +71,6 @@ import se.eldebosh.nastastopp.ui.theme.AppTheme
 import se.eldebosh.nastastopp.util.TimeLabels
 import java.time.Instant
 import java.time.ZoneId
-import kotlin.math.roundToInt
 
 /**
  * Active route: the trips stay listed in order, each starting with its time. Completed trips stay
@@ -156,7 +154,7 @@ fun ActiveRouteScreen(
             }
             if (current != null) {
                 item(key = "current-${current.id}") {
-                    CurrentCard(current, spokenName(current), statusText(current, tracking, hasLocationPermission), tracking.arrivedAtMs)
+                    CurrentCard(current, spokenName(current), statusText(), tracking.arrivedAtMs)
                 }
             }
             if (route.stops.size > 1) {
@@ -222,7 +220,7 @@ private fun CompletedRow(stop: Stop, area: String) {
             Spacer(Modifier.width(8.dp))
         }
         Text(
-            "$area · ${stop.displayText}",
+            listOfNotNull(stop.name, area, stop.displayText).joinToString(" · "),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Content),
@@ -303,19 +301,8 @@ private fun CurrentCard(current: Stop, area: String, status: String, arrivedAtMs
     val nowMs = rememberNowMs()
     TripSurface(current.kind, Modifier.ref(68).fillMaxWidth(), current = true) {
         Column(Modifier.animateContentSize().padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    stringResource(R.string.active_next_label),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = AppTheme.colors.onTrip,
-                )
-                if (current.kind != null) {
-                    Spacer(Modifier.width(8.dp))
-                    KindLabel(current.kind, Modifier.ref(128, centered = true))
-                }
-                Spacer(Modifier.weight(1f))
-                if (current.time != null) TimeStatusChip(current.time, nowMs)
-            }
+            // First line, as on YouDrive's card: the time and the passenger's first and last
+            // name level with it (the driver's screen only), then how late or early it is.
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (current.time != null) {
                     Text(
@@ -324,7 +311,6 @@ private fun CurrentCard(current: Stop, area: String, status: String, arrivedAtMs
                         color = AppTheme.colors.onAccent,
                         modifier = Modifier
                             .ref(69)
-                            .padding(top = 6.dp)
                             .clip(RoundedCornerShape(10.dp))
                             .background(AppTheme.colors.accent)
                             .padding(horizontal = 10.dp, vertical = 2.dp),
@@ -338,8 +324,23 @@ private fun CurrentCard(current: Stop, area: String, status: String, arrivedAtMs
                         color = AppTheme.colors.onTrip,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.ref(135, centered = true),
+                        modifier = Modifier.ref(135, centered = true).weight(1f),
                     )
+                } else {
+                    Spacer(Modifier.weight(1f))
+                }
+                if (current.time != null) TimeStatusChip(current.time, nowMs)
+            }
+            Spacer(Modifier.height(6.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.active_next_label),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = AppTheme.colors.onTrip,
+                )
+                if (current.kind != null) {
+                    Spacer(Modifier.width(8.dp))
+                    KindLabel(current.kind, Modifier.ref(128, centered = true))
                 }
             }
             Text(
@@ -382,26 +383,38 @@ private fun CurrentCard(current: Stop, area: String, status: String, arrivedAtMs
 @Composable
 private fun UpcomingRow(index: Int, stop: Stop, area: String) {
     TripSurface(stop.kind, Modifier.ref(76).fillMaxWidth(), shape = MaterialTheme.shapes.medium) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
-            Text(
-                stop.time ?: "--:--",
-                style = MaterialTheme.typography.labelLarge,
-                color = if (stop.time != null) AppTheme.colors.time else MaterialTheme.colorScheme.outline,
-            )
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text("$index. $area", style = MaterialTheme.typography.titleSmall, color = AppTheme.colors.onTrip)
-                // The passenger's name before the address (the driver's screen only).
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+            // First line: the time and the passenger's name level with it, as on YouDrive's card.
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    listOfNotNull(stop.name, stop.displayText).joinToString(" · "),
-                    style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Content),
-                    color = AppTheme.colors.onTripMuted,
+                    stop.time ?: "--:--",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = if (stop.time != null) AppTheme.colors.time else MaterialTheme.colorScheme.outline,
                 )
+                if (stop.name != null) {
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        stop.name,
+                        style = MaterialTheme.typography.titleSmall.copy(textDirection = TextDirection.Content),
+                        color = AppTheme.colors.onTrip,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                } else {
+                    Spacer(Modifier.weight(1f))
+                }
+                if (stop.kind != null) {
+                    Spacer(Modifier.width(8.dp))
+                    KindLabel(stop.kind)
+                }
             }
-            if (stop.kind != null) {
-                Spacer(Modifier.width(8.dp))
-                KindLabel(stop.kind)
-            }
+            Text("$index. $area", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.onTrip)
+            Text(
+                stop.displayText,
+                style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Content),
+                color = AppTheme.colors.onTripMuted,
+            )
         }
     }
 }
@@ -454,10 +467,4 @@ private fun RowScope.ActionTile(@DrawableRes icon: Int, label: String, ref: Int,
 }
 
 @Composable
-private fun statusText(stop: Stop, tracking: TrackingState, hasLocation: Boolean): String = when {
-    !hasLocation -> stringResource(R.string.status_no_location)
-    !stop.isLocated || !tracking.autoEnabled -> stringResource(R.string.status_manual_only)
-    tracking.phase == DetectorPhase.ARRIVED -> stringResource(R.string.status_arrived)
-    tracking.distanceM != null -> stringResource(R.string.status_distance, tracking.distanceM.roundToInt())
-    else -> stringResource(R.string.status_waiting_gps)
-}
+private fun statusText(): String = stringResource(R.string.status_tap_next)

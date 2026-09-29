@@ -45,8 +45,10 @@ import se.eldebosh.nastastopp.route.model.GeoPoint
 import se.eldebosh.nastastopp.route.model.GeoStatus
 import se.eldebosh.nastastopp.route.model.RouteData
 import se.eldebosh.nastastopp.route.model.Stop
+import se.eldebosh.nastastopp.service.StreetService
 import se.eldebosh.nastastopp.settings.SettingsStore
 import se.eldebosh.nastastopp.tts.Announcer
+import kotlin.math.abs
 
 /** Live tracking info for the UI. */
 data class TrackingState(
@@ -237,13 +239,26 @@ class RouteController(
     // ------------------------------------------------------------------------------------------
     // YouDrive (trips added / cancelled on the dispatch page)
 
-    /** True if [e] (time + address) is already one of the remaining trips, or the start point. */
+    /** True if [e] is already one of the remaining trips (see [sameTrip]), or the start point. */
     fun hasTrip(e: ExtractedStop): Boolean = findTrip(e) != null
 
     private fun findTrip(e: ExtractedStop): Stop? {
         val r = _route.value ?: return null
-        val candidates = if (e.kind == TripKind.PULL_OUT) listOfNotNull(r.depot) else r.stops
-        return candidates.firstOrNull { it.time == e.time && extractor.isSameAddress(it.toExtracted(), e) }
+        if (e.kind == TripKind.PULL_OUT) return r.depot?.takeIf { extractor.isSameAddress(it.toExtracted(), e) }
+        return r.stops.firstOrNull { sameTrip(it, e) }
+    }
+
+    /**
+     * [stop] is the same YouDrive trip as [e]: the same address, the same kind and passenger when
+     * both are known, and times at most [SAME_TRIP_MIN] minutes apart. The tolerance lets a trip
+     * read by an older version (its booked instead of its scheduled time) or re-planned by
+     * YouDrive still count as the same trip, so it is refreshed instead of added twice.
+     */
+    private fun sameTrip(stop: Stop, e: ExtractedStop): Boolean {
+        if (stop.kind != null && e.kind != null && stop.kind != e.kind) return false
+        if (stop.name != null && e.name != null && !stop.name.equals(e.name, ignoreCase = true)) return false
+        if (stop.time != null && e.time != null && abs(TripTimes.minutes(stop.time) - TripTimes.minutes(e.time)) > SAME_TRIP_MIN) return false
+        return extractor.isSameAddress(stop.toExtracted(), e)
     }
 
     /**
@@ -253,41 +268,98 @@ class RouteController(
      */
     fun insertTrip(e: ExtractedStop): Boolean = importTrips(listOf(e)) == 1
 
+    /** Adds / refreshes every YouDrive trip ([syncTrips]); returns how many were added. */
+    fun importTrips(trips: List<ExtractedStop>): Int = syncTrips(trips).added
+
+    /** What a sync with YouDrive did: trips [added], and trips already in the list [updated]. */
+    data class SyncResult(val added: Int, val updated: Int)
+
     /**
-     * Adds every YouDrive trip that is not in the list yet, each in time order. Announces and
-     * re-launches Maps at most once. Returns how many were added.
+     * Brings the list in line with YouDrive ("Add all trips"). A trip that is not in the list yet
+     * is added in time order. A trip that is ([sameTrip]) takes over YouDrive's time, kind and
+     * name, and other copies of it (e.g. read by an older version) are removed. Stops YouDrive
+     * does not know (added by hand or from a screenshot) stay. Announces and re-launches Maps at
+     * most once.
      */
-    fun importTrips(trips: List<ExtractedStop>): Int {
+    fun syncTrips(trips: List<ExtractedStop>): SyncResult {
         beginEdit()
         var added = 0
+        var updated = 0
         for (e in trips) {
-            if (hasTrip(e)) continue
             val base = _route.value ?: newRoute()
             if (e.kind == TripKind.PULL_OUT) {
                 // The day's start point: shown above the trips, never navigated to.
-                set(base.copy(depot = e.toStop(base.nextId), nextId = base.nextId + 1))
+                val old = base.depot
+                if (old != null && extractor.isSameAddress(old.toExtracted(), e)) {
+                    if (old.time != e.time || old.displayText != e.displayText) {
+                        set(base.copy(depot = e.toStop(old.id)))
+                        updated++
+                    }
+                } else {
+                    set(base.copy(depot = e.toStop(base.nextId), nextId = base.nextId + 1))
+                    added++
+                }
+                continue
+            }
+            val matches = base.stops.filter { sameTrip(it, e) }
+            if (matches.isEmpty()) {
+                set(base.copy(stops = insertByTime(base.stops, e.toStop(base.nextId), base.active), nextId = base.nextId + 1))
                 added++
                 continue
             }
-            val list = base.stops.toMutableList()
-            val first = if (base.active) minOf(1, list.size) else 0
-            val t = TripTimes.minutes(e.time)
-            var index = list.size
-            if (e.time != null) {
-                for (i in first until list.size) {
-                    if (TripTimes.minutes(list[i].time) > t) {
-                        index = i
-                        break
-                    }
+            val refreshed = refreshed(base, matches, e)
+            if (refreshed != base.stops) {
+                set(base.copy(stops = refreshed))
+                updated++
+            }
+        }
+        if (added + updated > 0) ensureGeocoding()
+        finishEdit()
+        return SyncResult(added, updated)
+    }
+
+    /**
+     * The list with [matches] (copies of YouDrive trip [e]) made one up-to-date trip: YouDrive's
+     * time, kind and name (and text, while the stop is not located yet). The current trip of an
+     * active route stays first; a trip whose time moved goes back to its place in time order.
+     */
+    private fun refreshed(base: RouteData, matches: List<Stop>, e: ExtractedStop): List<Stop> {
+        val current = base.stops.firstOrNull()?.takeIf { base.active }
+        val keep = matches.firstOrNull { it.id == current?.id } ?: matches.first()
+        var fresh = keep.copy(time = e.time ?: keep.time, kind = e.kind ?: keep.kind, name = e.name ?: keep.name)
+        if (!keep.isLocated && keep.displayText != e.displayText) {
+            fresh = fresh.copy(
+                displayText = e.displayText,
+                candidates = e.candidates,
+                parsedPostalCode = e.parsedPostalCode,
+                parsedTown = e.parsedTown,
+                parsedTownKnown = e.parsedTownKnown,
+                geoStatus = GeoStatus.PENDING,
+                geo = null,
+            )
+        }
+        val copies = matches.map { it.id }.toSet() - keep.id
+        val list = base.stops.filterNot { it.id in copies }.map { if (it.id == keep.id) fresh else it }
+        if (fresh.time == keep.time || keep.id == current?.id) return list
+        return insertByTime(list.filterNot { it.id == fresh.id }, fresh, base.active)
+    }
+
+    /** [stop] inserted before the first later trip (after the current trip of an active route). */
+    private fun insertByTime(list: List<Stop>, stop: Stop, active: Boolean): List<Stop> {
+        val out = list.toMutableList()
+        val first = if (active) minOf(1, out.size) else 0
+        var index = out.size
+        if (stop.time != null) {
+            val t = TripTimes.minutes(stop.time)
+            for (i in first until out.size) {
+                if (TripTimes.minutes(out[i].time) > t) {
+                    index = i
+                    break
                 }
             }
-            list.add(index, e.toStop(base.nextId))
-            set(base.copy(stops = list, nextId = base.nextId + 1))
-            added++
         }
-        if (added > 0) ensureGeocoding()
-        finishEdit()
-        return added
+        out.add(index, stop)
+        return out
     }
 
     /** Removes a trip YouDrive reported as cancelled. Returns false if it is not in the list. */
@@ -331,7 +403,7 @@ class RouteController(
     // ------------------------------------------------------------------------------------------
     // Route
 
-    /** "Starta rutt": announce immediately, open Maps with the first batch, start tracking. */
+    /** "Starta rutt": announce immediately, open Maps with the first batch, find the street. */
     fun start(): Boolean {
         val r = _route.value ?: return false
         if (r.stops.isEmpty()) return false
@@ -339,7 +411,16 @@ class RouteController(
         set(r.copy(active = true, batchStartStopId = batch.first().id, batchEndStopId = batch.last().id))
         speak(announcementFor(r.stops))
         maps.launch(batch.map { it.navigationText })
+        ensureStreetService()
         return true
+    }
+
+    /**
+     * Starts naming the street while a route is active, if the driver allowed location (call while
+     * the app is in the foreground). Its positions only name the street: they never move the route on.
+     */
+    fun ensureStreetService() {
+        if (isActive) StreetService.start(context)
     }
 
     /** Marks the current stop done, advances and announces. Automatic or manual ("Nästa"). */
@@ -450,6 +531,7 @@ class RouteController(
         geocodeJob = null
         editBaseline = null
         set(null)
+        StreetService.stop(context)
         maps.cancelOpenMapsNotification()
     }
 
@@ -596,5 +678,8 @@ class RouteController(
 
     companion object {
         const val SAME_PLACE_M = 30.0
+
+        /** Two readings of one YouDrive trip are at most this many minutes apart (see [sameTrip]). */
+        const val SAME_TRIP_MIN = 45
     }
 }

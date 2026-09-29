@@ -47,6 +47,7 @@ import java.util.Locale
 import kotlin.math.roundToInt
 
 data class PermissionStatus(
+    val location: Boolean,
     val notifications: Boolean,
     val overlay: Boolean,
     val battery: Boolean,
@@ -61,6 +62,7 @@ fun SettingsScreen(
     onUpdate: ((AppSettings) -> AppSettings) -> Unit,
     onLanguage: (String) -> Unit,
     onTestVoice: () -> Unit,
+    onLocation: () -> Unit,
     onNotifications: () -> Unit,
     onOverlay: () -> Unit,
     onBattery: () -> Unit,
@@ -152,6 +154,9 @@ fun SettingsScreen(
 
             SectionTitle(stringResource(R.string.settings_permissions))
             AppCard {
+                // Location only names the street the vehicle is on; the YouDrive page never gets it.
+                StatusRow(stringResource(R.string.settings_location), permissions.location, 119, onLocation, help = R.string.help_location)
+                CardDivider()
                 StatusRow(stringResource(R.string.settings_notifications), permissions.notifications, 120, onNotifications)
                 CardDivider()
                 StatusRow(stringResource(R.string.settings_overlay), permissions.overlay, 121, onOverlay)
@@ -208,9 +213,17 @@ private fun RadioRow(label: String, selected: Boolean, ref: Int, onClick: () -> 
 }
 
 @Composable
-private fun StatusRow(label: String, ok: Boolean, ref: Int, onClick: () -> Unit, statusOverride: String? = null) {
+private fun StatusRow(
+    label: String,
+    ok: Boolean,
+    ref: Int,
+    onClick: () -> Unit,
+    statusOverride: String? = null,
+    @StringRes help: Int? = null,
+) {
     ListRow(
         title = label,
+        help = help,
         subtitle = statusOverride ?: stringResource(if (ok) R.string.perm_granted else R.string.perm_tap),
         subtitleColor = if (ok) AppTheme.colors.success else AppTheme.colors.danger,
         onClick = onClick,

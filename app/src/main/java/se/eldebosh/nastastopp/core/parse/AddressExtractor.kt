@@ -123,17 +123,20 @@ class AddressExtractor(private val localities: Localities) {
     /**
      * A passenger's name line ("Per Johan Albin Stenbäck", "ANNA TESTSSON") as first + last name
      * ("Per Stenbäck", "Anna Testsson"): the only part of it that is kept. Anything that is not
-     * clearly a name gives null: digits or commas, a lower-case word (other than "van", "af" …),
-     * a street, a town, or a kind / status word.
+     * clearly a name gives null: digits or commas, a street, a town, a kind / status word, or
+     * (when [strict], for text of unknown layout) a lower-case word other than "van", "af" ….
+     * A YouDrive card's name line is known by its place (the card's first line), so there
+     * [strict] is off and "anna testsson" counts too.
      */
-    fun personName(line: String): String? {
+    fun personName(line: String, strict: Boolean = true): String? {
         val text = TextNorm.collapseSpaces(line)
         if (text.any { it.isDigit() || it == ',' || it == ':' } || TripKinds.labelIn(text) != null) return null
         val words = text.split(' ')
         if (words.size !in 2..6) return null
         val first = words.first()
         val last = words.last()
-        val nameWord = { w: String -> w.length >= 2 && w.first().isUpperCase() && w.all { it.isLetter() || it == '-' || it == '\'' } }
+        val letters = { w: String -> w.length >= 2 && w.all { it.isLetter() || it == '-' || it == '\'' } }
+        val nameWord = { w: String -> letters(w) && (!strict || w.first().isUpperCase()) }
         if (!nameWord(first) || !nameWord(last)) return null
         if (!words.drop(1).dropLast(1).all { nameWord(it) || TextNorm.fold(it) in NAME_PARTICLES }) return null
         if (words.any { TextNorm.fold(it) in NOT_NAME_WORDS }) return null
@@ -142,9 +145,9 @@ class AddressExtractor(private val localities: Localities) {
         return "${nameCase(first)} ${nameCase(last)}"
     }
 
-    /** "ANNA" → "Anna", "ANNA-KARIN" → "Anna-Karin"; a mixed-case word stays as written. */
+    /** "ANNA" / "anna" → "Anna", "ANNA-KARIN" → "Anna-Karin"; a mixed-case word stays as written. */
     private fun nameCase(word: String): String =
-        if (word.any { it.isLowerCase() }) word
+        if (word.any { it.isLowerCase() } && word.any { it.isUpperCase() }) word
         else word.split('-').joinToString("-") { part -> part.lowercase(TextNorm.SWEDISH).replaceFirstChar { it.titlecase(TextNorm.SWEDISH) } }
 
     // ---------------------------------------------------------------------------------------
@@ -174,6 +177,9 @@ class AddressExtractor(private val localities: Localities) {
 
         val text = clean(rawNorm) ?: return null
         if (TextNorm.letterCount(text) < 2) return null
+        // A note written as a sentence ("följes in till plan 3", "så är det vid …") is not an
+        // address, even when it mentions a street.
+        if (!manual && lowerCaseWords(text) >= PROSE_WORDS) return null
 
         // --- Rule (a): postal code followed by a town word.
         val postal = findPostal(text)
@@ -328,6 +334,10 @@ class AddressExtractor(private val localities: Localities) {
         }
         return out.map { it.first }
     }
+
+    /** Words of letters that start in lower case ("inne", "följes", "så"): many of them make a sentence. */
+    private fun lowerCaseWords(text: String): Int =
+        text.split(' ', ',').count { w -> w.length >= 2 && w.first().isLowerCase() && w.all { it.isLetter() || it == '/' } }
 
     /** A drop-off and a pick-up at the same address are two stops, not one read twice. */
     fun sameKindOrUnknown(a: ExtractedStop, b: ExtractedStop): Boolean = a.kind == null || b.kind == null || a.kind == b.kind
@@ -494,7 +504,7 @@ class AddressExtractor(private val localities: Localities) {
 
     private fun tokenize(text: String): List<String> = text.split(' ').filter { it.isNotEmpty() }
 
-    /** "Kasernhöjden Kasernhöjden 7" (a place named after its street) → "Kasernhöjden 7". */
+    /** "Depågatan Depågatan 1" (a place named after its street) → "Depågatan 1". */
     private fun withoutRepeatedWords(tokens: List<String>): List<String> = tokens.filterIndexed { i, t ->
         i == 0 || t.none { it.isLetter() } || !t.stripPunct().equals(tokens[i - 1].stripPunct(), ignoreCase = true)
     }
@@ -561,7 +571,11 @@ class AddressExtractor(private val localities: Localities) {
         private val NOT_NAME_WORDS = setOf(
             "performed", "departed", "arrive", "arrived", "compensation", "client", "fee", "status", "trips",
             "start", "pull", "pick", "drop", "tel", "mobil", "resor", "idag", "korningar", "utford", "avgatt",
+            "no", "not", "show", "stop", "cancelled", "waiting", "min", "summary", "total",
         )
+
+        /** A line with this many lower-case words is a sentence (a note), not an address. */
+        private const val PROSE_WORDS = 4
 
         /** Words that start a street name ("Västra Torggatan"), folded (no å ä ö, lower case). */
         val STREET_PREFIXES: Set<String> = setOf(

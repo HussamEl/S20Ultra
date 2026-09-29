@@ -206,9 +206,9 @@ class ScreenshotsRoboTest {
     fun settings() = shot("settings") {
         SettingsScreen(
             settings = AppSettings(),
-            permissions = PermissionStatus(notifications = true, overlay = true, battery = false),
+            permissions = PermissionStatus(location = true, notifications = true, overlay = true, battery = false),
             ttsStatus = TtsStatus.READY,
-            onBack = {}, onUpdate = {}, onLanguage = {}, onTestVoice = {}, onNotifications = {}, onOverlay = {}, onBattery = {}, onVoice = {},
+            onBack = {}, onUpdate = {}, onLanguage = {}, onTestVoice = {}, onLocation = {}, onNotifications = {}, onOverlay = {}, onBattery = {}, onVoice = {},
             link = DisplayLinkServer.State(DisplayLinkServer.Status.WAITING, localName = "Galaxy S20 Ultra"),
             onToggleLink = {}, onFixLink = {},
         )
@@ -234,9 +234,9 @@ class ScreenshotsRoboTest {
     }) {
         SettingsScreen(
             settings = AppSettings(),
-            permissions = PermissionStatus(notifications = true, overlay = true, battery = true),
+            permissions = PermissionStatus(location = false, notifications = true, overlay = true, battery = true),
             ttsStatus = TtsStatus.READY,
-            onBack = {}, onUpdate = {}, onLanguage = {}, onTestVoice = {}, onNotifications = {}, onOverlay = {}, onBattery = {}, onVoice = {},
+            onBack = {}, onUpdate = {}, onLanguage = {}, onTestVoice = {}, onLocation = {}, onNotifications = {}, onOverlay = {}, onBattery = {}, onVoice = {},
             link = DisplayLinkServer.State(), onToggleLink = {}, onFixLink = {},
         )
     }

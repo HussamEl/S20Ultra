@@ -14,7 +14,8 @@ import se.eldebosh.nastastopp.core.parse.TripTimes
  *
  * - the left column: the scheduled time (clock icon), sometimes a second time (the booked time of
  *   a pick-up, the latest arrival of a drop-off), the kind label and a status ("Performed");
- * - the right column: the passenger's name, the address, then phone, codes, fees and notes.
+ * - the right column: always the passenger's name first (none on the depot's cards), then the
+ *   address, phone, codes, fees and notes.
  */
 object YouDriveCards {
 
@@ -34,7 +35,7 @@ object YouDriveCards {
         if (stop == null) {
             // A place without a street number ("Sjukhuset huvudentrén,"): the line after
             // the passenger's name.
-            val nameAt = lines.indexOfFirst { extractor.personName(it) != null }
+            val nameAt = lines.indexOfFirst { extractor.personName(it, strict = false) != null }
             val place = lines.getOrNull(nameAt + 1)?.takeIf { nameAt >= 0 && isPlace(it) } ?: return null
             at = nameAt + 1
             stop = extractor.fromManualText(place.trim().trimEnd(',', '.', ' ')) ?: return null
@@ -44,7 +45,8 @@ object YouDriveCards {
         // it); a second time is the booked one, which does not move when the schedule is re-planned.
         val time = { l: String -> if (TripKinds.labelIn(l) == null) TripTimes.timeIn(l) else null }
         val times = lines.take(at).mapNotNull(time).ifEmpty { lines.drop(at + 1).mapNotNull(time) }
-        val name = lines.getOrNull(at - 1)?.let { extractor.personName(it) }
+        // The card's first line (the right column's top) is the passenger's name.
+        val name = lines.take(at).firstNotNullOfOrNull { extractor.personName(it, strict = false) }
         val trip = stop.copy(time = times.firstOrNull(), kind = kind, name = name, sourceOrder = order)
         return WatchedTrip(trip.time, TripWatch.streetAddress(trip), trip, booked = times.getOrNull(1), done = done)
     }

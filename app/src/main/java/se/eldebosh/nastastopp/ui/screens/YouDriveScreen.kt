@@ -201,13 +201,24 @@ private fun ChangeRow(
                     fontWeight = FontWeight.Bold,
                     color = if (added) AppTheme.colors.success else AppTheme.colors.danger,
                 )
+                // The passenger's name level with the time, as on YouDrive's card.
+                trip.stop?.name?.let {
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.titleSmall.copy(textDirection = TextDirection.Content),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                }
                 trip.stop?.kind?.let {
                     Spacer(Modifier.width(8.dp))
                     KindLabel(it)
                 }
             }
             Text(
-                listOfNotNull(trip.stop?.name, trip.address).joinToString(" · "),
+                trip.address,
                 style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Content),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
