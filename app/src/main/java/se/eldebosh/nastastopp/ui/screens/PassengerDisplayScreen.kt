@@ -11,7 +11,6 @@ import se.eldebosh.nastastopp.core.weather.DisplayWeather
 import se.eldebosh.nastastopp.core.parse.TripTimes
 import se.eldebosh.nastastopp.core.nav.DisplayEta
 import se.eldebosh.nastastopp.core.display.TimeStatus
-import androidx.compose.ui.graphics.ColorProducer
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
@@ -89,7 +88,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
@@ -164,6 +162,12 @@ import se.eldebosh.nastastopp.ui.ref
 import se.eldebosh.nastastopp.ui.refCorner
 import se.eldebosh.nastastopp.ui.theme.AppTheme
 import se.eldebosh.nastastopp.ui.theme.DisplayFont
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import se.eldebosh.nastastopp.ui.theme.DigitFont
+import se.eldebosh.nastastopp.ui.theme.DisplayTheme
 import java.time.LocalTime
 import java.util.Locale
 
@@ -204,7 +208,6 @@ fun PassengerDisplayScreen(
     connected: Boolean,
     onSpeak: () -> Unit,
     onExit: () -> Unit,
-    extraActions: @Composable () -> Unit = {},
     detail: String? = null,
     spoken: Int = 0,
     onSay: (Announcement) -> Unit = {},
@@ -236,7 +239,7 @@ fun PassengerDisplayScreen(
     // Everything but the time (or the weather, or the travel time) steps back while it shows, and
     // is hidden behind a solid ground at its largest.
     val rest = Modifier.stepBack { moments.back }
-    // How the next stop's time stands, for the outline on the minutes (none without a route).
+    // How the next stop's time stands, for the clock's colon (none without a route).
     val nextTime = live?.current?.time
     val hasNext = live != null
     val timeStatus by remember(nextTime, hasNext) {
@@ -260,9 +263,10 @@ fun PassengerDisplayScreen(
         }
     }
     LaunchedEffect(moments.holding) { if (!moments.holding) routeMap?.unfocus() }
-    // Swedish for the passengers, read left to right whatever the app's language.
+    // Black in every look; Swedish for the passengers, read left to right whatever the app's language.
+    DisplayTheme {
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-    BoxWithConstraints(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(AppTheme.colors.background)) {
         val landscape = maxWidth > maxHeight
         val width = maxWidth
         var screen by remember { mutableStateOf(Rect.Zero) }
@@ -297,13 +301,16 @@ fun PassengerDisplayScreen(
                         connected,
                         wide = landscape,
                         onExit = onExit,
-                        extraActions = extraActions,
+                        // On a remote display: whether the phone sends where the vehicle is (209).
+                        gps = if (status != null) mapLive else null,
+                        weather = live?.weather,
+                        hasWeather = live?.weather != null || weatherWidget != null,
+                        onWeather = { moments.playInfo(Moments.Info.WEATHER) },
                         // On a tablet the trip just done opens the top line (one quiet line, so the
                         // passengers see the list moving on).
                         lead = {
                             val previous = live?.previous
-                            if (landscape && previous != null) PreviousLine(previous, Modifier.ref(89).weight(1f).padding(end = 16.dp))
-                            else if (landscape) Spacer(Modifier.weight(1f))
+                            if (landscape && previous != null) PreviousLine(previous, Modifier.ref(89).padding(end = 16.dp))
                         },
                     )
                     if (detail != null) {
@@ -395,6 +402,7 @@ fun PassengerDisplayScreen(
                     .pointerInput(Unit) { detectTapGestures { moments.settle() } },
             )
         }
+    }
     }
     }
 }
@@ -585,11 +593,11 @@ private fun InfoMoment(
                 Column(Modifier.ref(204)) {
                     Text(
                         "${weather.tempC}°",
-                        fontFamily = DisplayFont,
+                        fontFamily = DigitFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = big,
                         color = hue,
-                        style = TextStyle(fontFeatureSettings = TABULAR, lineHeight = 1.0.em),
+                        style = TextStyle(lineHeight = 1.0.em),
                     )
                     Text(
                         weather.swedish,
@@ -607,11 +615,11 @@ private fun InfoMoment(
                     Row(verticalAlignment = Alignment.Bottom) {
                         Text(
                             "${eta.minutes}",
-                            fontFamily = DisplayFont,
+                            fontFamily = DigitFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = big,
                             color = hue,
-                            style = TextStyle(fontFeatureSettings = TABULAR, lineHeight = 1.0.em),
+                            style = TextStyle(lineHeight = 1.0.em),
                         )
                         Text(
                             " min",
@@ -680,11 +688,11 @@ private fun MapMomentText(moments: Moments, eta: DisplayEta?, route: RouteLine?,
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
                 "$minutes",
-                fontFamily = DisplayFont,
+                fontFamily = DigitFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = big,
                 color = hue,
-                style = TextStyle(fontFeatureSettings = TABULAR, lineHeight = 1.0.em),
+                style = TextStyle(lineHeight = 1.0.em),
             )
             Text(
                 " min",
@@ -1044,9 +1052,10 @@ private class SharedStop(val transition: SharedTransitionScope, val visibility: 
 }
 
 /**
- * The top line: [lead] (on a tablet the trip just done, taking the room left), then the
- * connection line and exit (small and quiet: they are for the driver). On a [wide] screen the
- * connection line keeps its own width; on the phone it takes what is left.
+ * The top line: [lead] (on a tablet the trip just done), taking the room left, then at the far
+ * right, beside the clock, small and quiet (they are for the driver): the exit, the connection (a
+ * dot and the phone's name), a small GPS sign ([gps]: green while the phone sends where the
+ * vehicle is; none on the driver's own device) and the weather sign, which brings the weather up.
  */
 @Composable
 private fun TopLine(
@@ -1054,28 +1063,73 @@ private fun TopLine(
     connected: Boolean,
     wide: Boolean,
     onExit: () -> Unit,
-    extraActions: @Composable () -> Unit,
-    lead: @Composable RowScope.() -> Unit,
+    gps: Boolean?,
+    weather: DisplayWeather?,
+    hasWeather: Boolean,
+    onWeather: () -> Unit,
+    lead: @Composable () -> Unit,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        lead()
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = if (wide) Modifier.widthIn(max = STATUS_MAX_WIDTH) else Modifier.weight(1f)) {
-            if (status != null) {
-                Box(Modifier.size(10.dp).background(if (connected) AppTheme.colors.success else AppTheme.colors.danger, CircleShape))
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    status,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = AppTheme.colors.textMuted,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.ref(87),
-                )
-            }
-        }
-        extraActions()
+        Box(Modifier.weight(1f)) { lead() }
         IconButton(onClick = onExit, modifier = Modifier.refCorner(86).size(TouchTarget)) {
-            Icon(painterResource(R.drawable.ic_stop), contentDescription = stringResource(R.string.display_exit), tint = AppTheme.colors.textMuted, modifier = Modifier.size(20.dp))
+            Icon(painterResource(R.drawable.ic_stop), contentDescription = stringResource(R.string.display_exit), tint = AppTheme.colors.textMuted, modifier = Modifier.size(18.dp))
+        }
+        if (status != null) {
+            Box(Modifier.size(8.dp).background(if (connected) AppTheme.colors.success else AppTheme.colors.danger, CircleShape))
+            Spacer(Modifier.width(6.dp))
+            Text(
+                status,
+                style = MaterialTheme.typography.labelSmall,
+                color = AppTheme.colors.textMuted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.ref(87).widthIn(max = if (wide) STATUS_MAX_WIDTH else STATUS_MAX_NARROW),
+            )
+        }
+        if (gps != null) GpsSign(gps)
+        if (hasWeather) WeatherSign(weather, onWeather)
+    }
+}
+
+/** Small and raised, like a note beside the phone's name: green while the phone sends where the vehicle is. */
+@Composable
+private fun GpsSign(live: Boolean) {
+    Icon(
+        painterResource(R.drawable.ic_gps),
+        contentDescription = stringResource(if (live) R.string.display_gps_on else R.string.display_gps_off),
+        tint = if (live) AppTheme.colors.success else AppTheme.colors.textMuted.copy(alpha = 0.5f),
+        modifier = Modifier
+            .refCorner(221)
+            .padding(start = 4.dp)
+            .offset(y = (-6).dp)
+            .size(13.dp),
+    )
+}
+
+/** The weather in small (the picture and the degrees; the picture alone for a weather app's widget): a tap brings it up large. */
+@Composable
+private fun WeatherSign(weather: DisplayWeather?, onClick: () -> Unit) {
+    val description = stringResource(R.string.display_weather)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .refCorner(222)
+            .heightIn(min = TouchTarget)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClickLabel = description, role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = description }
+            .padding(horizontal = 6.dp),
+    ) {
+        WeatherGlyph(weather?.kind ?: WeatherKind.PARTLY, AppTheme.colors.highlight, Modifier.size(22.dp))
+        if (weather != null) {
+            Spacer(Modifier.width(3.dp))
+            Text(
+                "${weather.tempC}°",
+                fontFamily = DigitFont,
+                fontWeight = FontWeight.Medium,
+                fontSize = 13.sp,
+                color = AppTheme.colors.textMuted,
+            )
         }
     }
 }
@@ -1086,14 +1140,20 @@ private fun PreviousLine(item: DisplayItem, modifier: Modifier = Modifier) {
         DoneMarks(youDrive = item.doneInYouDrive, here = item.doneHere, size = 18.dp)
         Spacer(Modifier.width(10.dp))
         Text(
-            listOfNotNull(item.time, item.title, item.subtitle).joinToString("  ·  "),
+            buildAnnotatedString {
+                item.time?.let {
+                    withStyle(SpanStyle(fontFamily = DigitFont)) { append(it) }
+                    append("  ·  ")
+                }
+                append(listOfNotNull(item.title, item.subtitle).joinToString("  ·  "))
+            },
             fontFamily = DisplayFont,
             fontWeight = FontWeight.Medium,
             fontSize = 24.sp,
             color = AppTheme.colors.text,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            style = TextStyle(textDirection = TextDirection.Content, fontFeatureSettings = TABULAR),
+            style = TextStyle(textDirection = TextDirection.Content),
             modifier = Modifier.alpha(0.55f),
         )
     }
@@ -1276,11 +1336,10 @@ private fun CardFace(item: DisplayItem, first: Boolean, landscape: Boolean) {
             if (item.time != null) {
                 Text(
                     item.time,
-                    fontFamily = DisplayFont,
+                    fontFamily = DigitFont,
                     fontWeight = if (first) FontWeight.Bold else FontWeight.Medium,
                     fontSize = titleSp,
                     color = if (first) AppTheme.colors.highlight else AppTheme.colors.time,
-                    style = TextStyle(fontFeatureSettings = TABULAR),
                 )
                 Spacer(Modifier.width(10.dp))
             }
@@ -1451,10 +1510,9 @@ private fun HomeButton(visible: Boolean, onClick: () -> Unit, modifier: Modifier
 
 /**
  * The clock, without a frame: the minutes large, the hours smaller beside them and level with
- * their middle, the seconds thin under the minutes in the highlight colour, and the colon, in the
- * accent yellow, beating with the seconds.
- * A thin ring around the minutes tells how the next stop's time stands ([ring]: orange when it is
- * near, red when it has passed, beating when it is due or well past).
+ * their middle, the seconds small and thin right under the hours in the highlight colour, and the
+ * colon blinking with the seconds.
+ * The colon tells how the next stop's time stands ([status]; see [Colon]).
  * When the minute changes ([grow] 0 → 1), the time (hours, colon and minutes, as one) moves to the
  * middle of the screen and grows to five times its size, or as far as the screen allows, turning
  * to this minute's colour ([hue]); the seconds step back with the screen. A tap says the time.
@@ -1471,24 +1529,26 @@ private fun Clock(
     modifier: Modifier = Modifier,
 ) {
     val time = now.value
-    val colon by animateFloatAsState(if (time.second % 2 == 0) 1f else 0.35f, tween(450), label = "colon")
     val bounce = remember { Animatable(1f) }
     val scope = rememberCoroutineScope()
     val description = stringResource(R.string.display_say_time)
     val ink = AppTheme.colors.text
     val highlight = AppTheme.colors.highlight
+    // The hours and minutes change seldom: their digits keep their own widths (a "1" is narrow).
     val style = TextStyle(
-        fontFamily = DisplayFont,
+        fontFamily = DigitFont,
         fontWeight = FontWeight.Bold,
         color = ink,
-        fontFeatureSettings = TABULAR,
         lineHeight = 1.0.em,
         lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
     )
     // The smaller hours with the seconds right under them sit level with the middle of the
-    // minutes, so the clock is no taller than its minutes; the colon is level with the hours.
+    // minutes, so the clock is no taller than its minutes; the colon is level with the hours. Each
+    // line of digits has its ink in the middle of its box, [DIGIT_HEIGHT] of its size tall.
     val (lift, tuck) = with(LocalDensity.current) {
-        (minuteSize * ((1f - HOUR_SHARE - SECOND_SHARE + SECONDS_TUCK) / 2f)).toDp() to (minuteSize * SECONDS_TUCK).toDp()
+        val half = DIGIT_HEIGHT / 2f
+        val column = HOUR_SHARE * (1.5f - half) + SECOND_SHARE * (0.5f + half) - SECONDS_TUCK
+        (minuteSize * ((1f - column) / 2f)).toDp() to (minuteSize * SECONDS_TUCK).toDp()
     }
     var hours by remember { mutableStateOf(Rect.Zero) }
     var dots by remember { mutableStateOf(Rect.Zero) }
@@ -1530,19 +1590,19 @@ private fun Clock(
             ) { sec ->
                 BasicText(
                     sec,
-                    style = style.copy(fontSize = minuteSize * SECOND_SHARE, fontWeight = FontWeight.Light, letterSpacing = 0.06.em),
+                    style = style.copy(fontSize = minuteSize * SECOND_SHARE, fontWeight = FontWeight.Light, fontFeatureSettings = TABULAR, letterSpacing = 0.06.em),
                     color = { lerp(highlight, hue, grow()) },
                 )
             }
         }
-        Text(
-            ":",
-            style = style.copy(fontSize = minuteSize * HOUR_SHARE, color = AppTheme.colors.accent),
+        Colon(
+            style.copy(fontSize = minuteSize * HOUR_SHARE),
+            status,
+            second = time.second,
             modifier = Modifier
                 .offset(y = lift)
                 .onGloballyPositioned { dots = it.boundsInRoot() }
-                .growTogether(grow, own = { dots }, group = whole, area = screen)
-                .alpha(colon),
+                .growTogether(grow, own = { dots }, group = whole, area = screen),
         )
         Box(
             Modifier
@@ -1554,7 +1614,7 @@ private fun Clock(
                 transitionSpec = { slideInVertically(tween(450)) { -it } + fadeIn(tween(450)) togetherWith slideOutVertically(tween(450)) { it } + fadeOut(tween(300)) },
                 label = "minutes",
             ) { m ->
-                OutlinedDigits(m, style.copy(fontSize = minuteSize), status, fill = { lerp(ink, hue, grow()) })
+                BasicText(m, style = style.copy(fontSize = minuteSize), color = { lerp(ink, hue, grow()) })
             }
         }
     }
@@ -1564,33 +1624,22 @@ private fun Clock(
 private fun span(a: Rect, b: Rect) = Rect(minOf(a.left, b.left), minOf(a.top, b.top), maxOf(a.right, b.right), maxOf(a.bottom, b.bottom))
 
 /**
- * Digits with a thin outline in [status]'s colour (green on time, orange soon, red late), beating
- * when it says so, set a little apart from them; plain digits for no status.
+ * The colon between hours and minutes, telling how the next stop's time stands: green on time,
+ * orange within five minutes, red once it has passed, beating fast when it is due or well past
+ * ([TimeStatus.beating]); yellow without a route. Otherwise it blinks with the [second].
  */
 @Composable
-private fun OutlinedDigits(text: String, style: TextStyle, status: TimeStatus?, fill: ColorProducer, modifier: Modifier = Modifier) {
+private fun Colon(style: TextStyle, status: TimeStatus?, second: Int?, modifier: Modifier = Modifier) {
+    val color = status?.let { statusColor(it) } ?: AppTheme.colors.accent
     val beat = rememberInfiniteTransition(label = "beat")
     val pulse by beat.animateFloat(1f, BEAT_LOW, infiniteRepeatable(tween(BEAT_MS), RepeatMode.Reverse), label = "beat")
-    val line = status?.let { statusColor(it) }
-    val ground = AppTheme.colors.background
-    Box(modifier) {
-        if (status != null && line != null) {
-            // Strokes are centred on the glyphs' edge: a wide one in the status colour, a narrower
-            // one in the page's colour over it, then the digits, leave a fine line with a gap.
-            val (outer, gap) = with(LocalDensity.current) {
-                val gapPx = maxOf((style.fontSize * OUTLINE_GAP).toPx(), OUTLINE_MIN.toPx())
-                val linePx = maxOf((style.fontSize * OUTLINE_LINE).toPx(), OUTLINE_MIN.toPx())
-                2f * (gapPx + linePx) to 2f * gapPx
-            }
-            BasicText(
-                text,
-                style = style.copy(drawStyle = Stroke(width = outer, join = StrokeJoin.Round)),
-                color = { line.copy(alpha = if (status.beating) pulse else 1f) },
-            )
-            BasicText(text, style = style.copy(drawStyle = Stroke(width = gap, join = StrokeJoin.Round)), color = { ground })
-        }
-        BasicText(text, style = style, color = fill)
-    }
+    val blink by animateFloatAsState(if (second == null || second % 2 == 0) 1f else COLON_LOW, tween(450), label = "colon")
+    BasicText(
+        ":",
+        style = style,
+        color = { color.copy(alpha = if (status?.beating == true) pulse else blink) },
+        modifier = modifier,
+    )
 }
 
 @Composable
@@ -1602,8 +1651,7 @@ private fun statusColor(status: TimeStatus): Color = when (status) {
 
 /**
  * A time ("08:00") in the clock's style: the hours smaller and level with the middle of the
- * minutes, the colon in the accent yellow, the minutes outlined in [status]'s colour; the digits
- * breathe slowly.
+ * minutes, the colon in [status]'s colour (see [Colon]); the digits breathe slowly.
  */
 @Composable
 private fun TimeFace(time: String, minuteSize: TextUnit, modifier: Modifier = Modifier, status: TimeStatus? = null) {
@@ -1616,10 +1664,9 @@ private fun TimeFace(time: String, minuteSize: TextUnit, modifier: Modifier = Mo
     val big = minuteSize * BREATH_SCALE
     val ink = AppTheme.colors.text
     val style = TextStyle(
-        fontFamily = DisplayFont,
+        fontFamily = DigitFont,
         fontWeight = FontWeight.Bold,
         color = ink,
-        fontFeatureSettings = TABULAR,
         lineHeight = 1.0.em,
         lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
     )
@@ -1628,8 +1675,8 @@ private fun TimeFace(time: String, minuteSize: TextUnit, modifier: Modifier = Mo
         modifier = modifier.breathe(rest = 1f / BREATH_SCALE) { scale },
     ) {
         Text(hour, style = style.copy(fontSize = big * HOUR_SHARE))
-        Text(":", style = style.copy(fontSize = big * HOUR_SHARE, color = AppTheme.colors.accent))
-        OutlinedDigits(minute, style.copy(fontSize = big), status, fill = { ink })
+        Colon(style.copy(fontSize = big * HOUR_SHARE), status, second = null)
+        Text(minute, style = style.copy(fontSize = big))
     }
 }
 
@@ -1661,7 +1708,7 @@ private fun LateCount(time: String, now: State<LocalTime>, size: TextUnit) {
     if (seconds >= 0) return
     Text(
         TimeStatus.countdown(seconds),
-        fontFamily = DisplayFont,
+        fontFamily = DigitFont,
         fontWeight = FontWeight.SemiBold,
         fontSize = size,
         color = AppTheme.colors.danger,
@@ -1819,8 +1866,9 @@ private const val NONE = -2
 /** Where a stop sits in the middle: -1 top, 0 centre. */
 private const val HERO_BIAS = -0.4f
 
-/** The connection line on a tablet, beside the speaker. */
-private val STATUS_MAX_WIDTH = 320.dp
+/** The connection line (the phone's name, or what the tablet is doing) at most this wide: on a tablet, on a phone. */
+private val STATUS_MAX_WIDTH = 240.dp
+private val STATUS_MAX_NARROW = 110.dp
 
 /** Another stop paged to (or the strip scrolled) and left alone gives way to the next stop again. */
 private const val BROWSE_RETURN_MS = 30_000L
@@ -1831,13 +1879,16 @@ private const val MINUTE_SP_NARROW = 100f
 private const val MINUTE_SP_MIN = 48f
 
 /** The clock is about this many dp wide per sp of its minutes; beside it a phone keeps this much. */
-private const val CLOCK_WIDTH_PER_SP = 1.85f
+private const val CLOCK_WIDTH_PER_SP = 2.25f
 private val NARROW_LEFT_ROOM = 220.dp
 private const val HOUR_SHARE = 0.62f
-private const val SECOND_SHARE = 0.3f
+private const val SECOND_SHARE = 0.25f
 
 /** The seconds tuck up this share of the minutes' size into the empty room under the hours' digits. */
-private const val SECONDS_TUCK = 0.08f
+private const val SECONDS_TUCK = 0.1f
+
+/** How tall the digit font's digits are, as a share of its size. */
+private const val DIGIT_HEIGHT = 0.67f
 
 /** The time grows to five times its size, or to this share of the screen if that is less. */
 private const val TIME_GROWTH = 5f
@@ -1889,16 +1940,13 @@ private const val WIDGET_ASPECT = 0.5f
 private val INFO_SP_WIDE = 220.sp
 private val INFO_SP_NARROW = 110.sp
 
-/** The ring around the clock's minutes: its line, its glow, and how it beats. */
-/** The outline on the minutes: its line and its gap from the digits, as shares of their size. */
-private const val OUTLINE_LINE = 0.012f
-private const val OUTLINE_GAP = 0.014f
-private val OUTLINE_MIN = 1.5.dp
+/** The colon: how faint it blinks with the seconds, and how it beats when the next stop is due or well past. */
+private const val COLON_LOW = 0.35f
 private const val BEAT_LOW = 0.2f
 private const val BEAT_MS = 700
 
 /** How far the rest of the screen steps back while the time grows (before the solid ground). */
 private const val REST_FADE = 0.85f
 
-/** Digits of equal width, so times and the clock do not shift as they change. */
+/** Digits of equal width, for what changes each second (the seconds, how late), so it does not shift. */
 private const val TABULAR = "tnum"

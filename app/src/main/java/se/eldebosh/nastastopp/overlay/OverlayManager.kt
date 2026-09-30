@@ -997,7 +997,7 @@ class OverlayManager(
         private const val ACTION_H_DP = 44f
         private const val ACTION_RADIUS_DP = 14f
 
-        /** The capsule's ring and dot beat between full and this, as the outline on the display clock does. */
+        /** The capsule's ring and dot beat between full and this, as the display clock's colon does. */
         private const val BEAT_LOW = 0.2f
         private const val BEAT_MS = 700L
 

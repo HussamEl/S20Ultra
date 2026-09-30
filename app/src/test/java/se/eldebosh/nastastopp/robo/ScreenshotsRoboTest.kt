@@ -446,7 +446,7 @@ class ScreenshotsRoboTest {
                 current = DisplayItem("07:36", "Västra Torggatan 12", "Karlstad"),
                 upcoming = listOf(DisplayItem("08:00", "Hamngatan 7", "Skoghall"), DisplayItem("08:25", "Storgatan 14", "Karlstad")),
             ),
-            status = "Connected: Galaxy S20 Ultra",
+            status = "Galaxy S20",
             connected = true,
             onSpeak = {},
             onExit = {},
@@ -477,7 +477,7 @@ class ScreenshotsRoboTest {
         var spoken by mutableIntStateOf(0)
         compose.setContent {
             NastaTheme(Appearance.DAY) {
-                PassengerDisplayScreen(snapshot, status = "Connected: Galaxy S20 Ultra", connected = true, onSpeak = {}, onExit = {}, spoken = spoken)
+                PassengerDisplayScreen(snapshot, status = "Galaxy S20", connected = true, onSpeak = {}, onExit = {}, spoken = spoken)
             }
         }
         compose.waitForIdle()
@@ -509,7 +509,7 @@ class ScreenshotsRoboTest {
             NastaTheme(Appearance.DAY) {
                 PassengerDisplayScreen(
                     tabletSnapshot,
-                    status = "Connected: Galaxy S20 Ultra",
+                    status = "Galaxy S20",
                     connected = true,
                     onSpeak = {},
                     onExit = {},
@@ -543,7 +543,7 @@ class ScreenshotsRoboTest {
             NastaTheme(Appearance.NIGHT) {
                 PassengerDisplayScreen(
                     tabletSnapshot,
-                    status = "Connected: Galaxy S20 Ultra",
+                    status = "Galaxy S20",
                     connected = true,
                     onSpeak = { repeats++ },
                     onExit = {},
@@ -577,7 +577,7 @@ class ScreenshotsRoboTest {
         var now = LocalTime.of(8, 10, 58)
         compose.setContent {
             NastaTheme(Appearance.DAY) {
-                PassengerDisplayScreen(tabletSnapshot, status = "Connected: Galaxy S20 Ultra", connected = true, onSpeak = {}, onExit = {}, time = { now })
+                PassengerDisplayScreen(tabletSnapshot, status = "Galaxy S20", connected = true, onSpeak = {}, onExit = {}, time = { now })
             }
         }
         compose.waitForIdle()
@@ -601,7 +601,7 @@ class ScreenshotsRoboTest {
     fun passengerDisplayPagesThroughTheStops() {
         compose.setContent {
             NastaTheme(Appearance.DAY) {
-                PassengerDisplayScreen(tabletSnapshot, status = "Connected: Galaxy S20 Ultra", connected = true, onSpeak = {}, onExit = {}, time = { LocalTime.of(8, 11, 5) })
+                PassengerDisplayScreen(tabletSnapshot, status = "Galaxy S20", connected = true, onSpeak = {}, onExit = {}, time = { LocalTime.of(8, 11, 5) })
             }
         }
         compose.waitForIdle()
@@ -632,7 +632,8 @@ class ScreenshotsRoboTest {
 
     /**
      * The weather in the middle of the minute and Google Maps' travel time a little later, each for
-     * a moment; a tap brings the screen back at once.
+     * a moment; a tap brings the screen back at once. The weather sign on the top line brings the
+     * weather up too, and the GPS sign beside the phone's name shows.
      */
     @Test
     @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
@@ -641,7 +642,7 @@ class ScreenshotsRoboTest {
         val snapshot = tabletSnapshot.copy(weather = DisplayWeather(14, 3), eta = DisplayEta(12, 5300))
         compose.setContent {
             NastaTheme(Appearance.DAY) {
-                PassengerDisplayScreen(snapshot, status = "Connected: Galaxy S20 Ultra", connected = true, onSpeak = {}, onExit = {}, time = { now })
+                PassengerDisplayScreen(snapshot, status = "Galaxy S20", connected = true, onSpeak = {}, onExit = {}, time = { now })
             }
         }
         compose.waitForIdle()
@@ -649,10 +650,19 @@ class ScreenshotsRoboTest {
         now = LocalTime.of(8, 11, 27)
         compose.mainClock.advanceTimeBy(2_500)
         save("display_weather", compose.onRoot().captureToImage().asAndroidBitmap())
-        compose.onNodeWithText("14°").assertIsDisplayed()
+        compose.onNodeWithTag("ref_204").assertIsDisplayed()
         compose.onNodeWithText("Halvklart").assertIsDisplayed()
         compose.mainClock.advanceTimeBy(6_000)
-        compose.onNodeWithText("14°").assertDoesNotExist()
+        compose.onNodeWithTag("ref_204").assertDoesNotExist()
+        // The small weather sign (the degrees beside the picture) brings it up at once.
+        save("display_weather_sign", compose.onRoot().captureToImage().asAndroidBitmap())
+        compose.onNodeWithTag("ref_221").assertExists()
+        compose.onNodeWithTag("ref_222").performClick()
+        compose.mainClock.advanceTimeBy(1_500)
+        compose.onNodeWithText("Halvklart").assertIsDisplayed()
+        compose.onRoot().performTouchInput { click(center) }
+        compose.mainClock.advanceTimeBy(800)
+        compose.onNodeWithText("Halvklart").assertDoesNotExist()
         now = LocalTime.of(8, 11, 45)
         compose.mainClock.advanceTimeBy(2_500)
         save("display_eta", compose.onRoot().captureToImage().asAndroidBitmap())
@@ -677,7 +687,7 @@ class ScreenshotsRoboTest {
             NastaTheme(Appearance.DAY) {
                 PassengerDisplayScreen(
                     tabletSnapshot,
-                    status = "Connected: Galaxy S20 Ultra",
+                    status = "Galaxy S20",
                     connected = true,
                     onSpeak = {},
                     onExit = {},
@@ -705,7 +715,7 @@ class ScreenshotsRoboTest {
             NastaTheme(Appearance.DAY) {
                 PassengerDisplayScreen(
                     tabletSnapshot,
-                    status = "Connected: Galaxy S20 Ultra",
+                    status = "Galaxy S20",
                     connected = true,
                     onSpeak = {},
                     onExit = {},
@@ -748,7 +758,7 @@ class ScreenshotsRoboTest {
     fun passengerDisplayTablet() = shot("display_tablet") {
         PassengerDisplayScreen(
             snapshot = tabletSnapshot,
-            status = "Connected: Galaxy S20 Ultra",
+            status = "Galaxy S20",
             connected = true,
             onSpeak = {},
             onExit = {},

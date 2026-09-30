@@ -146,7 +146,6 @@
     <string name="help_maps_time">The app reads only the remaining time and distance to the next destination from the Google Maps navigation notification, to show them on the passenger display. It reads no notifications of other apps, keeps nothing and sends no position. Tap to allow it in the system settings (notification access).</string>
     <string name="display_exit">Exit</string>
     <string name="display_connected">Connected: %1$s</string>
-    <string name="display_connecting">Connecting to %1$s…</string>
     <string name="role_controller">Full control (driver)</string>
     <string name="role_display">Passenger display</string>
     <string name="role_display_hint">For the tablet: shows the next destination in large text and connects to the driver\'s device via Bluetooth.</string>
@@ -175,6 +174,9 @@
     <string name="maps_key_label">Google Maps API key</string>
     <string name="help_maps_key">The map uses your own Google key. In Google Cloud: create an API key, enable "Maps JavaScript API" and "Routes API", and restrict the key to the website https://nastastopp.app/* . Normal use stays within Google\'s free monthly amount. The car\'s position and the next stop go to Google while the map is on (phone setting 209).</string>
     <string name="display_show_way">Show the way on the map</string>
+    <string name="display_gps_on">The phone sends its position</string>
+    <string name="display_gps_off">No position from the phone</string>
+    <string name="display_weather">Show the weather</string>
     <string name="tablet_panel">Floating button on this tablet</string>
     <string name="help_tablet_panel">Shows the phone\'s floating button over the passenger display: the next trip (without the passenger\'s name), a countdown when shrunk, and Next, Back and Repeat for the phone. The street and speed stay on the phone. Needs the permission to show over other apps on this tablet.</string>
     <string name="display_choose_device">Choose the driver\'s device</string>

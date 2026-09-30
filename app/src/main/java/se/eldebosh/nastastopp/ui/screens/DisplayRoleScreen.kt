@@ -105,11 +105,8 @@ fun DisplayRoleScreen(
         val connected = link.status == DisplayLinkClient.Status.CONNECTED
         PassengerDisplayScreen(
             snapshot = snapshot,
-            status = when {
-                connected -> stringResource(R.string.display_connected, link.deviceName.orEmpty())
-                link.deviceName != null -> stringResource(R.string.display_connecting, link.deviceName)
-                else -> stringResource(R.string.display_searching)
-            },
+            // The phone's name, short (the dot beside it says whether it is connected).
+            status = link.deviceName?.take(NAME_CHARS) ?: stringResource(R.string.display_searching),
             connected = connected,
             onSpeak = onSpeak,
             onSay = onSay,
@@ -314,3 +311,6 @@ private fun DeviceRow(name: String, selected: Boolean, ref: Int, onClick: () -> 
         Text(name, style = MaterialTheme.typography.bodyLarge)
     }
 }
+
+/** The phone's name on the passenger display's top line: its first letters are enough. */
+private const val NAME_CHARS = 10

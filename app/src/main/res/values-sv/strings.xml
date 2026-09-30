@@ -146,7 +146,6 @@
     <string name="help_maps_time">Appen läser bara återstående tid och avstånd till nästa mål ur navigeringsaviseringen från Google Maps, för att visa dem på passagerarskärmen. Den läser inga andra appars aviseringar, sparar inget och skickar ingen position. Tryck för att tillåta det i systeminställningarna (åtkomst till aviseringar).</string>
     <string name="display_exit">Stäng</string>
     <string name="display_connected">Ansluten: %1$s</string>
-    <string name="display_connecting">Ansluter till %1$s…</string>
     <string name="role_controller">Full kontroll (förare)</string>
     <string name="role_display">Passagerarskärm</string>
     <string name="role_display_hint">För surfplattan: visar nästa mål i stor text och ansluter till förarens enhet via Bluetooth.</string>
@@ -175,6 +174,9 @@
     <string name="maps_key_label">API-nyckel för Google Maps</string>
     <string name="help_maps_key">Kartan använder din egen Google-nyckel. I Google Cloud: skapa en API-nyckel, aktivera "Maps JavaScript API" och "Routes API" och begränsa nyckeln till webbplatsen https://nastastopp.app/* . Normal användning ryms i Googles kostnadsfria månadsmängd. Bilens position och nästa stopp går till Google när kartan är på (telefonens inställning 209).</string>
     <string name="display_show_way">Visa vägen på kartan</string>
+    <string name="display_gps_on">Telefonen skickar sin position</string>
+    <string name="display_gps_off">Ingen position från telefonen</string>
+    <string name="display_weather">Visa vädret</string>
     <string name="tablet_panel">Flytande knapp på surfplattan</string>
     <string name="help_tablet_panel">Visar telefonens flytande knapp över passagerarskärmen: nästa resa (utan passagerarens namn), en nedräkning när den är minimerad, och Nästa, Tillbaka och Upprepa för telefonen. Gatan och farten stannar på telefonen. Kräver tillstånd att visas över andra appar på surfplattan.</string>
     <string name="display_choose_device">Välj förarens enhet</string>

@@ -78,6 +78,18 @@ val DisplayFont = FontFamily(
     Font(R.font.barlow_semi_condensed_bold, FontWeight.Bold),
 )
 
+/**
+ * The passenger display's digits (the clock, trip times, how late): Atkinson Hyperlegible Next (SIL
+ * Open Font License, see assets/licenses), drawn for low vision, so 1, 7 and 0 never look alike
+ * from a seat. Its digits are proportional unless "tnum" is asked for.
+ */
+val DigitFont = FontFamily(
+    Font(R.font.atkinson_hyperlegible_next_light, FontWeight.Light),
+    Font(R.font.atkinson_hyperlegible_next_medium, FontWeight.Medium),
+    Font(R.font.atkinson_hyperlegible_next_semibold, FontWeight.SemiBold),
+    Font(R.font.atkinson_hyperlegible_next_bold, FontWeight.Bold),
+)
+
 /** A compact, modern type scale. */
 private val AppTypography = Typography(
     displaySmall = style(34, 40, FontWeight.Bold, -0.5f),
@@ -102,6 +114,17 @@ private val AppShapes = Shapes(
     large = RoundedCornerShape(20.dp),
     extraLarge = RoundedCornerShape(28.dp),
 )
+
+/**
+ * The passenger display's own look, whatever the app's: [DisplayColors] on black, for Swedish
+ * winter darkness and for a screen that stays on for hours. Dialogs opened from it follow too.
+ */
+@Composable
+fun DisplayTheme(content: @Composable () -> Unit) {
+    CompositionLocalProvider(LocalAppColors provides DisplayColors, LocalAppEffects provides NightEffects) {
+        MaterialTheme(colorScheme = DisplayColors.toMaterial(), typography = AppTypography, shapes = AppShapes, content = content)
+    }
+}
 
 /** Material 3's colour scheme from the roles: sky blue for selection, yellow as secondary. */
 private fun AppColors.toMaterial(): ColorScheme {

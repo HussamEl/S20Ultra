@@ -78,4 +78,10 @@ object Palette {
     val Black = Color(0xFF000000)
     val Smoke = Color(0xFF111216)
     val Silver = Color(0xFFC7CBD1)
+
+    // The passenger display on black: neutral greys, so the black stays black.
+    val Coal = Color(0xFF0F1013)
+    val Soot = Color(0xFF181A1E)
+    val Graphite = Color(0xFF24272D)
+    val Iron = Color(0xFF3B3F47)
 }

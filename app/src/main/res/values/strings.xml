@@ -147,7 +147,6 @@
     <string name="help_maps_time">يقرأ التطبيق من إشعار الملاحة في Google Maps الوقت المتبقي والمسافة إلى الوجهة التالية فقط، ليعرضهما على شاشة الركاب. لا يقرأ إشعارات أي تطبيق آخر، ولا يحفظ شيئاً ولا يرسل موقعاً. اضغط لتسمح بذلك في إعدادات النظام (الوصول إلى الإشعارات).</string>
     <string name="display_exit">خروج</string>
     <string name="display_connected">متصل: %1$s</string>
-    <string name="display_connecting">جارٍ الاتصال بـ %1$s…</string>
     <string name="role_controller">تحكم كامل (السائق)</string>
     <string name="role_display">شاشة الركاب</string>
     <string name="role_display_hint">للتابلت: يعرض الوجهة القادمة بخط كبير، ويتصل بجهاز السائق عبر البلوتوث.</string>
@@ -176,6 +175,9 @@
     <string name="maps_key_label">مفتاح Google Maps API</string>
     <string name="help_maps_key">الخريطة تستخدم مفتاح Google الخاص بك. في Google Cloud: أنشئ مفتاح API، وفعّل «Maps JavaScript API» و«Routes API»، وقيّد المفتاح بالموقع https://nastastopp.app/* . الاستخدام العادي ضمن الكمية المجانية الشهرية من Google. موقع السيارة والمحطة التالية يذهبان إلى Google ما دامت الخريطة تعمل (إعداد الجوال 209).</string>
     <string name="display_show_way">إظهار الطريق على الخريطة</string>
+    <string name="display_gps_on">الهاتف يرسل موقعه</string>
+    <string name="display_gps_off">لا يصل موقع من الهاتف</string>
+    <string name="display_weather">عرض الطقس</string>
     <string name="tablet_panel">الزر العائم على هذا التابلت</string>
     <string name="help_tablet_panel">يعرض زر الجوال العائم فوق شاشة الركاب: الرحلة التالية (بلا اسم الراكب)، وعدّاً تنازلياً حين يُصغَّر، وNext وBack والإعادة للجوال. اسم الشارع والسرعة يبقيان على الجوال. يحتاج إذن الظهور فوق التطبيقات على التابلت.</string>
     <string name="display_choose_device">اختر جهاز السائق</string>

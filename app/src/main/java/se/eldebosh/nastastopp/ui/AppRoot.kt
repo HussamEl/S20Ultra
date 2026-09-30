@@ -4,13 +4,12 @@ import android.Manifest
 import android.os.Build
 import androidx.activity.compose.BackHandler
 import java.util.Locale
-import se.eldebosh.nastastopp.ui.theme.AppTheme
+import se.eldebosh.nastastopp.ui.theme.DisplayColors
 import se.eldebosh.nastastopp.ui.screens.HostedWidget
 import se.eldebosh.nastastopp.ui.screens.RouteMap
 import se.eldebosh.nastastopp.core.nav.RoutesApi
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.foundation.isSystemInDarkTheme
 import android.appwidget.AppWidgetProviderInfo
 import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -359,8 +358,9 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             val widgetLabel = remember(widgetId, resumeTick) { widgetId.takeIf { it >= 0 }?.let { widgets.label(it) } }
                             // The Google map (208), with the driver's key; the phone sends where the vehicle is (209).
                             val where by client.where.collectAsStateWithLifecycle()
-                            val night = AppTheme.isNight(settings.appearance, isSystemInDarkTheme())
-                            val ground = AppTheme.colors.background.toArgb()
+                            // In the passenger display's own look (black), whatever the app's.
+                            val night = DisplayColors.isDark
+                            val ground = DisplayColors.background.toArgb()
                             val mapScope = rememberCoroutineScope()
                             var mapRestarts by remember { mutableIntStateOf(0) }
                             val routeMap = remember(settings.mapsKey, night, mapRestarts) {

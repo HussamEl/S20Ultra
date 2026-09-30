@@ -56,7 +56,8 @@ An Android app for a Swedish shared-ride driver:
   1. `Palette.kt`: raw colours.
   2. `AppColors.kt`: colour roles, as `DayColors` and `NightColors`.
   3. `AppEffects.kt`: shadows, press scale and colour fades.
-- Screens use `AppTheme.colors.<role>` and `AppTheme.effects`. **No `Color(0x…)` outside `Palette.kt`/`AppColors.kt`.** The looks are Day / Night / Automatic (setting 130–132). `ThemeContrastTest` must stay green.
+- Screens use `AppTheme.colors.<role>` and `AppTheme.effects`. **No `Color(0x…)` outside `Palette.kt`/`AppColors.kt`.** The looks are Day / Night / Automatic (setting 130–132); the passenger display is always black (`DisplayTheme` with `DisplayColors`). `ThemeContrastTest` must stay green.
+- Passenger display fonts: `DisplayFont` (Barlow Semi Condensed) for words and addresses, `DigitFont` (Atkinson Hyperlegible Next) for every number.
 - Use the components in `ui/Components.kt`: `AppButton`, `AppCard`, `TripSurface` (every trip card), `ListRow`, `TopBar`, `SectionTitle`, `KindLabel`.
 - Explanations never sit inline. Use `HelpDot(R.string.…)` (a tiny "?"); its text is Arabic while setting 104 is on.
 - Every control or piece of info gets a reference number (hidden by default; Settings 105 shows them):

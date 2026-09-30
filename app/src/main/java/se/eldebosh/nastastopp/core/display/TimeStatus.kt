@@ -1,7 +1,7 @@
 package se.eldebosh.nastastopp.core.display
 
 /**
- * How the next stop's scheduled time stands, for the outline on the display clock's minutes and
+ * How the next stop's scheduled time stands, for the colour of the display clock's colon and
  * the floating panel's countdown: green while it is more than five minutes away (or has no
  * time); orange within five minutes, beating orange when it is due; red once it has passed,
  * beating red from five minutes late.

@@ -62,7 +62,7 @@ data class AppColors(
     val highlight: Color,
     /** The passenger display's big time takes these colours one after another, a new one each minute. */
     val showHues: List<Color>,
-    /** A trip due within a few minutes (the outline on the clock's minutes, the panel's countdown). */
+    /** A trip due within a few minutes (the display clock's colon, the panel's countdown). */
     val soon: Color,
     // Reference numbers.
     val refText: Color,
@@ -130,7 +130,7 @@ data class PanelRoles(
         TimeLevel.LATE -> danger
     }
 
-    /** The countdown's colour: the same meanings as the outline on the display clock's minutes. */
+    /** The countdown's colour: the same meanings as the display clock's colon. */
     fun status(status: TimeStatus): Color = when (status) {
         TimeStatus.ON_TIME -> success
         TimeStatus.SOON, TimeStatus.DUE -> soon
@@ -253,4 +253,23 @@ val NightColors = AppColors(
     refPill = Palette.Night.copy(alpha = 0.9f),
     onRefPill = Color(0xFFB8C2D4),
     panel = NightPanel,
+)
+
+/**
+ * The passenger display, in every look: black, with white and light colours on it. Most of the
+ * time in a Swedish winter it is dark outside, and a screen left on for hours keeps most of its
+ * pixels dark (less glare in the car, less wear on the panel). The cards are a shade above black
+ * and edged, so they still read as cards.
+ */
+val DisplayColors = NightColors.copy(
+    background = Palette.Black,
+    card = Palette.Coal,
+    cardBorder = Palette.Graphite,
+    tonal = Palette.Soot,
+    tonalHigh = Palette.Graphite,
+    text = Palette.White,
+    textMuted = Palette.Silver,
+    outline = Palette.Iron,
+    kindPill = Palette.Black.copy(alpha = 0.85f),
+    onStatus = Palette.Black,
 )

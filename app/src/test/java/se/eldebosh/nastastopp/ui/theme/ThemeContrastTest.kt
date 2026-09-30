@@ -37,11 +37,11 @@ class ThemeContrastTest {
         // The first card's time on the card's tint while it is said: large bold text.
         check(look, "passenger highlight on a lit card", c.highlight, c.infoSoft, 3.0)
         check(look, "\"DÄREFTER\" on its chip", c.text, c.tonalHigh, 4.5)
-        // The big time and the outline on the clock's minutes: very large digits, a line on the page.
+        // The big time and the clock's colon, which tells how the next stop's time stands: very large.
         c.showHues.forEach { check(look, "big time", it, c.background, 3.0) }
-        check(look, "outline of a trip on time", c.success, c.background, 3.0)
-        check(look, "outline of a trip due soon", c.soon, c.background, 3.0)
-        check(look, "outline of a late trip", c.danger, c.background, 3.0)
+        check(look, "colon of a trip on time", c.success, c.background, 3.0)
+        check(look, "colon of a trip due soon", c.soon, c.background, 3.0)
+        check(look, "colon of a late trip", c.danger, c.background, 3.0)
         check(look, "how late, beside the next stop's time", c.danger, c.background, 4.5)
         check(look, "main button", c.onAction, c.action, 4.5)
         check(look, "yellow button", c.onAccent, c.accent, 4.5)
@@ -100,8 +100,17 @@ class ThemeContrastTest {
     fun nightIsReadable() = checkLook("night", NightColors)
 
     @Test
+    fun thePassengerDisplayIsReadable() {
+        checkLook("passenger display", DisplayColors)
+        check("passenger display", "colon without a route", DisplayColors.accent, DisplayColors.background, 3.0)
+    }
+
+    @Test
     fun theLooksAreWhatTheyClaim() {
         assertTrue(!DayColors.isDark && DayColors.background.luminance() > 0.8f)
         assertTrue(NightColors.isDark && NightColors.background.luminance() < 0.05f)
+        // The passenger display is black, and its cards only a shade above it.
+        assertTrue(DisplayColors.isDark && DisplayColors.background.luminance() == 0f)
+        assertTrue(DisplayColors.card.luminance() < 0.01f)
     }
 }
