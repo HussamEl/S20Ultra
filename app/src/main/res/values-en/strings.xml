@@ -162,6 +162,18 @@
     <string name="display_full_address">Show the street address on the passenger display</string>
     <string name="display_full_address_hint">The street with the house number is shown large, the area under it. Off = only the area.</string>
     <string name="display_speaks">Also speak announcements on this device</string>
+    <string name="display_map">Map on the tablet (sends the car\'s position)</string>
+    <string name="help_display_map">Off by default. While on and a tablet shows the route, the phone sends the car\'s position and the next stop to the tablet over Bluetooth every 5 seconds. The tablet shows them on a Google map with the way to the next stop, and sends them to Google with your own key (set on the tablet). Nothing is stored or logged. Off: the position never leaves the phone.</string>
+    <string name="weather_widget">Weather widget on this display</string>
+    <string name="weather_widget_none">SMHI\'s weather (no widget)</string>
+    <string name="weather_widget_pick">Choose a weather widget</string>
+    <string name="help_weather_widget">Shows a weather app\'s own widget (for example Samsung Weather) in the middle of each minute, in place of SMHI\'s weather. The weather app draws and updates it; this app only shows it. Android asks once whether the app may show widgets.</string>
+    <string name="maps_key">Google map on this display</string>
+    <string name="maps_key_none">No key: no map</string>
+    <string name="maps_key_set">Key saved on this tablet</string>
+    <string name="maps_key_refused">Google refused the key</string>
+    <string name="maps_key_label">Google Maps API key</string>
+    <string name="help_maps_key">The map uses your own Google key. In Google Cloud: create an API key, enable "Maps JavaScript API" and "Routes API", and restrict the key to the website https://nastastopp.app/* . Normal use stays within Google\'s free monthly amount. The car\'s position and the next stop go to Google while the map is on (phone setting 209).</string>
     <string name="tablet_panel">Floating button on this tablet</string>
     <string name="help_tablet_panel">Shows the phone\'s floating button over the passenger display: the next trip (without the passenger\'s name), a countdown when shrunk, and Next, Back and Repeat for the phone. The street and speed stay on the phone. Needs the permission to show over other apps on this tablet.</string>
     <string name="display_choose_device">Choose the driver\'s device</string>

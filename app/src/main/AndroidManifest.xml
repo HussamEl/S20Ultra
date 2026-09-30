@@ -30,9 +30,12 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
 
-    <!-- Package visibility (Android 11+): Google Maps and TTS engines. -->
+    <!-- Package visibility (Android 11+): Google Maps, TTS engines and the widgets a weather app offers. -->
     <queries>
         <package android:name="com.google.android.apps.maps" />
+        <intent>
+            <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+        </intent>
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>

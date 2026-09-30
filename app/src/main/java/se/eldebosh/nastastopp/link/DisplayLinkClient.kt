@@ -56,6 +56,11 @@ class DisplayLinkClient(
     private val _snapshot = MutableStateFlow<DisplaySnapshot?>(null)
     val snapshot: StateFlow<DisplaySnapshot?> = _snapshot.asStateFlow()
 
+    private val _where = MutableStateFlow<LinkMessage.Where?>(null)
+
+    /** Where the vehicle and the next stop are, while the driver has the tablet's map on. */
+    val where: StateFlow<LinkMessage.Where?> = _where.asStateFlow()
+
     private val _announcements = MutableSharedFlow<Announcement>(extraBufferCapacity = 8)
     val announcements: SharedFlow<Announcement> = _announcements.asSharedFlow()
 
@@ -184,6 +189,7 @@ class DisplayLinkClient(
                 when (msg) {
                     is LinkMessage.State -> _snapshot.value = msg.snapshot
                     is LinkMessage.Announce -> _announcements.tryEmit(Announcement(msg.sv, msg.en))
+                    is LinkMessage.Where -> _where.value = msg
                     is LinkMessage.Hello, LinkMessage.Ping, is LinkMessage.Command -> Unit
                 }
             }
@@ -191,6 +197,7 @@ class DisplayLinkClient(
             DebugLog.d { "link closed: ${e.javaClass.simpleName}" }
         } finally {
             session = null
+            _where.value = null
             watchdog?.cancel()
             closeSocket()
             _state.value = State(Status.CONNECTING, target.name)

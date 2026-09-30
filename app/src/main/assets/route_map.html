@@ -1,0 +1,96 @@
+<!doctype html>
+<!--
+  The tablet's map of the way to the next stop (RouteMap.kt). Google's map with the driver's own
+  key; no controls, no touch, no device location. The app hands it the vehicle's position
+  (setCar) and the route to draw (setRoute); nothing else is sent anywhere from here.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<style>
+  html, body, #map { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: __GROUND__; }
+  #map { pointer-events: none; }
+  .dot { position: absolute; transform: translate(-50%, -50%); border-radius: 50%; box-sizing: border-box; }
+  .car { width: 26px; height: 26px; background: #1A73E8; border: 5px solid #FFFFFF;
+         box-shadow: 0 0 0 10px rgba(26, 115, 232, 0.22), 0 2px 8px rgba(0, 0, 0, 0.35); }
+  .stop { width: 30px; height: 30px; background: #EA4335; border: 8px solid #FFFFFF;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<script>
+  var NIGHT = __NIGHT__;
+  var map = null, carDot = null, stopDot = null, line = null, casing = null;
+  var car = null, path = [];
+
+  var quiet = [
+    { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+    { featureType: 'transit', stylers: [{ visibility: 'off' }] }
+  ];
+  var dark = quiet.concat([
+    { elementType: 'geometry', stylers: [{ color: '#1d2433' }] },
+    { elementType: 'labels.text.fill', stylers: [{ color: '#9aa7bd' }] },
+    { elementType: 'labels.text.stroke', stylers: [{ color: '#1d2433' }] },
+    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2e3a50' }] },
+    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#3d4d69' }] },
+    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0e1624' }] }
+  ]);
+
+  window.gm_authFailure = function () { Android.onAuthFailure(); };
+
+  function ready() {
+    map = new google.maps.Map(document.getElementById('map'), {
+      center: { lat: 59.38, lng: 13.5 }, zoom: 14,
+      disableDefaultUI: true, gestureHandling: 'none', keyboardShortcuts: false,
+      clickableIcons: false, backgroundColor: '__GROUND__', styles: NIGHT ? dark : quiet
+    });
+    function Dot(cls) { this.div = document.createElement('div'); this.div.className = 'dot ' + cls; this.at = null; }
+    Dot.prototype = new google.maps.OverlayView();
+    Dot.prototype.onAdd = function () { this.getPanes().overlayLayer.appendChild(this.div); };
+    Dot.prototype.draw = function () {
+      if (!this.at) { this.div.style.display = 'none'; return; }
+      var p = this.getProjection().fromLatLngToDivPixel(new google.maps.LatLng(this.at.lat, this.at.lng));
+      this.div.style.display = 'block';
+      this.div.style.left = p.x + 'px';
+      this.div.style.top = p.y + 'px';
+    };
+    Dot.prototype.onRemove = function () { this.div.remove(); };
+    Dot.prototype.place = function (at) { this.at = at; this.draw(); };
+    stopDot = new Dot('stop'); stopDot.setMap(map);
+    carDot = new Dot('car'); carDot.setMap(map);
+    casing = new google.maps.Polyline({ map: map, strokeColor: NIGHT ? '#0B3D91' : '#FFFFFF', strokeWeight: 13, strokeOpacity: 1, clickable: false });
+    line = new google.maps.Polyline({ map: map, strokeColor: '#1A73E8', strokeWeight: 8, strokeOpacity: 1, clickable: false });
+    draw(true);
+    Android.onReady();
+  }
+
+  function setCar(lat, lng) {
+    car = { lat: lat, lng: lng };
+    if (map) draw(false);
+  }
+
+  function setRoute(points) {
+    path = points.map(function (p) { return { lat: p[0], lng: p[1] }; });
+    if (map) draw(true);
+  }
+
+  function draw(refit) {
+    casing.setPath(path);
+    line.setPath(path);
+    stopDot.place(path.length ? path[path.length - 1] : null);
+    carDot.place(car);
+    var bounds = new google.maps.LatLngBounds();
+    path.forEach(function (p) { bounds.extend(p); });
+    if (car) bounds.extend(car);
+    if (bounds.isEmpty()) return;
+    var shown = map.getBounds();
+    if (refit || !shown || (car && !shown.contains(car))) {
+      if (path.length) map.fitBounds(bounds, 56); else { map.setCenter(car); map.setZoom(15); }
+    }
+  }
+</script>
+<script async src="https://maps.googleapis.com/maps/api/js?key=__KEY__&callback=ready&loading=async"></script>
+</body>
+</html>

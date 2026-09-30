@@ -180,6 +180,11 @@ fun SettingsScreen(
                     onUpdate { it.copy(displayFullAddress = v) }
                 }
                 CardDivider()
+                // The tablet's Google map: the vehicle's position goes to the tablet, and from there to Google.
+                SwitchRow(R.string.display_map, R.string.help_display_map, settings.displayMap, 209) { v ->
+                    onUpdate { it.copy(displayMap = v) }
+                }
+                CardDivider()
                 SwitchRow(R.string.settings_overlay_visible, null, !settings.overlayHidden, 115) { v -> onUpdate { it.copy(overlayHidden = !v) } }
             }
 

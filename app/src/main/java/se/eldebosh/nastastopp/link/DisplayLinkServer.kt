@@ -16,9 +16,11 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import se.eldebosh.nastastopp.core.link.LinkMessage
 import se.eldebosh.nastastopp.core.link.LinkProtocol
 import se.eldebosh.nastastopp.core.link.LinkSession
+import se.eldebosh.nastastopp.geo.CurrentStreet
 import se.eldebosh.nastastopp.route.RouteController
 import se.eldebosh.nastastopp.settings.DeviceRole
 import se.eldebosh.nastastopp.settings.SettingsStore
@@ -37,6 +39,7 @@ class DisplayLinkServer(
     private val context: Context,
     private val controller: RouteController,
     private val settings: SettingsStore,
+    private val street: CurrentStreet,
     private val scope: CoroutineScope,
 ) {
     enum class Status { OFF, NO_PERMISSION, NO_BLUETOOTH, BLUETOOTH_OFF, WAITING, CONNECTED }
@@ -174,6 +177,13 @@ class DisplayLinkServer(
                     session.send(LinkMessage.Ping)
                 }
             },
+            // The tablet's map, only while the driver has it on: where the vehicle and the next stop are.
+            io {
+                while (true) {
+                    delay(WHERE_MS)
+                    where()?.let { session.send(it) }
+                }
+            },
             io {
                 while (true) {
                     val message = session.receive() ?: break
@@ -187,6 +197,15 @@ class DisplayLinkServer(
         session.close()
         sockets.remove(socket)
         publishClients()
+    }
+
+    /** The vehicle's fresh position and the next stop, while the driver lets the tablet's map have them. */
+    private suspend fun where(): LinkMessage.Where? = withContext(Dispatchers.Main) {
+        if (!settings.current.displayMap) return@withContext null
+        val stop = controller.route.value?.takeIf { it.active }?.stops?.firstOrNull() ?: return@withContext null
+        val fix = street.positionNow() ?: return@withContext null
+        val at = stop.geo?.takeIf { stop.isLocated }
+        LinkMessage.Where(fix.lat, fix.lng, fix.bearingDeg, at?.lat, at?.lng, stop.navigationText)
     }
 
     /** Next, Back or Repeat pressed on a tablet's floating panel: as if pressed on the phone's. */
@@ -208,5 +227,6 @@ class DisplayLinkServer(
 
     companion object {
         private const val PING_MS = 10_000L
+        private const val WHERE_MS = 5_000L
     }
 }

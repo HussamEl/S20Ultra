@@ -162,6 +162,18 @@
     <string name="display_full_address">Visa gatuadressen på passagerarskärmen</string>
     <string name="display_full_address_hint">Gatan med husnummer visas stort och området under. Av = bara området visas.</string>
     <string name="display_speaks">Läs upp utropen även på den här enheten</string>
+    <string name="display_map">Karta på surfplattan (skickar bilens position)</string>
+    <string name="help_display_map">Av från början. När den är på och en surfplatta visar rutten skickar telefonen bilens position och nästa stopp till surfplattan via Bluetooth var 5:e sekund. Surfplattan visar dem på en Google-karta med vägen till nästa stopp och skickar dem till Google med din egen nyckel (anges på surfplattan). Inget sparas eller loggas. Av: positionen lämnar aldrig telefonen.</string>
+    <string name="weather_widget">Väderwidget på skärmen</string>
+    <string name="weather_widget_none">SMHI:s väder (ingen widget)</string>
+    <string name="weather_widget_pick">Välj en väderwidget</string>
+    <string name="help_weather_widget">Visar en väderapps egen widget (till exempel Samsung Väder) mitt i varje minut, i stället för SMHI:s väder. Väderappen ritar och uppdaterar den; den här appen visar den bara. Android frågar en gång om appen får visa widgetar.</string>
+    <string name="maps_key">Google-karta på skärmen</string>
+    <string name="maps_key_none">Ingen nyckel: ingen karta</string>
+    <string name="maps_key_set">Nyckeln är sparad på surfplattan</string>
+    <string name="maps_key_refused">Google avvisade nyckeln</string>
+    <string name="maps_key_label">API-nyckel för Google Maps</string>
+    <string name="help_maps_key">Kartan använder din egen Google-nyckel. I Google Cloud: skapa en API-nyckel, aktivera "Maps JavaScript API" och "Routes API" och begränsa nyckeln till webbplatsen https://nastastopp.app/* . Normal användning ryms i Googles kostnadsfria månadsmängd. Bilens position och nästa stopp går till Google när kartan är på (telefonens inställning 209).</string>
     <string name="tablet_panel">Flytande knapp på surfplattan</string>
     <string name="help_tablet_panel">Visar telefonens flytande knapp över passagerarskärmen: nästa resa (utan passagerarens namn), en nedräkning när den är minimerad, och Nästa, Tillbaka och Upprepa för telefonen. Gatan och farten stannar på telefonen. Kräver tillstånd att visas över andra appar på surfplattan.</string>
     <string name="display_choose_device">Välj förarens enhet</string>

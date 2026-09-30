@@ -48,6 +48,13 @@ class CurrentStreet(
     private var speedKmh: Int? = null
     private var speedAtMs = 0L
     private var previous: Fix? = null
+    private var positionAtMs = 0L
+
+    /**
+     * The last position while it is fresh, for the tablet's map when the driver has it on (Settings
+     * 209): sent to the tablet only, never stored or logged.
+     */
+    fun positionNow(): Fix? = previous?.takeIf { clockMs() - positionAtMs <= POSITION_FRESH_MS }
 
     /** The speed of the last position in km/h, or null when unknown or older than [SPEED_FRESH_MS]. */
     fun speedNow(): Int? = speedKmh?.takeIf { clockMs() - speedAtMs <= SPEED_FRESH_MS }
@@ -65,6 +72,7 @@ class CurrentStreet(
     }
 
     fun onFix(fix: Fix) {
+        positionAtMs = clockMs()
         updateSpeed(fix)
         val m = map
         if (m != null) {
@@ -126,6 +134,9 @@ class CurrentStreet(
 
         /** A speed older than this is not shown (no new positions: signal lost or stopped service). */
         const val SPEED_FRESH_MS = 10_000L
+
+        /** A position older than this is not sent to the tablet's map. */
+        const val POSITION_FRESH_MS = 15_000L
 
         /** A speed worked out from two positions only when both are this exact. */
         const val DERIVED_MAX_ACCURACY_M = 20f

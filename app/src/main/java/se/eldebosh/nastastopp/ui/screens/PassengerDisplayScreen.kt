@@ -1,6 +1,9 @@
 package se.eldebosh.nastastopp.ui.screens
 
 import android.app.Activity
+import se.eldebosh.nastastopp.core.nav.RouteLine
+import android.view.ViewGroup
+import androidx.compose.ui.viewinterop.AndroidView
 import kotlin.math.sin
 import kotlin.math.cos
 import se.eldebosh.nastastopp.core.weather.WeatherKind
@@ -187,6 +190,9 @@ import java.util.Locale
  * @param status connection line for a remote display (null on the driver's own device).
  * @param onSay says what a tap on the clock or a card asks for, on this device.
  * @param time the time of day (tests set it).
+ * @param weatherWidget a weather app's widget hosted on this tablet (207), shown in place of SMHI's weather.
+ * @param routeMap the tablet's Google map of the way to the next stop (208), shown in the middle
+ *   of each minute while [mapLive] (the phone sends where the vehicle is, 209).
  */
 @Composable
 fun PassengerDisplayScreen(
@@ -200,6 +206,9 @@ fun PassengerDisplayScreen(
     spoken: Int = 0,
     onSay: (Announcement) -> Unit = {},
     time: () -> LocalTime = { LocalTime.now() },
+    weatherWidget: (@Composable (Modifier) -> Unit)? = null,
+    routeMap: RouteMap? = null,
+    mapLive: Boolean = false,
 ) {
     KeepScreenOnFullscreen()
     var tapped by remember { mutableIntStateOf(0) }
@@ -212,7 +221,14 @@ fun PassengerDisplayScreen(
     }
     val now = rememberNow(time)
     val live = snapshot?.takeIf { it.active && it.current != null }
-    val moments = rememberMoments(now, cue + said, snapshot?.announcementSv, weather = live?.weather, eta = live?.eta)
+    val moments = rememberMoments(
+        now,
+        cue + said,
+        snapshot?.announcementSv,
+        hasWeather = live?.weather != null || weatherWidget != null,
+        hasEta = live?.eta != null,
+        hasMap = live != null && mapLive && routeMap?.ready == true,
+    )
     // Everything but the time (or the weather, or the travel time) steps back while it shows, and
     // is hidden behind a solid ground at its largest.
     val rest = Modifier.stepBack { moments.back }
@@ -233,6 +249,18 @@ fun PassengerDisplayScreen(
         var clockBottom by remember { mutableFloatStateOf(0f) }
         var stageTop by remember { mutableFloatStateOf(0f) }
         val clear = with(LocalDensity.current) { (clockBottom - stageTop).coerceAtLeast(0f).toDp() }
+        // The map lies under everything, unseen until its moment, so it loads once and stays ready.
+        if (routeMap != null) {
+            MapLayer(
+                routeMap,
+                moments,
+                if (landscape) {
+                    Modifier.align(Alignment.CenterStart).padding(start = maxWidth * MAP_INSET).size(maxWidth * MAP_WIDE_W, maxHeight * MAP_WIDE_H)
+                } else {
+                    Modifier.align(Alignment.TopCenter).padding(top = maxHeight * MAP_INSET * 2).size(maxWidth * MAP_NARROW_W, maxHeight * MAP_NARROW_H)
+                },
+            )
+        }
         Column(
             Modifier
                 .fillMaxSize()
@@ -319,7 +347,20 @@ fun PassengerDisplayScreen(
             )
         }
         // The weather or the travel time, in the middle while it shows.
-        InfoMoment(moments, live?.weather, live?.eta, landscape, Modifier.align(Alignment.Center))
+        InfoMoment(moments, live?.weather, live?.eta, landscape, weatherWidget, Modifier.align(Alignment.Center))
+        if (routeMap != null) {
+            MapMomentText(
+                moments,
+                live?.eta,
+                routeMap.route,
+                landscape,
+                if (landscape) {
+                    Modifier.align(Alignment.CenterEnd).padding(end = maxWidth * MAP_INSET).width(maxWidth * (1f - MAP_WIDE_W - 3 * MAP_INSET))
+                } else {
+                    Modifier.align(Alignment.BottomCenter).padding(bottom = maxHeight * MAP_INSET * 2)
+                },
+            )
+        }
         // While the time, the weather or the travel time fills the screen, a tap anywhere brings the
         // screen back at once.
         if (moments.showing) {
@@ -354,8 +395,9 @@ private fun rememberNow(time: () -> LocalTime): State<LocalTime> {
  *   behind a solid ground ([solid]), which stays two seconds; then the time goes back, faster,
  *   while the ground clears again gradually. A tap on the clock springs it out the same way and
  *   holds it a little longer;
- * - the weather in the middle of each minute, and Google Maps' travel time a little later
- *   ([info] 0 → 1 → 0 over seven seconds, [shown] saying which).
+ * - the weather in the middle of each minute, and a little later the tablet's map of the way to
+ *   the next stop, or Google Maps' travel time alone ([info] 0 → 1 → 0 over seven seconds, ten
+ *   for the map; [shown] says which).
  *
  * A tap anywhere ([settle]) and anything said send it straight back.
  */
@@ -407,7 +449,7 @@ private class Moments(private val scope: CoroutineScope) {
         shown = which
         job = scope.launch {
             info.animateTo(1f, tween(INFO_IN_MS, easing = FastOutSlowInEasing))
-            delay(INFO_HOLD_MS)
+            delay(if (which == Info.MAP) MAP_HOLD_MS else INFO_HOLD_MS)
             info.animateTo(0f, tween(INFO_OUT_MS, easing = FastOutSlowInEasing))
         }
     }
@@ -422,7 +464,7 @@ private class Moments(private val scope: CoroutineScope) {
         }
     }
 
-    enum class Info { WEATHER, ETA }
+    enum class Info { WEATHER, ETA, MAP }
 }
 
 /**
@@ -432,7 +474,7 @@ private class Moments(private val scope: CoroutineScope) {
  * sends it straight back.
  */
 @Composable
-private fun rememberMoments(now: State<LocalTime>, cue: Int, spokenText: String?, weather: DisplayWeather?, eta: DisplayEta?): Moments {
+private fun rememberMoments(now: State<LocalTime>, cue: Int, spokenText: String?, hasWeather: Boolean, hasEta: Boolean, hasMap: Boolean): Moments {
     val scope = rememberCoroutineScope()
     val moments = remember(scope) { Moments(scope) }
     var quiet by remember { mutableStateOf(false) }
@@ -449,13 +491,15 @@ private fun rememberMoments(now: State<LocalTime>, cue: Int, spokenText: String?
         if (minute != opened && !quiet) moments.playTime()
     }
     val second by remember { derivedStateOf { now.value.second } }
-    val hasWeather by rememberUpdatedState(weather != null)
-    val hasEta by rememberUpdatedState(eta != null)
+    val weather by rememberUpdatedState(hasWeather)
+    val eta by rememberUpdatedState(hasEta)
+    val map by rememberUpdatedState(hasMap)
     LaunchedEffect(second) {
         if (quiet || !moments.idle) return@LaunchedEffect
         when (second) {
-            WEATHER_AT_S -> if (hasWeather) moments.playInfo(Moments.Info.WEATHER)
-            ETA_AT_S -> if (hasEta) moments.playInfo(Moments.Info.ETA)
+            WEATHER_AT_S -> if (weather) moments.playInfo(Moments.Info.WEATHER)
+            // The map with the way when the tablet has it; else Google Maps' travel time alone.
+            ETA_AT_S -> if (map) moments.playInfo(Moments.Info.MAP) else if (eta) moments.playInfo(Moments.Info.ETA)
         }
     }
     return moments
@@ -463,8 +507,15 @@ private fun rememberMoments(now: State<LocalTime>, cue: Int, spokenText: String?
 
 /** The weather or Google Maps' travel time, large in the middle while [moments] shows it. */
 @Composable
-private fun InfoMoment(moments: Moments, weather: DisplayWeather?, eta: DisplayEta?, landscape: Boolean, modifier: Modifier = Modifier) {
-    if (moments.info.value <= 0f) return
+private fun InfoMoment(
+    moments: Moments,
+    weather: DisplayWeather?,
+    eta: DisplayEta?,
+    landscape: Boolean,
+    weatherWidget: (@Composable (Modifier) -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
+    if (moments.info.value <= 0f || moments.shown == Moments.Info.MAP) return
     val hue = AppTheme.colors.showHues[(moments.hue + 2) % AppTheme.colors.showHues.size]
     val big = if (landscape) INFO_SP_WIDE else INFO_SP_NARROW
     Row(
@@ -477,7 +528,11 @@ private fun InfoMoment(moments: Moments, weather: DisplayWeather?, eta: DisplayE
         },
     ) {
         when (moments.shown) {
-            Moments.Info.WEATHER -> if (weather != null) {
+            // The weather app's own widget, large; it is only looked at (a tap brings the screen back).
+            Moments.Info.WEATHER -> if (weatherWidget != null) {
+                val w = if (landscape) WIDGET_WIDE_W else WIDGET_NARROW_W
+                weatherWidget(Modifier.ref(211).size(w, w * WIDGET_ASPECT))
+            } else if (weather != null) {
                 WeatherGlyph(weather.kind, hue, Modifier.size(if (landscape) 220.dp else 120.dp))
                 Spacer(Modifier.width(if (landscape) 40.dp else 16.dp))
                 Column(Modifier.ref(204)) {
@@ -529,7 +584,71 @@ private fun InfoMoment(moments: Moments, weather: DisplayWeather?, eta: DisplayE
                     )
                 }
             }
+            Moments.Info.MAP -> Unit
         }
+    }
+}
+
+/**
+ * The tablet's map of the way to the next stop, under everything else: unseen (and taking no
+ * taps from what lies above it) until its moment, when it fades in as all else steps back.
+ */
+@Composable
+private fun MapLayer(map: RouteMap, moments: Moments, modifier: Modifier = Modifier) {
+    AndroidView(
+        factory = {
+            (map.view.parent as? ViewGroup)?.removeView(map.view)
+            map.view
+        },
+        modifier = modifier.ref(210).graphicsLayer {
+            alpha = if (moments.shown == Moments.Info.MAP) moments.info.value else 0f
+            shape = RoundedCornerShape(MAP_CORNER)
+            clip = true
+        },
+    )
+}
+
+/** Beside the map: the minutes to the next stop and the distance (Google Maps' own when it navigates). */
+@Composable
+private fun MapMomentText(moments: Moments, eta: DisplayEta?, route: RouteLine?, landscape: Boolean, modifier: Modifier = Modifier) {
+    if (moments.shown != Moments.Info.MAP || moments.info.value <= 0f) return
+    val minutes = eta?.minutes ?: route?.minutes ?: return
+    val meters = eta?.meters ?: route?.meters
+    val hue = AppTheme.colors.showHues[(moments.hue + 2) % AppTheme.colors.showHues.size]
+    val big = if (landscape) MAP_SP_WIDE else INFO_SP_NARROW
+    Column(
+        horizontalAlignment = if (landscape) Alignment.Start else Alignment.CenterHorizontally,
+        modifier = modifier.ref(205).graphicsLayer {
+            val p = moments.info.value
+            alpha = p
+            translationY = (1f - p) * 40.dp.toPx()
+        },
+    ) {
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(
+                "$minutes",
+                fontFamily = DisplayFont,
+                fontWeight = FontWeight.Bold,
+                fontSize = big,
+                color = hue,
+                style = TextStyle(fontFeatureSettings = TABULAR, lineHeight = 1.0.em),
+            )
+            Text(
+                " min",
+                fontFamily = DisplayFont,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = big * 0.35f,
+                color = hue,
+                modifier = Modifier.padding(bottom = 12.dp),
+            )
+        }
+        Text(
+            listOfNotNull(meters?.let(::distanceText), stringResource(R.string.passenger_to_next_stop)).joinToString("  ·  "),
+            fontFamily = DisplayFont,
+            fontWeight = FontWeight.Medium,
+            fontSize = big * 0.2f,
+            color = AppTheme.colors.textMuted,
+        )
     }
 }
 
@@ -978,11 +1097,12 @@ private fun StopHero(
                     NextChip(landscape)
                     Spacer(Modifier.width(14.dp))
                 }
-                if (current.time != null) TimeFace(current.time, if (landscape) HERO_TIME_SP else HERO_TIME_SP_NARROW, status = if (next) status else null)
+                // Where the trip was marked done: small and fixed at the time's left, clear of its breathing.
                 if (current.doneInYouDrive || current.doneHere) {
-                    Spacer(Modifier.width(12.dp))
-                    DoneMarks(youDrive = current.doneInYouDrive, here = current.doneHere, size = if (landscape) 26.dp else 18.dp)
+                    DoneMarks(youDrive = current.doneInYouDrive, here = current.doneHere, size = if (landscape) 12.dp else 10.dp)
+                    Spacer(Modifier.width(8.dp))
                 }
+                if (current.time != null) TimeFace(current.time, if (landscape) HERO_TIME_SP else HERO_TIME_SP_NARROW, status = if (next) status else null)
             }
             Column(
                 Modifier
@@ -1350,23 +1470,30 @@ private fun Clock(
 private fun span(a: Rect, b: Rect) = Rect(minOf(a.left, b.left), minOf(a.top, b.top), maxOf(a.right, b.right), maxOf(a.bottom, b.bottom))
 
 /**
- * Digits with an outline in [status]'s colour (green on time, orange soon, red late), beating when
- * it says so; plain digits for no status.
+ * Digits with a thin outline in [status]'s colour (green on time, orange soon, red late), beating
+ * when it says so, set a little apart from them; plain digits for no status.
  */
 @Composable
 private fun OutlinedDigits(text: String, style: TextStyle, status: TimeStatus?, fill: ColorProducer, modifier: Modifier = Modifier) {
     val beat = rememberInfiniteTransition(label = "beat")
     val pulse by beat.animateFloat(1f, BEAT_LOW, infiniteRepeatable(tween(BEAT_MS), RepeatMode.Reverse), label = "beat")
     val line = status?.let { statusColor(it) }
+    val ground = AppTheme.colors.background
     Box(modifier) {
         if (status != null && line != null) {
-            // The stroke is centred on the glyphs' edge; the digits drawn over it leave its outer half.
-            val width = with(LocalDensity.current) { (style.fontSize * OUTLINE_SHARE).toPx() }
+            // Strokes are centred on the glyphs' edge: a wide one in the status colour, a narrower
+            // one in the page's colour over it, then the digits, leave a fine line with a gap.
+            val (outer, gap) = with(LocalDensity.current) {
+                val gapPx = maxOf((style.fontSize * OUTLINE_GAP).toPx(), OUTLINE_MIN.toPx())
+                val linePx = maxOf((style.fontSize * OUTLINE_LINE).toPx(), OUTLINE_MIN.toPx())
+                2f * (gapPx + linePx) to 2f * gapPx
+            }
             BasicText(
                 text,
-                style = style.copy(drawStyle = Stroke(width = width, join = StrokeJoin.Round)),
+                style = style.copy(drawStyle = Stroke(width = outer, join = StrokeJoin.Round)),
                 color = { line.copy(alpha = if (status.beating) pulse else 1f) },
             )
+            BasicText(text, style = style.copy(drawStyle = Stroke(width = gap, join = StrokeJoin.Round)), color = { ground })
         }
         BasicText(text, style = style, color = fill)
     }
@@ -1628,11 +1755,29 @@ private const val ETA_AT_S = 45
 private const val INFO_IN_MS = 1_200
 private const val INFO_HOLD_MS = 4_600L
 private const val INFO_OUT_MS = 1_200
+
+/** The map: ten seconds in all, at the left of a tablet (above the minutes on a phone), with rounded corners. */
+private const val MAP_HOLD_MS = 7_600L
+private const val MAP_INSET = 0.04f
+private const val MAP_WIDE_W = 0.56f
+private const val MAP_WIDE_H = 0.72f
+private const val MAP_NARROW_W = 0.92f
+private const val MAP_NARROW_H = 0.5f
+private val MAP_CORNER = 28.dp
+private val MAP_SP_WIDE = 170.sp
+
+/** A weather app's widget, large in the middle. */
+private val WIDGET_WIDE_W = 640.dp
+private val WIDGET_NARROW_W = 340.dp
+private const val WIDGET_ASPECT = 0.5f
 private val INFO_SP_WIDE = 220.sp
 private val INFO_SP_NARROW = 110.sp
 
 /** The ring around the clock's minutes: its line, its glow, and how it beats. */
-private const val OUTLINE_SHARE = 0.045f
+/** The outline on the minutes: its line and its gap from the digits, as shares of their size. */
+private const val OUTLINE_LINE = 0.012f
+private const val OUTLINE_GAP = 0.014f
+private val OUTLINE_MIN = 1.5.dp
 private const val BEAT_LOW = 0.2f
 private const val BEAT_MS = 700
 

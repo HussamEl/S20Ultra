@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import se.eldebosh.nastastopp.weather.WeatherSource
+import se.eldebosh.nastastopp.weather.WeatherWidgets
 import se.eldebosh.nastastopp.nav.MapsNavigation
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.combine
@@ -64,13 +65,16 @@ class AppGraph(app: Application) {
     val importer = ScreenshotImporter(OcrEngine(app), extractor)
 
     /** Controller: Bluetooth server for passenger displays (runs only when enabled). */
-    val displayServer = DisplayLinkServer(app, controller, settings, scope)
+    val displayServer = DisplayLinkServer(app, controller, settings, street, scope)
 
     /** Passenger displays shown on this phone itself (the screen counts itself while open). */
     val localDisplays = MutableStateFlow(0)
 
     /** The area's weather, fetched only while a passenger display shows a route. */
     val weather = WeatherSource(scope)
+
+    /** Display role: a weather app's widget on this tablet's display (207). */
+    val weatherWidgets by lazy { WeatherWidgets(app) }
 
     /** Display role: Bluetooth client towards the driver's device. */
     val displayClient by lazy {
@@ -88,7 +92,9 @@ class AppGraph(app: Application) {
      * Display role: the phone's floating panel on this tablet, over the passenger display (Settings
      * on the tablet: 206). Its Next, Back and Repeat go to the phone.
      */
-    val tabletPanel = OverlayManager(app, LinkPanelSource(displayClient, announcer), settings, scope) { it.role == DeviceRole.DISPLAY && it.tabletPanel }
+    val tabletPanel = OverlayManager(app, LinkPanelSource(displayClient, announcer), settings, scope, bubbleScale = 2f, swellLastMinute = true) {
+        it.role == DeviceRole.DISPLAY && it.tabletPanel
+    }
 
     /** The driver's YouDrive page, watched for added / cancelled trips (alerts as notifications). */
     /** The YouDrive login, only if the driver saved it on this phone (encrypted). */

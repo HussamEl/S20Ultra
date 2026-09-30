@@ -25,6 +25,10 @@ import se.eldebosh.nastastopp.overlay.RoutePanelSource
 import se.eldebosh.nastastopp.ui.screens.OnboardingScreen
 import java.time.Duration
 import androidx.compose.material3.MaterialTheme
+import se.eldebosh.nastastopp.ui.theme.AppTheme
+import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.test.onNodeWithText
@@ -328,7 +332,7 @@ class ScreenshotsRoboTest {
             override val street: CurrentStreet? = null
             override fun trip() = phone.trip()?.copy(name = null, area = null)
         }
-        val panelManager = OverlayManager(app, source, graph.settings, graph.scope) { true }
+        val panelManager = OverlayManager(app, source, graph.settings, graph.scope, bubbleScale = if (tablet) 2f else 1f) { true }
         graph.controller.start()
         shadowOf(Looper.getMainLooper()).idle()
         val wm = Shadow.extract<ShadowWindowManagerImpl>(app.getSystemService(WindowManager::class.java))
@@ -656,6 +660,35 @@ class ScreenshotsRoboTest {
         compose.onRoot().performTouchInput { click(center) }
         compose.mainClock.advanceTimeBy(800)
         compose.onNodeWithText("12").assertDoesNotExist()
+        compose.mainClock.autoAdvance = true
+    }
+
+    /** A weather app's widget, when the tablet hosts one, takes the weather's moment in the middle. */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun passengerDisplayShowsAWeatherWidget() {
+        var now = LocalTime.of(8, 11, 25)
+        compose.setContent {
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(
+                    tabletSnapshot,
+                    status = "Connected: Galaxy S20 Ultra",
+                    connected = true,
+                    onSpeak = {},
+                    onExit = {},
+                    time = { now },
+                    weatherWidget = { m -> Box(m.background(AppTheme.colors.info)) { Text("Widget") } },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.mainClock.autoAdvance = false
+        now = LocalTime.of(8, 11, 27)
+        compose.mainClock.advanceTimeBy(2_500)
+        compose.onNodeWithText("Widget").assertIsDisplayed()
+        compose.onNodeWithTag("ref_211").assertExists()
+        compose.mainClock.advanceTimeBy(6_000)
+        compose.onNodeWithText("Widget").assertDoesNotExist()
         compose.mainClock.autoAdvance = true
     }
 

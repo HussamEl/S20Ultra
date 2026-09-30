@@ -1,6 +1,8 @@
 package se.eldebosh.nastastopp.overlay
 
 import android.animation.ValueAnimator
+import android.view.animation.DecelerateInterpolator
+import android.view.animation.OvershootInterpolator
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
@@ -89,12 +91,16 @@ import kotlin.math.roundToInt
  * street bar and speed, which stay on the phone; its Next, Back and Repeat go to the phone.
  *
  * @param wanted whether this panel belongs to the device's role and settings.
+ * @param bubbleScale the capsule's size (the tablet's is twice the phone's, read from further away).
+ * @param swellLastMinute in the trip's last minute the capsule swells to twice its size and blinks.
  */
 class OverlayManager(
     private val context: Context,
     private val source: PanelSource,
     private val settings: SettingsStore,
     scope: CoroutineScope,
+    private val bubbleScale: Float = 1f,
+    private val swellLastMinute: Boolean = false,
     private val wanted: (AppSettings) -> Boolean,
 ) {
     private val wm = context.getSystemService(WindowManager::class.java)
@@ -106,6 +112,10 @@ class OverlayManager(
     private var ui: Context = context
     private var reminderShown: Boolean? = null
     private var beat: ValueAnimator? = null
+    private var swell = 1f
+    private var swollen = false
+    private var swelling: ValueAnimator? = null
+    private var blink: ValueAnimator? = null
 
     /** The panel's colours and effects for the current look; set each time the panel is built. */
     private var pc = PanelColors(DayColors)
@@ -127,6 +137,8 @@ class OverlayManager(
         var stripe: GradientDrawable? = null
         var address: TextView? = null
         var town: TextView? = null
+        var bubble: LinearLayout? = null
+        var bubbleDotView: View? = null
         var bubbleMain: TextView? = null
         var bubbleSub: TextView? = null
         var bubbleRing: GradientDrawable? = null
@@ -266,10 +278,66 @@ class OverlayManager(
             text = t.time ?: ""
             visibility = if (text.isNullOrEmpty()) View.GONE else View.VISIBLE
         }
-        v.bubbleRing?.setStroke(dp(2.5f), countdown ?: pc.edgeLight)
+        v.bubbleRing?.setStroke(dp(BUBBLE_RING_DP * bubbleScale * swell), countdown ?: pc.edgeLight)
         v.bubbleDot?.setColor(countdown ?: pc.muted)
         beat(v, until != null && status.beating)
+        val secondsLeft = until?.let { it * 60 - now.second }
+        swellFor(v, swellLastMinute && secondsLeft != null && secondsLeft in 0..60)
     }
+
+    /** The capsule swells to twice its size and blinks through the trip's last minute, then settles. */
+    private fun swellFor(v: Views, on: Boolean) {
+        if (on == swollen) return
+        swollen = on
+        swelling?.cancel()
+        swelling = ValueAnimator.ofFloat(swell, if (on) SWELL else 1f).apply {
+            duration = SWELL_MS
+            interpolator = if (on) OvershootInterpolator(1.4f) else DecelerateInterpolator()
+            addUpdateListener {
+                swell = it.animatedValue as Float
+                sizeBubble(v, bubbleScale * swell)
+            }
+            start()
+        }
+        blink?.cancel()
+        blink = null
+        v.bubble?.alpha = 1f
+        if (on) {
+            blink = ValueAnimator.ofFloat(1f, BLINK_LOW).apply {
+                duration = BLINK_MS
+                repeatMode = ValueAnimator.REVERSE
+                repeatCount = ValueAnimator.INFINITE
+                addUpdateListener { v.bubble?.alpha = it.animatedValue as Float }
+                start()
+            }
+        }
+    }
+
+    /** Lays the capsule out at [f] times its base size: its height, text, dot, ring and rounding. */
+    private fun sizeBubble(v: Views, f: Float) {
+        val bubble = v.bubble ?: return
+        bubble.background = bubbleBackground(BUBBLE_H_DP * f, v.bubbleRing)
+        bubble.setPadding(dp(14f * f), 0, dp(16f * f), 0)
+        bubble.layoutParams = bubble.layoutParams?.apply { height = dp(BUBBLE_H_DP * f) }
+        v.bubbleMain?.apply {
+            setTextSize(TypedValue.COMPLEX_UNIT_PX, sp(BUBBLE_MAIN_SP * f).toFloat())
+            (layoutParams as? LinearLayout.LayoutParams)?.marginStart = dp(8f * f)
+        }
+        v.bubbleSub?.apply {
+            setTextSize(TypedValue.COMPLEX_UNIT_PX, sp(BUBBLE_SUB_SP * f).toFloat())
+            (layoutParams as? LinearLayout.LayoutParams)?.marginStart = dp(6f * f)
+        }
+        v.bubbleDotView?.layoutParams = v.bubbleDotView?.layoutParams?.apply {
+            width = dp(10f * f)
+            height = dp(10f * f)
+        }
+        v.bubbleRing?.cornerRadius = dp(BUBBLE_H_DP * f / 2).toFloat()
+        bubble.requestLayout()
+    }
+
+    /** The capsule's glass, the deeper glass under the countdown (so its colours read on any map), and its ring. */
+    private fun bubbleBackground(heightDp: Float, ring: GradientDrawable?): Drawable =
+        LayerDrawable(listOfNotNull(glass(heightDp / 2), rounded(pc.well, heightDp / 2), ring).toTypedArray())
 
     /** The capsule's ring and dot beat while the trip is due or long late. */
     private fun beat(v: Views, on: Boolean) {
@@ -350,21 +418,19 @@ class OverlayManager(
         val ring = GradientDrawable().apply {
             cornerRadius = dp(BUBBLE_H_DP / 2).toFloat()
             setColor(pc.clear)
-            setStroke(dp(2.5f), pc.edgeLight)
+            setStroke(dp(BUBBLE_RING_DP * bubbleScale), pc.edgeLight)
         }
-        val main = text(17f, pc.text, bold = true).apply { fontFeatureSettings = "tnum" }
-        val sub = text(11f, pc.muted, bold = true)
+        val main = text(BUBBLE_MAIN_SP, pc.text, bold = true).apply { fontFeatureSettings = "tnum" }
+        val sub = text(BUBBLE_SUB_SP, pc.muted, bold = true)
+        val dotView = View(ui).apply { background = dot }
         val bubble = LinearLayout(ui).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            // The deeper glass under the countdown, as under the panel's text, so its colours read on any map.
-            background = LayerDrawable(arrayOf(glass(BUBBLE_H_DP / 2), rounded(pc.well, BUBBLE_H_DP / 2), ring))
             elevation = dp(fx.panelShadow.value).toFloat()
-            setPadding(dp(14f), 0, dp(16f), 0)
             contentDescription = ui.getString(R.string.overlay_expand_desc)
-            addView(View(ui).apply { background = dot }, LinearLayout.LayoutParams(dp(10f), dp(10f)))
-            addView(main, LinearLayout.LayoutParams(WRAP, WRAP).apply { marginStart = dp(8f) })
-            addView(sub, LinearLayout.LayoutParams(WRAP, WRAP).apply { marginStart = dp(6f) })
+            addView(dotView, LinearLayout.LayoutParams(dp(10f), dp(10f)))
+            addView(main, LinearLayout.LayoutParams(WRAP, WRAP))
+            addView(sub, LinearLayout.LayoutParams(WRAP, WRAP))
         }
         val frame = FrameLayout(ui).apply {
             shadowRoom()
@@ -373,10 +439,13 @@ class OverlayManager(
         bubble.ref(17)
         bubble.setOnClickListener { settings.update { it.copy(overlayMinimized = false) } }
         bubble.setOnTouchListener(TouchHandler(lp, frame, onLongPress = null, press = true))
+        v.bubble = bubble
+        v.bubbleDotView = dotView
         v.bubbleMain = main
         v.bubbleSub = sub
         v.bubbleRing = ring
         v.bubbleDot = dot
+        sizeBubble(v, bubbleScale * swell)
         return frame
     }
 
@@ -828,6 +897,12 @@ class OverlayManager(
         handler.removeCallbacks(tick)
         beat?.cancel()
         beat = null
+        swelling?.cancel()
+        swelling = null
+        blink?.cancel()
+        blink = null
+        swell = 1f
+        swollen = false
         val v = root
         root = null
         views = null
@@ -925,6 +1000,15 @@ class OverlayManager(
         /** The capsule's ring and dot beat between full and this, as the outline on the display clock does. */
         private const val BEAT_LOW = 0.2f
         private const val BEAT_MS = 700L
+
+        /** The capsule: its base size, and how it swells and blinks in the trip's last minute. */
+        private const val BUBBLE_MAIN_SP = 17f
+        private const val BUBBLE_SUB_SP = 11f
+        private const val BUBBLE_RING_DP = 2.5f
+        private const val SWELL = 2f
+        private const val SWELL_MS = 500L
+        private const val BLINK_LOW = 0.35f
+        private const val BLINK_MS = 450L
 
         /** The next stop's street beside its time, large enough to read at a glance. */
         private const val STOP_STREET_SP = 17f

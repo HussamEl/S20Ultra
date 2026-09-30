@@ -3,6 +3,16 @@ package se.eldebosh.nastastopp.ui
 import android.Manifest
 import android.os.Build
 import androidx.activity.compose.BackHandler
+import java.util.Locale
+import se.eldebosh.nastastopp.ui.theme.AppTheme
+import se.eldebosh.nastastopp.ui.screens.HostedWidget
+import se.eldebosh.nastastopp.ui.screens.RouteMap
+import se.eldebosh.nastastopp.core.nav.RoutesApi
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.foundation.isSystemInDarkTheme
+import android.appwidget.AppWidgetProviderInfo
+import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -27,6 +37,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -327,6 +338,40 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             }
                             var spoken by remember { mutableIntStateOf(0) }
                             LaunchedEffect(client) { client.announcements.collect { spoken++ } }
+                            // A weather app's widget (207): its slot is bound after the system asks the driver.
+                            val widgets = graph.weatherWidgets
+                            DisposableEffect(Unit) {
+                                widgets.listen(true)
+                                onDispose { widgets.listen(false) }
+                            }
+                            var binding by remember { mutableStateOf<Pair<Int, AppWidgetProviderInfo>?>(null) }
+                            val keepWidget = { id: Int, info: AppWidgetProviderInfo ->
+                                val old = settings.weatherWidgetId
+                                graph.settings.update { it.copy(weatherWidgetId = id) }
+                                if (old >= 0 && old != id) widgets.remove(old)
+                                if (widgets.needsSetup(info)) (context as? Activity)?.let { widgets.setUp(it, id) }
+                            }
+                            val bindWidget = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+                                binding?.let { (id, info) -> if (result.resultCode == Activity.RESULT_OK) keepWidget(id, info) else widgets.remove(id) }
+                                binding = null
+                            }
+                            val widgetId = settings.weatherWidgetId
+                            val widgetLabel = remember(widgetId, resumeTick) { widgetId.takeIf { it >= 0 }?.let { widgets.label(it) } }
+                            // The Google map (208), with the driver's key; the phone sends where the vehicle is (209).
+                            val where by client.where.collectAsStateWithLifecycle()
+                            val night = AppTheme.isNight(settings.appearance, isSystemInDarkTheme())
+                            val ground = AppTheme.colors.background.toArgb()
+                            val mapScope = rememberCoroutineScope()
+                            var mapRestarts by remember { mutableIntStateOf(0) }
+                            val routeMap = remember(settings.mapsKey, night, mapRestarts) {
+                                settings.mapsKey?.takeIf { RoutesApi.isKey(it) }?.let {
+                                    RouteMap(context, it, night, String.format(Locale.ROOT, "#%06X", ground and 0xFFFFFF), mapScope)
+                                }
+                            }
+                            DisposableEffect(routeMap) { onDispose { routeMap?.destroy() } }
+                            // A map whose renderer stopped is replaced by a new one.
+                            LaunchedEffect(routeMap?.gone) { if (routeMap?.gone == true) mapRestarts++ }
+                            LaunchedEffect(routeMap, where) { where?.let { routeMap?.show(it) } }
                             DisplayRoleScreen(
                                 settings = settings,
                                 link = link,
@@ -355,6 +400,27 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                     if (v && !graph.tabletPanel.canShow) SystemIntents.openOverlaySettings(context)
                                 },
                                 onSwitchToController = { vm.setRole(DeviceRole.CONTROLLER) },
+                                widgetLabel = widgetLabel,
+                                widgetChoices = { widgets.choices() },
+                                onChooseWidget = { choice ->
+                                    if (choice == null) {
+                                        widgets.remove(settings.weatherWidgetId)
+                                        graph.settings.update { it.copy(weatherWidgetId = -1) }
+                                    } else {
+                                        val (id, bound) = widgets.add(choice.info)
+                                        if (bound) {
+                                            keepWidget(id, choice.info)
+                                        } else {
+                                            binding = id to choice.info
+                                            bindWidget.launch(widgets.bindIntent(id, choice.info))
+                                        }
+                                    }
+                                },
+                                weatherWidget = widgetLabel?.let { { m: Modifier -> HostedWidget(widgets, widgetId, m) } },
+                                onSaveMapsKey = { key -> graph.settings.update { it.copy(mapsKey = key) } },
+                                mapRefused = routeMap?.refused == true,
+                                routeMap = routeMap,
+                                mapLive = where != null,
                             )
                         }
                         Screen.SETTINGS -> SettingsScreen(

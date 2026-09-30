@@ -1,6 +1,15 @@
 package se.eldebosh.nastastopp.ui.screens
 
 import androidx.compose.foundation.background
+import se.eldebosh.nastastopp.weather.WeatherWidgets
+import se.eldebosh.nastastopp.core.nav.RoutesApi
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -69,6 +78,16 @@ fun DisplayRoleScreen(
     onSwitchToController: () -> Unit,
     /** The phone's floating panel on this tablet (asks for the overlay permission when missing). */
     onTogglePanel: (Boolean) -> Unit = {},
+    /** The weather app's widget on the display (207): its name (null: SMHI's weather), the choices, the choice. */
+    widgetLabel: String? = null,
+    widgetChoices: () -> List<WeatherWidgets.Choice> = { emptyList() },
+    onChooseWidget: (WeatherWidgets.Choice?) -> Unit = {},
+    weatherWidget: (@Composable (Modifier) -> Unit)? = null,
+    /** The Google map on the display (208): the driver's key (null removes it), whether Google refused it, the map. */
+    onSaveMapsKey: (String?) -> Unit = {},
+    mapRefused: Boolean = false,
+    routeMap: RouteMap? = null,
+    mapLive: Boolean = false,
     availabilityStatus: DisplayLinkClient.Status = DisplayLinkClient.Status.IDLE,
     /** Goes up by one with each announcement from the driver's phone. */
     spoken: Int = 0,
@@ -95,9 +114,14 @@ fun DisplayRoleScreen(
             onExit = { showSetup = true },
             spoken = spoken,
             detail = if (!connected) link.lastError?.let { stringResource(R.string.display_last_error, it) } else null,
+            weatherWidget = weatherWidget,
+            routeMap = routeMap,
+            mapLive = mapLive,
         )
         return
     }
+    var choosingWidget by remember { mutableStateOf(false) }
+    var editingKey by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize()) {
         TopBar(
@@ -154,11 +178,117 @@ fun DisplayRoleScreen(
                     onClick = { onTogglePanel(!settings.tabletPanel) },
                     trailing = { Switch(checked = settings.tabletPanel, onCheckedChange = onTogglePanel, modifier = Modifier.refCorner(206)) },
                 )
+                ListRow(
+                    title = stringResource(R.string.weather_widget),
+                    subtitle = widgetLabel ?: stringResource(R.string.weather_widget_none),
+                    help = R.string.help_weather_widget,
+                    ref = 207,
+                    onClick = { choosingWidget = true },
+                )
+                ListRow(
+                    title = stringResource(R.string.maps_key),
+                    subtitle = stringResource(
+                        when {
+                            settings.mapsKey == null -> R.string.maps_key_none
+                            mapRefused -> R.string.maps_key_refused
+                            else -> R.string.maps_key_set
+                        },
+                    ),
+                    subtitleColor = if (mapRefused && settings.mapsKey != null) AppTheme.colors.danger else null,
+                    help = R.string.help_maps_key,
+                    ref = 208,
+                    onClick = { editingKey = true },
+                )
             }
             Spacer(Modifier.size(8.dp))
             AppButton(stringResource(R.string.switch_to_controller), onSwitchToController, Modifier.ref(199).fillMaxWidth(), icon = R.drawable.ic_navigation, primary = false)
             Spacer(Modifier.size(24.dp))
         }
+    }
+
+    if (choosingWidget) {
+        val choices = remember { widgetChoices() }
+        AlertDialog(
+            onDismissRequest = { choosingWidget = false },
+            title = { Text(stringResource(R.string.weather_widget_pick)) },
+            text = {
+                LazyColumn(Modifier.heightIn(max = 440.dp)) {
+                    item {
+                        ChoiceRow(stringResource(R.string.weather_widget_none), null, 212) {
+                            choosingWidget = false
+                            onChooseWidget(null)
+                        }
+                    }
+                    items(choices) { c ->
+                        ChoiceRow(c.label, c.app, 213) {
+                            choosingWidget = false
+                            onChooseWidget(c)
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { choosingWidget = false }, modifier = Modifier.ref(218)) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+
+    if (editingKey) {
+        var text by remember { mutableStateOf(settings.mapsKey.orEmpty()) }
+        val valid = RoutesApi.isKey(text)
+        AlertDialog(
+            onDismissRequest = { editingKey = false },
+            title = { Text(stringResource(R.string.maps_key)) },
+            text = {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it.trim() },
+                    label = { Text(stringResource(R.string.maps_key_label)) },
+                    singleLine = true,
+                    isError = text.isNotEmpty() && !valid,
+                    keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Ascii),
+                    modifier = Modifier.ref(214).fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        editingKey = false
+                        onSaveMapsKey(text)
+                    },
+                    enabled = valid,
+                    modifier = Modifier.ref(215),
+                ) { Text(stringResource(R.string.save)) }
+            },
+            dismissButton = {
+                Row {
+                    if (settings.mapsKey != null) {
+                        TextButton(
+                            onClick = {
+                                editingKey = false
+                                onSaveMapsKey(null)
+                            },
+                            modifier = Modifier.ref(216),
+                        ) { Text(stringResource(R.string.delete)) }
+                    }
+                    TextButton(onClick = { editingKey = false }, modifier = Modifier.ref(217)) { Text(stringResource(R.string.cancel)) }
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun ChoiceRow(title: String, subtitle: String?, ref: Int, onClick: () -> Unit) {
+    Column(
+        Modifier
+            .ref(ref)
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 10.dp),
+    ) {
+        Text(title, style = MaterialTheme.typography.bodyLarge)
+        if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.textMuted)
     }
 }
 

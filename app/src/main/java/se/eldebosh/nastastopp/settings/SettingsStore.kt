@@ -40,6 +40,12 @@ data class AppSettings(
     val displaySpeaks: Boolean = true,
     /** Display role: show the phone's floating panel on this tablet too (Next and Back for the phone). */
     val tabletPanel: Boolean = false,
+    /** Controller: send the vehicle's position to a connected tablet for its map (off by default). */
+    val displayMap: Boolean = false,
+    /** Display role: the driver's own Google Maps key for the map on this tablet, or null. */
+    val mapsKey: String? = null,
+    /** Display role: the weather app's widget shown on this tablet's display, or -1 for SMHI's weather. */
+    val weatherWidgetId: Int = -1,
     /** Display role: Bluetooth address of the controller device to connect to. */
     val displayControllerAddress: String? = null,
     /** Floating button hidden by the driver (can be shown again from the app). */
@@ -78,6 +84,9 @@ class SettingsStore(context: Context) {
             putBoolean(K_FULL_ADDR, next.displayFullAddress)
             putBoolean(K_DISPLAY_SPEAKS, next.displaySpeaks)
             putBoolean(K_TABLET_PANEL, next.tabletPanel)
+            putBoolean(K_DISPLAY_MAP, next.displayMap)
+            putString(K_MAPS_KEY, next.mapsKey)
+            putInt(K_WEATHER_WIDGET, next.weatherWidgetId)
             putString(K_CONTROLLER, next.displayControllerAddress)
             putBoolean(K_OVERLAY_HIDDEN, next.overlayHidden)
             putBoolean(K_OVERLAY_MIN, next.overlayMinimized)
@@ -116,6 +125,9 @@ class SettingsStore(context: Context) {
         displayFullAddress = prefs.getBoolean(K_FULL_ADDR, true),
         displaySpeaks = prefs.getBoolean(K_DISPLAY_SPEAKS, true),
         tabletPanel = prefs.getBoolean(K_TABLET_PANEL, false),
+        displayMap = prefs.getBoolean(K_DISPLAY_MAP, false),
+        mapsKey = prefs.getString(K_MAPS_KEY, null),
+        weatherWidgetId = prefs.getInt(K_WEATHER_WIDGET, -1),
         displayControllerAddress = prefs.getString(K_CONTROLLER, null),
         overlayHidden = prefs.getBoolean(K_OVERLAY_HIDDEN, false),
         overlayMinimized = prefs.getBoolean(K_OVERLAY_MIN, false),
@@ -135,6 +147,9 @@ class SettingsStore(context: Context) {
         private const val K_FULL_ADDR = "display_full_address"
         private const val K_DISPLAY_SPEAKS = "display_speaks_announcements"
         private const val K_TABLET_PANEL = "tablet_floating_panel"
+        private const val K_DISPLAY_MAP = "display_map_position"
+        private const val K_MAPS_KEY = "tablet_maps_key"
+        private const val K_WEATHER_WIDGET = "tablet_weather_widget"
         private const val K_CONTROLLER = "display_controller_address"
         private const val K_OVERLAY_HIDDEN = "overlay_hidden"
         private const val K_OVERLAY_MIN = "overlay_minimized"
