@@ -633,7 +633,7 @@ class ScreenshotsRoboTest {
     /**
      * The weather in the middle of the minute and Google Maps' travel time a little later, each for
      * a moment; a tap brings the screen back at once. The weather sign on the top line brings the
-     * weather up too, and the GPS sign beside the phone's name shows.
+     * weather up too.
      */
     @Test
     @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
@@ -656,7 +656,6 @@ class ScreenshotsRoboTest {
         compose.onNodeWithTag("ref_204").assertDoesNotExist()
         // The small weather sign (the degrees beside the picture) brings it up at once.
         save("display_weather_sign", compose.onRoot().captureToImage().asAndroidBitmap())
-        compose.onNodeWithTag("ref_221").assertExists()
         compose.onNodeWithTag("ref_222").performClick()
         compose.mainClock.advanceTimeBy(1_500)
         compose.onNodeWithText("Halvklart").assertIsDisplayed()
@@ -676,8 +675,8 @@ class ScreenshotsRoboTest {
 
     /**
      * On the tablet a long press on a trip asks for the way to it: Google Maps on its address while
-     * the display's own map cannot show it. The next stop's map sign does the same, and a late next
-     * stop counts up beside its time.
+     * the display's own map cannot show it. The map sign on the top line does the same for the next
+     * stop, which shows no time of its own above its address.
      */
     @Test
     @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
@@ -697,8 +696,7 @@ class ScreenshotsRoboTest {
             }
         }
         compose.waitForIdle()
-        // 07:36, now 08:11:42: 35 minutes 42 seconds late.
-        compose.onNodeWithText("+35:42").assertIsDisplayed()
+        compose.onNodeWithTag("ref_90").assertDoesNotExist()
         compose.onNodeWithText("Hamngatan 7").performTouchInput { longClick() }
         compose.onNodeWithTag("ref_219").performClick()
         compose.waitForIdle()

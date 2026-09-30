@@ -174,8 +174,6 @@
     <string name="maps_key_label">Google Maps API key</string>
     <string name="help_maps_key">The map uses your own Google key. In Google Cloud: create an API key, enable "Maps JavaScript API" and "Routes API", and restrict the key to the website https://nastastopp.app/* . Normal use stays within Google\'s free monthly amount. The car\'s position and the next stop go to Google while the map is on (phone setting 209).</string>
     <string name="display_show_way">Show the way on the map</string>
-    <string name="display_gps_on">The phone sends its position</string>
-    <string name="display_gps_off">No position from the phone</string>
     <string name="display_weather">Show the weather</string>
     <string name="tablet_panel">Floating button on this tablet</string>
     <string name="help_tablet_panel">Shows the phone\'s floating button over the passenger display: the next trip (without the passenger\'s name), a countdown when shrunk, and Next, Back and Repeat for the phone. The street and speed stay on the phone. Needs the permission to show over other apps on this tablet.</string>

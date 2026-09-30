@@ -79,9 +79,9 @@ val DisplayFont = FontFamily(
 )
 
 /**
- * The passenger display's digits (the clock, trip times, how late): Atkinson Hyperlegible Next (SIL
- * Open Font License, see assets/licenses), drawn for low vision, so 1, 7 and 0 never look alike
- * from a seat. Its digits are proportional unless "tnum" is asked for.
+ * The passenger display's digits (the clock, trip times, degrees, minutes): Atkinson Hyperlegible
+ * Next (SIL Open Font License, see assets/licenses), drawn for low vision, so 1, 7 and 0 never look
+ * alike from a seat. Its digits are proportional unless "tnum" is asked for.
  */
 val DigitFont = FontFamily(
     Font(R.font.atkinson_hyperlegible_next_light, FontWeight.Light),

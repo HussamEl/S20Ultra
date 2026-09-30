@@ -38,7 +38,6 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -54,7 +53,6 @@ import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -86,6 +84,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
@@ -115,7 +114,6 @@ import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.TransformOrigin
@@ -182,7 +180,7 @@ import java.util.Locale
  * - when the driver taps Next, the "Därefter" card rises from its place and grows into the new
  *   next stop (a shared-bounds transition; Back runs it the other way);
  * - while an announcement is spoken ([spoken] goes up by one each time, and a tap on the speaker
- *   counts too), a spotlight follows it: "NÄSTA STOPP" and its time spring up, the next stop
+ *   counts too), a spotlight follows it: the next stop
  *   slowly grows and lights up in the highlight colour while the rest steps back, then the
  *   "Därefter" card grows well past its size when its name comes, and settles;
  * - a tap on a card says it ("Därefter: …") and grows it the same way, over four seconds;
@@ -192,7 +190,7 @@ import java.util.Locale
  *
  * Landscape (a tablet): the following trips side by side. Portrait (the phone): one below the other.
  *
- * @param status connection line for a remote display (null on the driver's own device).
+ * @param status the phone's name on a remote display (null on the driver's own device).
  * @param onSay says what a tap on the clock or a card asks for, on this device.
  * @param time the time of day (tests set it).
  * @param weatherWidget a weather app's widget hosted on this tablet (207), shown in place of SMHI's weather.
@@ -266,12 +264,17 @@ fun PassengerDisplayScreen(
     // Black in every look; Swedish for the passengers, read left to right whatever the app's language.
     DisplayTheme {
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-    BoxWithConstraints(Modifier.fillMaxSize().background(AppTheme.colors.background)) {
+    // Black to the screen's very edge (under a camera's cutout too); the content keeps clear of it.
+    BoxWithConstraints(Modifier.fillMaxSize().background(AppTheme.colors.background).safeDrawingPadding()) {
         val landscape = maxWidth > maxHeight
         val width = maxWidth
         var screen by remember { mutableStateOf(Rect.Zero) }
-        // On a tablet the clock hangs down beside the next stop instead of pushing it down; the
-        // address itself starts below it.
+        // On a narrow phone the clock leaves room for the exit and the top line's signs.
+        val minuteSize = if (landscape) MINUTE_SP_WIDE else ((width - NARROW_LEFT_ROOM).value / CLOCK_WIDTH_PER_SP).coerceIn(MINUTE_SP_MIN, MINUTE_SP_NARROW).sp
+        // On a tablet the clock hangs down beside the next stop instead of pushing it down. The
+        // clock is only its digits: the address starts just below their ink, not below the box
+        // they are drawn in.
+        val (inkGap, clockGap) = with(LocalDensity.current) { (minuteSize * ((1f - DIGIT_HEIGHT) / 2f)).toPx() to CLOCK_CLEARANCE.toPx() }
         var clockBottom by remember { mutableFloatStateOf(0f) }
         var stageTop by remember { mutableFloatStateOf(0f) }
         val clear = with(LocalDensity.current) { (clockBottom - stageTop).coerceAtLeast(0f).toDp() }
@@ -301,8 +304,8 @@ fun PassengerDisplayScreen(
                         connected,
                         wide = landscape,
                         onExit = onExit,
-                        // On a remote display: whether the phone sends where the vehicle is (209).
-                        gps = if (status != null) mapLive else null,
+                        // The way to the next stop: the display's map, or Google Maps on its address.
+                        onMap = live?.current?.let { next -> showWay?.let { { it(next, true) } } },
                         weather = live?.weather,
                         hasWeather = live?.weather != null || weatherWidget != null,
                         onWeather = { moments.playInfo(Moments.Info.WEATHER) },
@@ -326,8 +329,7 @@ fun PassengerDisplayScreen(
                 }
                 Clock(
                     now = now,
-                    // On a narrow phone the clock leaves room for the exit and status.
-                    minuteSize = if (landscape) MINUTE_SP_WIDE else ((width - NARROW_LEFT_ROOM).value / CLOCK_WIDTH_PER_SP).coerceIn(MINUTE_SP_MIN, MINUTE_SP_NARROW).sp,
+                    minuteSize = minuteSize,
                     grow = { moments.grow.value },
                     hue = AppTheme.colors.showHues[moments.hue % AppTheme.colors.showHues.size],
                     status = timeStatus,
@@ -338,7 +340,7 @@ fun PassengerDisplayScreen(
                         moments.playTime(tapped = true)
                     },
                     modifier = (if (landscape) Modifier.overhang() else Modifier)
-                        .onGloballyPositioned { clockBottom = it.boundsInRoot().bottom }
+                        .onGloballyPositioned { clockBottom = it.boundsInRoot().bottom - inkGap + clockGap }
                         .ref(88)
                         .padding(start = 16.dp),
                 )
@@ -364,7 +366,6 @@ fun PassengerDisplayScreen(
                 live,
                 landscape,
                 cue,
-                status = timeStatus,
                 clear = clear,
                 // A tap on the next stop's address says the announcement here.
                 onSpeakNext = {
@@ -372,7 +373,6 @@ fun PassengerDisplayScreen(
                     onSpeak()
                 },
                 onSay = say,
-                now = now,
                 showWay = showWay,
                 modifier = rest.weight(1f).fillMaxWidth().onGloballyPositioned { stageTop = it.boundsInRoot().top },
             )
@@ -819,11 +819,9 @@ private fun Stage(
     snapshot: DisplaySnapshot,
     landscape: Boolean,
     cue: Int,
-    status: TimeStatus?,
     clear: Dp,
     onSpeakNext: () -> Unit,
     onSay: (Announcement) -> Unit,
-    now: State<LocalTime>,
     showWay: ((DisplayItem, Boolean) -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
@@ -933,8 +931,6 @@ private fun Stage(
                                 onClick = onSpeakNext,
                                 onLongClick = showWay?.let { { it(current, true) } },
                                 modifier = hero,
-                                status = status,
-                                now = now,
                             )
                         } else {
                             // A card that is said lights up here too while its trip is shown.
@@ -1054,8 +1050,8 @@ private class SharedStop(val transition: SharedTransitionScope, val visibility: 
 /**
  * The top line: [lead] (on a tablet the trip just done), taking the room left, then at the far
  * right, beside the clock, small and quiet (they are for the driver): the exit, the connection (a
- * dot and the phone's name), a small GPS sign ([gps]: green while the phone sends where the
- * vehicle is; none on the driver's own device) and the weather sign, which brings the weather up.
+ * dot and the phone's name), the map sign ([onMap]: the way to the next stop) and the weather
+ * sign, which brings the weather up. Each is only its picture, with no frame.
  */
 @Composable
 private fun TopLine(
@@ -1063,7 +1059,7 @@ private fun TopLine(
     connected: Boolean,
     wide: Boolean,
     onExit: () -> Unit,
-    gps: Boolean?,
+    onMap: (() -> Unit)?,
     weather: DisplayWeather?,
     hasWeather: Boolean,
     onWeather: () -> Unit,
@@ -1086,24 +1082,9 @@ private fun TopLine(
                 modifier = Modifier.ref(87).widthIn(max = if (wide) STATUS_MAX_WIDTH else STATUS_MAX_NARROW),
             )
         }
-        if (gps != null) GpsSign(gps)
+        if (onMap != null) MapSign(onMap)
         if (hasWeather) WeatherSign(weather, onWeather)
     }
-}
-
-/** Small and raised, like a note beside the phone's name: green while the phone sends where the vehicle is. */
-@Composable
-private fun GpsSign(live: Boolean) {
-    Icon(
-        painterResource(R.drawable.ic_gps),
-        contentDescription = stringResource(if (live) R.string.display_gps_on else R.string.display_gps_off),
-        tint = if (live) AppTheme.colors.success else AppTheme.colors.textMuted.copy(alpha = 0.5f),
-        modifier = Modifier
-            .refCorner(221)
-            .padding(start = 4.dp)
-            .offset(y = (-6).dp)
-            .size(13.dp),
-    )
 }
 
 /** The weather in small (the picture and the degrees; the picture alone for a weather app's widget): a tap brings it up large. */
@@ -1184,8 +1165,6 @@ private fun StopHero(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
-    status: TimeStatus? = null,
-    now: State<LocalTime>? = null,
 ) {
     val next = role == HeroRole.NEXT
     val labelScale = remember { Animatable(if (next) 1f else PAGE_POP) }
@@ -1223,32 +1202,29 @@ private fun StopHero(
     ) {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             // Above the address at the left, floating: it takes no line, so the address keeps its place.
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .align(Alignment.Start)
-                    .floatAbove(8.dp)
-                    .ref(90)
-                    .graphicsLayer {
-                        scaleX = labelScale.value
-                        scaleY = labelScale.value
-                        transformOrigin = TransformOrigin(0f, 1f)
-                    },
-            ) {
-                // Where the trip was marked done: small and fixed at the time's left, clear of its breathing.
-                if (current.doneInYouDrive || current.doneHere) {
-                    DoneMarks(youDrive = current.doneInYouDrive, here = current.doneHere, size = if (landscape) 12.dp else 10.dp)
-                    Spacer(Modifier.width(8.dp))
-                }
-                if (current.time != null) {
-                    TimeFace(current.time, if (landscape) HERO_TIME_SP else HERO_TIME_SP_NARROW, status = if (next) status else null)
-                    // Late: how long, counting up beside the time.
-                    if (next && now != null) LateCount(current.time, now, if (landscape) LATE_SP else LATE_SP_NARROW)
-                }
-                // The way to the next stop on the map (as a long press on the address).
-                if (next && onLongClick != null) {
-                    Spacer(Modifier.width(14.dp))
-                    MapSign(onLongClick, if (landscape) 40.dp else 32.dp)
+            // The next stop shows no time of its own (the clock's colon and the floating button's
+            // countdown tell how it stands); a trip paged to shows its time.
+            val time = current.time?.takeIf { !next }
+            val done = current.doneInYouDrive || current.doneHere
+            if (time != null || done) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .align(Alignment.Start)
+                        .floatAbove(8.dp)
+                        .ref(90)
+                        .graphicsLayer {
+                            scaleX = labelScale.value
+                            scaleY = labelScale.value
+                            transformOrigin = TransformOrigin(0f, 1f)
+                        },
+                ) {
+                    // Where the trip was marked done: small and fixed at the time's left, clear of its breathing.
+                    if (done) DoneMarks(youDrive = current.doneInYouDrive, here = current.doneHere, size = if (landscape) 12.dp else 10.dp)
+                    if (time != null) {
+                        if (done) Spacer(Modifier.width(8.dp))
+                        TimeFace(time, if (landscape) HERO_TIME_SP else HERO_TIME_SP_NARROW)
+                    }
                 }
             }
             Column(
@@ -1650,11 +1626,11 @@ private fun statusColor(status: TimeStatus): Color = when (status) {
 }
 
 /**
- * A time ("08:00") in the clock's style: the hours smaller and level with the middle of the
- * minutes, the colon in [status]'s colour (see [Colon]); the digits breathe slowly.
+ * A trip's time ("08:00") in the clock's style: the hours smaller and level with the middle of the
+ * minutes, the colon in the accent yellow; the digits breathe slowly.
  */
 @Composable
-private fun TimeFace(time: String, minuteSize: TextUnit, modifier: Modifier = Modifier, status: TimeStatus? = null) {
+private fun TimeFace(time: String, minuteSize: TextUnit, modifier: Modifier = Modifier) {
     val hour = time.substringBefore(':')
     val minute = time.substringAfter(':', "")
     val breath = rememberInfiniteTransition(label = "breath")
@@ -1675,7 +1651,7 @@ private fun TimeFace(time: String, minuteSize: TextUnit, modifier: Modifier = Mo
         modifier = modifier.breathe(rest = 1f / BREATH_SCALE) { scale },
     ) {
         Text(hour, style = style.copy(fontSize = big * HOUR_SHARE))
-        Colon(style.copy(fontSize = big * HOUR_SHARE), status, second = null)
+        Colon(style.copy(fontSize = big * HOUR_SHARE), status = null, second = null)
         Text(minute, style = style.copy(fontSize = big))
     }
 }
@@ -1699,37 +1675,19 @@ private fun Modifier.breathe(rest: Float, scale: () -> Float): Modifier = layout
     }
 }
 
-/** How late the next stop is, counting up each second ("+3:10"), beside its time; nothing while on time. */
+/** The way to the next stop on the map (as a long press on its address): a small pin, with no frame. */
 @Composable
-private fun LateCount(time: String, now: State<LocalTime>, size: TextUnit) {
-    val t = now.value
-    val minutes = TripTimes.minutesUntil(time, t.hour * 60 + t.minute) ?: return
-    val seconds = minutes * 60 - t.second
-    if (seconds >= 0) return
-    Text(
-        TimeStatus.countdown(seconds),
-        fontFamily = DigitFont,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = size,
-        color = AppTheme.colors.danger,
-        style = TextStyle(fontFeatureSettings = TABULAR),
-        modifier = Modifier.ref(220).padding(start = 12.dp),
-    )
-}
-
-/** A small map sign beside the next stop's time: the way to it on the map. */
-@Composable
-private fun MapSign(onClick: () -> Unit, size: Dp) {
+private fun MapSign(onClick: () -> Unit) {
+    val description = stringResource(R.string.display_show_way)
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .refCorner(219)
-            .size(size)
+            .size(TouchTarget)
             .clip(CircleShape)
-            .background(AppTheme.colors.infoSoft)
-            .clickable(onClickLabel = stringResource(R.string.display_show_way), role = Role.Button, onClick = onClick),
+            .clickable(onClickLabel = description, role = Role.Button, onClick = onClick),
     ) {
-        Icon(painterResource(R.drawable.ic_pin), contentDescription = stringResource(R.string.display_show_way), tint = AppTheme.colors.highlight, modifier = Modifier.size(size * 0.6f))
+        Icon(painterResource(R.drawable.ic_pin), contentDescription = description, tint = AppTheme.colors.highlight, modifier = Modifier.size(20.dp))
     }
 }
 
@@ -1825,13 +1783,10 @@ private val HOME_SIZE = 44.dp
 private const val CARD_TAP_SWELL = 1.08f
 private const val SHOW_TRIP_MS = 6_000L
 
-/** The time above the address (its minutes; the hours are smaller), gently breathing. */
+/** A trip's time above its address when paged to (its minutes; the hours are smaller), gently breathing. */
 private val HERO_TIME_SP = 64.sp
 private val HERO_TIME_SP_NARROW = 44.sp
 
-/** How late the next stop is, small beside its time. */
-private val LATE_SP = 26.sp
-private val LATE_SP_NARROW = 18.sp
 private const val BREATH_SCALE = 1.2f
 private const val BREATH_MS = 2_200
 
@@ -1889,6 +1844,9 @@ private const val SECONDS_TUCK = 0.1f
 
 /** How tall the digit font's digits are, as a share of its size. */
 private const val DIGIT_HEIGHT = 0.67f
+
+/** The address keeps this much below the clock's digits. */
+private val CLOCK_CLEARANCE = 12.dp
 
 /** The time grows to five times its size, or to this share of the screen if that is less. */
 private const val TIME_GROWTH = 5f
@@ -1948,5 +1906,5 @@ private const val BEAT_MS = 700
 /** How far the rest of the screen steps back while the time grows (before the solid ground). */
 private const val REST_FADE = 0.85f
 
-/** Digits of equal width, for what changes each second (the seconds, how late), so it does not shift. */
+/** Digits of equal width, for what changes each second (the seconds), so it does not shift. */
 private const val TABULAR = "tnum"

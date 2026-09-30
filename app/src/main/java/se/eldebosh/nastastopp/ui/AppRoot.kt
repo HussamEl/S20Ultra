@@ -191,7 +191,10 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
     CompositionLocalProvider(LocalExplainResources provides explainResources) {
     // testTagsAsResourceId: numbered controls appear to UI Automator as resource-id "ref_<n>".
     Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
-        Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+        // The passenger display is black to the screen's very edge (under the camera's cutout too)
+        // and keeps its own content clear of it; every other screen stays inside the safe area.
+        val edgeToEdge = screen == Screen.DISPLAY_LOCAL || screen == Screen.DISPLAY_ROLE
+        Box(Modifier.fillMaxSize().then(if (edgeToEdge) Modifier else Modifier.safeDrawingPadding())) {
             Column(Modifier.fillMaxSize()) {
                 if (importState is ImportUi.Running) {
                     val s = importState as ImportUi.Running
