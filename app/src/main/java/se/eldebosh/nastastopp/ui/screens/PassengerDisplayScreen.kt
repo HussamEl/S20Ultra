@@ -60,6 +60,8 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
@@ -208,20 +210,33 @@ fun PassengerDisplayScreen(
             // Drawn over what follows, so the clock hangs over it and the growing time passes in front.
             Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth().zIndex(1f)) {
                 Column(rest.weight(1f)) {
-                    TopLine(status, connected, onExit, extraActions) {
-                        // The speaker in the top left corner: the passengers find it at once.
-                        if (live != null) {
-                            SpeakerButton(
-                                speakingText = live.announcementSv,
-                                cue = cue,
-                                onSpeak = {
-                                    tapped++
-                                    onSpeak()
-                                },
-                            )
-                            Spacer(Modifier.width(12.dp))
-                        }
-                    }
+                    TopLine(
+                        status,
+                        connected,
+                        wide = landscape,
+                        onExit = onExit,
+                        extraActions = extraActions,
+                        // On a tablet the trip just done opens the top line (one quiet line, so the
+                        // passengers see the list moving on); the buttons follow it.
+                        lead = {
+                            val previous = live?.previous
+                            if (landscape && previous != null) PreviousLine(previous, Modifier.ref(89).weight(1f).padding(end = 16.dp))
+                            else if (landscape) Spacer(Modifier.weight(1f))
+                        },
+                        speaker = {
+                            if (live != null) {
+                                SpeakerButton(
+                                    speakingText = live.announcementSv,
+                                    cue = cue,
+                                    onSpeak = {
+                                        tapped++
+                                        onSpeak()
+                                    },
+                                )
+                                Spacer(Modifier.width(12.dp))
+                            }
+                        },
+                    )
                     if (detail != null) {
                         Text(
                             detail,
@@ -232,9 +247,6 @@ fun PassengerDisplayScreen(
                             modifier = Modifier.ref(95),
                         )
                     }
-                    // The trip just done, beside the clock: one quiet line, so the passengers see
-                    // the list moving on.
-                    if (landscape) live?.previous?.let { PreviousLine(it, Modifier.ref(89).padding(top = 12.dp)) }
                 }
                 Clock(
                     now = now,
@@ -271,8 +283,7 @@ fun PassengerDisplayScreen(
                 live,
                 landscape,
                 cue,
-                // "NÄSTA STOPP" may sit beside the clock on a tablet; the address goes below it.
-                clear = if (landscape) (clear - LABEL_BAND).coerceAtLeast(0.dp) else clear,
+                clear = clear,
                 onSay = say,
                 modifier = rest.weight(1f).fillMaxWidth().onGloballyPositioned { stageTop = it.boundsInRoot().top },
             )
@@ -295,9 +306,9 @@ private fun rememberNow(time: () -> LocalTime): State<LocalTime> {
 }
 
 /**
- * The time growing each time the minute changes: [grow] 0 → 1 over five seconds; a moment before
- * it is at its largest, the rest of the screen goes behind a solid ground ([solid]) for two
- * seconds; then the ground clears as the time goes back, faster.
+ * The time growing each time the minute changes: [grow] 0 → 1 over five seconds. As it nears its
+ * largest, the rest of the screen fades gradually behind a solid ground ([solid]), which stays two
+ * seconds; then the time goes back, faster, while the ground clears again gradually.
  */
 @Stable
 private class TimeGrowth(private val scope: CoroutineScope) {
@@ -313,12 +324,12 @@ private class TimeGrowth(private val scope: CoroutineScope) {
         job = scope.launch {
             coroutineScope {
                 launch { grow.animateTo(1f, tween(GROW_MS, easing = FastOutSlowInEasing)) }
-                delay((GROW_MS - SOLID_LEAD_MS).toLong())
-                solid.animateTo(1f, tween(SOLID_LEAD_MS))
+                delay((GROW_MS - SOLID_IN_MS).toLong())
+                solid.animateTo(1f, tween(SOLID_IN_MS, easing = FastOutSlowInEasing))
             }
-            delay(SOLID_MS - SOLID_LEAD_MS)
+            delay(SOLID_HOLD_MS)
             coroutineScope {
-                launch { solid.animateTo(0f, tween(SOLID_CLEAR_MS)) }
+                launch { solid.animateTo(0f, tween(SOLID_OUT_MS, easing = FastOutSlowInEasing)) }
                 grow.animateTo(0f, tween(SHRINK_MS, easing = FastOutLinearInEasing))
             }
         }
@@ -568,15 +579,25 @@ private class SharedStop(val transition: SharedTransitionScope, val visibility: 
     }
 }
 
-/** The speaker ([lead]), exit (small and quiet: it is for the driver) and the connection line. */
+/**
+ * The top line: [lead] (on a tablet the trip just done, taking the room left), then the speaker,
+ * the connection line and exit (small and quiet: it is for the driver). On a [wide] screen the
+ * connection line keeps its own width; on the phone it takes what is left.
+ */
 @Composable
-private fun TopLine(status: String?, connected: Boolean, onExit: () -> Unit, extraActions: @Composable () -> Unit, lead: @Composable () -> Unit) {
+private fun TopLine(
+    status: String?,
+    connected: Boolean,
+    wide: Boolean,
+    onExit: () -> Unit,
+    extraActions: @Composable () -> Unit,
+    lead: @Composable RowScope.() -> Unit,
+    speaker: @Composable () -> Unit,
+) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         lead()
-        IconButton(onClick = onExit, modifier = Modifier.refCorner(86).size(TouchTarget)) {
-            Icon(painterResource(R.drawable.ic_stop), contentDescription = stringResource(R.string.display_exit), tint = AppTheme.colors.textMuted, modifier = Modifier.size(20.dp))
-        }
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+        speaker()
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = if (wide) Modifier.widthIn(max = STATUS_MAX_WIDTH) else Modifier.weight(1f)) {
             if (status != null) {
                 Box(Modifier.size(10.dp).background(if (connected) AppTheme.colors.success else AppTheme.colors.danger, CircleShape))
                 Spacer(Modifier.width(8.dp))
@@ -591,6 +612,9 @@ private fun TopLine(status: String?, connected: Boolean, onExit: () -> Unit, ext
             }
         }
         extraActions()
+        IconButton(onClick = onExit, modifier = Modifier.refCorner(86).size(TouchTarget)) {
+            Icon(painterResource(R.drawable.ic_stop), contentDescription = stringResource(R.string.display_exit), tint = AppTheme.colors.textMuted, modifier = Modifier.size(20.dp))
+        }
     }
 }
 
@@ -618,10 +642,11 @@ private enum class HeroRole { EARLIER, NEXT, LATER }
 
 /**
  * A stop filling the middle: the street and number as large as fits (at most two lines, never
- * breaking a word), and the area under it. The [HeroRole.NEXT] stop has "NÄSTA STOPP" on a
- * highlight chip and its time in the highlight colour, and keeps its place in the card → next
- * stop transition ([shared]); the others, paged to by the passengers, have a quiet "DÄREFTER" or
- * "TIDIGARE". Where the trip was marked done shows beside its time. While it is [focused], the
+ * breaking a word), the area under it, and under them at the left a compact label with the time.
+ * The [HeroRole.NEXT] stop's label is "NÄSTA STOPP" on a highlight chip with its time in the
+ * highlight colour, and it keeps its place in the card → next stop transition ([shared]); the
+ * others, paged to by the passengers, have a quiet "DÄREFTER" or "TIDIGARE". Where the trip was
+ * marked done shows beside its time. While it is [focused], the
  * label springs up and settles, and the address slowly grows and lights up; while something else
  * is said, it is [dimmed].
  */
@@ -653,47 +678,6 @@ private fun StopHero(
     // Somewhat above the middle, so the address stays high on the screen.
     Box(placed.graphicsLayer { alpha = shade }, contentAlignment = BiasAlignment(0f, HERO_BIAS)) {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.ref(90).graphicsLayer {
-                    scaleX = labelScale.value
-                    scaleY = labelScale.value
-                },
-            ) {
-                Text(
-                    stringResource(
-                        when (role) {
-                            HeroRole.EARLIER -> R.string.passenger_earlier
-                            HeroRole.NEXT -> R.string.passenger_next_stop
-                            HeroRole.LATER -> R.string.passenger_then
-                        },
-                    ).uppercase(),
-                    fontFamily = DisplayFont,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = if (landscape) 34.sp else 26.sp,
-                    letterSpacing = 1.5.sp,
-                    color = if (next) AppTheme.colors.onInfo else AppTheme.colors.text,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(50))
-                        .background(if (next) AppTheme.colors.highlight else AppTheme.colors.tonalHigh)
-                        .padding(horizontal = 22.dp, vertical = 2.dp),
-                )
-                if (current.time != null) {
-                    Spacer(Modifier.width(18.dp))
-                    Text(
-                        current.time,
-                        fontFamily = DisplayFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = if (landscape) 50.sp else 36.sp,
-                        color = if (next) AppTheme.colors.highlight else AppTheme.colors.time,
-                        style = TextStyle(fontFeatureSettings = TABULAR),
-                    )
-                }
-                if (current.doneInYouDrive || current.doneHere) {
-                    Spacer(Modifier.width(14.dp))
-                    DoneMarks(youDrive = current.doneInYouDrive, here = current.doneHere, size = if (landscape) 30.dp else 22.dp)
-                }
-            }
             Column(
                 Modifier
                     .weight(1f, fill = false)
@@ -747,6 +731,53 @@ private fun StopHero(
                         style = TextStyle(textDirection = TextDirection.Content),
                         modifier = Modifier.ref(92),
                     )
+                }
+            }
+            // Under the address, at the left and compact: "NÄSTA STOPP" and its time.
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .align(Alignment.Start)
+                    .padding(top = 10.dp)
+                    .ref(90)
+                    .graphicsLayer {
+                        scaleX = labelScale.value
+                        scaleY = labelScale.value
+                        transformOrigin = TransformOrigin(0f, 0.5f)
+                    },
+            ) {
+                Text(
+                    stringResource(
+                        when (role) {
+                            HeroRole.EARLIER -> R.string.passenger_earlier
+                            HeroRole.NEXT -> R.string.passenger_next_stop
+                            HeroRole.LATER -> R.string.passenger_then
+                        },
+                    ).uppercase(),
+                    fontFamily = DisplayFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = if (landscape) 24.sp else 20.sp,
+                    letterSpacing = 1.sp,
+                    color = if (next) AppTheme.colors.onInfo else AppTheme.colors.text,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(if (next) AppTheme.colors.highlight else AppTheme.colors.tonalHigh)
+                        .padding(horizontal = 14.dp, vertical = 1.dp),
+                )
+                if (current.time != null) {
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        current.time,
+                        fontFamily = DisplayFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = if (landscape) 34.sp else 26.sp,
+                        color = if (next) AppTheme.colors.highlight else AppTheme.colors.time,
+                        style = TextStyle(fontFeatureSettings = TABULAR),
+                    )
+                }
+                if (current.doneInYouDrive || current.doneHere) {
+                    Spacer(Modifier.width(10.dp))
+                    DoneMarks(youDrive = current.doneInYouDrive, here = current.doneHere, size = if (landscape) 24.dp else 18.dp)
                 }
             }
         }
@@ -991,8 +1022,9 @@ private fun SpeakerButton(speakingText: String?, cue: Int, onSpeak: () -> Unit, 
 }
 
 /**
- * The clock, without a frame: the minutes large, the hours smaller and raised beside them, the
- * seconds thin under the minutes in the highlight colour, and the colon beating with the seconds.
+ * The clock, without a frame: the minutes large, the hours smaller beside them and level with
+ * their middle, the seconds thin under the minutes in the highlight colour, and the colon, in the
+ * accent yellow, beating with the seconds.
  * When the minute changes ([grow] 0 → 1), the time (hours, colon and minutes, as one) moves to the
  * middle of the screen and grows to five times its size, or as far as the screen allows, turning
  * to the highlight colour; the seconds step back with the screen. A tap says the time.
@@ -1015,8 +1047,8 @@ private fun Clock(now: State<LocalTime>, minuteSize: TextUnit, grow: () -> Float
         lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
     )
     // The seconds tuck up under the digits, into the empty room below them, and the smaller hours
-    // come down so that their tops line up with the minutes'.
-    val (tuck, drop) = with(LocalDensity.current) { (minuteSize * SECONDS_TUCK).toDp() to (minuteSize * (1f - HOUR_SHARE) * TOP_ROOM).toDp() }
+    // and colon come down to sit level with the middle of the minutes.
+    val (tuck, drop) = with(LocalDensity.current) { (minuteSize * SECONDS_TUCK).toDp() to (minuteSize * (1f - HOUR_SHARE) / 2f).toDp() }
     var hours by remember { mutableStateOf(Rect.Zero) }
     var dots by remember { mutableStateOf(Rect.Zero) }
     var minutes by remember { mutableStateOf(Rect.Zero) }
@@ -1048,7 +1080,7 @@ private fun Clock(now: State<LocalTime>, minuteSize: TextUnit, grow: () -> Float
         )
         Text(
             ":",
-            style = style.copy(fontSize = minuteSize * HOUR_SHARE, color = highlight),
+            style = style.copy(fontSize = minuteSize * HOUR_SHARE, color = AppTheme.colors.accent),
             modifier = Modifier
                 .offset(y = drop)
                 .onGloballyPositioned { dots = it.boundsInRoot() }
@@ -1199,15 +1231,15 @@ private const val NONE = -2
 /** Where a stop sits in the middle: -1 top, 0 centre. */
 private const val HERO_BIAS = -0.4f
 
-/** The height of the "NÄSTA STOPP" line, which may sit beside the clock. */
-private val LABEL_BAND = 64.dp
+/** The connection line on a tablet, beside the speaker. */
+private val STATUS_MAX_WIDTH = 320.dp
 
 /** Another stop paged to (or the strip scrolled) and left alone gives way to the next stop again. */
 private const val BROWSE_RETURN_MS = 30_000L
 private const val NEXT_STOP = -1
 
-private val MINUTE_SP_WIDE = 200.sp
-private const val MINUTE_SP_NARROW = 110f
+private val MINUTE_SP_WIDE = 180.sp
+private const val MINUTE_SP_NARROW = 100f
 private const val MINUTE_SP_MIN = 48f
 
 /** The clock is about this many dp wide per sp of its minutes; beside it a phone keeps this much. */
@@ -1217,8 +1249,6 @@ private const val HOUR_SHARE = 0.62f
 private const val SECOND_SHARE = 0.3f
 private const val SECONDS_TUCK = 0.2f
 
-/** The room above a digit in its line, as a share of the font size. */
-private const val TOP_ROOM = 0.24f
 
 /** The time grows to five times its size, or to this share of the screen if that is less. */
 private const val TIME_GROWTH = 5f
@@ -1227,10 +1257,13 @@ private const val GROW_MS = 5_000
 private const val SHRINK_MS = 1_200
 private const val SETTLE_MS = 300
 
-/** The solid ground behind the time: it comes this long before the time is at its largest, stays two seconds in all, and clears this fast. */
-private const val SOLID_LEAD_MS = 400
-private const val SOLID_MS = 2_000L
-private const val SOLID_CLEAR_MS = 300
+/**
+ * The solid ground behind the time: it fades in over the last part of the growth, stays two
+ * seconds with the time at its largest, and fades out as the time goes back.
+ */
+private const val SOLID_IN_MS = 1_800
+private const val SOLID_HOLD_MS = 2_000L
+private const val SOLID_OUT_MS = 1_800
 
 /** How far the rest of the screen steps back while the time grows (before the solid ground). */
 private const val REST_FADE = 0.85f

@@ -516,8 +516,8 @@ class ScreenshotsRoboTest {
         compose.waitForIdle()
         compose.mainClock.autoAdvance = false
         now = LocalTime.of(8, 11, 0)
-        // Growing, on its solid ground at its largest, going back, back.
-        for (ms in listOf(1_000L, 2_500L, 2_300L, 1_300L, 1_500L)) {
+        // Growing, the ground fading in, solid at its largest, going back as the ground clears, back.
+        for (ms in listOf(1_000L, 3_700L, 1_800L, 2_000L, 900L, 2_000L)) {
             compose.mainClock.advanceTimeBy(ms)
             save("display_minute_${compose.mainClock.currentTime}", compose.onRoot().captureToImage().asAndroidBitmap())
         }
