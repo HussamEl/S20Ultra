@@ -2,6 +2,13 @@ package se.eldebosh.nastastopp.ui
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -276,6 +283,39 @@ fun KindLabel(kind: TripKind, modifier: Modifier = Modifier) {
             .border(1.dp, AppTheme.colors.onKindPill.copy(alpha = 0.14f), shape)
             .padding(horizontal = 8.dp, vertical = 1.dp),
     )
+}
+
+/**
+ * Where a trip was finished, as small coloured dots with a check and no words: green = in YouDrive
+ * ([youDrive]), blue = in this app ([here]). A green dot alone on a coming trip means YouDrive
+ * already counts it done while the route has not passed it. Nothing shows when neither is true.
+ */
+@Composable
+fun DoneMarks(youDrive: Boolean, here: Boolean, modifier: Modifier = Modifier, size: Dp = 14.dp) {
+    if (!youDrive && !here) return
+    val inYouDrive = stringResource(R.string.done_in_youdrive)
+    val inApp = stringResource(R.string.done_here)
+    val description = listOfNotNull(inYouDrive.takeIf { youDrive }, inApp.takeIf { here }).joinToString(", ")
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(size / 4),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier.ref(202, centered = true).semantics { contentDescription = description },
+    ) {
+        if (youDrive) CheckDot(AppTheme.colors.success, AppTheme.colors.onStatus, size)
+        if (here) CheckDot(AppTheme.colors.info, AppTheme.colors.onInfo, size)
+    }
+}
+
+@Composable
+private fun CheckDot(fill: Color, tick: Color, size: Dp) = Canvas(Modifier.size(size)) {
+    val w = this.size.width
+    drawCircle(fill)
+    val check = Path().apply {
+        moveTo(w * 0.28f, w * 0.52f)
+        lineTo(w * 0.44f, w * 0.68f)
+        lineTo(w * 0.73f, w * 0.36f)
+    }
+    drawPath(check, tick, style = Stroke(width = w * 0.13f, cap = StrokeCap.Round, join = StrokeJoin.Round))
 }
 
 /**

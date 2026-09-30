@@ -40,6 +40,12 @@ data class Stop(
     val kind: TripKind? = null,
     /** The passenger's first and last name ("Anna Testsson"), or null. Driver's screens only. */
     val name: String? = null,
+    /**
+     * YouDrive shows the trip as done ("Performed"). The route does not follow it: the driver may
+     * mark trips done in YouDrive before reaching them, so only Next moves the route. Done in this
+     * app means being in [RouteData.completed].
+     */
+    val youDriveDone: Boolean = false,
 ) {
     val isLocated: Boolean get() = geoStatus == GeoStatus.LOCATED && geo != null
 

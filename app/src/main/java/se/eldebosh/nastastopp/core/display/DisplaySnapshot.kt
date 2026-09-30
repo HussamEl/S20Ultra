@@ -12,7 +12,14 @@ data class DisplayItem(
     val title: String,
     /** Area / town name under the address (null when the title already is the area). */
     val subtitle: String? = null,
+    /** YouDrive shows the trip as done (the driver may mark trips there before reaching them). */
+    val doneInYouDrive: Boolean = false,
+    /** Done in this app: the route has passed it. */
+    val doneHere: Boolean = false,
 ) {
+    /** The same trip whatever its done marks: it keeps its place on the display when marked. */
+    val trip: DisplayItem get() = if (doneInYouDrive || doneHere) copy(doneInYouDrive = false, doneHere = false) else this
+
     companion object {
         /** "Storgatan 14, 652 24 Karlstad" → "Storgatan 14" (the part before the first comma). */
         fun streetPart(address: String): String = address.substringBefore(',').trim().ifEmpty { address.trim() }
@@ -21,13 +28,17 @@ data class DisplayItem(
 
 /**
  * Everything the passenger display shows — and the only route data that is ever sent to a
- * second device: one previous trip, the next destination, three upcoming trips (address and
- * area) and the current announcement text (area names only).
+ * second device: up to seven trips done, the next destination and up to seven upcoming trips
+ * (time, address and area, and where each was marked done), and the current announcement text.
+ * Never names.
  */
 @Serializable
 data class DisplaySnapshot(
     val active: Boolean = false,
+    /** The trip just done ([earlier]'s last). */
     val previous: DisplayItem? = null,
+    /** Trips done, oldest first. */
+    val earlier: List<DisplayItem> = emptyList(),
     val current: DisplayItem? = null,
     val upcoming: List<DisplayItem> = emptyList(),
     val remaining: Int = 0,
@@ -39,7 +50,8 @@ data class DisplaySnapshot(
         get() = announcementSv?.let { Announcement(it, announcementEn) }
 
     companion object {
-        const val UPCOMING = 3
+        const val UPCOMING = 7
+        const val EARLIER = 7
 
         /**
          * @param completed finished trips, oldest first.
@@ -53,9 +65,11 @@ data class DisplaySnapshot(
             announcement: Announcement?,
         ): DisplaySnapshot {
             if (!active || remaining.isEmpty()) return DisplaySnapshot(active = false, completed = completed.size)
+            val done = completed.takeLast(EARLIER).map { item(it).copy(doneHere = true) }
             return DisplaySnapshot(
                 active = true,
-                previous = completed.lastOrNull()?.let(item),
+                previous = done.lastOrNull(),
+                earlier = done,
                 current = item(remaining.first()),
                 upcoming = remaining.drop(1).take(UPCOMING).map(item),
                 remaining = remaining.size,

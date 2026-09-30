@@ -33,6 +33,7 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.swipeRight
 import java.time.LocalTime
 import org.junit.Assert.assertEquals
 import androidx.compose.runtime.mutableIntStateOf
@@ -492,7 +493,7 @@ class ScreenshotsRoboTest {
         }
         compose.waitForIdle()
         compose.mainClock.autoAdvance = false
-        compose.onAllNodesWithTag("ref_94")[0].performClick()
+        compose.onNodeWithText("Hamngatan 7").performClick()
         compose.mainClock.advanceTimeBy(1_700)
         save("display_card_tap", compose.onRoot().captureToImage().asAndroidBitmap())
         compose.mainClock.advanceTimeBy(5_000)
@@ -515,8 +516,8 @@ class ScreenshotsRoboTest {
         compose.waitForIdle()
         compose.mainClock.autoAdvance = false
         now = LocalTime.of(8, 11, 0)
-        // Growing, held, going back, back.
-        for (ms in listOf(1_000L, 2_500L, 5_000L, 3_100L, 1_400L)) {
+        // Growing, on its solid ground at its largest, going back, back.
+        for (ms in listOf(1_000L, 2_500L, 2_300L, 1_300L, 1_500L)) {
             compose.mainClock.advanceTimeBy(ms)
             save("display_minute_${compose.mainClock.currentTime}", compose.onRoot().captureToImage().asAndroidBitmap())
         }
@@ -539,8 +540,9 @@ class ScreenshotsRoboTest {
         compose.waitForIdle()
         compose.onNodeWithTag("ref_200").assertDoesNotExist()
         compose.mainClock.autoAdvance = false
+        // A swipe across the middle of the screen, where the stops are.
         repeat(2) {
-            compose.onNodeWithTag("ref_91").performTouchInput { swipeLeft() }
+            compose.onRoot().performTouchInput { swipeLeft() }
             compose.mainClock.advanceTimeBy(1_500)
         }
         save("display_paged", compose.onRoot().captureToImage().asAndroidBitmap())
@@ -552,17 +554,29 @@ class ScreenshotsRoboTest {
         save("display_paged_home", compose.onRoot().captureToImage().asAndroidBitmap())
         compose.onNodeWithText("Västra Torggatan 12").assertIsDisplayed()
         compose.onNodeWithTag("ref_200").assertDoesNotExist()
+        // The other way: the trips done.
+        compose.onRoot().performTouchInput { swipeRight() }
+        compose.mainClock.advanceTimeBy(1_500)
+        save("display_paged_back", compose.onRoot().captureToImage().asAndroidBitmap())
+        compose.onNodeWithText("TIDIGARE").assertIsDisplayed()
+        compose.onNodeWithTag("ref_200").assertExists()
         compose.mainClock.autoAdvance = true
     }
 
     private val tabletSnapshot = DisplaySnapshot(
         active = true,
-        previous = DisplayItem("07:30", "Järnvägsgatan 3B", "Storfors"),
+        previous = DisplayItem("07:30", "Järnvägsgatan 3B", "Storfors", doneInYouDrive = true, doneHere = true),
+        earlier = listOf(
+            DisplayItem("07:05", "Kyrkogatan 2", "Karlstad", doneInYouDrive = true, doneHere = true),
+            DisplayItem("07:30", "Järnvägsgatan 3B", "Storfors", doneInYouDrive = true, doneHere = true),
+        ),
         current = DisplayItem("07:36", "Västra Torggatan 12", "Karlstad"),
         upcoming = listOf(
             DisplayItem("08:00", "Hamngatan 7", "Skoghall"),
-            DisplayItem("08:25", "Storgatan 14", "Karlstad"),
+            DisplayItem("08:25", "Storgatan 14", "Karlstad", doneInYouDrive = true),
             DisplayItem("08:50", "Södra Kyrkogatan 7", "Kristinehamn"),
+            DisplayItem("09:10", "Lindvägen 9", "Grums"),
+            DisplayItem("09:35", "Kungsgatan 5", "Karlstad"),
         ),
     )
 

@@ -3,7 +3,6 @@ package se.eldebosh.nastastopp.core.youdrive
 import se.eldebosh.nastastopp.core.parse.AddressExtractor
 import se.eldebosh.nastastopp.core.parse.ExtractedStop
 import se.eldebosh.nastastopp.core.parse.TextNorm
-import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.core.parse.TripKinds
 import se.eldebosh.nastastopp.core.parse.TripTimes
 
@@ -47,7 +46,7 @@ object YouDriveCards {
         val times = lines.take(at).mapNotNull(time).ifEmpty { lines.drop(at + 1).mapNotNull(time) }
         // The card's first line (the right column's top) is the passenger's name.
         val name = lines.take(at).firstNotNullOfOrNull { extractor.personName(it, strict = false) }
-        val trip = stop.copy(time = times.firstOrNull(), kind = kind, name = name, sourceOrder = order)
+        val trip = stop.copy(time = times.firstOrNull(), kind = kind, name = name, sourceOrder = order, youDriveDone = done)
         return WatchedTrip(trip.time, TripWatch.streetAddress(trip), trip, booked = times.getOrNull(1), done = done)
     }
 
@@ -75,7 +74,10 @@ object YouDriveCards {
     /** Statuses of a trip that is already done (the depot's "Performed" too). */
     private val DONE_STATUS = setOf("performed", "departed", "utford", "avgatt")
 
-    /** Trips worth adding to the route: not done yet (the start point is always kept). */
-    fun toAdd(trips: List<WatchedTrip>): List<ExtractedStop> =
-        trips.filter { !it.done || it.stop?.kind == TripKind.PULL_OUT }.mapNotNull { it.stop }
+    /**
+     * Trips to add to the route: all of them, the done ones marked ([ExtractedStop.youDriveDone]).
+     * A driver may mark trips done in YouDrive before reaching them, so they stay in the route
+     * until Next passes them.
+     */
+    fun toAdd(trips: List<WatchedTrip>): List<ExtractedStop> = trips.mapNotNull { it.stop }
 }

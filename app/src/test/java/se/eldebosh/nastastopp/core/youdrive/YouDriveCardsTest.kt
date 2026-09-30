@@ -62,11 +62,12 @@ class YouDriveCardsTest {
     }
 
     @Test
-    fun doneTripsAreNotAddedButTheStartPointIs() {
+    fun everyTripIsAddedWithTheDoneOnesMarked() {
         val t = trips()
         assertEquals(listOf(true, true, true, false, false, false), t.map { it.done })
         val add = YouDriveCards.toAdd(t)
-        assertEquals(listOf(TripKind.PULL_OUT, TripKind.DROP_OFF, TripKind.PICK_UP, TripKind.DROP_OFF), add.map { it.kind })
+        assertEquals(t.size, add.size)
+        assertEquals(listOf(true, true, true, false, false, false), add.map { it.youDriveDone })
     }
 
     @Test

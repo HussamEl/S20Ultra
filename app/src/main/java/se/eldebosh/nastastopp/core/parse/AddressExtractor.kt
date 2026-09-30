@@ -24,6 +24,8 @@ data class ExtractedStop(
     val time: String? = null,
     val kind: TripKind? = null,
     val name: String? = null,
+    /** YouDrive's card says the trip is done ("Performed"). */
+    val youDriveDone: Boolean = false,
 )
 
 /** Which detection rule accepted the line. */

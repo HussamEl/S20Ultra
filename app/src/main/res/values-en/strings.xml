@@ -140,6 +140,8 @@
     <string name="display_say_time">Say the time</string>
     <string name="display_say_trip">Say this trip</string>
     <string name="display_home">Back to the next stop</string>
+    <string name="done_in_youdrive">Done in YouDrive</string>
+    <string name="done_here">Done in this app</string>
     <string name="display_exit">Exit</string>
     <string name="display_connected">Connected: %1$s</string>
     <string name="display_connecting">Connecting to %1$s…</string>

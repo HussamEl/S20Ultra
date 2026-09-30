@@ -62,6 +62,7 @@ import se.eldebosh.nastastopp.core.parse.TripTimes
 import se.eldebosh.nastastopp.route.model.GeoStatus
 import se.eldebosh.nastastopp.route.model.RouteData
 import se.eldebosh.nastastopp.route.model.Stop
+import se.eldebosh.nastastopp.ui.DoneMarks
 import se.eldebosh.nastastopp.ui.AppButton
 import se.eldebosh.nastastopp.ui.ButtonRow
 import se.eldebosh.nastastopp.ui.HelpDot
@@ -267,6 +268,10 @@ private fun SwipeableStopRow(
                             if (stop.time != null) {
                                 Spacer(Modifier.width(8.dp))
                                 Text(stop.time, style = MaterialTheme.typography.titleMedium, color = AppTheme.colors.time, modifier = Modifier.ref(46, centered = true))
+                            }
+                            if (stop.youDriveDone) {
+                                Spacer(Modifier.width(8.dp))
+                                DoneMarks(youDrive = true, here = false)
                             }
                             // The passenger's first and last name: the card's first line, level with
                             // the time, as on YouDrive's card (the driver's screen only).

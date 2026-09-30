@@ -150,8 +150,8 @@ class RouteController(
             remaining = r.stops,
             item = { s ->
                 // The street address with the house number (setting 114), the area under it.
-                if (full) DisplayItem(time = s.time, title = DisplayItem.streetPart(s.displayText), subtitle = spokenName(s))
-                else DisplayItem(time = s.time, title = spokenName(s))
+                if (full) DisplayItem(time = s.time, title = DisplayItem.streetPart(s.displayText), subtitle = spokenName(s), doneInYouDrive = s.youDriveDone)
+                else DisplayItem(time = s.time, title = spokenName(s), doneInYouDrive = s.youDriveDone)
             },
             announcement = if (r.active && r.stops.isNotEmpty()) announcementFor(r.stops) else null,
         )
@@ -316,6 +316,15 @@ class RouteController(
                 continue
             }
             val matches = base.stops.filter { sameTrip(it, e) }
+            val finished = if (matches.isEmpty()) base.completed.firstOrNull { sameTrip(it, e) } else null
+            if (finished != null) {
+                // Already done here: it stays done; only YouDrive's own mark is kept up to date.
+                if (finished.youDriveDone != e.youDriveDone) {
+                    set(base.copy(completed = base.completed.map { if (it.id == finished.id) it.copy(youDriveDone = e.youDriveDone) else it }))
+                    updated++
+                }
+                continue
+            }
             if (matches.isEmpty()) {
                 set(base.copy(stops = insertByTime(base.stops, e.toStop(base.nextId), base.active), nextId = base.nextId + 1))
                 added++
@@ -340,7 +349,7 @@ class RouteController(
     private fun refreshed(base: RouteData, matches: List<Stop>, e: ExtractedStop): List<Stop> {
         val current = base.stops.firstOrNull()?.takeIf { base.active }
         val keep = matches.firstOrNull { it.id == current?.id } ?: matches.first()
-        var fresh = keep.copy(time = e.time ?: keep.time, kind = e.kind ?: keep.kind, name = e.name ?: keep.name)
+        var fresh = keep.copy(time = e.time ?: keep.time, kind = e.kind ?: keep.kind, name = e.name ?: keep.name, youDriveDone = e.youDriveDone)
         if (!keep.isLocated && keep.displayText != e.displayText) {
             fresh = fresh.copy(
                 displayText = e.displayText,
@@ -664,9 +673,10 @@ class RouteController(
         time = time,
         kind = kind,
         name = name,
+        youDriveDone = youDriveDone,
     )
 
-    private fun Stop.toExtracted() = ExtractedStop(displayText, candidates, parsedPostalCode, parsedTown, sourceOrder, parsedTownKnown, time, kind, name)
+    private fun Stop.toExtracted() = ExtractedStop(displayText, candidates, parsedPostalCode, parsedTown, sourceOrder, parsedTownKnown, time, kind, name, youDriveDone)
 
     companion object {
         /** Two readings of one YouDrive trip are at most this many minutes apart (see [sameTrip]). */

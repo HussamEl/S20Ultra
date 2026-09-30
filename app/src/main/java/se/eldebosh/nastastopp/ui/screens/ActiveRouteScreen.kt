@@ -61,6 +61,7 @@ import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.core.parse.TripTimes
 import se.eldebosh.nastastopp.route.model.RouteData
 import se.eldebosh.nastastopp.route.model.Stop
+import se.eldebosh.nastastopp.ui.DoneMarks
 import se.eldebosh.nastastopp.ui.AppButton
 import se.eldebosh.nastastopp.ui.ButtonRow
 import se.eldebosh.nastastopp.ui.KindLabel
@@ -225,7 +226,7 @@ private fun CompletedRow(stop: Stop, area: String) {
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.ref(67).fillMaxWidth().alpha(0.5f).padding(horizontal = 6.dp, vertical = 2.dp),
     ) {
-        Icon(painterResource(R.drawable.ic_located), contentDescription = null, tint = AppTheme.colors.success, modifier = Modifier.size(14.dp))
+        DoneMarks(youDrive = stop.youDriveDone, here = true)
         Spacer(Modifier.width(6.dp))
         if (stop.time != null) {
             Text(stop.time, style = MaterialTheme.typography.labelMedium, color = AppTheme.colors.time)
@@ -329,6 +330,10 @@ private fun CurrentCard(current: Stop, area: String, status: String) {
                     )
                     Spacer(Modifier.width(12.dp))
                 }
+                if (current.youDriveDone) {
+                    DoneMarks(youDrive = true, here = false, size = 18.dp)
+                    Spacer(Modifier.width(10.dp))
+                }
                 if (current.name != null) {
                     Text(
                         current.name,
@@ -395,6 +400,10 @@ private fun UpcomingRow(index: Int, stop: Stop, area: String) {
                     style = MaterialTheme.typography.titleSmall,
                     color = if (stop.time != null) AppTheme.colors.time else MaterialTheme.colorScheme.outline,
                 )
+                if (stop.youDriveDone) {
+                    Spacer(Modifier.width(8.dp))
+                    DoneMarks(youDrive = true, here = false)
+                }
                 if (stop.name != null) {
                     Spacer(Modifier.width(10.dp))
                     Text(

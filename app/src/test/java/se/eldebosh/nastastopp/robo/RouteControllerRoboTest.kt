@@ -129,6 +129,36 @@ class RouteControllerRoboTest {
     }
 
     /**
+     * Trips done in YouDrive are added and marked, and stay in the route until Next passes them;
+     * a trip already done here is not added again, only its YouDrive mark follows (invented data).
+     */
+    @Test
+    fun youDriveDoneTripsAreMarkedAndOnlyNextMovesTheRoute() {
+        val c = graph.controller
+        val read = { a: String, b: String ->
+            YouDriveCards.parse(
+                listOf("16:25\nPick-up\n$a\nAnna Testsson\nStorgatan 14, 65224 Karlstad", "16:43\nDrop-off\n$b\nAnna Testsson\nLindvägen 9, 66430 Grums"),
+                graph.extractor,
+            ).mapNotNull { it.stop }
+        }
+        assertEquals(2, c.syncTrips(read("Performed", "")).added)
+        assertEquals(listOf(true, false), c.route.value!!.stops.map { it.youDriveDone })
+        idleUntil { c.route.value!!.stops.none { it.geoStatus == GeoStatus.PENDING } }
+        c.start()
+        idle()
+        c.next()
+        idle()
+        assertEquals(listOf("16:25"), c.route.value!!.completed.map { it.time })
+        // Both done in YouDrive now: the done trip is not added again, the next one is marked.
+        val result = c.syncTrips(read("Performed", "Performed"))
+        assertEquals(0, result.added)
+        val r = c.route.value!!
+        assertEquals(listOf(true), r.completed.map { it.youDriveDone })
+        assertEquals(listOf("16:43" to true), r.stops.map { it.time to it.youDriveDone })
+        c.end()
+    }
+
+    /**
      * The passenger's name (first + last) is for the driver's own screens only: never spoken,
      * sent to the passenger display, put in the route notification or the history (invented data).
      */
