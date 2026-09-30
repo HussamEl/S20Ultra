@@ -24,4 +24,19 @@ class AnnouncementsTest {
     fun sameAreaIsStillSaidTwice() {
         assertEquals("Nästa stopp: Karlstad. Därefter: Karlstad.", Announcements.forRemaining(listOf("Karlstad", "Karlstad", "Kil"), false).swedish)
     }
+
+    @Test
+    fun aTappedCardIsAFollowingTripNeverTheNextStop() {
+        assertEquals("Därefter: Hamngatan 7, Skoghall.", Announcements.following("Hamngatan 7, Skoghall").swedish)
+        assertEquals("Then: Hamngatan 7, Skoghall.", Announcements.following("Hamngatan 7, Skoghall").english)
+    }
+
+    @Test
+    fun theTimeIsReadLikeAnAnnouncement() {
+        assertEquals("Klockan är 8 och 05.", Announcements.clock(8, 5).swedish)
+        assertEquals("Klockan är 14 och 30.", Announcements.clock(14, 30).swedish)
+        assertEquals("Klockan är 9.", Announcements.clock(9, 0).swedish)
+        assertEquals("Klockan är 0 och 15.", Announcements.clock(0, 15).swedish)
+        assertEquals("The time is 8:05.", Announcements.clock(8, 5).english)
+    }
 }

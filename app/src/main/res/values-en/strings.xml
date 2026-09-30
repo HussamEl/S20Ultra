@@ -137,6 +137,8 @@
     <string name="overlay_show">Show floating button</string>
     <string name="overlay_hide">Hide floating button</string>
     <string name="display_repeat">Repeat</string>
+    <string name="display_say_time">Say the time</string>
+    <string name="display_say_trip">Say this trip</string>
     <string name="display_exit">Exit</string>
     <string name="display_connected">Connected: %1$s</string>
     <string name="display_connecting">Connecting to %1$s…</string>

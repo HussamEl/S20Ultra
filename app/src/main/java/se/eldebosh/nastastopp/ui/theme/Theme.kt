@@ -72,6 +72,7 @@ private fun style(size: Int, line: Int, weight: FontWeight = FontWeight.Normal, 
  * street names ("Hantverkaregatan 6") stay large on one line.
  */
 val DisplayFont = FontFamily(
+    Font(R.font.barlow_semi_condensed_light, FontWeight.Light),
     Font(R.font.barlow_semi_condensed_medium, FontWeight.Medium),
     Font(R.font.barlow_semi_condensed_semibold, FontWeight.SemiBold),
     Font(R.font.barlow_semi_condensed_bold, FontWeight.Bold),

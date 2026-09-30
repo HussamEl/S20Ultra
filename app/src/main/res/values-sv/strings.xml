@@ -137,6 +137,8 @@
     <string name="overlay_show">Visa flytande knapp</string>
     <string name="overlay_hide">Dölj flytande knapp</string>
     <string name="display_repeat">Upprepa</string>
+    <string name="display_say_time">Säg tiden</string>
+    <string name="display_say_trip">Säg resan</string>
     <string name="display_exit">Stäng</string>
     <string name="display_connected">Ansluten: %1$s</string>
     <string name="display_connecting">Ansluter till %1$s…</string>

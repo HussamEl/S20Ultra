@@ -298,6 +298,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 connected = true,
                                 spoken = spoken,
                                 onSpeak = { controller.repeat() },
+                                onSay = { graph.announcer.speak(it) },
                                 onExit = { vm.back() },
                             )
                             // The passengers look at this screen: the driver's floating panel stays away.
@@ -342,6 +343,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                     client.choose(address)
                                 },
                                 onSpeak = { remote?.announcement?.let { graph.announcer.speak(it) } },
+                                onSay = { graph.announcer.speak(it) },
                                 spoken = spoken,
                                 onToggleSpeaks = { v -> graph.settings.update { it.copy(displaySpeaks = v) } },
                                 onSwitchToController = { vm.setRole(DeviceRole.CONTROLLER) },

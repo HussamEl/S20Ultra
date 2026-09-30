@@ -26,6 +26,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithTag
+import java.time.LocalTime
+import org.junit.Assert.assertEquals
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -450,7 +454,8 @@ class ScreenshotsRoboTest {
         compose.mainClock.autoAdvance = false
         snapshot = next
         spoken++
-        for (ms in listOf(150L, 250L, 300L, 1_000L)) {
+        // 150–1700 ms: the card grows into place; 2600: the next stop is said; 5000: its "Därefter".
+        for (ms in listOf(150L, 250L, 300L, 1_000L, 900L, 2_400L)) {
             compose.mainClock.advanceTimeBy(ms)
             save("display_move_${compose.mainClock.currentTime}", compose.onRoot().captureToImage().asAndroidBitmap())
         }
@@ -462,25 +467,79 @@ class ScreenshotsRoboTest {
         compose.onNodeWithText("Storgatan 14").assertExists()
     }
 
+    /** A tap on a card says it as "Därefter" and a tap on the clock says the time, on this device. */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun passengerDisplaySaysWhatIsTapped() {
+        val said = mutableListOf<String>()
+        compose.setContent {
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(
+                    tabletSnapshot,
+                    status = "Connected: Galaxy S20 Ultra",
+                    connected = true,
+                    onSpeak = {},
+                    onExit = {},
+                    onSay = { said += it.swedish },
+                    time = { LocalTime.of(8, 11, 5) },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.mainClock.autoAdvance = false
+        compose.onAllNodesWithTag("ref_94")[0].performClick()
+        compose.mainClock.advanceTimeBy(1_700)
+        save("display_card_tap", compose.onRoot().captureToImage().asAndroidBitmap())
+        compose.mainClock.advanceTimeBy(5_000)
+        compose.onNodeWithTag("ref_88").performClick()
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.mainClock.autoAdvance = true
+        assertEquals(listOf("Därefter: Hamngatan 7, Skoghall.", "Klockan är 8 och 11."), said)
+    }
+
+    /** When the minute changes, the minutes grow into the middle of the screen, then go back. */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun passengerDisplayMinuteGrows() {
+        var now = LocalTime.of(8, 10, 58)
+        compose.setContent {
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(tabletSnapshot, status = "Connected: Galaxy S20 Ultra", connected = true, onSpeak = {}, onExit = {}, time = { now })
+            }
+        }
+        compose.waitForIdle()
+        compose.mainClock.autoAdvance = false
+        now = LocalTime.of(8, 11, 0)
+        for (ms in listOf(1_000L, 2_500L, 3_000L, 800L, 1_500L)) {
+            compose.mainClock.advanceTimeBy(ms)
+            save("display_minute_${compose.mainClock.currentTime}", compose.onRoot().captureToImage().asAndroidBitmap())
+        }
+        compose.mainClock.autoAdvance = true
+        compose.onNodeWithText("Västra Torggatan 12").assertExists()
+    }
+
+    private val tabletSnapshot = DisplaySnapshot(
+        active = true,
+        previous = DisplayItem("07:30", "Järnvägsgatan 3B", "Storfors"),
+        current = DisplayItem("07:36", "Västra Torggatan 12", "Karlstad"),
+        upcoming = listOf(
+            DisplayItem("08:00", "Hamngatan 7", "Skoghall"),
+            DisplayItem("08:25", "Storgatan 14", "Karlstad"),
+            DisplayItem("08:50", "Södra Kyrkogatan 7", "Kristinehamn"),
+        ),
+    )
+
     /** The passenger display on the tablet (a Galaxy Tab S9+ in landscape). */
     @Test
     @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
     fun passengerDisplayTablet() = shot("display_tablet") {
         PassengerDisplayScreen(
-            snapshot = DisplaySnapshot(
-                active = true,
-                previous = DisplayItem("07:30", "Järnvägsgatan 3B", "Storfors"),
-                current = DisplayItem("07:36", "Västra Torggatan 12", "Karlstad"),
-                upcoming = listOf(
-                    DisplayItem("08:00", "Hamngatan 7", "Skoghall"),
-                    DisplayItem("08:25", "Storgatan 14", "Karlstad"),
-                    DisplayItem("08:50", "Södra Kyrkogatan 7", "Kristinehamn"),
-                ),
-            ),
+            snapshot = tabletSnapshot,
             status = "Connected: Galaxy S20 Ultra",
             connected = true,
             onSpeak = {},
             onExit = {},
+            time = { LocalTime.of(8, 11, 42) },
         )
     }
 }

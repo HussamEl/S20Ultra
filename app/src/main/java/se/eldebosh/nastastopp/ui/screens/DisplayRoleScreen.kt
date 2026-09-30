@@ -30,6 +30,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.core.display.DisplaySnapshot
+import se.eldebosh.nastastopp.core.route.Announcement
 import se.eldebosh.nastastopp.link.DisplayLinkClient
 import se.eldebosh.nastastopp.link.PairedDevice
 import se.eldebosh.nastastopp.settings.AppSettings
@@ -62,6 +63,8 @@ fun DisplayRoleScreen(
     /** A paired device's address, or null for automatic search. */
     onChoose: (String?) -> Unit,
     onSpeak: () -> Unit,
+    /** Says what a tap on the display's clock or a card asks for, on this device. */
+    onSay: (Announcement) -> Unit,
     onToggleSpeaks: (Boolean) -> Unit,
     onSwitchToController: () -> Unit,
     availabilityStatus: DisplayLinkClient.Status = DisplayLinkClient.Status.IDLE,
@@ -86,6 +89,7 @@ fun DisplayRoleScreen(
             },
             connected = connected,
             onSpeak = onSpeak,
+            onSay = onSay,
             onExit = { showSetup = true },
             spoken = spoken,
             detail = if (!connected) link.lastError?.let { stringResource(R.string.display_last_error, it) } else null,

@@ -1,5 +1,7 @@
 package se.eldebosh.nastastopp.core.route
 
+import java.util.Locale
+
 /** A spoken announcement: Swedish always, English optionally repeated after it. */
 data class Announcement(val swedish: String, val english: String?)
 
@@ -15,6 +17,21 @@ object Announcements {
     }
 
     fun finished(withEnglish: Boolean) = Announcement("Rutten är klar.", if (withEnglish) "The route is finished." else null)
+
+    /**
+     * A following trip, when a passenger taps its card on the display: "Därefter", like the list's
+     * heading and the announcement, so it is never taken for the next stop.
+     */
+    fun following(name: String) = Announcement("Därefter: $name.", "Then: $name.")
+
+    /**
+     * The time, when a passenger taps the display's clock, read the way Swedish announcements read
+     * a time: "Klockan är 8 och 05" ("åtta och noll fem"), "Klockan är 14" on the hour.
+     */
+    fun clock(hour: Int, minute: Int): Announcement {
+        val sv = if (minute == 0) "Klockan är $hour." else String.format(Locale.ROOT, "Klockan är %d och %02d.", hour, minute)
+        return Announcement(sv, String.format(Locale.ROOT, "The time is %d:%02d.", hour, minute))
+    }
 
     /** Announcement for the remaining stops (current first), or "finished" if none remain. */
     fun forRemaining(spokenNames: List<String>, withEnglish: Boolean): Announcement =
