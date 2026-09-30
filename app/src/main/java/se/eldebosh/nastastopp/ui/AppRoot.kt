@@ -401,8 +401,11 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 spoken = spoken,
                                 onToggleSpeaks = { v -> graph.settings.update { it.copy(displaySpeaks = v) } },
                                 onToggleLook = { graph.settings.update { it.copy(displayDark = !it.displayDark) } },
+                                panelAllowed = remember(resumeTick) { graph.tabletPanel.canShow },
+                                onAllowPanel = { SystemIntents.openOverlaySettings(context) },
                                 onTogglePanel = { v ->
-                                    graph.settings.update { it.copy(tabletPanel = v) }
+                                    // Turned on, it shows even if it was closed with its × before.
+                                    graph.settings.update { it.copy(tabletPanel = v, overlayHidden = if (v) false else it.overlayHidden) }
                                     if (v && !graph.tabletPanel.canShow) SystemIntents.openOverlaySettings(context)
                                 },
                                 onSwitchToController = { vm.setRole(DeviceRole.CONTROLLER) },

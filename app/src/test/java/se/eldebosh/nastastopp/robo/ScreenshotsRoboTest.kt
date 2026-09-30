@@ -754,11 +754,15 @@ class ScreenshotsRoboTest {
         ),
     )
 
-    /** The look sign on the top line switches the display between black and light. */
+    /**
+     * The look sign on the top line switches the display between black and light, and a tap on the
+     * connection offers to close the display (there is no × of its own).
+     */
     @Test
     @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
     fun passengerDisplaySwitchesItsLook() {
         var dark by mutableStateOf(true)
+        var exited = false
         compose.setContent {
             NastaTheme(Appearance.DAY) {
                 PassengerDisplayScreen(
@@ -766,7 +770,7 @@ class ScreenshotsRoboTest {
                     status = "Galaxy S20",
                     connected = true,
                     onSpeak = {},
-                    onExit = {},
+                    onExit = { exited = true },
                     time = { LocalTime.of(8, 11, 42) },
                     openInMaps = {},
                     dark = dark,
@@ -780,6 +784,10 @@ class ScreenshotsRoboTest {
         compose.waitForIdle()
         assertEquals(false, dark)
         save("display_tablet_light", compose.onRoot().captureToImage().asAndroidBitmap())
+        compose.onNodeWithTag("ref_87").performClick()
+        compose.onNodeWithTag("ref_86").performClick()
+        compose.waitForIdle()
+        assertEquals(true, exited)
     }
 
     /** The passenger display on the tablet (a Galaxy Tab S9+ in landscape). */

@@ -24,6 +24,12 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.BlurEffect
+import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.drawWithContent
+import android.os.Build
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.lazy.items
@@ -90,6 +96,8 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -120,6 +128,7 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.Layout
@@ -274,7 +283,10 @@ fun PassengerDisplayScreen(
     // large and centred above it; the clock, the arrow and the top line's signs fade away.
     val focus = reported?.third == true
     val chrome by animateFloatAsState(if (focus) 0f else 1f, tween(if (focus) CLOCK_FADE_MS else CLOCK_BACK_MS), label = "chrome")
-    val focusing by animateFloatAsState(if (focus) 1f else 0f, spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessLow), label = "focus")
+    val focusing by animateFloatAsState(if (focus) 1f else 0f, tween(if (focus) CLOCK_FADE_MS else CLOCK_FADE_MS * 2), label = "focus")
+    // The trip whose time stands large at the top, kept while it fades away.
+    var focusedTrip by remember { mutableStateOf<DisplayItem?>(null) }
+    if (focus && tripShown != null) focusedTrip = tripShown
     // Its time springs up as another trip comes in (not while focused: then it is already large).
     val pop = remember { Animatable(1f) }
     val tripKey = tripShown?.trip
@@ -305,8 +317,6 @@ fun PassengerDisplayScreen(
         var clockBottom by remember { mutableFloatStateOf(0f) }
         var tripRect by remember { mutableStateOf(Rect.Zero) }
         var stageTop by remember { mutableFloatStateOf(0f) }
-        // The trip's time: how far the middle of its digits is from the bottom of its box, and how tall they are.
-        val (inkMid, inkTall) = with(LocalDensity.current) { (tripSize * (DIGIT_DESCENT + DIGIT_HEIGHT / 2f)).toPx() to (tripSize * DIGIT_HEIGHT).toPx() }
         val topPad = with(LocalDensity.current) { 12.dp.toPx() }
         val clear = with(LocalDensity.current) { (clockBottom - stageTop).coerceAtLeast(0f).toDp() }
         // The map lies under everything, unseen until its moment, so it loads once and stays ready.
@@ -365,20 +375,9 @@ fun PassengerDisplayScreen(
                                 .ref(90)
                                 .onGloballyPositioned { tripRect = it.boundsInRoot() }
                                 .graphicsLayer {
-                                    // Focused, it moves to the middle of the top and grows as large as
-                                    // fits above the address.
-                                    val p = focusing
-                                    var s = pop.value
-                                    if (p > 0f && !tripRect.isEmpty && !screen.isEmpty) {
-                                        val top = screen.top + topPad
-                                        val room = (clockBottom - clockGap - top).coerceAtLeast(1f)
-                                        val largest = minOf(room * FOCUS_FILL / inkTall, screen.width * FOCUS_WIDTH / tripRect.width)
-                                        s *= 1f + (largest.coerceAtLeast(1f) - 1f) * p
-                                        translationX = p * (screen.center.x - tripRect.center.x)
-                                        translationY = p * (top + room / 2f - (tripRect.bottom - inkMid))
-                                    }
-                                    scaleX = s
-                                    scaleY = s
+                                    alpha = chrome
+                                    scaleX = pop.value
+                                    scaleY = pop.value
                                 },
                         )
                     },
@@ -440,6 +439,24 @@ fun PassengerDisplayScreen(
                 showWay = showWay,
                 onShown = { next, item, byTap -> shownTrip = Triple(next, item, byTap) },
                 modifier = rest.weight(1f).fillMaxWidth().onGloballyPositioned { stageTop = it.boundsInRoot().top },
+            )
+        }
+        // Focused: the trip's time large in the middle of the top, drawn at that size so it stays
+        // sharp, as large as fits above the address (or across the screen).
+        val big = focusedTrip?.time
+        if (big != null && focusing > 0f && !tripRect.isEmpty && !screen.isEmpty) {
+            val density = LocalDensity.current
+            val room = (clockBottom - clockGap - screen.top - topPad).coerceAtLeast(1f)
+            val perSp = tripRect.width / with(density) { tripSize.toPx() }
+            val sizePx = minOf(room * FOCUS_FILL / DIGIT_HEIGHT, screen.width * FOCUS_WIDTH / perSp)
+            val size = with(density) { sizePx.toSp() }
+            // Its box reaches above its digits, so it may start above the screen's top.
+            val top = (topPad + room / 2f - sizePx * (DIGIT_ASCENT - DIGIT_HEIGHT / 2f)).roundToInt()
+            FocusTime(
+                focusedTrip!!,
+                big,
+                size,
+                Modifier.align(Alignment.TopCenter).offset { IntOffset(0, top) }.graphicsLayer { alpha = focusing }.ref(225),
             )
         }
         // The weather or the travel time, in the middle while it shows.
@@ -943,10 +960,9 @@ private fun Stage(
                     delay(msUntilThen(shown.announcementSv) - SAY_DELAY_MS)
                     if (upcoming.isNotEmpty()) {
                         on = home
-                        coroutineScope {
-                            launch { pager.animateScrollToPage(pageOfCard(home)) }
-                            delay(THEN_SHOWN_MS)
-                        }
+                        // Straight to it: its address and time come into view on their own.
+                        pager.scrollToPage(pageOfCard(home))
+                        delay(THEN_SHOWN_MS)
                     }
                     goHome()
                 }
@@ -956,10 +972,8 @@ private fun Stage(
                 sayTrip(cardItem(k), k >= home)
                 spotlight.play {
                     on = k
-                    coroutineScope {
-                        launch { pager.animateScrollToPage(pageOfCard(k)) }
-                        delay(SHOW_TRIP_MS)
-                    }
+                    pager.scrollToPage(pageOfCard(k))
+                    delay(SHOW_TRIP_MS)
                     goHome()
                 }
             }
@@ -1015,7 +1029,14 @@ private fun Stage(
                     val pages = Modifier.weight(1f).fillMaxWidth()
                     if (landscape) HorizontalPager(pager, pages) { page(it) } else VerticalPager(pager, pages) { page(it) }
                     if (cardCount > 0) {
-                        Box(Modifier.fillMaxWidth()) {
+                        // Focused, only the trip's address and time stay: the strip fades out, a
+                        // moment after the tapped trip has swelled.
+                        val stripShown by animateFloatAsState(
+                            if (focus) 0f else 1f,
+                            tween(if (focus) STRIP_FADE_MS else STRIP_BACK_MS, delayMillis = if (focus) STRIP_FADE_DELAY_MS else 0),
+                            label = "strip",
+                        )
+                        Box(Modifier.fillMaxWidth().graphicsLayer { alpha = stripShown }) {
                             Column {
                                 // The dots saying which trip the middle shows, small above the strip.
                                 PageDots(pager.currentPage, pager.pageCount, home, Modifier.align(Alignment.CenterHorizontally).ref(201, centered = true).padding(top = 6.dp, bottom = 2.dp))
@@ -1182,6 +1203,13 @@ private fun NextArrow(visible: Boolean, modifier: Modifier = Modifier) {
     }
 }
 
+/** The focused trip's time, large and still at the top, coming into view like its address ([entering]). */
+@Composable
+private fun FocusTime(item: DisplayItem, time: String, size: TextUnit, modifier: Modifier = Modifier) {
+    val entrance = rememberEntrance(true, item.trip, 0L)
+    TimeFace(time, size, modifier.entering(entrance, AppTheme.colors.text.copy(alpha = SHINE_ALPHA)), breathing = false)
+}
+
 /**
  * The time of the trip shown in the middle (the next stop's, or one paged to), under the clock in
  * its style and gently breathing; where the trip was marked done, small at its left ([marks]).
@@ -1201,10 +1229,11 @@ private fun TripTime(item: DisplayItem?, size: TextUnit, landscape: Boolean, mar
 }
 
 /**
- * The top line, in the top-right corner, small and quiet (it is for the driver): the exit, the
- * connection (a dot and the phone's name), the map sign ([onMap]: the way to the next stop), the
- * weather sign, which brings the weather up, and the look sign ([onToggleLook]: black or light).
- * Each is only its picture, with no frame.
+ * The top line, in the top-right corner, small and quiet (it is for the driver): the connection (a
+ * dot and the phone's name; a tap offers to close the display, [onExit]), the map sign ([onMap]:
+ * the way to the next stop), the weather sign, which brings the weather up, and the look sign
+ * ([onToggleLook]: black or light). Each is only its picture, with no frame. On the driver's own
+ * device there is no connection: the system's Back closes the display.
  */
 @Composable
 private fun TopLine(
@@ -1221,20 +1250,42 @@ private fun TopLine(
     enabled: Boolean = true,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onExit, enabled = enabled, modifier = Modifier.refCorner(86).size(TouchTarget)) {
-            Icon(painterResource(R.drawable.ic_stop), contentDescription = stringResource(R.string.display_exit), tint = AppTheme.colors.textMuted, modifier = Modifier.size(18.dp))
-        }
         if (status != null) {
-            Box(Modifier.size(8.dp).background(if (connected) AppTheme.colors.success else AppTheme.colors.danger, CircleShape))
-            Spacer(Modifier.width(6.dp))
-            Text(
-                status,
-                style = MaterialTheme.typography.labelSmall,
-                color = AppTheme.colors.textMuted,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.ref(87).widthIn(max = if (wide) STATUS_MAX_WIDTH else STATUS_MAX_NARROW),
-            )
+            // The connection: a tap opens a small menu to close the display (there is no × of its own).
+            Box {
+                var menu by remember { mutableStateOf(false) }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .ref(87)
+                        .heightIn(min = TouchTarget)
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable(enabled = enabled, onClickLabel = stringResource(R.string.display_exit), role = Role.Button) { menu = true }
+                        .padding(horizontal = 6.dp),
+                ) {
+                    Box(Modifier.size(9.dp).background(if (connected) AppTheme.colors.success else AppTheme.colors.danger, CircleShape))
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        status,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = AppTheme.colors.textMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = if (wide) STATUS_MAX_WIDTH else STATUS_MAX_NARROW),
+                    )
+                }
+                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.display_exit), style = MaterialTheme.typography.bodyLarge) },
+                        leadingIcon = { Icon(painterResource(R.drawable.ic_stop), contentDescription = null) },
+                        onClick = {
+                            menu = false
+                            onExit()
+                        },
+                        modifier = Modifier.ref(86).heightIn(min = TouchTarget),
+                    )
+                }
+            }
         }
         if (onMap != null) MapSign(onMap, enabled)
         if (hasWeather) WeatherSign(weather, onWeather, enabled)
@@ -1242,7 +1293,7 @@ private fun TopLine(
             // The look it switches to: the sun for light, the moon for black.
             val description = stringResource(if (dark) R.string.display_look_light else R.string.display_look_dark)
             IconButton(onClick = onToggleLook, enabled = enabled, modifier = Modifier.refCorner(223).size(TouchTarget)) {
-                Icon(painterResource(if (dark) R.drawable.ic_light_mode else R.drawable.ic_dark_mode), contentDescription = description, tint = AppTheme.colors.textMuted, modifier = Modifier.size(18.dp))
+                Icon(painterResource(if (dark) R.drawable.ic_light_mode else R.drawable.ic_dark_mode), contentDescription = description, tint = AppTheme.colors.textMuted, modifier = Modifier.size(TOP_ICON))
             }
         }
     }
@@ -1262,14 +1313,14 @@ private fun WeatherSign(weather: DisplayWeather?, onClick: () -> Unit, enabled: 
             .semantics { contentDescription = description }
             .padding(horizontal = 6.dp),
     ) {
-        WeatherGlyph(weather?.kind ?: WeatherKind.PARTLY, AppTheme.colors.highlight, Modifier.size(22.dp))
+        WeatherGlyph(weather?.kind ?: WeatherKind.PARTLY, AppTheme.colors.highlight, Modifier.size(TOP_ICON + 4.dp))
         if (weather != null) {
             Spacer(Modifier.width(3.dp))
             Text(
                 "${weather.tempC}°",
                 fontFamily = DigitFont,
                 fontWeight = FontWeight.Medium,
-                fontSize = 13.sp,
+                fontSize = 15.sp,
                 color = AppTheme.colors.textMuted,
             )
         }
@@ -1283,8 +1334,8 @@ private enum class HeroRole { EARLIER, NEXT, LATER }
  * A stop filling the middle: the street and number as large as fits (at most two lines, never
  * breaking a word) and the area under it; its time stands under the clock ([TripTime]). The next
  * stop keeps its place in the card → next stop transition ([shared]). A tap says it ([onClick]).
- * While it is [focused], the address slowly grows and lights up; while something else is said, it
- * is [dimmed].
+ * When it is [focused], the address comes into view again ([entering]) and lights up; while
+ * something else is said, it is [dimmed].
  */
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -1300,10 +1351,10 @@ private fun StopHero(
     onLongClick: (() -> Unit)? = null,
 ) {
     val next = role == HeroRole.NEXT
-    // How far the address may grow and stay within its page (a page cuts off what passes its
-    // edge): less for a long one.
-    var room by remember { mutableFloatStateOf(TITLE_FOCUS) }
-    val scale by animateFloatAsState(if (focused) room else 1f, tween(FOCUS_MS, easing = FastOutSlowInEasing), label = "focus")
+    // Focused, the address comes into view out of a soft blur with a sweep of light, then the area.
+    val title = rememberEntrance(focused, current.trip, ENTER_TITLE_DELAY_MS)
+    val area = rememberEntrance(focused, current.trip, ENTER_AREA_DELAY_MS)
+    val shine = AppTheme.colors.text.copy(alpha = SHINE_ALPHA)
     val shade by animateFloatAsState(if (dimmed) DIM else 1f, tween(DIM_MS), label = "dim")
     val titleColor by animateColorAsState(if (focused) AppTheme.colors.highlight else AppTheme.colors.text, tween(FOCUS_MS / 2), label = "street")
     val placed = if (shared == null) modifier else with(shared) { modifier.stop(current) }
@@ -1327,14 +1378,10 @@ private fun StopHero(
             Column(
                 Modifier
                     .weight(1f, fill = false)
-                    .fillMaxWidth()
-                    .graphicsLayer {
-                        scaleX = scale
-                        scaleY = scale
-                    },
+                    .fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                BoxWithConstraints(Modifier.ref(91).weight(1f, fill = false).fillMaxWidth()) {
+                BoxWithConstraints(Modifier.ref(91).weight(1f, fill = false).fillMaxWidth().entering(title, shine)) {
                     val style = TextStyle(
                         fontFamily = DisplayFont,
                         fontWeight = FontWeight.Bold,
@@ -1357,10 +1404,6 @@ private fun StopHero(
                         style = style,
                         maxLines = 2,
                         autoSize = TextAutoSize.StepBased(minFontSize = MIN_TITLE_SP.sp, maxFontSize = maxSp.sp, stepSize = 2.sp),
-                        onTextLayout = { layout ->
-                            val line = (0 until layout.lineCount).maxOfOrNull { layout.getLineRight(it) - layout.getLineLeft(it) } ?: 0f
-                            if (line > 0f) room = (layout.size.width / line).coerceIn(1f, TITLE_FOCUS)
-                        },
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -1375,13 +1418,81 @@ private fun StopHero(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         style = TextStyle(textDirection = TextDirection.Content),
-                        modifier = Modifier.ref(92),
+                        modifier = Modifier.ref(92).entering(area, shine),
                     )
                 }
             }
         }
     }
 }
+
+/**
+ * How what the display focuses on comes into view: [appear] 0 → 1 (out of a soft blur, rising a
+ * little and settling to its size, drawn at its own size so it stays sharp), then [shine] 0 → 1 (a
+ * band of light sweeping once across it).
+ */
+@Stable
+private class Entrance(start: Float) {
+    val appear = Animatable(start)
+    val shine = Animatable(1f)
+
+    suspend fun play(delayMs: Long) {
+        appear.snapTo(0f)
+        shine.snapTo(0f)
+        delay(delayMs)
+        coroutineScope {
+            launch { appear.animateTo(1f, tween(APPEAR_MS, easing = FastOutSlowInEasing)) }
+            delay(SHINE_AFTER_MS)
+            shine.animateTo(1f, tween(SHINE_MS, easing = FastOutSlowInEasing))
+        }
+    }
+}
+
+/** An [Entrance] that plays, after [delayMs], each time [active] turns on or [key] changes while it is on. */
+@Composable
+private fun rememberEntrance(active: Boolean, key: Any?, delayMs: Long): Entrance {
+    val entrance = remember { Entrance(if (active) 0f else 1f) }
+    LaunchedEffect(active, key) {
+        if (active) {
+            entrance.play(delayMs)
+        } else {
+            entrance.appear.snapTo(1f)
+            entrance.shine.snapTo(1f)
+        }
+    }
+    return entrance
+}
+
+/** Draws this as [entrance] brings it in, with the sweep of light in [shine] over its own ink only. */
+private fun Modifier.entering(entrance: Entrance, shine: Color): Modifier = this
+    .graphicsLayer {
+        val p = entrance.appear.value
+        alpha = (p * ENTER_ALPHA_SPEED).coerceAtMost(1f)
+        translationY = (1f - p) * ENTER_RISE.toPx()
+        val s = ENTER_SCALE + (1f - ENTER_SCALE) * p
+        scaleX = s
+        scaleY = s
+        val blur = (1f - p) * ENTER_BLUR.toPx()
+        renderEffect = if (blur >= 0.5f && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) BlurEffect(blur, blur, TileMode.Decal) else null
+        // Its own layer, so the light lands on the letters and not around them.
+        compositingStrategy = CompositingStrategy.Offscreen
+    }
+    .drawWithContent {
+        drawContent()
+        val t = entrance.shine.value
+        if (t > 0f && t < 1f) {
+            val band = size.width * SHINE_BAND
+            val x = -band + (size.width + 2f * band) * t
+            drawRect(
+                Brush.linearGradient(
+                    listOf(Color.Transparent, shine, Color.Transparent),
+                    start = Offset(x - band / 2f, 0f),
+                    end = Offset(x + band / 2f, size.height * 0.5f),
+                ),
+                blendMode = BlendMode.SrcAtop,
+            )
+        }
+    }
 
 @Composable
 private fun ThenLabel(modifier: Modifier = Modifier) {
@@ -1702,11 +1813,11 @@ private fun statusColor(status: TimeStatus): Color = when (status) {
 
 /**
  * A trip's time ("08:00") in the clock's style: the hours medium and level with the middle of the
- * minutes, the colon in the accent yellow a step apart from both; the digits breathe slowly from
- * their middle.
+ * minutes, the colon in the accent yellow a step apart from both; the digits breathe slowly around
+ * the colon unless it is still ([breathing] off).
  */
 @Composable
-private fun TimeFace(time: String, minuteSize: TextUnit, modifier: Modifier = Modifier) {
+private fun TimeFace(time: String, minuteSize: TextUnit, modifier: Modifier = Modifier, breathing: Boolean = true) {
     val hour = time.substringBefore(':')
     val minute = time.substringAfter(':', "")
     val breath = rememberInfiniteTransition(label = "breath")
@@ -1722,13 +1833,15 @@ private fun TimeFace(time: String, minuteSize: TextUnit, modifier: Modifier = Mo
         lineHeight = 1.0.em,
         lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
     )
+    // Still, it is simply drawn at its size.
+    val size = if (breathing) big else minuteSize
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier.breathe(rest = 1f / BREATH_SCALE) { scale },
+        modifier = if (breathing) modifier.breathe(rest = 1f / BREATH_SCALE) { scale } else modifier,
     ) {
-        Text(hour, style = style.copy(fontSize = big * HOUR_SHARE))
-        Colon(big * HOUR_SHARE, status = null, second = null)
-        Text(minute, style = style.copy(fontSize = big))
+        Text(hour, style = style.copy(fontSize = size * HOUR_SHARE))
+        Colon(size * HOUR_SHARE, status = null, second = null)
+        Text(minute, style = style.copy(fontSize = size))
     }
 }
 
@@ -1768,7 +1881,7 @@ private fun MapSign(onClick: () -> Unit, enabled: Boolean) {
             .clip(CircleShape)
             .clickable(enabled = enabled, onClickLabel = description, role = Role.Button, onClick = onClick),
     ) {
-        Icon(painterResource(R.drawable.ic_pin), contentDescription = description, tint = AppTheme.colors.highlight, modifier = Modifier.size(20.dp))
+        Icon(painterResource(R.drawable.ic_pin), contentDescription = description, tint = AppTheme.colors.highlight, modifier = Modifier.size(TOP_ICON + 2.dp))
     }
 }
 
@@ -1864,6 +1977,11 @@ private const val SHOW_TRIP_MS = 6_000L
 /** When the announcement says "Därefter", its trip is shown in the middle this long. */
 private const val THEN_SHOWN_MS = 3_200L
 
+/** Focused, the strip fades out a moment after the tap (so its trip is seen swelling), and comes back gently. */
+private const val STRIP_FADE_DELAY_MS = 250
+private const val STRIP_FADE_MS = 350
+private const val STRIP_BACK_MS = 600
+
 /** The trip's time under the clock (its minutes; the hours are smaller), gently breathing. */
 private val HERO_TIME_SP = 56.sp
 private val HERO_TIME_SP_NARROW = 40.sp
@@ -1886,14 +2004,16 @@ private const val THEN_FALLBACK_MS = 3_000L
 private const val DIM = 0.4f
 private const val DIM_MS = 600
 
-/** The next stop grows slowly to at most this while it is said. */
-private const val TITLE_FOCUS = 1.25f
+/** The address lights up this fast while it is said. */
 private const val FOCUS_MS = 1_400
 
 private const val NONE = -2
 
 /** Where a stop sits in the room left in the middle: -1 top, 0 centre. */
 private const val HERO_BIAS = -0.2f
+
+/** The top line's icons. */
+private val TOP_ICON = 22.dp
 
 /** The connection line (the phone's name, or what the tablet is doing) at most this wide: on a tablet, on a phone. */
 private val STATUS_MAX_WIDTH = 240.dp
@@ -2002,8 +2122,25 @@ private const val ARROW_FLOW_MS = 1_600
  * screen's width, whichever comes first, while the clock and the top line fade out fast and come
  * back gently.
  */
-private const val FOCUS_FILL = 0.9f
-private const val FOCUS_WIDTH = 0.9f
+private const val FOCUS_FILL = 0.72f
+private const val FOCUS_WIDTH = 0.7f
+
+/**
+ * The entrance of what the display focuses on: how long it takes, how far it rises, how small and
+ * how blurred it starts, how fast it becomes opaque, and the delays that stagger the time, the
+ * address and the area; then the sweep of light: when, how long, how wide and how bright.
+ */
+private const val APPEAR_MS = 900
+private val ENTER_RISE = 28.dp
+private const val ENTER_SCALE = 0.93f
+private val ENTER_BLUR = 16.dp
+private const val ENTER_ALPHA_SPEED = 1.8f
+private const val ENTER_TITLE_DELAY_MS = 120L
+private const val ENTER_AREA_DELAY_MS = 300L
+private const val SHINE_AFTER_MS = 650L
+private const val SHINE_MS = 1_100
+private const val SHINE_BAND = 0.3f
+private const val SHINE_ALPHA = 0.55f
 private const val CLOCK_FADE_MS = 250
 private const val CLOCK_BACK_MS = 600
 private const val BEAT_LOW = 0.2f

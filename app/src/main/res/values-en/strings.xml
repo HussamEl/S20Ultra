@@ -179,6 +179,7 @@
     <string name="display_look_dark">Black display</string>
     <string name="tablet_panel">Floating button on this tablet</string>
     <string name="help_tablet_panel">Shows the phone\'s floating button over the passenger display: the next trip (without the passenger\'s name), a countdown when shrunk, and Next, Back and Repeat for the phone. The street and speed stay on the phone. Needs the permission to show over other apps on this tablet.</string>
+    <string name="tablet_panel_needs_permission">Not shown yet: tap to allow it to show over other apps</string>
     <string name="display_choose_device">Choose the driver\'s device</string>
     <string name="display_no_paired">No paired devices. Pair the devices in Bluetooth settings first.</string>
     <string name="open_bt_settings">Bluetooth settings</string>

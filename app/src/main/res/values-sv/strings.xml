@@ -179,6 +179,7 @@
     <string name="display_look_dark">Svart skärm</string>
     <string name="tablet_panel">Flytande knapp på surfplattan</string>
     <string name="help_tablet_panel">Visar telefonens flytande knapp över passagerarskärmen: nästa resa (utan passagerarens namn), en nedräkning när den är minimerad, och Nästa, Tillbaka och Upprepa för telefonen. Gatan och farten stannar på telefonen. Kräver tillstånd att visas över andra appar på surfplattan.</string>
+    <string name="tablet_panel_needs_permission">Visas inte än: tryck för att tillåta visning över andra appar</string>
     <string name="display_choose_device">Välj förarens enhet</string>
     <string name="display_no_paired">Inga parkopplade enheter. Parkoppla enheterna i Bluetooth-inställningarna först.</string>
     <string name="open_bt_settings">Bluetooth-inställningar</string>

@@ -79,6 +79,8 @@ fun DisplayRoleScreen(
     onSwitchToController: () -> Unit,
     /** The phone's floating panel on this tablet (asks for the overlay permission when missing). */
     onTogglePanel: (Boolean) -> Unit = {},
+    panelAllowed: Boolean = true,
+    onAllowPanel: () -> Unit = {},
     onToggleLook: () -> Unit = {},
     /** The weather app's widget on the display (207): its name (null: SMHI's weather), the choices, the choice. */
     widgetLabel: String? = null,
@@ -176,10 +178,13 @@ fun DisplayRoleScreen(
                     onClick = { onToggleSpeaks(!settings.displaySpeaks) },
                     trailing = { Switch(checked = settings.displaySpeaks, onCheckedChange = onToggleSpeaks, modifier = Modifier.refCorner(198)) },
                 )
+                // On but not allowed to show over other apps: it says so, and a tap asks for it.
+                val panelBlocked = settings.tabletPanel && !panelAllowed
                 ListRow(
                     title = stringResource(R.string.tablet_panel),
+                    subtitle = if (panelBlocked) stringResource(R.string.tablet_panel_needs_permission) else null,
                     help = R.string.help_tablet_panel,
-                    onClick = { onTogglePanel(!settings.tabletPanel) },
+                    onClick = { if (panelBlocked) onAllowPanel() else onTogglePanel(!settings.tabletPanel) },
                     trailing = { Switch(checked = settings.tabletPanel, onCheckedChange = onTogglePanel, modifier = Modifier.refCorner(206)) },
                 )
                 ListRow(

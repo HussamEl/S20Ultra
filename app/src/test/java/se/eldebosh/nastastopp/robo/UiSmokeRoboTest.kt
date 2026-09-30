@@ -212,7 +212,7 @@ class UiSmokeRoboTest {
         settleGeocoding()
         app.graph.controller.start()
         shadowOf(Looper.getMainLooper()).idle()
-        launch().use {
+        launch().use { scenario ->
             waitText(s(R.string.btn_next))
             compose.onNodeWithText("Karlstad").assertExists()
             compose.onNodeWithText(s(R.string.active_counts, 0, 2)).assertExists()
@@ -227,7 +227,9 @@ class UiSmokeRoboTest {
             compose.onNodeWithText("Storfors").assertExists()
             // A tap on the address says the announcement again (no speaker button).
             compose.onNodeWithText("Storfors").performClick()
-            compose.onNodeWithContentDescription(s(R.string.display_exit)).performClick()
+            // The display on the phone has no exit of its own: the system's Back closes it.
+            scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+            compose.waitForIdle()
             compose.onNodeWithText(s(R.string.btn_next)).assertExists()
             // "Back" undoes the last "Next".
             compose.onNodeWithText(s(R.string.overlay_back)).performClick()

@@ -180,6 +180,7 @@
     <string name="display_look_dark">شاشة سوداء</string>
     <string name="tablet_panel">الزر العائم على هذا التابلت</string>
     <string name="help_tablet_panel">يعرض زر الجوال العائم فوق شاشة الركاب: الرحلة التالية (بلا اسم الراكب)، وعدّاً تنازلياً حين يُصغَّر، وNext وBack والإعادة للجوال. اسم الشارع والسرعة يبقيان على الجوال. يحتاج إذن الظهور فوق التطبيقات على التابلت.</string>
+    <string name="tablet_panel_needs_permission">لا يظهر بعد: اضغط للسماح بالظهور فوق التطبيقات الأخرى</string>
     <string name="display_choose_device">اختر جهاز السائق</string>
     <string name="display_no_paired">لا توجد أجهزة مقترنة. اقرن الجهازين من إعدادات البلوتوث أولاً.</string>
     <string name="open_bt_settings">إعدادات البلوتوث</string>
