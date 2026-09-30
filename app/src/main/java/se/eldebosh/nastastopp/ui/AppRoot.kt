@@ -421,6 +421,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 mapRefused = routeMap?.refused == true,
                                 routeMap = routeMap,
                                 mapLive = where != null,
+                                openInMaps = { address -> SystemIntents.openPlace(context, address) },
                             )
                         }
                         Screen.SETTINGS -> SettingsScreen(

@@ -88,6 +88,8 @@ fun DisplayRoleScreen(
     mapRefused: Boolean = false,
     routeMap: RouteMap? = null,
     mapLive: Boolean = false,
+    /** A long press when the map cannot show the way: the address in Google Maps. */
+    openInMaps: ((String) -> Unit)? = null,
     availabilityStatus: DisplayLinkClient.Status = DisplayLinkClient.Status.IDLE,
     /** Goes up by one with each announcement from the driver's phone. */
     spoken: Int = 0,
@@ -117,6 +119,7 @@ fun DisplayRoleScreen(
             weatherWidget = weatherWidget,
             routeMap = routeMap,
             mapLive = mapLive,
+            openInMaps = openInMaps,
         )
         return
     }

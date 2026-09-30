@@ -10,8 +10,8 @@
     <string name="lang_en" translatable="false">English</string>
     <string name="dialog_address_hint" translatable="false">Storgatan 14, 652 24 Karlstad</string>
     <!-- The passenger display speaks to the passengers in Swedish, like the announcements. -->
-    <string name="passenger_next" translatable="false">Nästa</string>
     <string name="passenger_then" translatable="false">Därefter</string>
     <string name="passenger_to_next_stop" translatable="false">till nästa stopp</string>
+    <string name="passenger_to_place" translatable="false">till %1$s</string>
     <string name="passenger_waiting" translatable="false">Rutten har inte börjat än</string>
 </resources>

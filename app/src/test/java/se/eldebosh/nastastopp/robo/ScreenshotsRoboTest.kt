@@ -43,6 +43,7 @@ import androidx.compose.ui.test.swipeRight
 import se.eldebosh.nastastopp.core.nav.DisplayEta
 import se.eldebosh.nastastopp.core.weather.DisplayWeather
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onFirst
 import java.time.LocalTime
 import org.junit.Assert.assertEquals
@@ -661,6 +662,38 @@ class ScreenshotsRoboTest {
         compose.mainClock.advanceTimeBy(800)
         compose.onNodeWithText("12").assertDoesNotExist()
         compose.mainClock.autoAdvance = true
+    }
+
+    /**
+     * On the tablet a long press on a trip asks for the way to it: Google Maps on its address while
+     * the display's own map cannot show it. The next stop's map sign does the same, and a late next
+     * stop counts up beside its time.
+     */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun passengerDisplayLongPressOpensTheWay() {
+        val opened = mutableListOf<String>()
+        compose.setContent {
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(
+                    tabletSnapshot,
+                    status = "Connected: Galaxy S20 Ultra",
+                    connected = true,
+                    onSpeak = {},
+                    onExit = {},
+                    time = { LocalTime.of(8, 11, 42) },
+                    openInMaps = { opened += it },
+                )
+            }
+        }
+        compose.waitForIdle()
+        // 07:36, now 08:11:42: 35 minutes 42 seconds late.
+        compose.onNodeWithText("+35:42").assertIsDisplayed()
+        compose.onNodeWithText("Hamngatan 7").performTouchInput { longClick() }
+        compose.onNodeWithTag("ref_219").performClick()
+        compose.waitForIdle()
+        assertEquals(listOf("Hamngatan 7, Skoghall", "Västra Torggatan 12, Karlstad"), opened)
+        save("display_tablet_late", compose.onRoot().captureToImage().asAndroidBitmap())
     }
 
     /** A weather app's widget, when the tablet hosts one, takes the weather's moment in the middle. */

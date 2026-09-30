@@ -44,7 +44,7 @@ An Android app for a Swedish shared-ride driver:
   - The current street's name is also said by itself each time it changes (`geo/StreetCaller`). It is queued after any announcement. The panel's speaker (part 4) or Settings 137 switch it off.
   - **A passenger's name is never spoken.** A surname before the street is dropped (`RouteController.streetOf`).
   - The passenger display may show street + number (setting 114).
-  - On the passenger display there is no speaker button: a tap on the next stop's address says the announcement, a tap on another trip says "Klockan 8 och 05: street number, area", and a tap on the clock says the time.
+  - On the passenger display there is no speaker button: a tap on the next stop's address says the announcement, a tap on another trip says "Klockan 8 och 05: street number, area", and a tap on the clock says the time. On the tablet a long press on a trip shows the way to it on the map (or opens Google Maps on its address).
 - Nothing may appear on its own. Every dialog, toast, Maps launch or sound follows a driver action. The only exceptions are:
   - YouDrive trip alerts;
   - the "open Maps" fallback notification;

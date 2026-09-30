@@ -64,10 +64,6 @@ data class AppColors(
     val showHues: List<Color>,
     /** A trip due within a few minutes (the outline on the clock's minutes, the panel's countdown). */
     val soon: Color,
-    /** The passenger display's "NÄSTA" chip: a translucent yellow with a hairline edge, and its word. */
-    val nextChip: Color,
-    val nextChipEdge: Color,
-    val onNextChip: Color,
     // Reference numbers.
     val refText: Color,
     val refPill: Color,
@@ -207,9 +203,6 @@ val DayColors = AppColors(
     highlight = Palette.SkyInk,
     showHues = listOf(Palette.Ember700, Palette.Violet700, Palette.Teal700, Palette.Rose700, Palette.Emerald700, Palette.Fuchsia700),
     soon = Palette.Orange600,
-    nextChip = Palette.TaxiYellow.copy(alpha = 0.3f),
-    nextChipEdge = Palette.TaxiYellow,
-    onNextChip = Palette.Ink,
     refText = Color(0xFF6B7280),
     refPill = Palette.Ink.copy(alpha = 0.9f),
     onRefPill = Color(0xFFF1F2F4),
@@ -256,9 +249,6 @@ val NightColors = AppColors(
     highlight = Palette.Sky,
     showHues = listOf(Palette.Ember400, Palette.Violet400, Palette.Teal400, Palette.Rose400, Palette.Emerald400, Palette.Fuchsia400),
     soon = Palette.Ember400,
-    nextChip = Palette.TaxiYellow.copy(alpha = 0.14f),
-    nextChipEdge = Palette.TaxiYellow.copy(alpha = 0.55f),
-    onNextChip = Palette.TaxiYellow,
     refText = Color(0xFF7F8BA0),
     refPill = Palette.Night.copy(alpha = 0.9f),
     onRefPill = Color(0xFFB8C2D4),

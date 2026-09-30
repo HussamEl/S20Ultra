@@ -52,14 +52,22 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
     var gone by mutableStateOf(false)
         private set
 
-    /** The last route asked for, or null before the first answer. */
+    /** The way on the map: to the next stop, or to the trip the driver asked for ([focus]); null before an answer. */
     var route by mutableStateOf<RouteLine?>(null)
         private set
+
+    /** Where the vehicle is, as the phone last sent it (only while the driver lets it, 209). */
+    private var vehicle by mutableStateOf<LinkMessage.Where?>(null)
+
+    /** The map can show a way: it has loaded and knows where the vehicle is. */
+    val canShowWay: Boolean get() = ready && vehicle != null
 
     private val main = Handler(Looper.getMainLooper())
     private var askedFor: String? = null
     private var askedAtMs = 0L
     private var asking: Job? = null
+    private var toNext: RouteLine? = null
+    private var focused: String? = null
 
     // JavaScript runs Google's map; the page is the app's own and nothing else can be loaded.
     // onRenderProcessGone is implemented below; lint does not see it in an object expression.
@@ -105,7 +113,9 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
 
     /** Moves the vehicle on the map, and asks for the way again when the stop changed or a while has passed. */
     fun show(where: LinkMessage.Where) {
+        vehicle = where
         js(String.format(Locale.ROOT, "setCar(%.6f,%.6f)", where.lat, where.lng))
+        if (focused != null) return
         val destination = "${where.toLat},${where.toLng},${where.to}"
         val now = SystemClock.elapsedRealtime()
         if (asking?.isActive == true) return
@@ -114,9 +124,48 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
         askedAtMs = now
         asking = scope.launch {
             val line = withContext(Dispatchers.IO) { fetch(where) } ?: return@launch
-            route = line
-            js("setRoute(" + line.path.joinToString(",", "[", "]") { (lat, lng) -> String.format(Locale.ROOT, "[%.5f,%.5f]", lat, lng) } + ")")
+            toNext = line
+            if (focused == null) draw(line)
         }
+    }
+
+    /**
+     * Shows the way from the vehicle to [address] (a trip the driver pressed long), or to the next
+     * stop when [address] is null, until [unfocus].
+     */
+    fun focus(address: String?) {
+        val from = vehicle ?: return
+        val key = address ?: NEXT
+        focused = key
+        if (address == null && toNext != null) {
+            draw(toNext!!)
+            return
+        }
+        route = null
+        js("setRoute([])")
+        asking?.cancel()
+        askedFor = null
+        val to = if (address == null) from else from.copy(toLat = null, toLng = null, to = address)
+        asking = scope.launch {
+            val line = withContext(Dispatchers.IO) { fetch(to) } ?: return@launch
+            if (address == null) toNext = line
+            if (focused == key) draw(line)
+        }
+    }
+
+    /** Back to the way to the next stop. */
+    fun unfocus() {
+        if (focused == null) return
+        focused = null
+        toNext?.let { draw(it) } ?: run {
+            route = null
+            js("setRoute([])")
+        }
+    }
+
+    private fun draw(line: RouteLine) {
+        route = line
+        js("setRoute(" + line.path.joinToString(",", "[", "]") { (lat, lng) -> String.format(Locale.ROOT, "[%.5f,%.5f]", lat, lng) } + ")")
     }
 
     fun destroy() {
@@ -166,6 +215,7 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
         /** The page's address: a key restricted to websites must allow it and every page under it. */
         const val BASE = "https://nastastopp.app/"
         private const val PAGE = "route_map.html"
+        private const val NEXT = "\u0000next"
 
         /** The way is asked for again at most this often for the same stop (Google counts each request). */
         private const val REFRESH_MS = 4 * 60_000L

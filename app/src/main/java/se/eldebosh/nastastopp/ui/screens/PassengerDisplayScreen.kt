@@ -75,6 +75,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -193,6 +194,8 @@ import java.util.Locale
  * @param weatherWidget a weather app's widget hosted on this tablet (207), shown in place of SMHI's weather.
  * @param routeMap the tablet's Google map of the way to the next stop (208), shown in the middle
  *   of each minute while [mapLive] (the phone sends where the vehicle is, 209).
+ * @param openInMaps opens an address in Google Maps, for a long press when the map above cannot
+ *   show the way.
  */
 @Composable
 fun PassengerDisplayScreen(
@@ -209,6 +212,7 @@ fun PassengerDisplayScreen(
     weatherWidget: (@Composable (Modifier) -> Unit)? = null,
     routeMap: RouteMap? = null,
     mapLive: Boolean = false,
+    openInMaps: ((String) -> Unit)? = null,
 ) {
     KeepScreenOnFullscreen()
     var tapped by remember { mutableIntStateOf(0) }
@@ -238,6 +242,24 @@ fun PassengerDisplayScreen(
     val timeStatus by remember(nextTime, hasNext) {
         derivedStateOf { if (hasNext) TimeStatus.of(TripTimes.minutesUntil(nextTime, now.value.hour * 60 + now.value.minute)) else null }
     }
+    // A long press on a trip (or the map sign by the next stop): the way to it on the map, until a
+    // tap; Google Maps itself when the map cannot show it.
+    var wayTo by remember { mutableStateOf<String?>(null) }
+    val showWay: ((DisplayItem, Boolean) -> Unit)? = if (routeMap == null && openInMaps == null) {
+        null
+    } else {
+        { item, isNext ->
+            val address = listOfNotNull(item.title, item.subtitle).joinToString(", ")
+            if (routeMap != null && mapLive && routeMap.canShowWay) {
+                wayTo = if (isNext) null else item.title
+                routeMap.focus(if (isNext) null else address)
+                moments.playFocus()
+            } else {
+                openInMaps?.invoke(address)
+            }
+        }
+    }
+    LaunchedEffect(moments.holding) { if (!moments.holding) routeMap?.unfocus() }
     // Swedish for the passengers, read left to right whatever the app's language.
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
     BoxWithConstraints(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -343,6 +365,8 @@ fun PassengerDisplayScreen(
                     onSpeak()
                 },
                 onSay = say,
+                now = now,
+                showWay = showWay,
                 modifier = rest.weight(1f).fillMaxWidth().onGloballyPositioned { stageTop = it.boundsInRoot().top },
             )
         }
@@ -353,6 +377,7 @@ fun PassengerDisplayScreen(
                 moments,
                 live?.eta,
                 routeMap.route,
+                wayTo,
                 landscape,
                 if (landscape) {
                     Modifier.align(Alignment.CenterEnd).padding(end = maxWidth * MAP_INSET).width(maxWidth * (1f - MAP_WIDE_W - 3 * MAP_INSET))
@@ -410,6 +435,10 @@ private class Moments(private val scope: CoroutineScope) {
         private set
     var hue by mutableIntStateOf(0)
         private set
+
+    /** The map shows the way to a trip the driver pressed long: nothing else comes until a tap. */
+    var holding by mutableStateOf(false)
+        private set
     private var job: Job? = null
 
     /** How far everything else steps back: 0 in view, 1 gone. */
@@ -422,6 +451,7 @@ private class Moments(private val scope: CoroutineScope) {
 
     /** The time fills the screen: slowly as the minute changes, springing out when [tapped]. */
     fun playTime(tapped: Boolean = false) {
+        if (holding) return
         job?.cancel()
         hue++
         job = scope.launch {
@@ -445,6 +475,7 @@ private class Moments(private val scope: CoroutineScope) {
     }
 
     fun playInfo(which: Info) {
+        if (holding) return
         job?.cancel()
         shown = which
         job = scope.launch {
@@ -454,8 +485,24 @@ private class Moments(private val scope: CoroutineScope) {
         }
     }
 
+    /** The map with the way to a trip, held until a tap (or a long while). */
+    fun playFocus() {
+        job?.cancel()
+        shown = Info.FOCUS
+        holding = true
+        job = scope.launch {
+            launch { solid.animateTo(0f, tween(SETTLE_MS)) }
+            launch { grow.animateTo(0f, tween(SETTLE_MS)) }
+            info.animateTo(1f, tween(INFO_IN_MS, easing = FastOutSlowInEasing))
+            delay(FOCUS_MAX_MS)
+            holding = false
+            info.animateTo(0f, tween(INFO_OUT_MS, easing = FastOutSlowInEasing))
+        }
+    }
+
     /** Straight back: a tap, or something being said. */
     fun settle() {
+        holding = false
         job?.cancel()
         job = scope.launch {
             launch { solid.animateTo(0f, tween(SETTLE_MS)) }
@@ -464,7 +511,7 @@ private class Moments(private val scope: CoroutineScope) {
         }
     }
 
-    enum class Info { WEATHER, ETA, MAP }
+    enum class Info { WEATHER, ETA, MAP, FOCUS }
 }
 
 /**
@@ -515,7 +562,7 @@ private fun InfoMoment(
     weatherWidget: (@Composable (Modifier) -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
-    if (moments.info.value <= 0f || moments.shown == Moments.Info.MAP) return
+    if (moments.info.value <= 0f || moments.shown == Moments.Info.MAP || moments.shown == Moments.Info.FOCUS) return
     val hue = AppTheme.colors.showHues[(moments.hue + 2) % AppTheme.colors.showHues.size]
     val big = if (landscape) INFO_SP_WIDE else INFO_SP_NARROW
     Row(
@@ -584,7 +631,7 @@ private fun InfoMoment(
                     )
                 }
             }
-            Moments.Info.MAP -> Unit
+            Moments.Info.MAP, Moments.Info.FOCUS -> Unit
         }
     }
 }
@@ -601,19 +648,25 @@ private fun MapLayer(map: RouteMap, moments: Moments, modifier: Modifier = Modif
             map.view
         },
         modifier = modifier.ref(210).graphicsLayer {
-            alpha = if (moments.shown == Moments.Info.MAP) moments.info.value else 0f
+            alpha = if (moments.shown == Moments.Info.MAP || moments.shown == Moments.Info.FOCUS) moments.info.value else 0f
             shape = RoundedCornerShape(MAP_CORNER)
             clip = true
         },
     )
 }
 
-/** Beside the map: the minutes to the next stop and the distance (Google Maps' own when it navigates). */
+/**
+ * Beside the map: the minutes and the distance to the next stop (Google Maps' own when it
+ * navigates), or to the trip pressed long ([wayTo]).
+ */
 @Composable
-private fun MapMomentText(moments: Moments, eta: DisplayEta?, route: RouteLine?, landscape: Boolean, modifier: Modifier = Modifier) {
-    if (moments.shown != Moments.Info.MAP || moments.info.value <= 0f) return
-    val minutes = eta?.minutes ?: route?.minutes ?: return
-    val meters = eta?.meters ?: route?.meters
+private fun MapMomentText(moments: Moments, eta: DisplayEta?, route: RouteLine?, wayTo: String?, landscape: Boolean, modifier: Modifier = Modifier) {
+    val focus = moments.shown == Moments.Info.FOCUS
+    if (!(moments.shown == Moments.Info.MAP || focus) || moments.info.value <= 0f) return
+    // To the next stop Google Maps' own time counts first; to another trip only the map's way.
+    val next = !focus || wayTo == null
+    val minutes = (if (next) eta?.minutes else null) ?: route?.minutes ?: return
+    val meters = (if (next) eta?.meters else null) ?: route?.meters
     val hue = AppTheme.colors.showHues[(moments.hue + 2) % AppTheme.colors.showHues.size]
     val big = if (landscape) MAP_SP_WIDE else INFO_SP_NARROW
     Column(
@@ -643,7 +696,10 @@ private fun MapMomentText(moments: Moments, eta: DisplayEta?, route: RouteLine?,
             )
         }
         Text(
-            listOfNotNull(meters?.let(::distanceText), stringResource(R.string.passenger_to_next_stop)).joinToString("  ·  "),
+            listOfNotNull(
+                meters?.let(::distanceText),
+                if (next) stringResource(R.string.passenger_to_next_stop) else stringResource(R.string.passenger_to_place, wayTo.orEmpty()),
+            ).joinToString("  ·  "),
             fontFamily = DisplayFont,
             fontWeight = FontWeight.Medium,
             fontSize = big * 0.2f,
@@ -759,6 +815,8 @@ private fun Stage(
     clear: Dp,
     onSpeakNext: () -> Unit,
     onSay: (Announcement) -> Unit,
+    now: State<LocalTime>,
+    showWay: ((DisplayItem, Boolean) -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     SharedTransitionLayout(modifier) {
@@ -857,7 +915,19 @@ private fun Stage(
                     val page = @Composable { index: Int ->
                         val hero = Modifier.fillMaxSize().padding(top = clear)
                         if (index == home) {
-                            StopHero(current, HeroRole.NEXT, landscape, focused = spot == NEXT_STOP, dimmed = spot >= 0 && spotlight.lifting, shared = shared, onClick = onSpeakNext, status = status, modifier = hero)
+                            StopHero(
+                                current,
+                                HeroRole.NEXT,
+                                landscape,
+                                focused = spot == NEXT_STOP,
+                                dimmed = spot >= 0 && spotlight.lifting,
+                                shared = shared,
+                                onClick = onSpeakNext,
+                                onLongClick = showWay?.let { { it(current, true) } },
+                                modifier = hero,
+                                status = status,
+                                now = now,
+                            )
                         } else {
                             // A card that is said lights up here too while its trip is shown.
                             val k = cardOf(index, home)
@@ -870,6 +940,7 @@ private fun Stage(
                                 dimmed = spot != NONE && spot != k,
                                 shared = null,
                                 onClick = { sayTrip(item) },
+                                onLongClick = showWay?.let { { it(item, false) } },
                                 modifier = hero,
                             )
                         }
@@ -898,6 +969,7 @@ private fun Stage(
                                             tapped = spot == k && !spotlight.lifting,
                                             onPlaced = { cards[k] = it },
                                             onClick = { showCard(k) },
+                                            onLongClick = showWay?.let { { it(item, k == home) } },
                                             shared = shared,
                                             modifier = Modifier.ref(94).fillParentMaxWidth(
                                                 when {
@@ -1051,7 +1123,9 @@ private fun StopHero(
     shared: SharedStop?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
     status: TimeStatus? = null,
+    now: State<LocalTime>? = null,
 ) {
     val next = role == HeroRole.NEXT
     val labelScale = remember { Animatable(if (next) 1f else PAGE_POP) }
@@ -1076,7 +1150,15 @@ private fun StopHero(
     Box(
         placed
             .graphicsLayer { alpha = shade }
-            .clickable(interactionSource = null, indication = null, onClickLabel = description, role = Role.Button, onClick = onClick),
+            .combinedClickable(
+                interactionSource = null,
+                indication = null,
+                onClickLabel = description,
+                role = Role.Button,
+                onLongClickLabel = if (onLongClick != null) stringResource(R.string.display_show_way) else null,
+                onLongClick = onLongClick,
+                onClick = onClick,
+            ),
         contentAlignment = BiasAlignment(0f, HERO_BIAS),
     ) {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -1093,16 +1175,21 @@ private fun StopHero(
                         transformOrigin = TransformOrigin(0f, 1f)
                     },
             ) {
-                if (next) {
-                    NextChip(landscape)
-                    Spacer(Modifier.width(14.dp))
-                }
                 // Where the trip was marked done: small and fixed at the time's left, clear of its breathing.
                 if (current.doneInYouDrive || current.doneHere) {
                     DoneMarks(youDrive = current.doneInYouDrive, here = current.doneHere, size = if (landscape) 12.dp else 10.dp)
                     Spacer(Modifier.width(8.dp))
                 }
-                if (current.time != null) TimeFace(current.time, if (landscape) HERO_TIME_SP else HERO_TIME_SP_NARROW, status = if (next) status else null)
+                if (current.time != null) {
+                    TimeFace(current.time, if (landscape) HERO_TIME_SP else HERO_TIME_SP_NARROW, status = if (next) status else null)
+                    // Late: how long, counting up beside the time.
+                    if (next && now != null) LateCount(current.time, now, if (landscape) LATE_SP else LATE_SP_NARROW)
+                }
+                // The way to the next stop on the map (as a long press on the address).
+                if (next && onLongClick != null) {
+                    Spacer(Modifier.width(14.dp))
+                    MapSign(onLongClick, if (landscape) 40.dp else 32.dp)
+                }
             }
             Column(
                 Modifier
@@ -1252,6 +1339,7 @@ private fun TripCard(
     onClick: () -> Unit,
     shared: SharedStop,
     modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
 ) {
     val shade by animateFloatAsState(if (dimmed) DIM else 1f, tween(DIM_MS), label = "dim")
     val swell by animateFloatAsState(if (tapped) CARD_TAP_SWELL else 1f, spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessMediumLow), label = "swell")
@@ -1274,7 +1362,13 @@ private fun TripCard(
                     if (first || shownAbove) AppTheme.colors.highlight else AppTheme.colors.cardBorder,
                     CardShape,
                 )
-                .clickable(onClickLabel = description, role = Role.Button, onClick = onClick),
+                .combinedClickable(
+                    onClickLabel = description,
+                    role = Role.Button,
+                    onLongClickLabel = if (onLongClick != null) stringResource(R.string.display_show_way) else null,
+                    onLongClick = onLongClick,
+                    onClick = onClick,
+                ),
         ) {
             Box(Modifier.alpha(if (done && !shownAbove) DONE_CARD_ALPHA else 1f)) { CardFace(item, first, landscape) }
         }
@@ -1558,23 +1652,38 @@ private fun Modifier.breathe(rest: Float, scale: () -> Float): Modifier = layout
     }
 }
 
-/** "NÄSTA" (said "Nästa stopp") on a translucent yellow chip with a hairline edge. */
+/** How late the next stop is, counting up each second ("+3:10"), beside its time; nothing while on time. */
 @Composable
-private fun NextChip(landscape: Boolean) {
-    val shape = RoundedCornerShape(50)
+private fun LateCount(time: String, now: State<LocalTime>, size: TextUnit) {
+    val t = now.value
+    val minutes = TripTimes.minutesUntil(time, t.hour * 60 + t.minute) ?: return
+    val seconds = minutes * 60 - t.second
+    if (seconds >= 0) return
     Text(
-        stringResource(R.string.passenger_next).uppercase(),
+        TimeStatus.countdown(seconds),
         fontFamily = DisplayFont,
         fontWeight = FontWeight.SemiBold,
-        fontSize = if (landscape) 26.sp else 20.sp,
-        letterSpacing = 3.sp,
-        color = AppTheme.colors.onNextChip,
-        modifier = Modifier
-            .clip(shape)
-            .background(AppTheme.colors.nextChip)
-            .border(1.5.dp, AppTheme.colors.nextChipEdge, shape)
-            .padding(horizontal = 18.dp, vertical = 3.dp),
+        fontSize = size,
+        color = AppTheme.colors.danger,
+        style = TextStyle(fontFeatureSettings = TABULAR),
+        modifier = Modifier.ref(220).padding(start = 12.dp),
     )
+}
+
+/** A small map sign beside the next stop's time: the way to it on the map. */
+@Composable
+private fun MapSign(onClick: () -> Unit, size: Dp) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .refCorner(219)
+            .size(size)
+            .clip(CircleShape)
+            .background(AppTheme.colors.infoSoft)
+            .clickable(onClickLabel = stringResource(R.string.display_show_way), role = Role.Button, onClick = onClick),
+    ) {
+        Icon(painterResource(R.drawable.ic_pin), contentDescription = stringResource(R.string.display_show_way), tint = AppTheme.colors.highlight, modifier = Modifier.size(size * 0.6f))
+    }
 }
 
 /** Lays this out above where it would go, taking no room in its column: it floats over what is above. */
@@ -1670,8 +1779,12 @@ private const val CARD_TAP_SWELL = 1.08f
 private const val SHOW_TRIP_MS = 6_000L
 
 /** The time above the address (its minutes; the hours are smaller), gently breathing. */
-private val HERO_TIME_SP = 52.sp
-private val HERO_TIME_SP_NARROW = 36.sp
+private val HERO_TIME_SP = 64.sp
+private val HERO_TIME_SP_NARROW = 44.sp
+
+/** How late the next stop is, small beside its time. */
+private val LATE_SP = 26.sp
+private val LATE_SP_NARROW = 18.sp
 private const val BREATH_SCALE = 1.2f
 private const val BREATH_MS = 2_200
 
@@ -1758,6 +1871,9 @@ private const val INFO_OUT_MS = 1_200
 
 /** The map: ten seconds in all, at the left of a tablet (above the minutes on a phone), with rounded corners. */
 private const val MAP_HOLD_MS = 7_600L
+
+/** The way to a trip pressed long stays until a tap, or this long at most. */
+private const val FOCUS_MAX_MS = 120_000L
 private const val MAP_INSET = 0.04f
 private const val MAP_WIDE_W = 0.56f
 private const val MAP_WIDE_H = 0.72f
