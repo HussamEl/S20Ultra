@@ -57,6 +57,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasAnyDescendant
@@ -596,8 +597,9 @@ class ScreenshotsRoboTest {
     }
 
     /**
-     * A swipe across the address pages to the following stops; Home brings back the next stop. The
-     * route itself does not move.
+     * A swipe across the address pages to the following stops, each with its time under it, while
+     * the time beside the clock stays the next stop's; Home brings back the next stop. The route
+     * itself does not move.
      */
     @Test
     @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
@@ -616,9 +618,11 @@ class ScreenshotsRoboTest {
             compose.mainClock.advanceTimeBy(1_500)
         }
         save("display_paged", compose.onRoot().captureToImage().asAndroidBitmap())
-        // The stop after "Därefter", large at the top, and its time beside the clock.
-        compose.onNodeWithText("Storgatan 14").assertIsDisplayed()
-        compose.onNodeWithTag("ref_90", useUnmergedTree = true).assert(hasAnyDescendant(hasText("25")))
+        // The stop after "Därefter", large at the top (and small on the bottom line) with its time
+        // under it; beside the clock the next stop's time stays.
+        compose.onAllNodesWithText("Storgatan 14").assertCountEquals(2)
+        compose.onNodeWithTag("ref_230", useUnmergedTree = true).assert(hasAnyDescendant(hasText("25")))
+        compose.onNodeWithTag("ref_90", useUnmergedTree = true).assert(hasAnyDescendant(hasText("36")))
         compose.onNodeWithText("Västra Torggatan 12").assertDoesNotExist()
         compose.onNodeWithTag("ref_200").performClick()
         compose.mainClock.advanceTimeBy(3_000)
@@ -635,9 +639,9 @@ class ScreenshotsRoboTest {
     }
 
     /**
-     * A swipe along the bottom line brings out the list of all the trips in place of everything
-     * else; it goes three seconds after the last swipe. A tap on a trip in it says the trip and
-     * shows it, and puts the list away.
+     * A swipe along the bottom line brings out the strip of all the trips in its place, the top
+     * following the trip in the strip's middle; it goes three seconds after the last swipe and the
+     * next stop comes back. A tap on a trip in it says the trip and shows it, and puts the strip away.
      */
     @Test
     @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
@@ -663,12 +667,14 @@ class ScreenshotsRoboTest {
         compose.mainClock.advanceTimeBy(1_000)
         save("display_list", compose.onRoot().captureToImage().asAndroidBitmap())
         compose.onNodeWithText("Nästa stopp", ignoreCase = true).assertIsDisplayed()
-        compose.mainClock.advanceTimeBy(3_500)
+        compose.onNodeWithTag("ref_200").assertExists()
+        compose.mainClock.advanceTimeBy(4_000)
         compose.onAllNodesWithTag("ref_226").assertCountEquals(0)
-        // Out again from the clock; a tap on a coming trip in the list says it and shows it.
+        compose.onNodeWithText("Västra Torggatan 12").assertIsDisplayed()
+        // Out again from the clock; a tap on a coming trip in the strip says it and shows it.
         compose.onNodeWithTag("ref_88").performTouchInput { swipeLeft() }
         compose.mainClock.advanceTimeBy(1_000)
-        compose.onNodeWithText("Södra Kyrkogatan 7").performClick()
+        compose.onNode(hasTestTag("ref_226") and hasText("Södra Kyrkogatan 7")).performClick()
         compose.mainClock.advanceTimeBy(1_500)
         save("display_list_pick", compose.onRoot().captureToImage().asAndroidBitmap())
         compose.onAllNodesWithTag("ref_226").assertCountEquals(0)
