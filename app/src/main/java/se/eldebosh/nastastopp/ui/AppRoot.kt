@@ -289,10 +289,14 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             }
                         }
                         Screen.DISPLAY_LOCAL -> {
+                            // Each spoken announcement lights up what it says on the screen.
+                            var spoken by remember { mutableIntStateOf(0) }
+                            LaunchedEffect(Unit) { controller.announcements.collect { spoken++ } }
                             PassengerDisplayScreen(
                                 snapshot = display,
                                 status = null,
                                 connected = true,
+                                spoken = spoken,
                                 onSpeak = { controller.repeat() },
                                 onExit = { vm.back() },
                             )
@@ -311,10 +315,13 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             // Connect while this screen is shown; retry after returning from settings.
                             LaunchedEffect(address, resumeTick) { client.start(address) }
                             DisposableEffect(Unit) { onDispose { client.stop() } }
-                            // Optionally speak the controller's announcements here too.
+                            // Speak the controller's announcements here too (unless switched off), and
+                            // light up on the screen what they say.
                             LaunchedEffect(settings.displaySpeaks) {
                                 if (settings.displaySpeaks) client.announcements.collect { graph.announcer.speak(it) }
                             }
+                            var spoken by remember { mutableIntStateOf(0) }
+                            LaunchedEffect(client) { client.announcements.collect { spoken++ } }
                             DisplayRoleScreen(
                                 settings = settings,
                                 link = link,
@@ -335,6 +342,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                     client.choose(address)
                                 },
                                 onSpeak = { remote?.announcement?.let { graph.announcer.speak(it) } },
+                                spoken = spoken,
                                 onToggleSpeaks = { v -> graph.settings.update { it.copy(displaySpeaks = v) } },
                                 onSwitchToController = { vm.setRole(DeviceRole.CONTROLLER) },
                             )

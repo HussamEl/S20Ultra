@@ -65,6 +65,8 @@ fun DisplayRoleScreen(
     onToggleSpeaks: (Boolean) -> Unit,
     onSwitchToController: () -> Unit,
     availabilityStatus: DisplayLinkClient.Status = DisplayLinkClient.Status.IDLE,
+    /** Goes up by one with each announcement from the driver's phone. */
+    spoken: Int = 0,
 ) {
     var showSetup by remember { mutableStateOf(false) }
     val blocked = !bluetoothReady || paired.isEmpty() ||
@@ -85,6 +87,7 @@ fun DisplayRoleScreen(
             connected = connected,
             onSpeak = onSpeak,
             onExit = { showSetup = true },
+            spoken = spoken,
             detail = if (!connected) link.lastError?.let { stringResource(R.string.display_last_error, it) } else null,
         )
         return

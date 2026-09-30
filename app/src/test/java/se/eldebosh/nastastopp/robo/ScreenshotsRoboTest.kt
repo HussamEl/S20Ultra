@@ -25,6 +25,11 @@ import java.time.Duration
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.LocalContext
@@ -412,6 +417,49 @@ class ScreenshotsRoboTest {
             onSpeak = {},
             onExit = {},
         )
+    }
+
+    /**
+     * Next on the phone: the "Därefter" card grows into the new next stop, and the announcement
+     * lights it up. Frames during the move are saved for a look; the end state is checked.
+     */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun passengerDisplayMovesOnToTheNextStop() {
+        val first = DisplaySnapshot(
+            active = true,
+            current = DisplayItem("07:36", "Västra Torggatan 12", "Karlstad"),
+            upcoming = listOf(DisplayItem("08:00", "Hamngatan 7", "Skoghall"), DisplayItem("08:25", "Storgatan 14", "Karlstad")),
+            announcementSv = "Nästa stopp: Västra Torggatan 12, Karlstad. Därefter: Hamngatan 7, Skoghall.",
+        )
+        val next = DisplaySnapshot(
+            active = true,
+            previous = first.current,
+            current = first.upcoming[0],
+            upcoming = listOf(first.upcoming[1]),
+            announcementSv = "Nästa stopp: Hamngatan 7, Skoghall. Därefter: Storgatan 14, Karlstad.",
+        )
+        var snapshot by mutableStateOf(first)
+        var spoken by mutableIntStateOf(0)
+        compose.setContent {
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(snapshot, status = "Connected: Galaxy S20 Ultra", connected = true, onSpeak = {}, onExit = {}, spoken = spoken)
+            }
+        }
+        compose.waitForIdle()
+        compose.mainClock.autoAdvance = false
+        snapshot = next
+        spoken++
+        for (ms in listOf(150L, 250L, 300L, 1_000L)) {
+            compose.mainClock.advanceTimeBy(ms)
+            save("display_move_${compose.mainClock.currentTime}", compose.onRoot().captureToImage().asAndroidBitmap())
+        }
+        compose.mainClock.advanceTimeBy(8_000)
+        compose.mainClock.autoAdvance = true
+        compose.waitForIdle()
+        compose.onNodeWithText("Hamngatan 7").assertExists()
+        compose.onNodeWithText("Västra Torggatan 12").assertDoesNotExist()
+        compose.onNodeWithText("Storgatan 14").assertExists()
     }
 
     /** The passenger display on the tablet (a Galaxy Tab S9+ in landscape). */
