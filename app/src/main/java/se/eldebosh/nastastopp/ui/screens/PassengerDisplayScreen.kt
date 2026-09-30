@@ -6,6 +6,7 @@ import android.view.ViewGroup
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlin.math.sin
 import kotlin.math.cos
+import kotlin.math.min
 import se.eldebosh.nastastopp.core.weather.WeatherKind
 import se.eldebosh.nastastopp.core.weather.DisplayWeather
 import se.eldebosh.nastastopp.core.parse.TripTimes
@@ -31,11 +32,7 @@ import androidx.compose.foundation.Canvas
 import kotlin.math.roundToInt
 import se.eldebosh.nastastopp.ui.DoneMarks
 import kotlinx.coroutines.coroutineScope
-import androidx.compose.ui.unit.toSize
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.draw.shadow
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -125,6 +122,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.AlignmentLine
+import androidx.compose.ui.layout.VerticalAlignmentLine
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
@@ -264,32 +264,27 @@ fun PassengerDisplayScreen(
     LaunchedEffect(moments.holding) { if (!moments.holding) routeMap?.unfocus() }
     // The trip shown in the middle (the next stop, or one paged to), whose time stands under the
     // clock: reported by the stage with the next stop it belongs to (so a stale one is never
-    // shown) and whether a tap on its card in the strip brought it there.
+    // shown) and whether the screen is focused on it.
     var shownTrip by remember { mutableStateOf<Triple<DisplayItem, DisplayItem, Boolean>?>(null) }
     val reported = live?.current?.let { next -> shownTrip?.takeIf { it.first == next.trip } }
     val tripShown = reported?.second ?: live?.current
     val isNext = tripShown != null && tripShown.trip == live?.current?.trip
-    // A trip tapped in the strip: its time grows into the clock's place while the clock fades away.
-    val tapShown = reported?.third == true
-    val clockShown by animateFloatAsState(if (tapShown) 0f else 1f, tween(if (tapShown) CLOCK_FADE_MS else CLOCK_BACK_MS), label = "clock")
-    val tapGrow by animateFloatAsState(if (tapShown) TAP_TIME_GROWTH else 1f, spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessLow), label = "trip time")
-    // Its time springs up as another trip comes in (not the one tapped: that one grows), and when
-    // the next stop is said.
+    // Focused (a trip tapped in the strip, or the next stop and then "Därefter" while the
+    // announcement says them): only that trip is shown, its address in the middle and its time
+    // large and centred above it; the clock, the arrow and the top line's signs fade away.
+    val focus = reported?.third == true
+    val chrome by animateFloatAsState(if (focus) 0f else 1f, tween(if (focus) CLOCK_FADE_MS else CLOCK_BACK_MS), label = "chrome")
+    val focusing by animateFloatAsState(if (focus) 1f else 0f, spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessLow), label = "focus")
+    // Its time springs up as another trip comes in (not while focused: then it is already large).
     val pop = remember { Animatable(1f) }
     val tripKey = tripShown?.trip
     var poppedFor by remember { mutableStateOf<DisplayItem?>(null) }
     LaunchedEffect(tripKey) {
         val before = poppedFor
         poppedFor = tripKey
-        if (before == null || tripKey == null || tapShown) return@LaunchedEffect
+        if (before == null || tripKey == null || focus) return@LaunchedEffect
         pop.snapTo(PAGE_POP)
         pop.animateTo(1f, spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessLow))
-    }
-    LaunchedEffect(cue) {
-        if (cue == 0) return@LaunchedEffect
-        delay(SAY_DELAY_MS)
-        pop.animateTo(SAID_POP, spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessMediumLow))
-        pop.animateTo(1f, spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessLow))
     }
     // Black (or light, 223); Swedish for the passengers, read left to right whatever the app's language.
     DisplayTheme(dark) {
@@ -308,9 +303,11 @@ fun PassengerDisplayScreen(
         val lowest = if (tripShown?.time != null) tripSize else minuteSize
         val (inkGap, clockGap) = with(LocalDensity.current) { (lowest * DIGIT_DESCENT).toPx() to CLOCK_CLEARANCE.toPx() }
         var clockBottom by remember { mutableFloatStateOf(0f) }
-        var clockRect by remember { mutableStateOf(Rect.Zero) }
         var tripRect by remember { mutableStateOf(Rect.Zero) }
         var stageTop by remember { mutableFloatStateOf(0f) }
+        // The trip's time: how far the middle of its digits is from the bottom of its box, and how tall they are.
+        val (inkMid, inkTall) = with(LocalDensity.current) { (tripSize * (DIGIT_DESCENT + DIGIT_HEIGHT / 2f)).toPx() to (tripSize * DIGIT_HEIGHT).toPx() }
+        val topPad = with(LocalDensity.current) { 12.dp.toPx() }
         val clear = with(LocalDensity.current) { (clockBottom - stageTop).coerceAtLeast(0f).toDp() }
         // The map lies under everything, unseen until its moment, so it loads once and stays ready.
         if (routeMap != null) {
@@ -332,56 +329,62 @@ fun PassengerDisplayScreen(
         ) {
             // Drawn over what follows, so the clock hangs over it and the growing time passes in front.
             Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth().zIndex(1f)) {
-                // The clock in the top-left corner, and centred under it the time of the trip shown
-                // in the middle.
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                // The clock in the top-left corner, and under it, colon under colon, the time of the
+                // trip shown in the middle.
+                ClockBlock(
+                    minuteSize = minuteSize,
+                    tripSize = tripSize,
                     modifier = (if (landscape) Modifier.overhang() else Modifier)
                         .onGloballyPositioned { clockBottom = it.boundsInRoot().bottom - inkGap + clockGap },
-                ) {
-                    Clock(
-                        now = now,
-                        minuteSize = minuteSize,
-                        grow = { moments.grow.value },
-                        hue = AppTheme.colors.showHues[moments.hue % AppTheme.colors.showHues.size],
-                        status = timeStatus,
-                        screen = { screen },
-                        // Said here, and the time springs out to fill the screen meanwhile.
-                        onClick = {
-                            onSay(Announcements.clock(now.value.hour, now.value.minute))
-                            moments.playTime(tapped = true)
-                        },
-                        modifier = Modifier
-                            .onGloballyPositioned { clockRect = it.boundsInRoot() }
-                            .graphicsLayer { alpha = clockShown }
-                            .ref(88),
-                    )
-                    // A small arrow flowing down from the clock: the time under it is the next stop's.
-                    NextArrow(
-                        visible = isNext && !tapShown && tripShown?.time != null,
-                        clockSize = minuteSize,
-                        tripSize = tripSize,
-                        modifier = rest.ref(224),
-                    )
-                    TripTime(
-                        tripShown,
-                        tripSize,
-                        landscape,
-                        modifier = rest
-                            .ref(90)
-                            .onGloballyPositioned { tripRect = it.boundsInRoot() }
-                            .graphicsLayer {
-                                val s = pop.value * tapGrow
-                                scaleX = s
-                                scaleY = s
-                                // Growing, it rises into the clock's place.
-                                val p = ((tapGrow - 1f) / (TAP_TIME_GROWTH - 1f)).coerceIn(0f, 1f)
-                                if (!clockRect.isEmpty && !tripRect.isEmpty) translationY = p * (clockRect.center.y - tripRect.center.y)
+                    clock = {
+                        Clock(
+                            now = now,
+                            minuteSize = minuteSize,
+                            grow = { moments.grow.value },
+                            hue = AppTheme.colors.showHues[moments.hue % AppTheme.colors.showHues.size],
+                            status = timeStatus,
+                            screen = { screen },
+                            // Said here, and the time springs out to fill the screen meanwhile.
+                            onClick = {
+                                onSay(Announcements.clock(now.value.hour, now.value.minute))
+                                moments.playTime(tapped = true)
                             },
-                    )
-                }
+                            modifier = Modifier.graphicsLayer { alpha = chrome }.ref(88),
+                        )
+                    },
+                    // A small arrow flowing down from the clock's colon to the time's: that time is
+                    // the next stop's.
+                    arrow = { NextArrow(visible = isNext && !focus && tripShown?.time != null, modifier = rest.ref(224)) },
+                    trip = {
+                        TripTime(
+                            tripShown,
+                            tripSize,
+                            landscape,
+                            marks = !focus,
+                            modifier = rest
+                                .ref(90)
+                                .onGloballyPositioned { tripRect = it.boundsInRoot() }
+                                .graphicsLayer {
+                                    // Focused, it moves to the middle of the top and grows as large as
+                                    // fits above the address.
+                                    val p = focusing
+                                    var s = pop.value
+                                    if (p > 0f && !tripRect.isEmpty && !screen.isEmpty) {
+                                        val top = screen.top + topPad
+                                        val room = (clockBottom - clockGap - top).coerceAtLeast(1f)
+                                        val largest = minOf(room * FOCUS_FILL / inkTall, screen.width * FOCUS_WIDTH / tripRect.width)
+                                        s *= 1f + (largest.coerceAtLeast(1f) - 1f) * p
+                                        translationX = p * (screen.center.x - tripRect.center.x)
+                                        translationY = p * (top + room / 2f - (tripRect.bottom - inkMid))
+                                    }
+                                    scaleX = s
+                                    scaleY = s
+                                },
+                        )
+                    },
+                )
                 Spacer(Modifier.weight(1f))
-                Column(rest.padding(start = 16.dp), horizontalAlignment = Alignment.End) {
+                Column(rest.graphicsLayer { alpha = chrome }.padding(start = 16.dp), horizontalAlignment = Alignment.End) {
                     TopLine(
                         status,
                         connected,
@@ -394,6 +397,7 @@ fun PassengerDisplayScreen(
                         onWeather = { moments.playInfo(Moments.Info.WEATHER) },
                         dark = dark,
                         onToggleLook = onToggleLook,
+                        enabled = !focus,
                     )
                     if (detail != null) {
                         Text(
@@ -922,31 +926,35 @@ private fun Stage(
                 stripMoved = false
             }
             val away = pager.currentPage != home || stripMoved
-            // The trip in the middle, for its time under the clock, and whether a tap on its card
-            // brought it there.
+            // The trip in the middle, for its time under the clock.
             val inMiddle = if (pager.currentPage == home) current else cardItem(cardOf(pager.currentPage, home))
             // A trip still coming says where the car is going; a trip done, its time and place.
             val sayTrip = { item: DisplayItem, coming: Boolean -> onSay(Announcements.at(item.time, listOfNotNull(item.title, item.subtitle).joinToString(", "), coming)) }
-            // The announcement: first the next stop, then the "Därefter" card when its name comes.
+            // The announcement: first the next stop, then, when its name comes, the "Därefter" trip
+            // in the middle the way a tapped trip is shown.
             LaunchedEffect(cue) {
                 if (cue == 0) return@LaunchedEffect
                 spotlight.play {
-                    delay(SAY_DELAY_MS) // after a change of stop, once the new one has grown into place
+                    coroutineScope {
+                        launch { goHome() }
+                        delay(SAY_DELAY_MS) // after a change of stop, once the new one has grown into place
+                    }
                     on = NEXT_STOP
                     delay(msUntilThen(shown.announcementSv) - SAY_DELAY_MS)
                     if (upcoming.isNotEmpty()) {
-                        lifting = true
                         on = home
-                        delay(CARD_LIT_MS)
+                        coroutineScope {
+                            launch { pager.animateScrollToPage(pageOfCard(home)) }
+                            delay(THEN_SHOWN_MS)
+                        }
                     }
+                    goHome()
                 }
-                goHome()
             }
             // A tapped card: said, and its trip shown in the middle for a moment, then home again.
             val showCard = { k: Int ->
                 sayTrip(cardItem(k), k >= home)
                 spotlight.play {
-                    lifting = false
                     on = k
                     coroutineScope {
                         launch { pager.animateScrollToPage(pageOfCard(k)) }
@@ -967,24 +975,11 @@ private fun Stage(
                 strip.animateScrollToItem(if (page == home) home else (cardOf(page, home) - 1).coerceAtLeast(0))
             }
             val spot = spotlight.on
-            val tappedIn = spot >= 0 && !spotlight.lifting && pager.currentPage == pageOfCard(spot)
-            LaunchedEffect(inMiddle, tappedIn) { onShown(current.trip, inMiddle, tappedIn) }
-            // The "Därefter" card the announcement says is lifted out of the strip (which cuts off
-            // what passes its edge) and drawn over everything while it grows.
-            val cards = remember { mutableStateMapOf<Int, Rect>() }
-            var stage by remember { mutableStateOf(Rect.Zero) }
-            val lift = remember { Animatable(0f) }
-            var lifted by remember { mutableIntStateOf(NONE) }
-            LaunchedEffect(spot, spotlight.lifting) {
-                if (spot >= 0 && spotlight.lifting) {
-                    lifted = spot
-                    lift.animateTo(1f, tween(CARD_GROW_MS, easing = FastOutSlowInEasing))
-                } else if (lifted != NONE) {
-                    lift.animateTo(0f, tween(CARD_GROW_MS, easing = FastOutSlowInEasing))
-                    lifted = NONE
-                }
-            }
-            Box(Modifier.fillMaxSize().onGloballyPositioned { stage = Rect(it.positionInRoot(), it.size.toSize()) }) {
+            // While something is said or a tapped trip is shown, the screen shows only that trip:
+            // its address in the middle and its time large above it.
+            val focus = spot != NONE
+            LaunchedEffect(inMiddle, focus) { onShown(current.trip, inMiddle, focus) }
+            Box(Modifier.fillMaxSize()) {
                 Column(Modifier.fillMaxSize()) {
                     val page = @Composable { index: Int ->
                         val hero = Modifier.fillMaxSize().padding(top = clear)
@@ -994,7 +989,7 @@ private fun Stage(
                                 HeroRole.NEXT,
                                 landscape,
                                 focused = spot == NEXT_STOP,
-                                dimmed = spot >= 0 && spotlight.lifting,
+                                dimmed = false,
                                 shared = shared,
                                 onClick = onSpeakNext,
                                 onLongClick = showWay?.let { { it(current, true) } },
@@ -1017,8 +1012,7 @@ private fun Stage(
                             )
                         }
                     }
-                    // The address makes way while the "Därefter" trip grows over the middle.
-                    val pages = Modifier.weight(1f).fillMaxWidth().graphicsLayer { alpha = 1f - lift.value }
+                    val pages = Modifier.weight(1f).fillMaxWidth()
                     if (landscape) HorizontalPager(pager, pages) { page(it) } else VerticalPager(pager, pages) { page(it) }
                     if (cardCount > 0) {
                         Box(Modifier.fillMaxWidth()) {
@@ -1040,10 +1034,8 @@ private fun Stage(
                                             done = k < home,
                                             landscape = landscape,
                                             dimmed = spot != NONE && spot != k,
-                                            hidden = lifted == k,
                                             shownAbove = pager.currentPage == pageOfCard(k),
-                                            tapped = spot == k && !spotlight.lifting,
-                                            onPlaced = { cards[k] = it },
+                                            tapped = spot == k,
                                             onClick = { showCard(k) },
                                             onLongClick = showWay?.let { { it(item, k == home) } },
                                             shared = shared,
@@ -1067,10 +1059,6 @@ private fun Stage(
                         }
                     }
                 }
-                val from = cards[lifted]
-                if (lifted in 0 until cardCount && from != null && !stage.isEmpty) {
-                    LiftedCard(cardItem(lifted), first = lifted == home, landscape, from = from, stage = stage, lift = { lift.value })
-                }
             }
         }
     }
@@ -1080,20 +1068,18 @@ private fun Stage(
 private fun cardOf(page: Int, home: Int) = if (page < home) page else page - 1
 
 /**
- * What the screen points at while something is said: the next stop ([NEXT_STOP]), a trip's card
- * (its place in the strip; [lifting] it out when the announcement says it) or nothing ([NONE]).
- * A new [play] replaces the one running.
+ * What the screen points at while something is said or a tapped trip is shown: the next stop
+ * ([NEXT_STOP]), a trip's card (its place in the strip) or nothing ([NONE]). A new [play]
+ * replaces the one running.
  */
 @Stable
 private class Spotlight(private val scope: CoroutineScope) {
     var on by mutableIntStateOf(NONE)
-    var lifting by mutableStateOf(false)
     private var job: Job? = null
 
     fun play(steps: suspend Spotlight.() -> Unit) {
         job?.cancel()
         on = NONE
-        lifting = false
         job = scope.launch {
             steps()
             on = NONE
@@ -1123,41 +1109,73 @@ private class SharedStop(val transition: SharedTransitionScope, val visibility: 
 }
 
 /**
- * Between the clock and the trip's time under it, taking no room: three small chevrons pointing
- * down, faint and lighting up one after another, over and over, so the eye flows from the clock to
- * the next stop's time. It fades away while another trip's time is shown ([visible]).
+ * The clock in the top-left corner with the trip's time under it, colon right under colon
+ * ([ColonLine]), the digits of the time a small step below the clock's; between the two colons the
+ * [arrow] runs down from one to the other.
  */
 @Composable
-private fun NextArrow(visible: Boolean, clockSize: TextUnit, tripSize: TextUnit, modifier: Modifier = Modifier) {
+private fun ClockBlock(
+    minuteSize: TextUnit,
+    tripSize: TextUnit,
+    clock: @Composable () -> Unit,
+    arrow: @Composable () -> Unit,
+    trip: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Layout(contents = listOf(clock, arrow, trip), modifier = modifier) { (clocks, arrows, trips), constraints ->
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val c = clocks.first().measure(loose)
+        val t = trips.firstOrNull()?.measure(loose)
+        val cColon = c[ColonLine].takeIf { it != AlignmentLine.Unspecified } ?: (c.width / 2)
+        val m = minuteSize.toPx()
+        val tr = tripSize.toPx()
+        // Measured from the bottoms, which are the digits' boxes (a reference strip may sit above).
+        val clockInkBottom = c.height - m * DIGIT_DESCENT
+        val colonMiddle = clockInkBottom - m * DIGIT_HEIGHT / 2f
+        val lowerDot = colonMiddle + m * HOUR_SHARE * (COLON_SPREAD + COLON_DOT) / 2f
+        val tripY = t?.let { (clockInkBottom + tr * TRIP_GAP + tr * (DIGIT_HEIGHT + DIGIT_DESCENT) - it.height).roundToInt() } ?: 0
+        val upperDot = tripY + (t?.height ?: 0) - tr * (DIGIT_DESCENT + DIGIT_HEIGHT / 2f) - tr * HOUR_SHARE * (COLON_SPREAD + COLON_DOT) / 2f
+        val gap = m * HOUR_SHARE * COLON_DOT * 0.6f
+        val arrowTall = (upperDot - lowerDot - 2 * gap).roundToInt()
+        val arrowWide = (m * HOUR_SHARE * ARROW_WIDTH).roundToInt()
+        val a = if (t != null && arrowTall > arrowWide / 2) arrows.firstOrNull()?.measure(Constraints.fixed(arrowWide, arrowTall)) else null
+        val tColon = t?.let { it[ColonLine].takeIf { x -> x != AlignmentLine.Unspecified } ?: (it.width / 2) } ?: 0
+        val tripX = cColon - tColon
+        val shift = -minOf(0, tripX, cColon - arrowWide / 2)
+        val width = maxOf(shift + c.width, shift + tripX + (t?.width ?: 0))
+        val height = maxOf(c.height, tripY + (t?.height ?: 0))
+        layout(width, height) {
+            c.place(shift, 0)
+            t?.place(shift + tripX, tripY)
+            a?.place(shift + cColon - arrowWide / 2, (lowerDot + gap).roundToInt())
+        }
+    }
+}
+
+/**
+ * Three small chevrons pointing down, faint and lighting up one after another, over and over, so
+ * the eye flows from the clock's colon to the next stop's time under it. It fades away while
+ * another trip's time is shown ([visible]).
+ */
+@Composable
+private fun NextArrow(visible: Boolean, modifier: Modifier = Modifier) {
     val shown by animateFloatAsState(if (visible) 1f else 0f, tween(500), label = "arrow")
     val flow = rememberInfiniteTransition(label = "arrow")
     val phase by flow.animateFloat(0f, 1f, infiniteRepeatable(tween(ARROW_FLOW_MS, easing = LinearEasing)), label = "arrow phase")
     val color = AppTheme.colors.highlight
-    val density = LocalDensity.current
-    val (tall, wide) = with(density) { (tripSize * ARROW_SHARE).toDp() to (tripSize * ARROW_SHARE * 0.7f).toDp() }
-    // In the middle of the gap between the clock's digits and the time's, measured from the
-    // bottom of the clock's box (where this sits).
-    val middle = with(density) { ((tripSize * (DIGIT_ASCENT - DIGIT_HEIGHT)).toPx() - (clockSize * DIGIT_DESCENT).toPx()) / 2f }
-    Canvas(
-        modifier
-            .layout { measurable, constraints ->
-                val placeable = measurable.measure(constraints)
-                layout(placeable.width, 0) { placeable.place(0, (middle - placeable.height / 2f).roundToInt()) }
-            }
-            .size(wide, tall)
-            .graphicsLayer { alpha = shown },
-    ) {
+    Canvas(modifier.fillMaxSize().graphicsLayer { alpha = shown }) {
         val step = size.height / ARROW_COUNT
-        val stroke = size.width * 0.1f
+        val tall = minOf(step * 0.6f, size.width * 0.5f)
+        val stroke = size.width * 0.12f
         for (i in 0 until ARROW_COUNT) {
             // A wave running down the chevrons: each is brightest a little after the one above.
             val wave = 0.5f + 0.5f * cos(2.0 * Math.PI * (phase - i.toFloat() / ARROW_COUNT)).toFloat()
             val a = ARROW_LOW + (ARROW_HIGH - ARROW_LOW) * wave * wave
-            val top = step * i + step * 0.15f
+            val top = step * i + (step - tall) / 2f
             val path = Path().apply {
-                moveTo(size.width * 0.1f, top)
-                lineTo(size.width / 2f, top + step * 0.7f)
-                lineTo(size.width * 0.9f, top)
+                moveTo(size.width * 0.12f, top)
+                lineTo(size.width / 2f, top + tall)
+                lineTo(size.width * 0.88f, top)
             }
             drawPath(path, color.copy(alpha = a), style = Stroke(width = stroke, cap = StrokeCap.Round, join = StrokeJoin.Round))
         }
@@ -1165,13 +1183,13 @@ private fun NextArrow(visible: Boolean, clockSize: TextUnit, tripSize: TextUnit,
 }
 
 /**
- * The time of the trip shown in the middle (the next stop's, or one paged to), centred under the
- * clock in its style and gently breathing; where the trip was marked done, small at its left.
+ * The time of the trip shown in the middle (the next stop's, or one paged to), under the clock in
+ * its style and gently breathing; where the trip was marked done, small at its left ([marks]).
  */
 @Composable
-private fun TripTime(item: DisplayItem?, size: TextUnit, landscape: Boolean, modifier: Modifier = Modifier) {
+private fun TripTime(item: DisplayItem?, size: TextUnit, landscape: Boolean, marks: Boolean, modifier: Modifier = Modifier) {
     val time = item?.time
-    val done = item != null && (item.doneInYouDrive || item.doneHere)
+    val done = marks && item != null && (item.doneInYouDrive || item.doneHere)
     if (item == null || (time == null && !done)) return
     Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier) {
         if (done) DoneMarks(youDrive = item.doneInYouDrive, here = item.doneHere, size = if (landscape) 12.dp else 10.dp)
@@ -1200,9 +1218,10 @@ private fun TopLine(
     onWeather: () -> Unit,
     dark: Boolean,
     onToggleLook: (() -> Unit)?,
+    enabled: Boolean = true,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onExit, modifier = Modifier.refCorner(86).size(TouchTarget)) {
+        IconButton(onClick = onExit, enabled = enabled, modifier = Modifier.refCorner(86).size(TouchTarget)) {
             Icon(painterResource(R.drawable.ic_stop), contentDescription = stringResource(R.string.display_exit), tint = AppTheme.colors.textMuted, modifier = Modifier.size(18.dp))
         }
         if (status != null) {
@@ -1217,12 +1236,12 @@ private fun TopLine(
                 modifier = Modifier.ref(87).widthIn(max = if (wide) STATUS_MAX_WIDTH else STATUS_MAX_NARROW),
             )
         }
-        if (onMap != null) MapSign(onMap)
-        if (hasWeather) WeatherSign(weather, onWeather)
+        if (onMap != null) MapSign(onMap, enabled)
+        if (hasWeather) WeatherSign(weather, onWeather, enabled)
         if (onToggleLook != null) {
             // The look it switches to: the sun for light, the moon for black.
             val description = stringResource(if (dark) R.string.display_look_light else R.string.display_look_dark)
-            IconButton(onClick = onToggleLook, modifier = Modifier.refCorner(223).size(TouchTarget)) {
+            IconButton(onClick = onToggleLook, enabled = enabled, modifier = Modifier.refCorner(223).size(TouchTarget)) {
                 Icon(painterResource(if (dark) R.drawable.ic_light_mode else R.drawable.ic_dark_mode), contentDescription = description, tint = AppTheme.colors.textMuted, modifier = Modifier.size(18.dp))
             }
         }
@@ -1231,7 +1250,7 @@ private fun TopLine(
 
 /** The weather in small (the picture and the degrees; the picture alone for a weather app's widget): a tap brings it up large. */
 @Composable
-private fun WeatherSign(weather: DisplayWeather?, onClick: () -> Unit) {
+private fun WeatherSign(weather: DisplayWeather?, onClick: () -> Unit, enabled: Boolean) {
     val description = stringResource(R.string.display_weather)
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -1239,7 +1258,7 @@ private fun WeatherSign(weather: DisplayWeather?, onClick: () -> Unit) {
             .refCorner(222)
             .heightIn(min = TouchTarget)
             .clip(RoundedCornerShape(12.dp))
-            .clickable(onClickLabel = description, role = Role.Button, onClick = onClick)
+            .clickable(enabled = enabled, onClickLabel = description, role = Role.Button, onClick = onClick)
             .semantics { contentDescription = description }
             .padding(horizontal = 6.dp),
     ) {
@@ -1432,11 +1451,10 @@ private fun CardFace(item: DisplayItem, first: Boolean, landscape: Boolean, lit:
 
 /**
  * A trip in the strip, only its words ([CardFace]). The [first] coming one is the "Därefter" of the
- * announcement: larger and bold; the others are small and thin, the ones [done] quieter still. A
- * tap ([onClick]) swells it a little while its trip shows in the middle ([tapped]). While the
- * announcement says it, it is lifted out and grows over the screen ([hidden] here meanwhile);
- * while something else is said it is [dimmed]; while its trip is shown in the middle
- * ([shownAbove]) it is lit.
+ * announcement: larger and bold; the others are small and thin, the ones [done] quieter still. It
+ * swells while its trip is shown in the middle after a tap ([onClick]) or while the announcement
+ * says it ([tapped]); while something else is said it is [dimmed]; while its trip is shown in the
+ * middle ([shownAbove]) it is lit.
  */
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -1446,10 +1464,8 @@ private fun TripCard(
     done: Boolean,
     landscape: Boolean,
     dimmed: Boolean,
-    hidden: Boolean,
     shownAbove: Boolean,
     tapped: Boolean,
-    onPlaced: (Rect) -> Unit,
     onClick: () -> Unit,
     shared: SharedStop,
     modifier: Modifier = Modifier,
@@ -1461,11 +1477,13 @@ private fun TripCard(
     with(shared) {
         Box(
             modifier
-                .onGloballyPositioned { onPlaced(Rect(it.positionInRoot(), it.size.toSize())) }
                 .graphicsLayer {
-                    alpha = if (hidden) 0f else shade
+                    alpha = shade
                     scaleX = swell
                     scaleY = swell
+                    // It grows up and to the right: clear of the screen's bottom and of the strip's
+                    // start, where the strip brings the trip shown.
+                    transformOrigin = TransformOrigin(0f, 1f)
                 }
                 .stop(item)
                 .combinedClickable(
@@ -1480,33 +1498,6 @@ private fun TripCard(
         ) {
             Box(Modifier.alpha(if (done && !shownAbove) DONE_CARD_ALPHA else 1f)) { CardFace(item, first, landscape, lit = shownAbove) }
         }
-    }
-}
-
-/**
- * The trip being said, lifted out of the strip at its place ([from], in the screen) and drawn over
- * the [stage]: with [lift] 0 → 1 it rises to the middle and grows as far as the stage allows, lit,
- * while the address in the middle fades away under it.
- */
-@Composable
-private fun LiftedCard(item: DisplayItem, first: Boolean, landscape: Boolean, from: Rect, stage: Rect, lift: () -> Float) {
-    val at = from.translate(-stage.left, -stage.top)
-    val (width, height) = with(LocalDensity.current) { at.width.toDp() to at.height.toDp() }
-    Box(
-        Modifier
-            .offset { IntOffset(at.left.roundToInt(), at.top.roundToInt()) }
-            .size(width, height)
-            .graphicsLayer {
-                val p = lift()
-                val most = minOf(stage.width * LIFT_FILL / at.width, stage.height * LIFT_FILL / at.height).coerceAtLeast(1f)
-                val s = 1f + (most - 1f) * p
-                scaleX = s
-                scaleY = s
-                translationX = p * (stage.width / 2f - at.center.x)
-                translationY = p * (stage.height / 2f - at.center.y)
-            },
-    ) {
-        CardFace(item, first, landscape, lit = true)
     }
 }
 
@@ -1682,7 +1673,14 @@ private fun Colon(digitSize: TextUnit, status: TimeStatus?, second: Int?, modifi
     val pulse by beat.animateFloat(1f, BEAT_LOW, infiniteRepeatable(tween(BEAT_MS), RepeatMode.Reverse), label = "beat")
     val blink by animateFloatAsState(if (second == null || second % 2 == 0) 1f else COLON_LOW, tween(450), label = "colon")
     val (wide, tall) = with(LocalDensity.current) { (digitSize * (COLON_DOT + 2 * COLON_SIDE)).toDp() to (digitSize * (DIGIT_ASCENT + DIGIT_DESCENT)).toDp() }
-    Canvas(modifier.size(wide, tall)) {
+    Canvas(
+        modifier
+            .layout { measurable, constraints ->
+                val placeable = measurable.measure(constraints)
+                layout(placeable.width, placeable.height, mapOf(ColonLine to placeable.width / 2)) { placeable.place(0, 0) }
+            }
+            .size(wide, tall),
+    ) {
         val em = digitSize.toPx()
         val middle = em * (DIGIT_ASCENT - DIGIT_HEIGHT / 2f)
         val apart = em * COLON_SPREAD / 2f
@@ -1691,6 +1689,9 @@ private fun Colon(digitSize: TextUnit, status: TimeStatus?, second: Int?, modifi
         drawCircle(dot, radius = em * COLON_DOT / 2f, center = Offset(size.width / 2f, middle + apart))
     }
 }
+
+/** Where a colon's middle is: a time stands with its colon right under the clock's. */
+private val ColonLine = VerticalAlignmentLine(::min)
 
 @Composable
 private fun statusColor(status: TimeStatus): Color = when (status) {
@@ -1732,19 +1733,24 @@ private fun TimeFace(time: String, minuteSize: TextUnit, modifier: Modifier = Mo
 }
 
 /**
- * Draws the content scaled by [scale] (at most 1) from its middle, in a layer of its own so it is
- * scaled as a picture, and takes the room of it at [rest].
+ * Draws the content scaled by [scale] (at most 1) around its colon ([ColonLine], else its middle),
+ * so the colon stays still, in a layer of its own so it is scaled as a picture, and takes the room
+ * of it at [rest].
  */
 private fun Modifier.breathe(rest: Float, scale: () -> Float): Modifier = layout { measurable, constraints ->
     val placeable = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0, maxWidth = Constraints.Infinity))
     val w = (placeable.width * rest).roundToInt()
     val h = (placeable.height * rest).roundToInt()
+    val colon = placeable[ColonLine].takeIf { it != AlignmentLine.Unspecified } ?: (placeable.width / 2)
+    val around = colon.toFloat() / placeable.width
+    // At rest the picture starts at this layout's left edge.
+    val x = (-around * placeable.width * (1f - rest)).roundToInt()
     layout(w, h) {
-        placeable.placeWithLayer((w - placeable.width) / 2, (h - placeable.height) / 2) {
+        placeable.placeWithLayer(x, (h - placeable.height) / 2) {
             val s = scale()
             scaleX = s
             scaleY = s
-            transformOrigin = TransformOrigin(0.5f, 0.5f)
+            transformOrigin = TransformOrigin(around, 0.5f)
             compositingStrategy = CompositingStrategy.Offscreen
         }
     }
@@ -1752,7 +1758,7 @@ private fun Modifier.breathe(rest: Float, scale: () -> Float): Modifier = layout
 
 /** The way to the next stop on the map (as a long press on its address): a small pin, with no frame. */
 @Composable
-private fun MapSign(onClick: () -> Unit) {
+private fun MapSign(onClick: () -> Unit, enabled: Boolean) {
     val description = stringResource(R.string.display_show_way)
     Box(
         contentAlignment = Alignment.Center,
@@ -1760,7 +1766,7 @@ private fun MapSign(onClick: () -> Unit) {
             .refCorner(219)
             .size(TouchTarget)
             .clip(CircleShape)
-            .clickable(onClickLabel = description, role = Role.Button, onClick = onClick),
+            .clickable(enabled = enabled, onClickLabel = description, role = Role.Button, onClick = onClick),
     ) {
         Icon(painterResource(R.drawable.ic_pin), contentDescription = description, tint = AppTheme.colors.highlight, modifier = Modifier.size(20.dp))
     }
@@ -1852,8 +1858,11 @@ private const val DONE_CARD_ALPHA = 0.6f
 private val HOME_SIZE = 44.dp
 
 /** A tapped card swells this much while its trip shows in the middle, for this long. */
-private const val CARD_TAP_SWELL = 1.08f
+private const val CARD_TAP_SWELL = 1.22f
 private const val SHOW_TRIP_MS = 6_000L
+
+/** When the announcement says "Därefter", its trip is shown in the middle this long. */
+private const val THEN_SHOWN_MS = 3_200L
 
 /** The trip's time under the clock (its minutes; the hours are smaller), gently breathing. */
 private val HERO_TIME_SP = 56.sp
@@ -1862,9 +1871,8 @@ private val HERO_TIME_SP_NARROW = 40.sp
 private const val BREATH_SCALE = 1.2f
 private const val BREATH_MS = 2_200
 
-/** The trip's time under the clock springs up this much as another trip comes in, and when the next stop is said. */
+/** The trip's time under the clock springs up this much as another trip comes in. */
 private const val PAGE_POP = 1.5f
-private const val SAID_POP = 1.3f
 private const val ENTER_MS = 450
 
 /** The speech starts a moment after the tap, and a new stop first grows into place. */
@@ -1882,12 +1890,6 @@ private const val DIM_MS = 600
 private const val TITLE_FOCUS = 1.25f
 private const val FOCUS_MS = 1_400
 
-/** The "Därefter" trip grows until it fills this share of the stage's width or height. */
-private const val LIFT_FILL = 0.92f
-private const val CARD_GROW_MS = 1_600
-
-/** Growing and holding; with the way back, a card is lit for four seconds. */
-private const val CARD_LIT_MS = 2_400L
 private const val NONE = -2
 
 /** Where a stop sits in the room left in the middle: -1 top, 0 centre. */
@@ -1983,15 +1985,25 @@ private const val COLON_DOT = 0.16f
 private const val COLON_SPREAD = 0.36f
 private const val COLON_SIDE = 0.12f
 
-/** The arrow between the clock and the trip's time: its height as a share of the time's size, its chevrons, how faint and how bright, and how long a wave takes. */
-private const val ARROW_SHARE = 0.6f
+/**
+ * The trip's time under the clock: the gap between the clock's digits and its own (a share of its
+ * size), and the arrow between the colons: its width (a share of the hours' size), its chevrons,
+ * how faint and how bright, and how long a wave takes.
+ */
+private const val TRIP_GAP = 0.6f
+private const val ARROW_WIDTH = 0.22f
 private const val ARROW_COUNT = 3
 private const val ARROW_LOW = 0.12f
 private const val ARROW_HIGH = 0.7f
 private const val ARROW_FLOW_MS = 1_600
 
-/** A trip tapped in the strip: its time grows this much into the clock's place, while the clock fades out fast and comes back gently. */
-private const val TAP_TIME_GROWTH = 2.4f
+/**
+ * Focused on a trip: its time fills this share of the room above the address (in height) or of the
+ * screen's width, whichever comes first, while the clock and the top line fade out fast and come
+ * back gently.
+ */
+private const val FOCUS_FILL = 0.9f
+private const val FOCUS_WIDTH = 0.9f
 private const val CLOCK_FADE_MS = 250
 private const val CLOCK_BACK_MS = 600
 private const val BEAT_LOW = 0.2f
