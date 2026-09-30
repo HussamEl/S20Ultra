@@ -4,7 +4,7 @@ import android.Manifest
 import android.os.Build
 import androidx.activity.compose.BackHandler
 import java.util.Locale
-import se.eldebosh.nastastopp.ui.theme.DisplayColors
+import se.eldebosh.nastastopp.ui.theme.displayColors
 import se.eldebosh.nastastopp.ui.screens.HostedWidget
 import se.eldebosh.nastastopp.ui.screens.RouteMap
 import se.eldebosh.nastastopp.core.nav.RoutesApi
@@ -313,6 +313,8 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 onSpeak = { controller.repeat() },
                                 onSay = { graph.announcer.speak(it) },
                                 onExit = { vm.back() },
+                                dark = settings.displayDark,
+                                onToggleLook = { graph.settings.update { it.copy(displayDark = !it.displayDark) } },
                             )
                             // The passengers look at this screen: the driver's floating panel stays away.
                             DisposableEffect(Unit) {
@@ -361,9 +363,9 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             val widgetLabel = remember(widgetId, resumeTick) { widgetId.takeIf { it >= 0 }?.let { widgets.label(it) } }
                             // The Google map (208), with the driver's key; the phone sends where the vehicle is (209).
                             val where by client.where.collectAsStateWithLifecycle()
-                            // In the passenger display's own look (black), whatever the app's.
-                            val night = DisplayColors.isDark
-                            val ground = DisplayColors.background.toArgb()
+                            // In the passenger display's own look (black or light, 223), whatever the app's.
+                            val night = settings.displayDark
+                            val ground = displayColors(night).background.toArgb()
                             val mapScope = rememberCoroutineScope()
                             var mapRestarts by remember { mutableIntStateOf(0) }
                             val routeMap = remember(settings.mapsKey, night, mapRestarts) {
@@ -398,6 +400,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 onSay = { graph.announcer.speak(it) },
                                 spoken = spoken,
                                 onToggleSpeaks = { v -> graph.settings.update { it.copy(displaySpeaks = v) } },
+                                onToggleLook = { graph.settings.update { it.copy(displayDark = !it.displayDark) } },
                                 onTogglePanel = { v ->
                                     graph.settings.update { it.copy(tabletPanel = v) }
                                     if (v && !graph.tabletPanel.canShow) SystemIntents.openOverlaySettings(context)

@@ -44,7 +44,7 @@ An Android app for a Swedish shared-ride driver:
   - The current street's name is also said by itself each time it changes (`geo/StreetCaller`). It is queued after any announcement. The panel's speaker (part 4) or Settings 137 switch it off.
   - **A passenger's name is never spoken.** A surname before the street is dropped (`RouteController.streetOf`).
   - The passenger display may show street + number (setting 114).
-  - On the passenger display there is no speaker button: a tap on the next stop's address says the announcement, a tap on another trip says "Klockan 8 och 05: street number, area", and a tap on the clock says the time. On the tablet a long press on a trip shows the way to it on the map (or opens Google Maps on its address).
+  - On the passenger display there is no speaker button: a tap on the next stop's address says the announcement, a tap on a coming trip says "Klockan 8 och 05 ska vi till street number, area" (a trip done: "Klockan 7 och 30: street number, area"), and a tap on the clock says the time. On the tablet a long press on a trip shows the way to it on the map (or opens Google Maps on its address).
 - Nothing may appear on its own. Every dialog, toast, Maps launch or sound follows a driver action. The only exceptions are:
   - YouDrive trip alerts;
   - the "open Maps" fallback notification;
@@ -56,7 +56,7 @@ An Android app for a Swedish shared-ride driver:
   1. `Palette.kt`: raw colours.
   2. `AppColors.kt`: colour roles, as `DayColors` and `NightColors`.
   3. `AppEffects.kt`: shadows, press scale and colour fades.
-- Screens use `AppTheme.colors.<role>` and `AppTheme.effects`. **No `Color(0x…)` outside `Palette.kt`/`AppColors.kt`.** The looks are Day / Night / Automatic (setting 130–132); the passenger display is always black (`DisplayTheme` with `DisplayColors`). `ThemeContrastTest` must stay green.
+- Screens use `AppTheme.colors.<role>` and `AppTheme.effects`. **No `Color(0x…)` outside `Palette.kt`/`AppColors.kt`.** The looks are Day / Night / Automatic (setting 130–132); the passenger display is black by default (`DisplayTheme` with `DisplayColors`), light on its look sign (223). `ThemeContrastTest` must stay green.
 - Passenger display fonts: `DisplayFont` (Barlow Semi Condensed) for words and addresses, `DigitFont` (Atkinson Hyperlegible Next) for every number.
 - Use the components in `ui/Components.kt`: `AppButton`, `AppCard`, `TripSurface` (every trip card), `ListRow`, `TopBar`, `SectionTitle`, `KindLabel`.
 - Explanations never sit inline. Use `HelpDot(R.string.…)` (a tiny "?"); its text is Arabic while setting 104 is on.

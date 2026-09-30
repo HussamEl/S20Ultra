@@ -86,8 +86,8 @@ class ThemeContrastTest {
             for (status in listOf(p.success, p.soon, p.danger)) check(at, "countdown on the capsule", status, well, 4.5)
             check(at, "– and ×", p.text, control, 4.5)
             check(at, "the yellow Next", c.accent, frame, 3.0)
-            // The capsule's chevrons and time float on the map with only a dark halo behind them.
-            check(at, "chevron / time on its halo", p.text, p.halo.compositeOver(bg), 4.5)
+            // The capsule's chevrons float on the map with only a dark halo behind them.
+            check(at, "chevron on its halo", p.text, p.halo.compositeOver(bg), 3.0)
         }
         check(look, "panel edge on black", p.edgeLight, Palette.Black, 3.0)
         check(look, "panel edge on white", p.edgeDark, Palette.White, 3.0)

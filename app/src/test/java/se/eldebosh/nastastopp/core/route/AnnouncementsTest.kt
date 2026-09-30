@@ -27,10 +27,15 @@ class AnnouncementsTest {
 
     @Test
     fun aTappedTripIsSaidWithItsTimeNeverAsTheNextStop() {
-        assertEquals("Klockan 8 och 05: Hamngatan 7, Skoghall.", Announcements.at("08:05", "Hamngatan 7, Skoghall").swedish)
-        assertEquals("Klockan 9: Storgatan 14, Karlstad.", Announcements.at("09:00", "Storgatan 14, Karlstad").swedish)
-        assertEquals("At 8:05: Hamngatan 7, Skoghall.", Announcements.at("08:05", "Hamngatan 7, Skoghall").english)
-        assertEquals("Hamngatan 7, Skoghall.", Announcements.at(null, "Hamngatan 7, Skoghall").swedish)
+        // A trip still coming: where the car is going, and when.
+        assertEquals("Klockan 8 och 05 ska vi till Hamngatan 7, Skoghall.", Announcements.at("08:05", "Hamngatan 7, Skoghall", coming = true).swedish)
+        assertEquals("Klockan 9 ska vi till Storgatan 14, Karlstad.", Announcements.at("09:00", "Storgatan 14, Karlstad", coming = true).swedish)
+        assertEquals("At 8:05 we are going to Hamngatan 7, Skoghall.", Announcements.at("08:05", "Hamngatan 7, Skoghall", coming = true).english)
+        assertEquals("Vi ska till Hamngatan 7, Skoghall.", Announcements.at(null, "Hamngatan 7, Skoghall", coming = true).swedish)
+        // A trip done: its time and place only.
+        assertEquals("Klockan 7 och 30: Järnvägsgatan 3B, Storfors.", Announcements.at("07:30", "Järnvägsgatan 3B, Storfors", coming = false).swedish)
+        assertEquals("Järnvägsgatan 3B, Storfors.", Announcements.at(null, "Järnvägsgatan 3B, Storfors", coming = false).swedish)
+        for (coming in listOf(true, false)) assertEquals(false, Announcements.at("08:05", "Hamngatan 7", coming).swedish.contains("Nästa"))
     }
 
     @Test

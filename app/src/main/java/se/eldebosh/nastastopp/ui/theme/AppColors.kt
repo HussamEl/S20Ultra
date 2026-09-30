@@ -117,7 +117,7 @@ data class PanelRoles(
     val pickUp: Color,
     val dropOff: Color,
     val depot: Color,
-    /** A soft dark halo under what floats on the map without glass (the capsule's chevrons and time). */
+    /** A soft dark halo under what floats on the map without glass (the capsule's chevrons). */
     val halo: Color,
 ) {
     fun trip(kind: TripKind?): Color = when (kind) {

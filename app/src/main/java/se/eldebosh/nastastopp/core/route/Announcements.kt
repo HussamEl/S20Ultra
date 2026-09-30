@@ -19,16 +19,21 @@ object Announcements {
     fun finished(withEnglish: Boolean) = Announcement("Rutten är klar.", if (withEnglish) "The route is finished." else null)
 
     /**
-     * A trip tapped on the display: its time, then its place ("Klockan 8 och 05: Hamngatan 7,
-     * Skoghall"). Never "Nästa", so it is not taken for the next stop.
+     * A trip tapped on the display: its time, then its place. A trip still [coming] says where the
+     * car is going ("Klockan 8 och 05 ska vi till Hamngatan 7, Skoghall"); a trip done, only its
+     * time and place ("Klockan 7 och 30: Järnvägsgatan 3B, Storfors"). Never "Nästa", so it is not
+     * taken for the next stop.
      */
-    fun at(time: String?, name: String): Announcement {
+    fun at(time: String?, name: String, coming: Boolean): Announcement {
         val parts = time?.split(':')
         val hour = parts?.getOrNull(0)?.toIntOrNull()
         val minute = parts?.getOrNull(1)?.toIntOrNull()
-        if (hour == null || minute == null) return Announcement("$name.", "$name.")
+        if (hour == null || minute == null) {
+            return if (coming) Announcement("Vi ska till $name.", "We are going to $name.") else Announcement("$name.", "$name.")
+        }
         val at = if (minute == 0) "Klockan $hour" else String.format(Locale.ROOT, "Klockan %d och %02d", hour, minute)
-        return Announcement("$at: $name.", String.format(Locale.ROOT, "At %d:%02d: %s.", hour, minute, name))
+        val atEn = String.format(Locale.ROOT, "At %d:%02d", hour, minute)
+        return if (coming) Announcement("$at ska vi till $name.", "$atEn we are going to $name.") else Announcement("$at: $name.", "$atEn: $name.")
     }
 
     /**

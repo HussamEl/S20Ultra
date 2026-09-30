@@ -116,15 +116,20 @@ private val AppShapes = Shapes(
 )
 
 /**
- * The passenger display's own look, whatever the app's: [DisplayColors] on black, for Swedish
- * winter darkness and for a screen that stays on for hours. Dialogs opened from it follow too.
+ * The passenger display's own look, whatever the app's: [DisplayColors] on black ([dark], for
+ * Swedish winter darkness and for a screen that stays on for hours), or the light day colours.
+ * Dialogs opened from it follow too.
  */
 @Composable
-fun DisplayTheme(content: @Composable () -> Unit) {
-    CompositionLocalProvider(LocalAppColors provides DisplayColors, LocalAppEffects provides NightEffects) {
-        MaterialTheme(colorScheme = DisplayColors.toMaterial(), typography = AppTypography, shapes = AppShapes, content = content)
+fun DisplayTheme(dark: Boolean, content: @Composable () -> Unit) {
+    val colors = displayColors(dark)
+    CompositionLocalProvider(LocalAppColors provides colors, LocalAppEffects provides if (dark) NightEffects else DayEffects) {
+        MaterialTheme(colorScheme = colors.toMaterial(), typography = AppTypography, shapes = AppShapes, content = content)
     }
 }
+
+/** The passenger display's colours: black ([DisplayColors]) or light ([DayColors]). */
+fun displayColors(dark: Boolean): AppColors = if (dark) DisplayColors else DayColors
 
 /** Material 3's colour scheme from the roles: sky blue for selection, yellow as secondary. */
 private fun AppColors.toMaterial(): ColorScheme {

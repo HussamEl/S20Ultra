@@ -79,6 +79,7 @@ fun DisplayRoleScreen(
     onSwitchToController: () -> Unit,
     /** The phone's floating panel on this tablet (asks for the overlay permission when missing). */
     onTogglePanel: (Boolean) -> Unit = {},
+    onToggleLook: () -> Unit = {},
     /** The weather app's widget on the display (207): its name (null: SMHI's weather), the choices, the choice. */
     widgetLabel: String? = null,
     widgetChoices: () -> List<WeatherWidgets.Choice> = { emptyList() },
@@ -118,6 +119,8 @@ fun DisplayRoleScreen(
             routeMap = routeMap,
             mapLive = mapLive,
             openInMaps = openInMaps,
+            dark = settings.displayDark,
+            onToggleLook = onToggleLook,
         )
         return
     }

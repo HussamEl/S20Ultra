@@ -530,7 +530,7 @@ class ScreenshotsRoboTest {
         compose.onNodeWithTag("ref_88").performClick()
         compose.mainClock.advanceTimeBy(1_000)
         compose.mainClock.autoAdvance = true
-        assertEquals(listOf("Klockan 8: Hamngatan 7, Skoghall.", "Klockan är 8 och 11."), said)
+        assertEquals(listOf("Klockan 8 ska vi till Hamngatan 7, Skoghall.", "Klockan är 8 och 11."), said)
     }
 
     /**
@@ -753,6 +753,34 @@ class ScreenshotsRoboTest {
             DisplayItem("09:35", "Kungsgatan 5", "Karlstad"),
         ),
     )
+
+    /** The look sign on the top line switches the display between black and light. */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun passengerDisplaySwitchesItsLook() {
+        var dark by mutableStateOf(true)
+        compose.setContent {
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(
+                    tabletSnapshot.copy(weather = DisplayWeather(14, 3)),
+                    status = "Galaxy S20",
+                    connected = true,
+                    onSpeak = {},
+                    onExit = {},
+                    time = { LocalTime.of(8, 11, 42) },
+                    openInMaps = {},
+                    dark = dark,
+                    onToggleLook = { dark = !dark },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("ref_224").assertExists()
+        compose.onNodeWithTag("ref_223").performClick()
+        compose.waitForIdle()
+        assertEquals(false, dark)
+        save("display_tablet_light", compose.onRoot().captureToImage().asAndroidBitmap())
+    }
 
     /** The passenger display on the tablet (a Galaxy Tab S9+ in landscape). */
     @Test
