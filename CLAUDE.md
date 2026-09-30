@@ -18,7 +18,10 @@ An Android app for a Swedish shared-ride driver:
 - Never log addresses or OCR text in release (use `util/DebugLog`). `allowBackup=false`.
 - **Location only names the street the vehicle is on and shows its speed.** While-in-use only, never background (`ACCESS_BACKGROUND_LOCATION` stays removed). `service/StreetService` (LocationManager, no Play services) feeds `CurrentStreet` and nothing else: never the route (no automatic advance; only the driver's Next moves it), never stored, logged or sent. Asked at "Start route" and in Settings (119).
 - **The YouDrive WebView never gets location**: `setGeolocationEnabled(false)` and every page prompt is denied (`theYouDrivePageNeverGetsTheLocation`).
-- INTERNET is only for the YouDrive page and the offline street map's download. The download starts only when the driver taps Settings 138. It fetches fixed OpenStreetMap tiles over Värmland from Overpass, never the position. No Firebase, analytics, crash reporting or Hilt.
+- INTERNET is only for the YouDrive page, the offline street map's download and the passenger display's weather. No Firebase, analytics, crash reporting or Hilt.
+  - The download starts only when the driver taps Settings 138. It fetches fixed OpenStreetMap tiles over Värmland from Overpass, never the position.
+  - The weather is SMHI's forecast for one fixed point (Karlstad, `core/weather/SmhiForecast`). The phone fetches it every 30 min, only while a passenger display shows a route, and never sends the position or an address.
+- Notification access (Settings 203, granted by the driver) reads **only Google Maps' navigation notification** (`nav/MapsNavigationListener`). Only its minutes left and distance are kept, in memory, for the display snapshot. Nothing from it is stored or logged.
 - The street name must never be invented:
   - GPS with high accuracy; positions less exact than 25–30 m are not used;
   - with the downloaded map, the road is matched by distance and heading (`StreetMatcher`);
@@ -38,6 +41,7 @@ An Android app for a Swedish shared-ride driver:
   - The current street's name is also said by itself each time it changes (`geo/StreetCaller`). It is queued after any announcement. The panel's speaker (part 4) or Settings 137 switch it off.
   - **A passenger's name is never spoken.** A surname before the street is dropped (`RouteController.streetOf`).
   - The passenger display may show street + number (setting 114).
+  - On the passenger display there is no speaker button: a tap on the next stop's address says the announcement, a tap on another trip says "Klockan 8 och 05: street number, area", and a tap on the clock says the time.
 - Nothing may appear on its own. Every dialog, toast, Maps launch or sound follows a driver action. The only exceptions are:
   - YouDrive trip alerts;
   - the "open Maps" fallback notification;

@@ -6,6 +6,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import se.eldebosh.nastastopp.weather.WeatherSource
+import se.eldebosh.nastastopp.nav.MapsNavigation
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.MutableStateFlow
 import se.eldebosh.nastastopp.core.parse.AddressExtractor
 import se.eldebosh.nastastopp.core.parse.Localities
 import se.eldebosh.nastastopp.geo.CurrentStreet
@@ -57,6 +62,12 @@ class AppGraph(app: Application) {
     /** Controller: Bluetooth server for passenger displays (runs only when enabled). */
     val displayServer = DisplayLinkServer(app, controller, settings, scope)
 
+    /** Passenger displays shown on this phone itself (the screen counts itself while open). */
+    val localDisplays = MutableStateFlow(0)
+
+    /** The area's weather, fetched only while a passenger display shows a route. */
+    val weather = WeatherSource(scope)
+
     /** Display role: Bluetooth client towards the driver's device. */
     val displayClient by lazy {
         DisplayLinkClient(app, scope) { address ->
@@ -80,6 +91,15 @@ class AppGraph(app: Application) {
     init {
         // The current street is only kept while a route is active.
         scope.launch { controller.route.collect { if (it?.active != true) street.reset() } }
+        // The weather is asked for only while a passenger display (here or on a tablet) shows a route.
+        scope.launch {
+            combine(controller.route, displayServer.state, localDisplays) { r, link, local ->
+                r?.active == true && (link.status == DisplayLinkServer.Status.CONNECTED || local > 0)
+            }.distinctUntilChanged().collect { weather.want(it) }
+        }
+        scope.launch {
+            combine(weather.weather, MapsNavigation.eta) { w, eta -> w to eta }.collect { (w, eta) -> controller.setDisplayExtras(w, eta) }
+        }
     }
 }
 

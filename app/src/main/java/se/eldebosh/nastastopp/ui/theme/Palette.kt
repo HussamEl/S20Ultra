@@ -58,6 +58,22 @@ object Palette {
     val RedPale = Color(0xFFFFDAD8)
     val Red300 = Color(0xFFFCA5A5)
 
+    // The passenger display's big time, one colour after another (by day, then by night), and
+    // the orange of a trip that is due soon.
+    val Ember700 = Color(0xFFC2410C)
+    val Violet700 = Color(0xFF6D28D9)
+    val Teal700 = Color(0xFF0F766E)
+    val Rose700 = Color(0xFFBE123C)
+    val Emerald700 = Color(0xFF047857)
+    val Fuchsia700 = Color(0xFFA21CAF)
+    val Orange600 = Color(0xFFEA580C)
+    val Ember400 = Color(0xFFFB923C)
+    val Violet400 = Color(0xFFA78BFA)
+    val Teal400 = Color(0xFF2DD4BF)
+    val Rose400 = Color(0xFFFB7185)
+    val Emerald400 = Color(0xFF34D399)
+    val Fuchsia400 = Color(0xFFE879F9)
+
     // Glass for the floating panel: smoked black and night navy, a white sheen and edges.
     val Black = Color(0xFF000000)
     val Smoke = Color(0xFF111216)

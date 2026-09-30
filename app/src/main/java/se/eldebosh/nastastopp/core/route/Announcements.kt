@@ -19,10 +19,17 @@ object Announcements {
     fun finished(withEnglish: Boolean) = Announcement("Rutten är klar.", if (withEnglish) "The route is finished." else null)
 
     /**
-     * A following trip, when a passenger taps its card on the display: "Därefter", like the list's
-     * heading and the announcement, so it is never taken for the next stop.
+     * A trip tapped on the display: its time, then its place ("Klockan 8 och 05: Hamngatan 7,
+     * Skoghall"). Never "Nästa", so it is not taken for the next stop.
      */
-    fun following(name: String) = Announcement("Därefter: $name.", "Then: $name.")
+    fun at(time: String?, name: String): Announcement {
+        val parts = time?.split(':')
+        val hour = parts?.getOrNull(0)?.toIntOrNull()
+        val minute = parts?.getOrNull(1)?.toIntOrNull()
+        if (hour == null || minute == null) return Announcement("$name.", "$name.")
+        val at = if (minute == 0) "Klockan $hour" else String.format(Locale.ROOT, "Klockan %d och %02d", hour, minute)
+        return Announcement("$at: $name.", String.format(Locale.ROOT, "At %d:%02d: %s.", hour, minute, name))
+    }
 
     /**
      * The time, when a passenger taps the display's clock, read the way Swedish announcements read

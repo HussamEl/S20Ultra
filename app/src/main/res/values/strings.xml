@@ -143,6 +143,8 @@
     <string name="display_home">العودة إلى المحطة التالية</string>
     <string name="done_in_youdrive">منتهية في YouDrive</string>
     <string name="done_here">منتهية في التطبيق</string>
+    <string name="maps_time_label">وقت الوصول من Google Maps</string>
+    <string name="help_maps_time">يقرأ التطبيق من إشعار الملاحة في Google Maps الوقت المتبقي والمسافة إلى الوجهة التالية فقط، ليعرضهما على شاشة الركاب. لا يقرأ إشعارات أي تطبيق آخر، ولا يحفظ شيئاً ولا يرسل موقعاً. اضغط لتسمح بذلك في إعدادات النظام (الوصول إلى الإشعارات).</string>
     <string name="display_exit">خروج</string>
     <string name="display_connected">متصل: %1$s</string>
     <string name="display_connecting">جارٍ الاتصال بـ %1$s…</string>

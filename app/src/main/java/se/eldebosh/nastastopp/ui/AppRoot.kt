@@ -304,7 +304,11 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             // The passengers look at this screen: the driver's floating panel stays away.
                             DisposableEffect(Unit) {
                                 graph.overlay.suppress(DISPLAY_KEY, true)
-                                onDispose { graph.overlay.suppress(DISPLAY_KEY, false) }
+                                graph.localDisplays.value++
+                                onDispose {
+                                    graph.overlay.suppress(DISPLAY_KEY, false)
+                                    graph.localDisplays.value--
+                                }
                             }
                         }
                         Screen.DISPLAY_ROLE -> {
@@ -358,6 +362,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                     notifications = SystemIntents.hasNotifications(context),
                                     overlay = SystemIntents.canDrawOverlays(context),
                                     battery = SystemIntents.isIgnoringBatteryOptimizations(context),
+                                    mapsTime = SystemIntents.hasMapsTimeAccess(context),
                                 )
                             },
                             ttsStatus = ttsStatus,
@@ -387,6 +392,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 }
                             },
                             onOverlay = { SystemIntents.openOverlaySettings(context) },
+                            onMapsTime = { SystemIntents.openMapsTimeSettings(context) },
                             onBattery = { SystemIntents.requestIgnoreBatteryOptimizations(context) },
                             link = linkServer,
                             onToggleLink = ::toggleLink,

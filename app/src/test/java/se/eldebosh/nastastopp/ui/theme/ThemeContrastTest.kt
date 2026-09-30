@@ -38,6 +38,11 @@ class ThemeContrastTest {
         // The first card's time on the card's tint while it is said: large bold text.
         check(look, "passenger highlight on a lit card", c.highlight, c.infoSoft, 3.0)
         check(look, "\"DÄREFTER\" on its chip", c.text, c.tonalHigh, 4.5)
+        // The big time and the clock's ring: very large digits and a ring on the page.
+        c.showHues.forEach { check(look, "big time", it, c.background, 3.0) }
+        check(look, "ring of a trip due soon", c.soon, c.background, 3.0)
+        check(look, "ring of a late trip", c.danger, c.background, 3.0)
+        check(look, "\"NÄSTA\" on its yellow pill", c.onAccent, c.accent, 4.5)
         check(look, "main button", c.onAction, c.action, 4.5)
         check(look, "yellow button", c.onAccent, c.accent, 4.5)
         check(look, "blue on blue", c.onInfo, c.info, 4.5)

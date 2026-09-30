@@ -26,9 +26,11 @@ class AnnouncementsTest {
     }
 
     @Test
-    fun aTappedCardIsAFollowingTripNeverTheNextStop() {
-        assertEquals("Därefter: Hamngatan 7, Skoghall.", Announcements.following("Hamngatan 7, Skoghall").swedish)
-        assertEquals("Then: Hamngatan 7, Skoghall.", Announcements.following("Hamngatan 7, Skoghall").english)
+    fun aTappedTripIsSaidWithItsTimeNeverAsTheNextStop() {
+        assertEquals("Klockan 8 och 05: Hamngatan 7, Skoghall.", Announcements.at("08:05", "Hamngatan 7, Skoghall").swedish)
+        assertEquals("Klockan 9: Storgatan 14, Karlstad.", Announcements.at("09:00", "Storgatan 14, Karlstad").swedish)
+        assertEquals("At 8:05: Hamngatan 7, Skoghall.", Announcements.at("08:05", "Hamngatan 7, Skoghall").english)
+        assertEquals("Hamngatan 7, Skoghall.", Announcements.at(null, "Hamngatan 7, Skoghall").swedish)
     }
 
     @Test

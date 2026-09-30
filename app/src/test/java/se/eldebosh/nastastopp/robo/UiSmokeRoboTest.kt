@@ -225,7 +225,8 @@ class UiSmokeRoboTest {
             // Passenger display on the phone itself.
             compose.onNodeWithContentDescription(s(R.string.open_display)).performClick()
             compose.onNodeWithText("Storfors").assertExists()
-            compose.onNodeWithContentDescription(s(R.string.display_repeat)).assertExists()
+            // A tap on the address says the announcement again (no speaker button).
+            compose.onNodeWithText("Storfors").performClick()
             compose.onNodeWithContentDescription(s(R.string.display_exit)).performClick()
             compose.onNodeWithText(s(R.string.btn_next)).assertExists()
             // "Back" undoes the last "Next".

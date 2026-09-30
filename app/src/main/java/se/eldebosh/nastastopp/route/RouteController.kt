@@ -20,6 +20,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import se.eldebosh.nastastopp.core.display.DisplayItem
 import se.eldebosh.nastastopp.core.display.DisplaySnapshot
+import se.eldebosh.nastastopp.core.nav.DisplayEta
+import se.eldebosh.nastastopp.core.weather.DisplayWeather
 import se.eldebosh.nastastopp.core.geo.AnnouncementDetail
 import se.eldebosh.nastastopp.core.geo.GeoLogic
 import se.eldebosh.nastastopp.core.geo.StreetInfo
@@ -68,9 +70,17 @@ class RouteController(
     private val _announcements = MutableSharedFlow<Announcement>(extraBufferCapacity = 8)
     val announcements: SharedFlow<Announcement> = _announcements.asSharedFlow()
 
+    /** The area's weather and Google Maps' travel time, for the passenger display. */
+    private val extras = MutableStateFlow(DisplayExtras())
+
     /** What the passenger display shows (locally and on a connected tablet). */
-    val display: StateFlow<DisplaySnapshot> = combine(_route, settings.state) { r, _ -> buildDisplay(r) }
-        .stateIn(scope, SharingStarted.Eagerly, buildDisplay(_route.value))
+    val display: StateFlow<DisplaySnapshot> = combine(_route, settings.state, extras) { r, _, x -> buildDisplay(r, x) }
+        .stateIn(scope, SharingStarted.Eagerly, buildDisplay(_route.value, extras.value))
+
+    /** Shows [weather] and Google Maps' remaining travel time ([eta]) on the passenger display. */
+    fun setDisplayExtras(weather: DisplayWeather?, eta: DisplayEta?) {
+        extras.value = DisplayExtras(weather, eta)
+    }
 
     private val persistDispatcher = Dispatchers.IO.limitedParallelism(1)
     private var geocodeJob: Job? = null
@@ -141,7 +151,7 @@ class RouteController(
         return Announcements.forRemaining(listOfNotNull(next, then), settings.current.englishRepeat)
     }
 
-    private fun buildDisplay(r: RouteData?): DisplaySnapshot {
+    private fun buildDisplay(r: RouteData?, x: DisplayExtras): DisplaySnapshot {
         if (r == null) return DisplaySnapshot()
         val full = settings.current.displayFullAddress
         return DisplaySnapshot.build(
@@ -154,8 +164,10 @@ class RouteController(
                 else DisplayItem(time = s.time, title = spokenName(s), doneInYouDrive = s.youDriveDone)
             },
             announcement = if (r.active && r.stops.isNotEmpty()) announcementFor(r.stops) else null,
-        )
+        ).let { if (it.active) it.copy(weather = x.weather, eta = x.eta) else it }
     }
+
+    private data class DisplayExtras(val weather: DisplayWeather? = null, val eta: DisplayEta? = null)
 
     /** Speaks on this device and tells connected displays. */
     private fun speak(announcement: Announcement) {

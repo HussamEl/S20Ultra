@@ -142,6 +142,8 @@
     <string name="display_home">Till nästa stopp</string>
     <string name="done_in_youdrive">Klar i YouDrive</string>
     <string name="done_here">Klar i appen</string>
+    <string name="maps_time_label">Restid från Google Maps</string>
+    <string name="help_maps_time">Appen läser bara återstående tid och avstånd till nästa mål ur navigeringsaviseringen från Google Maps, för att visa dem på passagerarskärmen. Den läser inga andra appars aviseringar, sparar inget och skickar ingen position. Tryck för att tillåta det i systeminställningarna (åtkomst till aviseringar).</string>
     <string name="display_exit">Stäng</string>
     <string name="display_connected">Ansluten: %1$s</string>
     <string name="display_connecting">Ansluter till %1$s…</string>

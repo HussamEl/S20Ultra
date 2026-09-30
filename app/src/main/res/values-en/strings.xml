@@ -142,6 +142,8 @@
     <string name="display_home">Back to the next stop</string>
     <string name="done_in_youdrive">Done in YouDrive</string>
     <string name="done_here">Done in this app</string>
+    <string name="maps_time_label">Travel time from Google Maps</string>
+    <string name="help_maps_time">The app reads only the remaining time and distance to the next destination from the Google Maps navigation notification, to show them on the passenger display. It reads no notifications of other apps, keeps nothing and sends no position. Tap to allow it in the system settings (notification access).</string>
     <string name="display_exit">Exit</string>
     <string name="display_connected">Connected: %1$s</string>
     <string name="display_connecting">Connecting to %1$s…</string>

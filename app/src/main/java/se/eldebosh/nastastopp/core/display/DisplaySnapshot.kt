@@ -1,7 +1,9 @@
 package se.eldebosh.nastastopp.core.display
 
 import kotlinx.serialization.Serializable
+import se.eldebosh.nastastopp.core.nav.DisplayEta
 import se.eldebosh.nastastopp.core.route.Announcement
+import se.eldebosh.nastastopp.core.weather.DisplayWeather
 
 /** One trip as shown on the passenger display. */
 @Serializable
@@ -29,8 +31,8 @@ data class DisplayItem(
 /**
  * Everything the passenger display shows — and the only route data that is ever sent to a
  * second device: up to seven trips done, the next destination and up to seven upcoming trips
- * (time, address and area, and where each was marked done), and the current announcement text.
- * Never names.
+ * (time, address and area, and where each was marked done), the current announcement text, the
+ * area's weather and Google Maps' remaining travel time. Never names, never a position.
  */
 @Serializable
 data class DisplaySnapshot(
@@ -45,6 +47,10 @@ data class DisplaySnapshot(
     val completed: Int = 0,
     val announcementSv: String? = null,
     val announcementEn: String? = null,
+    /** The weather for the driver's area (a fixed place, never the vehicle's position), or null. */
+    val weather: DisplayWeather? = null,
+    /** Google Maps' remaining travel time, from its navigation notification on the phone, or null. */
+    val eta: DisplayEta? = null,
 ) {
     val announcement: Announcement?
         get() = announcementSv?.let { Announcement(it, announcementEn) }

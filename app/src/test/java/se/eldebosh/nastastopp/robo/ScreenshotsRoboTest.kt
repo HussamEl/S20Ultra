@@ -34,6 +34,10 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
+import se.eldebosh.nastastopp.core.nav.DisplayEta
+import se.eldebosh.nastastopp.core.weather.DisplayWeather
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.onFirst
 import java.time.LocalTime
 import org.junit.Assert.assertEquals
 import androidx.compose.runtime.mutableIntStateOf
@@ -473,7 +477,10 @@ class ScreenshotsRoboTest {
         compose.onNodeWithText("Storgatan 14").assertExists()
     }
 
-    /** A tap on a card says it as "Därefter" and a tap on the clock says the time, on this device. */
+    /**
+     * A tap on a card says its time and place and shows its trip in the middle for a moment; a tap
+     * on the clock says the time, on this device.
+     */
     @Test
     @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
     fun passengerDisplaySaysWhatIsTapped() {
@@ -500,7 +507,7 @@ class ScreenshotsRoboTest {
         compose.onNodeWithTag("ref_88").performClick()
         compose.mainClock.advanceTimeBy(1_000)
         compose.mainClock.autoAdvance = true
-        assertEquals(listOf("Därefter: Hamngatan 7, Skoghall.", "Klockan är 8 och 11."), said)
+        assertEquals(listOf("Klockan 8: Hamngatan 7, Skoghall.", "Klockan är 8 och 11."), said)
     }
 
     /** When the minute changes, the time grows into the middle of the screen, stays, then goes back. */
@@ -558,8 +565,42 @@ class ScreenshotsRoboTest {
         compose.onRoot().performTouchInput { swipeRight() }
         compose.mainClock.advanceTimeBy(1_500)
         save("display_paged_back", compose.onRoot().captureToImage().asAndroidBitmap())
-        compose.onNodeWithText("TIDIGARE").assertIsDisplayed()
+        compose.onAllNodesWithText("Järnvägsgatan 3B").onFirst().assertExists()
         compose.onNodeWithTag("ref_200").assertExists()
+        compose.mainClock.autoAdvance = true
+    }
+
+    /**
+     * The weather in the middle of the minute and Google Maps' travel time a little later, each for
+     * a moment; a tap brings the screen back at once.
+     */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun passengerDisplayShowsTheWeatherAndTheTravelTime() {
+        var now = LocalTime.of(8, 11, 25)
+        val snapshot = tabletSnapshot.copy(weather = DisplayWeather(14, 3), eta = DisplayEta(12, 5300))
+        compose.setContent {
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(snapshot, status = "Connected: Galaxy S20 Ultra", connected = true, onSpeak = {}, onExit = {}, time = { now })
+            }
+        }
+        compose.waitForIdle()
+        compose.mainClock.autoAdvance = false
+        now = LocalTime.of(8, 11, 27)
+        compose.mainClock.advanceTimeBy(2_500)
+        save("display_weather", compose.onRoot().captureToImage().asAndroidBitmap())
+        compose.onNodeWithText("14°").assertIsDisplayed()
+        compose.onNodeWithText("Halvklart").assertIsDisplayed()
+        compose.mainClock.advanceTimeBy(6_000)
+        compose.onNodeWithText("14°").assertDoesNotExist()
+        now = LocalTime.of(8, 11, 45)
+        compose.mainClock.advanceTimeBy(2_500)
+        save("display_eta", compose.onRoot().captureToImage().asAndroidBitmap())
+        compose.onNodeWithText("12").assertIsDisplayed()
+        // A tap anywhere: straight back.
+        compose.onRoot().performTouchInput { click(center) }
+        compose.mainClock.advanceTimeBy(800)
+        compose.onNodeWithText("12").assertDoesNotExist()
         compose.mainClock.autoAdvance = true
     }
 

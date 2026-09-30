@@ -59,6 +59,10 @@ data class AppColors(
     val time: Color,
     /** The passenger display's highlight, the app's blue: "NÄSTA STOPP", its time, the clock's seconds and what is being said. */
     val highlight: Color,
+    /** The passenger display's big time takes these colours one after another, a new one each minute. */
+    val showHues: List<Color>,
+    /** A trip due within a few minutes (the ring around the clock's minutes). */
+    val soon: Color,
     // Reference numbers.
     val refText: Color,
     val refPill: Color,
@@ -186,6 +190,8 @@ val DayColors = AppColors(
     onDangerSoft = Palette.RedDeep,
     time = Palette.Ink,
     highlight = Palette.SkyInk,
+    showHues = listOf(Palette.Ember700, Palette.Violet700, Palette.Teal700, Palette.Rose700, Palette.Emerald700, Palette.Fuchsia700),
+    soon = Palette.Orange600,
     refText = Color(0xFF6B7280),
     refPill = Palette.Ink.copy(alpha = 0.9f),
     onRefPill = Color(0xFFF1F2F4),
@@ -230,6 +236,8 @@ val NightColors = AppColors(
     onDangerSoft = Palette.RedPale,
     time = Palette.Moon,
     highlight = Palette.Sky,
+    showHues = listOf(Palette.Ember400, Palette.Violet400, Palette.Teal400, Palette.Rose400, Palette.Emerald400, Palette.Fuchsia400),
+    soon = Palette.Ember400,
     refText = Color(0xFF7F8BA0),
     refPill = Palette.Night.copy(alpha = 0.9f),
     onRefPill = Color(0xFFB8C2D4),

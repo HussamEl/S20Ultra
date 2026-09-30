@@ -63,6 +63,8 @@ data class PermissionStatus(
     val notifications: Boolean,
     val overlay: Boolean,
     val battery: Boolean,
+    /** The app may read Google Maps' travel time from its navigation notification. */
+    val mapsTime: Boolean = false,
 )
 
 @Composable
@@ -77,6 +79,7 @@ fun SettingsScreen(
     onLocation: () -> Unit,
     onNotifications: () -> Unit,
     onOverlay: () -> Unit,
+    onMapsTime: () -> Unit = {},
     onBattery: () -> Unit,
     onVoice: () -> Unit,
     link: DisplayLinkServer.State,
@@ -257,6 +260,8 @@ fun SettingsScreen(
                 StatusRow(stringResource(R.string.settings_overlay), permissions.overlay, 121, onOverlay)
                 CardDivider()
                 StatusRow(stringResource(R.string.settings_battery), permissions.battery, 122, onBattery)
+                CardDivider()
+                StatusRow(stringResource(R.string.maps_time_label), permissions.mapsTime, 203, onMapsTime, help = R.string.help_maps_time)
                 CardDivider()
                 StatusRow(
                     stringResource(R.string.settings_voice),

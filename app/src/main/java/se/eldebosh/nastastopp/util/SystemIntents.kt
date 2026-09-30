@@ -45,6 +45,15 @@ object SystemIntents {
         }
     }
 
+    /** Whether the driver let the app read Google Maps' navigation notification (Settings 203). */
+    fun hasMapsTimeAccess(context: Context): Boolean =
+        NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
+
+    /** The system screen where the driver lets the app read notifications (Google Maps' travel time). */
+    fun openMapsTimeSettings(context: Context) {
+        context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
     fun openOverlaySettings(context: Context) {
         if (!start(context, Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, packageUri(context)))) {
             start(context, Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION))
