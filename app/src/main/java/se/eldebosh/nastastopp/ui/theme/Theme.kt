@@ -14,9 +14,12 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.settings.Appearance
 
 /*
@@ -62,6 +65,17 @@ object AppTheme {
 
 private fun style(size: Int, line: Int, weight: FontWeight = FontWeight.Normal, spacing: Float = 0f) =
     TextStyle(fontSize = size.sp, lineHeight = line.sp, fontWeight = weight, letterSpacing = spacing.sp)
+
+/**
+ * The passenger display's typeface: Barlow Semi Condensed (SIL Open Font License, see
+ * assets/licenses), in the style of road and transit signs. Narrow letters let long Swedish
+ * street names ("Hantverkaregatan 6") stay large on one line.
+ */
+val DisplayFont = FontFamily(
+    Font(R.font.barlow_semi_condensed_medium, FontWeight.Medium),
+    Font(R.font.barlow_semi_condensed_semibold, FontWeight.SemiBold),
+    Font(R.font.barlow_semi_condensed_bold, FontWeight.Bold),
+)
 
 /** A compact, modern type scale. */
 private val AppTypography = Typography(

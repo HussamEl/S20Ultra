@@ -413,4 +413,26 @@ class ScreenshotsRoboTest {
             onExit = {},
         )
     }
+
+    /** The passenger display on the tablet (a Galaxy Tab S9+ in landscape). */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun passengerDisplayTablet() = shot("display_tablet") {
+        PassengerDisplayScreen(
+            snapshot = DisplaySnapshot(
+                active = true,
+                previous = DisplayItem("07:30", "Järnvägsgatan 3B", "Storfors"),
+                current = DisplayItem("07:36", "Västra Torggatan 12", "Karlstad"),
+                upcoming = listOf(
+                    DisplayItem("08:00", "Hamngatan 7", "Skoghall"),
+                    DisplayItem("08:25", "Storgatan 14", "Karlstad"),
+                    DisplayItem("08:50", "Södra Kyrkogatan 7", "Kristinehamn"),
+                ),
+            ),
+            status = "Connected: Galaxy S20 Ultra",
+            connected = true,
+            onSpeak = {},
+            onExit = {},
+        )
+    }
 }

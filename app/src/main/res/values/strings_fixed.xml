@@ -9,4 +9,9 @@
     <string name="lang_sv" translatable="false">Svenska</string>
     <string name="lang_en" translatable="false">English</string>
     <string name="dialog_address_hint" translatable="false">Storgatan 14, 652 24 Karlstad</string>
+    <!-- The passenger display speaks to the passengers in Swedish, like the announcements. -->
+    <string name="passenger_next_stop" translatable="false">Nästa stopp</string>
+    <string name="passenger_then" translatable="false">Därefter</string>
+    <string name="passenger_listen" translatable="false">Lyssna</string>
+    <string name="passenger_waiting" translatable="false">Rutten har inte börjat än</string>
 </resources>

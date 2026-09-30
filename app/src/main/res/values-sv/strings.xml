@@ -136,12 +136,10 @@
     <string name="open_display">Visa passagerarskärm</string>
     <string name="overlay_show">Visa flytande knapp</string>
     <string name="overlay_hide">Dölj flytande knapp</string>
-    <string name="display_waiting_route">Väntar på att rutten startar…</string>
     <string name="display_repeat">Upprepa</string>
     <string name="display_exit">Stäng</string>
     <string name="display_connected">Ansluten: %1$s</string>
     <string name="display_connecting">Ansluter till %1$s…</string>
-    <string name="display_next_label">Nästa stopp</string>
     <string name="role_controller">Full kontroll (förare)</string>
     <string name="role_display">Passagerarskärm</string>
     <string name="role_display_hint">För surfplattan: visar nästa mål i stor text och ansluter till förarens enhet via Bluetooth.</string>
@@ -165,7 +163,7 @@
     <string name="allow_bluetooth">Tillåt Bluetooth</string>
     <string name="turn_on_bluetooth">Slå på Bluetooth</string>
     <string name="help_display_title">Passagerarskärm på surfplattan</string>
-    <string name="help_display_body">1. Installera appen även på surfplattan.\n2. Parkoppla telefonen och surfplattan en gång i Bluetooth-inställningarna.\n3. På förarens enhet: Inställningar → \"Passagerarskärm via Bluetooth\" → på.\n4. På surfplattan: välj \"Passagerarskärm\" och sedan förarens enhet i listan.\n5. När rutten startar visas nästa mål i stor text, med ett tidigare stopp ovanför och tre kommande under. Högtalarknappen upprepar utropet.\nAnslutningen går direkt via Bluetooth, utan internet. Passagerarskärmen kan också öppnas på telefonen från ruttskärmen.</string>
+    <string name="help_display_body">1. Installera appen även på surfplattan.\n2. Parkoppla telefonen och surfplattan en gång i Bluetooth-inställningarna.\n3. På förarens enhet: Inställningar → \"Passagerarskärm via Bluetooth\" → på.\n4. På surfplattan: välj \"Passagerarskärm\" och sedan förarens enhet i listan.\n5. När rutten startar visas nästa stopp i stor text, klockan och de följande resorna under. Surfplattan läser upp varje utrop när du trycker Nästa på telefonen, och \"Lyssna\" upprepar det.\nAnslutningen går direkt via Bluetooth, utan internet. Passagerarskärmen kan också öppnas på telefonen från ruttskärmen.</string>
     <string name="display_auto">Automatiskt – söker förarens enhet bland parkopplade enheter</string>
     <string name="display_searching">Söker förarens enhet…</string>
     <string name="display_last_error">Senaste försök: %1$s</string>

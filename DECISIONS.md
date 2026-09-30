@@ -113,7 +113,9 @@ Every dialog, toast, sound and Maps launch follows a driver action. The only exc
 | Decision | Why |
 |---|---|
 | Bluetooth RFCOMM between paired devices; no Wi-Fi, server or extra library. The phone listens on a secure and a fallback channel and serves only devices paired with it. The tablet finds the phone by itself (the last device first, then phones, then tablets and computers; headsets and car kits are skipped). | Works in a car without a network. |
-| Only a `DisplaySnapshot` is sent: 1 previous, the current and 3 upcoming trips, time and street + number with the area under it (setting 114; area only when off). Never names. The tablet speaks only on its speaker button unless switched on. | Passengers are driven to their doors; names stay private. No double audio. |
+| Only a `DisplaySnapshot` is sent: 1 previous, the current and 3 upcoming trips, time and street + number with the area under it (setting 114; area only when off). Never names. | Passengers are driven to their doors; names stay private. |
+| The tablet speaks each announcement the phone makes when the driver taps Next (on by default; the switch 198 on the tablet's setup screen turns it off), and "Lyssna" repeats it there. | The tablet is where the passengers sit; the driver works everything from the phone. |
+| The display is laid out for the passengers: the next stop fills the middle ("NÄSTA STOPP" and its time, then the street and number as large as fits, the area under it), the clock is large in the corner, the following trips are cards below (side by side in landscape), and "Lyssna" is a large labelled button. Its words for the passengers are Swedish, like the announcements; the connection line follows the app's language. The typeface is Barlow Semi Condensed (SIL OFL, bundled with its licence in `assets/licenses`), in the style of road and transit signs. | Read from the seats at a glance; narrow letters keep long street names large. |
 | The link reconnects every 3 s; the phone pings every 10 s and a link silent for 30 s is dropped; lines over 64 KB close it. | Robust in a moving car. |
 
 ## 12. The interface
@@ -124,7 +126,7 @@ Every dialog, toast, sound and Maps launch follows a driver action. The only exc
 - Explanations sit behind a small "?" (`HelpDot`), never inline.
 - **Reference numbers** (a small number on every control) are **hidden by default** and switched on in Settings 105. The test tags / resource-ids `ref_<n>` are always present for UI Automator.
 - Maps' picture-in-picture window covers the bottom-right third of the screen, and not every system moves it for `preferKeepClear`. So on the route screen the driving buttons (Back 77, Next 78, Repeat 79) sit in the left 60 % of the bottom bar in every language; Open Maps (80) and Edit list (81) sit on the right, where the small window only hides what is not needed while it is shown. End (82) sits in the top bar.
-- The passenger display's title never splits a word: its size is capped so the longest word fits on one line.
+- The passenger display's title never splits a word: its size is capped so the longest word fits on one line. Times and the clock use equal-width digits.
 - Deliberately not built: calling or texting passengers (no phone numbers are stored), a traffic ETA (needs an online service), hiding the panel automatically while driving.
 
 ## 13. Build and delivery

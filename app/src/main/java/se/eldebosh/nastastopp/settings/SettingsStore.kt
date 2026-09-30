@@ -36,8 +36,8 @@ data class AppSettings(
     val displayLinkEnabled: Boolean = false,
     /** Passenger display shows the street address with the house number (off = area only). */
     val displayFullAddress: Boolean = true,
-    /** Display role: also speak announcements on this device. */
-    val displaySpeaks: Boolean = false,
+    /** Display role: speak the announcements on this device too, when the driver taps Next. */
+    val displaySpeaks: Boolean = true,
     /** Display role: Bluetooth address of the controller device to connect to. */
     val displayControllerAddress: String? = null,
     /** Floating button hidden by the driver (can be shown again from the app). */
@@ -111,7 +111,7 @@ class SettingsStore(context: Context) {
         role = runCatching { DeviceRole.valueOf(prefs.getString(K_ROLE, null) ?: "") }.getOrDefault(DeviceRole.CONTROLLER),
         displayLinkEnabled = prefs.getBoolean(K_LINK, false),
         displayFullAddress = prefs.getBoolean(K_FULL_ADDR, true),
-        displaySpeaks = prefs.getBoolean(K_DISPLAY_SPEAKS, false),
+        displaySpeaks = prefs.getBoolean(K_DISPLAY_SPEAKS, true),
         displayControllerAddress = prefs.getString(K_CONTROLLER, null),
         overlayHidden = prefs.getBoolean(K_OVERLAY_HIDDEN, false),
         overlayMinimized = prefs.getBoolean(K_OVERLAY_MIN, false),
@@ -129,7 +129,7 @@ class SettingsStore(context: Context) {
         private const val K_ROLE = "device_role"
         private const val K_LINK = "display_link_enabled"
         private const val K_FULL_ADDR = "display_full_address"
-        private const val K_DISPLAY_SPEAKS = "display_speaks"
+        private const val K_DISPLAY_SPEAKS = "display_speaks_announcements"
         private const val K_CONTROLLER = "display_controller_address"
         private const val K_OVERLAY_HIDDEN = "overlay_hidden"
         private const val K_OVERLAY_MIN = "overlay_minimized"

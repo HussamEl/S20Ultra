@@ -137,12 +137,10 @@
     <string name="open_display">عرض شاشة الركاب</string>
     <string name="overlay_show">إظهار الزر العائم</string>
     <string name="overlay_hide">إخفاء الزر العائم</string>
-    <string name="display_waiting_route">بانتظار بدء المسار…</string>
     <string name="display_repeat">إعادة الصوت</string>
     <string name="display_exit">خروج</string>
     <string name="display_connected">متصل: %1$s</string>
     <string name="display_connecting">جارٍ الاتصال بـ %1$s…</string>
-    <string name="display_next_label">المحطة التالية</string>
     <string name="role_controller">تحكم كامل (السائق)</string>
     <string name="role_display">شاشة الركاب</string>
     <string name="role_display_hint">للتابلت: يعرض الوجهة القادمة بخط كبير، ويتصل بجهاز السائق عبر البلوتوث.</string>
@@ -166,7 +164,7 @@
     <string name="allow_bluetooth">السماح بالبلوتوث</string>
     <string name="turn_on_bluetooth">تشغيل البلوتوث</string>
     <string name="help_display_title">شاشة الركاب على التابلت</string>
-    <string name="help_display_body">1. ثبّت التطبيق على التابلت أيضاً.\n2. اقرن الجوال والتابلت مرة واحدة من إعدادات البلوتوث.\n3. في جهاز السائق: الإعدادات ← «ربط شاشة الركاب» ← تشغيل.\n4. في التابلت: اختر «شاشة الركاب» ثم اختر جهاز السائق من القائمة.\n5. عند بدء المسار تظهر الوجهة القادمة على التابلت بخط كبير، مع رحلة سابقة واحدة فوقها وثلاث رحلات قادمة تحتها. زر الصوت يعيد الإعلان.\nالاتصال عبر البلوتوث مباشرة بين الجهازين، دون إنترنت. يمكن أيضاً فتح شاشة الركاب على الجوال نفسه من شاشة المسار.</string>
+    <string name="help_display_body">1. ثبّت التطبيق على التابلت أيضاً.\n2. اقرن الجوال والتابلت مرة واحدة من إعدادات البلوتوث.\n3. في جهاز السائق: الإعدادات ← «ربط شاشة الركاب» ← تشغيل.\n4. في التابلت: اختر «شاشة الركاب» ثم اختر جهاز السائق من القائمة.\n5. عند بدء المسار تظهر المحطة التالية على التابلت بخط كبير، والساعة، والرحلات التالية تحتها. التابلت ينطق الإعلان كلما ضغطت Next في الجوال، وزر «Lyssna» يعيده.\nالاتصال عبر البلوتوث مباشرة بين الجهازين، دون إنترنت. يمكن أيضاً فتح شاشة الركاب على الجوال نفسه من شاشة المسار.</string>
     <string name="display_auto">تلقائي — يبحث عن جهاز السائق بين الأجهزة المقترنة</string>
     <string name="display_searching">جارٍ البحث عن جهاز السائق…</string>
     <string name="display_last_error">آخر محاولة: %1$s</string>
