@@ -37,6 +37,7 @@ class ThemeContrastTest {
         check(look, "\"NÄSTA STOPP\" on its highlight chip", c.onInfo, c.highlight, 4.5)
         // The first card's time on the card's tint while it is said: large bold text.
         check(look, "passenger highlight on a lit card", c.highlight, c.infoSoft, 3.0)
+        check(look, "\"DÄREFTER\" on its chip", c.text, c.tonalHigh, 4.5)
         check(look, "main button", c.onAction, c.action, 4.5)
         check(look, "yellow button", c.onAccent, c.accent, 4.5)
         check(look, "blue on blue", c.onInfo, c.info, 4.5)

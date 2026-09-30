@@ -140,6 +140,7 @@
     <string name="display_repeat">إعادة الصوت</string>
     <string name="display_say_time">قل الوقت</string>
     <string name="display_say_trip">انطق هذه الرحلة</string>
+    <string name="display_home">العودة إلى المحطة التالية</string>
     <string name="display_exit">خروج</string>
     <string name="display_connected">متصل: %1$s</string>
     <string name="display_connecting">جارٍ الاتصال بـ %1$s…</string>

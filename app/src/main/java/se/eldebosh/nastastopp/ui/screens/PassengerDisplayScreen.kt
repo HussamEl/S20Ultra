@@ -2,6 +2,12 @@ package se.eldebosh.nastastopp.ui.screens
 
 import android.app.Activity
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.scaleIn
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.VerticalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
@@ -224,7 +230,7 @@ fun PassengerDisplayScreen(
                     landscape,
                     cue,
                     onSay = say,
-                    modifier = Modifier.fillMaxSize().padding(end = if (landscape) SPEAKER_ROOM else 0.dp, bottom = if (landscape) 0.dp else SPEAKER_ROOM),
+                    modifier = Modifier.fillMaxSize(),
                 )
                 SpeakerButton(
                     speakingText = live.announcementSv,
@@ -283,6 +289,11 @@ private fun rememberMinuteGrowth(now: State<LocalTime>, cue: Int, spokenText: St
 /**
  * The next stop and the following trips, changing together: the new next stop grows out of its
  * "Därefter" card. A spotlight follows what is said.
+ *
+ * The passengers can page through the stops in the middle: the next stop, then each following
+ * trip in turn (swiped sideways on a tablet, up and down on the phone, like the cards). This only
+ * changes what the display shows, never the route. Home brings back the next stop, and so do an
+ * announcement and half a minute left alone.
  */
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -300,6 +311,9 @@ private fun Stage(snapshot: DisplaySnapshot, landscape: Boolean, cue: Int, onSay
             val current = shown.current ?: return@AnimatedContent
             val shared = SharedStop(this@SharedTransitionLayout, this@AnimatedContent)
             val spotlight = rememberSpotlight()
+            val stops = listOf(current) + shown.upcoming
+            val pager = rememberPagerState { stops.size }
+            val scope = rememberCoroutineScope()
             // The announcement: first the next stop, then the "Därefter" card when its name comes.
             LaunchedEffect(cue) {
                 if (cue == 0) return@LaunchedEffect
@@ -312,44 +326,75 @@ private fun Stage(snapshot: DisplaySnapshot, landscape: Boolean, cue: Int, onSay
                         delay(CARD_LIT_MS)
                     }
                 }
+                pager.animateScrollToPage(0)
+            }
+            // Paged to a later stop and left there: back to the next stop after a while.
+            LaunchedEffect(pager.settledPage, pager.isScrollInProgress) {
+                if (pager.settledPage == 0 || pager.isScrollInProgress) return@LaunchedEffect
+                delay(BROWSE_RETURN_MS)
+                pager.animateScrollToPage(0)
             }
             val spot = spotlight.on
-            Column(Modifier.fillMaxSize()) {
-                NextStop(current, landscape, focused = spot == NEXT_STOP, dimmed = spot >= 0, shared, Modifier.weight(1f).fillMaxWidth())
-                if (shown.upcoming.isNotEmpty()) {
-                    ThenLabel()
-                    val card = @Composable { i: Int, item: DisplayItem, modifier: Modifier ->
-                        UpcomingCard(
-                            item,
-                            first = i == 0,
-                            landscape = landscape,
-                            lit = spot == i,
-                            dimmed = spot != NONE && spot != i,
-                            // Side by side, each card grows into the screen, never over its edge.
-                            origin = if (landscape) TransformOrigin(i / (MAX_UPCOMING - 1f), 1f) else TransformOrigin.Center,
-                            onClick = {
-                                spotlight.play {
-                                    on = i
-                                    delay(CARD_LIT_MS)
-                                }
-                                onSay(Announcements.following(listOfNotNull(item.title, item.subtitle).joinToString(", ")))
-                            },
-                            shared = shared,
-                            modifier = modifier,
-                        )
-                    }
-                    if (landscape) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            shown.upcoming.forEachIndexed { i, item -> card(i, item, Modifier.ref(94).weight(if (i == 0) FIRST_CARD_WEIGHT else 1f)) }
-                            // Fewer trips left: the cards keep their width.
-                            repeat(MAX_UPCOMING - shown.upcoming.size) { Spacer(Modifier.weight(1f)) }
+            Box(Modifier.fillMaxSize()) {
+                Column(Modifier.fillMaxSize().padding(end = if (landscape) SPEAKER_ROOM else 0.dp, bottom = if (landscape) 0.dp else SPEAKER_ROOM)) {
+                    val page = @Composable { index: Int ->
+                        if (index == 0) {
+                            StopHero(current, next = true, landscape, focused = spot == NEXT_STOP, dimmed = spot >= 0, shared = shared, modifier = Modifier.fillMaxSize())
+                        } else {
+                            // A card that is said lights up here too while its stop is shown.
+                            StopHero(stops[index], next = false, landscape, focused = spot == index - 1, dimmed = spot != NONE && spot != index - 1, shared = null, modifier = Modifier.fillMaxSize())
                         }
-                    } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            shown.upcoming.forEachIndexed { i, item -> card(i, item, Modifier.ref(94).fillMaxWidth()) }
+                    }
+                    val pages = Modifier.weight(1f).fillMaxWidth()
+                    if (landscape) HorizontalPager(pager, pages) { page(it) } else VerticalPager(pager, pages) { page(it) }
+                    if (stops.size > 1) {
+                        PageDots(pager.currentPage, stops.size, Modifier.align(Alignment.CenterHorizontally).ref(201, centered = true).padding(top = 8.dp))
+                    }
+                    if (shown.upcoming.isNotEmpty()) {
+                        ThenLabel()
+                        val card = @Composable { i: Int, item: DisplayItem, modifier: Modifier ->
+                            UpcomingCard(
+                                item,
+                                first = i == 0,
+                                landscape = landscape,
+                                lit = spot == i,
+                                dimmed = spot != NONE && spot != i,
+                                shownAbove = pager.currentPage == i + 1,
+                                // Side by side, each card grows into the screen, never over its edge.
+                                origin = if (landscape) TransformOrigin(i / (MAX_UPCOMING - 1f), 1f) else TransformOrigin.Center,
+                                onClick = {
+                                    spotlight.play {
+                                        on = i
+                                        delay(CARD_LIT_MS)
+                                    }
+                                    onSay(Announcements.following(listOfNotNull(item.title, item.subtitle).joinToString(", ")))
+                                },
+                                shared = shared,
+                                modifier = modifier,
+                            )
+                        }
+                        if (landscape) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                shown.upcoming.forEachIndexed { i, item -> card(i, item, Modifier.ref(94).weight(if (i == 0) FIRST_CARD_WEIGHT else 1f)) }
+                                // Fewer trips left: the cards keep their width.
+                                repeat(MAX_UPCOMING - shown.upcoming.size) { Spacer(Modifier.weight(1f)) }
+                            }
+                        } else {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                shown.upcoming.forEachIndexed { i, item -> card(i, item, Modifier.ref(94).fillMaxWidth()) }
+                            }
                         }
                     }
                 }
+                HomeButton(
+                    visible = pager.currentPage != 0,
+                    onClick = { scope.launch { pager.animateScrollToPage(0) } },
+                    // Above the speaker in the side room on a tablet, beside it on the phone.
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(
+                        bottom = if (landscape) SPEAKER_SIZE + 12.dp else 0.dp,
+                        end = if (landscape) 0.dp else SPEAKER_SIZE + 12.dp,
+                    ),
+                )
             }
         }
     }
@@ -439,14 +484,24 @@ private fun PreviousLine(item: DisplayItem, modifier: Modifier = Modifier) {
 }
 
 /**
- * The next stop: "NÄSTA STOPP" on a highlight chip and its time in the highlight colour, the
- * street and number as large as fits (at most two lines, never breaking a word), and the area
- * under it. While it is [focused], the label springs up and settles, and the address slowly grows
- * and lights up; while something else is said, it is [dimmed].
+ * A stop filling the middle: the street and number as large as fits (at most two lines, never
+ * breaking a word), and the area under it. The [next] stop has "NÄSTA STOPP" on a highlight chip
+ * and its time in the highlight colour, and keeps its place in the card → next stop transition
+ * ([shared]); a later one, paged to by the passengers, has a quiet "DÄREFTER". While it is
+ * [focused], the label springs up and settles, and the address slowly grows and lights up; while
+ * something else is said, it is [dimmed].
  */
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
-private fun NextStop(current: DisplayItem, landscape: Boolean, focused: Boolean, dimmed: Boolean, shared: SharedStop, modifier: Modifier = Modifier) {
+private fun StopHero(
+    current: DisplayItem,
+    next: Boolean,
+    landscape: Boolean,
+    focused: Boolean,
+    dimmed: Boolean,
+    shared: SharedStop?,
+    modifier: Modifier = Modifier,
+) {
     val labelScale = remember { Animatable(1f) }
     LaunchedEffect(focused) {
         if (!focused) return@LaunchedEffect
@@ -458,94 +513,96 @@ private fun NextStop(current: DisplayItem, landscape: Boolean, focused: Boolean,
     val scale by animateFloatAsState(if (focused) room else 1f, tween(FOCUS_MS, easing = FastOutSlowInEasing), label = "focus")
     val shade by animateFloatAsState(if (dimmed) DIM else 1f, tween(DIM_MS), label = "dim")
     val titleColor by animateColorAsState(if (focused) AppTheme.colors.highlight else AppTheme.colors.text, tween(FOCUS_MS / 2), label = "street")
-    with(shared) {
-        Column(
-            modifier.stop(current).graphicsLayer { alpha = shade },
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
+    val placed = if (shared == null) modifier else with(shared) { modifier.stop(current) }
+    Column(
+        placed.graphicsLayer { alpha = shade },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.ref(90).graphicsLayer {
+                scaleX = labelScale.value
+                scaleY = labelScale.value
+            },
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.ref(90).graphicsLayer {
-                    scaleX = labelScale.value
-                    scaleY = labelScale.value
-                },
-            ) {
+            Text(
+                stringResource(if (next) R.string.passenger_next_stop else R.string.passenger_then).uppercase(),
+                fontFamily = DisplayFont,
+                fontWeight = FontWeight.Bold,
+                fontSize = if (landscape) 34.sp else 26.sp,
+                letterSpacing = 1.5.sp,
+                color = if (next) AppTheme.colors.onInfo else AppTheme.colors.text,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(if (next) AppTheme.colors.highlight else AppTheme.colors.tonalHigh)
+                    .padding(horizontal = 22.dp, vertical = 2.dp),
+            )
+            if (current.time != null) {
+                Spacer(Modifier.width(18.dp))
                 Text(
-                    stringResource(R.string.passenger_next_stop).uppercase(),
+                    current.time,
                     fontFamily = DisplayFont,
                     fontWeight = FontWeight.Bold,
-                    fontSize = if (landscape) 34.sp else 26.sp,
-                    letterSpacing = 1.5.sp,
-                    color = AppTheme.colors.onInfo,
-                    modifier = Modifier.clip(RoundedCornerShape(50)).background(AppTheme.colors.highlight).padding(horizontal = 22.dp, vertical = 2.dp),
+                    fontSize = if (landscape) 50.sp else 36.sp,
+                    color = if (next) AppTheme.colors.highlight else AppTheme.colors.time,
+                    style = TextStyle(fontFeatureSettings = TABULAR),
                 )
-                if (current.time != null) {
-                    Spacer(Modifier.width(18.dp))
-                    Text(
-                        current.time,
-                        fontFamily = DisplayFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = if (landscape) 50.sp else 36.sp,
-                        color = AppTheme.colors.highlight,
-                        style = TextStyle(fontFeatureSettings = TABULAR),
-                    )
-                }
             }
-            Column(
-                Modifier
-                    .weight(1f, fill = false)
-                    .fillMaxWidth()
-                    .graphicsLayer {
-                        scaleX = scale
-                        scaleY = scale
+        }
+        Column(
+            Modifier
+                .weight(1f, fill = false)
+                .fillMaxWidth()
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                },
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            BoxWithConstraints(Modifier.ref(91).weight(1f, fill = false).fillMaxWidth()) {
+                val style = TextStyle(
+                    fontFamily = DisplayFont,
+                    fontWeight = FontWeight.Bold,
+                    color = titleColor,
+                    textAlign = TextAlign.Center,
+                    textDirection = TextDirection.Content,
+                    lineHeight = 1.0.em,
+                )
+                // Never larger than the size at which the longest word still fits on one line,
+                // so a street name is not split in the middle ("Järnvägsg-atan").
+                val measurer = rememberTextMeasurer()
+                val width = constraints.maxWidth
+                val maxSp = remember(current.title, width) {
+                    val widest = current.title.split(' ').filter { it.isNotBlank() }
+                        .maxOfOrNull { measurer.measure(it, style.copy(fontSize = 100.sp)).size.width } ?: 0
+                    if (widest <= 0) MAX_TITLE_SP else (100f * width / widest * 0.95f).coerceIn(MIN_TITLE_SP, MAX_TITLE_SP)
+                }
+                BasicText(
+                    text = current.title,
+                    style = style,
+                    maxLines = 2,
+                    autoSize = TextAutoSize.StepBased(minFontSize = MIN_TITLE_SP.sp, maxFontSize = maxSp.sp, stepSize = 2.sp),
+                    onTextLayout = { layout ->
+                        val line = (0 until layout.lineCount).maxOfOrNull { layout.getLineRight(it) - layout.getLineLeft(it) } ?: 0f
+                        if (line > 0f) room = (layout.size.width * TITLE_ROOM / line).coerceIn(1f, TITLE_FOCUS)
                     },
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                BoxWithConstraints(Modifier.ref(91).weight(1f, fill = false).fillMaxWidth()) {
-                    val style = TextStyle(
-                        fontFamily = DisplayFont,
-                        fontWeight = FontWeight.Bold,
-                        color = titleColor,
-                        textAlign = TextAlign.Center,
-                        textDirection = TextDirection.Content,
-                        lineHeight = 1.0.em,
-                    )
-                    // Never larger than the size at which the longest word still fits on one line,
-                    // so a street name is not split in the middle ("Järnvägsg-atan").
-                    val measurer = rememberTextMeasurer()
-                    val width = constraints.maxWidth
-                    val maxSp = remember(current.title, width) {
-                        val widest = current.title.split(' ').filter { it.isNotBlank() }
-                            .maxOfOrNull { measurer.measure(it, style.copy(fontSize = 100.sp)).size.width } ?: 0
-                        if (widest <= 0) MAX_TITLE_SP else (100f * width / widest * 0.95f).coerceIn(MIN_TITLE_SP, MAX_TITLE_SP)
-                    }
-                    BasicText(
-                        text = current.title,
-                        style = style,
-                        maxLines = 2,
-                        autoSize = TextAutoSize.StepBased(minFontSize = MIN_TITLE_SP.sp, maxFontSize = maxSp.sp, stepSize = 2.sp),
-                        onTextLayout = { layout ->
-                            val line = (0 until layout.lineCount).maxOfOrNull { layout.getLineRight(it) - layout.getLineLeft(it) } ?: 0f
-                            if (line > 0f) room = (layout.size.width * TITLE_ROOM / line).coerceIn(1f, TITLE_FOCUS)
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                current.subtitle?.let {
-                    Text(
-                        it,
-                        fontFamily = DisplayFont,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = if (landscape) 44.sp else 30.sp,
-                        color = AppTheme.colors.textMuted,
-                        textAlign = TextAlign.Center,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = TextStyle(textDirection = TextDirection.Content),
-                        modifier = Modifier.ref(92),
-                    )
-                }
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            current.subtitle?.let {
+                Text(
+                    it,
+                    fontFamily = DisplayFont,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = if (landscape) 44.sp else 30.sp,
+                    color = AppTheme.colors.textMuted,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = TextStyle(textDirection = TextDirection.Content),
+                    modifier = Modifier.ref(92),
+                )
             }
         }
     }
@@ -568,7 +625,8 @@ private fun ThenLabel() {
  * A following trip: its time and street and number, the area under them. The [first] one is the
  * "Därefter" of the announcement: larger and edged in the highlight colour. While it is [lit]
  * (its name is said), it grows well past its size from [origin] and takes a highlight tint, then
- * settles back; while something else is said, it is [dimmed]. A tap says it.
+ * settles back; while something else is said, it is [dimmed]. While the passengers have paged to
+ * it in the middle ([shownAbove]), it keeps a highlight edge and tint. A tap says it.
  */
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -578,6 +636,7 @@ private fun UpcomingCard(
     landscape: Boolean,
     lit: Boolean,
     dimmed: Boolean,
+    shownAbove: Boolean,
     origin: TransformOrigin,
     onClick: () -> Unit,
     shared: SharedStop,
@@ -590,7 +649,7 @@ private fun UpcomingCard(
     )
     val shade by animateFloatAsState(if (dimmed) DIM else 1f, tween(DIM_MS), label = "dim")
     val shape = RoundedCornerShape(18.dp)
-    val background by animateColorAsState(if (lit) AppTheme.colors.infoSoft else AppTheme.colors.card, tween(600), label = "card tint")
+    val background by animateColorAsState(if (lit || shownAbove) AppTheme.colors.infoSoft else AppTheme.colors.card, tween(600), label = "card tint")
     val titleSp = if (first) FIRST_CARD_SP else CARD_SP
     val description = stringResource(R.string.display_say_trip)
     with(shared) {
@@ -607,7 +666,11 @@ private fun UpcomingCard(
                 .stop(item)
                 .clip(shape)
                 .background(background)
-                .border(if (first) 2.dp else 1.dp, if (first) AppTheme.colors.highlight else AppTheme.colors.cardBorder, shape)
+                .border(
+                    if (shownAbove) 3.dp else if (first) 2.dp else 1.dp,
+                    if (first || shownAbove) AppTheme.colors.highlight else AppTheme.colors.cardBorder,
+                    shape,
+                )
                 .clickable(onClickLabel = description, role = Role.Button, onClick = onClick)
                 .padding(horizontal = 16.dp, vertical = if (first && landscape) 12.dp else 10.dp),
         ) {
@@ -646,6 +709,42 @@ private fun UpcomingCard(
                     style = TextStyle(textDirection = TextDirection.Content),
                 )
             }
+        }
+    }
+}
+
+/** Where the passengers are among the stops, the next stop first: the one shown is a blue bar. */
+@Composable
+private fun PageDots(current: Int, count: Int, modifier: Modifier = Modifier) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = modifier) {
+        repeat(count) { i ->
+            val width by animateDpAsState(if (i == current) 28.dp else 8.dp, spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessMediumLow), label = "dot")
+            Box(Modifier.size(width, 8.dp).clip(CircleShape).background(if (i == current) AppTheme.colors.highlight else AppTheme.colors.outline))
+        }
+    }
+}
+
+/** Back to the next stop, while the passengers have paged away from it: a house in a blue circle. */
+@Composable
+private fun HomeButton(visible: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    AnimatedVisibility(
+        visible,
+        modifier,
+        enter = scaleIn(spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessMediumLow)) + fadeIn(),
+        exit = scaleOut(tween(200)) + fadeOut(tween(200)),
+    ) {
+        val description = stringResource(R.string.display_home)
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .refCorner(200)
+                .size(SPEAKER_SIZE)
+                .clip(CircleShape)
+                .background(AppTheme.colors.highlight)
+                .clickable(onClickLabel = description, role = Role.Button, onClick = onClick)
+                .semantics { contentDescription = description },
+        ) {
+            Icon(painterResource(R.drawable.ic_home), contentDescription = null, tint = AppTheme.colors.onInfo, modifier = Modifier.size(30.dp))
         }
     }
 }
@@ -850,6 +949,9 @@ private const val CARD_GROW_MS = 1_600
 /** Growing and holding; with the way back, a card is lit for four seconds. */
 private const val CARD_LIT_MS = 2_400L
 private const val NONE = -2
+
+/** A later stop paged to and left alone gives way to the next stop again. */
+private const val BROWSE_RETURN_MS = 30_000L
 private const val NEXT_STOP = -1
 
 /** Twice the size the clock had with its hours large. */

@@ -28,6 +28,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeLeft
 import java.time.LocalTime
 import org.junit.Assert.assertEquals
 import androidx.compose.runtime.mutableIntStateOf
@@ -516,6 +521,37 @@ class ScreenshotsRoboTest {
         }
         compose.mainClock.autoAdvance = true
         compose.onNodeWithText("Västra Torggatan 12").assertExists()
+    }
+
+    /**
+     * A swipe pages to the following stops in the middle, marking their card; Home brings back the
+     * next stop. The route itself does not move.
+     */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun passengerDisplayPagesThroughTheStops() {
+        compose.setContent {
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(tabletSnapshot, status = "Connected: Galaxy S20 Ultra", connected = true, onSpeak = {}, onExit = {}, time = { LocalTime.of(8, 11, 5) })
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("ref_200").assertDoesNotExist()
+        compose.mainClock.autoAdvance = false
+        repeat(2) {
+            compose.onNodeWithTag("ref_91").performTouchInput { swipeLeft() }
+            compose.mainClock.advanceTimeBy(1_500)
+        }
+        save("display_paged", compose.onRoot().captureToImage().asAndroidBitmap())
+        // The stop after "Därefter", large in the middle and on its card.
+        compose.onAllNodesWithText("Storgatan 14").assertCountEquals(2)
+        compose.onNodeWithText("Västra Torggatan 12").assertDoesNotExist()
+        compose.onNodeWithTag("ref_200").performClick()
+        compose.mainClock.advanceTimeBy(3_000)
+        save("display_paged_home", compose.onRoot().captureToImage().asAndroidBitmap())
+        compose.onNodeWithText("Västra Torggatan 12").assertIsDisplayed()
+        compose.onNodeWithTag("ref_200").assertDoesNotExist()
+        compose.mainClock.autoAdvance = true
     }
 
     private val tabletSnapshot = DisplaySnapshot(
