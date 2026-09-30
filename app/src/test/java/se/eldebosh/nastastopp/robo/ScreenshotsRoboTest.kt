@@ -20,6 +20,8 @@ import se.eldebosh.nastastopp.core.geo.Fix
 import se.eldebosh.nastastopp.geo.CurrentStreet
 import se.eldebosh.nastastopp.geo.StreetMapStore
 import se.eldebosh.nastastopp.overlay.OverlayManager
+import se.eldebosh.nastastopp.overlay.PanelSource
+import se.eldebosh.nastastopp.overlay.RoutePanelSource
 import se.eldebosh.nastastopp.ui.screens.OnboardingScreen
 import java.time.Duration
 import androidx.compose.material3.MaterialTheme
@@ -291,7 +293,14 @@ class ScreenshotsRoboTest {
      * The panel (or its minimised capsule) over a background that is half a light day map with a
      * park and a route line, half a dark wallpaper: the glass must read on all of them.
      */
-    private fun renderPanel(name: String, appearance: Appearance, minimized: Boolean = false, language: String = "en") {
+    /** The panel as a tablet shows it over the passenger display: no name, no street bar or speed. */
+    @Test
+    fun floatingPanelOnTheTablet() = renderPanel("floating_tablet", Appearance.NIGHT, tablet = true)
+
+    @Test
+    fun floatingBubbleOnTheTablet() = renderPanel("floating_tablet_bubble", Appearance.NIGHT, minimized = true, tablet = true)
+
+    private fun renderPanel(name: String, appearance: Appearance, minimized: Boolean = false, language: String = "en", tablet: Boolean = false) {
         val app = ApplicationProvider.getApplicationContext<App>()
         val graph = app.graph
         ShadowSettings.setCanDrawOverlays(true)
@@ -313,7 +322,13 @@ class ScreenshotsRoboTest {
         shadowOf(Looper.getMainLooper()).idle()
         street.onFix(Fix(10_000, 59.38, 13.5, 12.5f, 5f)) // the confirming reading
         shadowOf(Looper.getMainLooper()).idle()
-        val panelManager = OverlayManager(app, graph.controller, graph.settings, street, graph.scope)
+        val phone = RoutePanelSource(graph.controller, street)
+        // A tablet gets what its passenger display gets: no name, and no street or speed.
+        val source = if (!tablet) phone else object : PanelSource by phone {
+            override val street: CurrentStreet? = null
+            override fun trip() = phone.trip()?.copy(name = null, area = null)
+        }
+        val panelManager = OverlayManager(app, source, graph.settings, graph.scope) { true }
         graph.controller.start()
         shadowOf(Looper.getMainLooper()).idle()
         val wm = Shadow.extract<ShadowWindowManagerImpl>(app.getSystemService(WindowManager::class.java))
@@ -508,6 +523,46 @@ class ScreenshotsRoboTest {
         compose.mainClock.advanceTimeBy(1_000)
         compose.mainClock.autoAdvance = true
         assertEquals(listOf("Klockan 8: Hamngatan 7, Skoghall.", "Klockan är 8 och 11."), said)
+    }
+
+    /**
+     * A tap on the clock says the time and springs it out to fill the screen, seconds and all; a
+     * tap anywhere brings the screen back at once.
+     */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun passengerDisplayClockTapFillsTheScreen() {
+        val said = mutableListOf<String>()
+        var repeats = 0
+        compose.setContent {
+            NastaTheme(Appearance.NIGHT) {
+                PassengerDisplayScreen(
+                    tabletSnapshot,
+                    status = "Connected: Galaxy S20 Ultra",
+                    connected = true,
+                    onSpeak = { repeats++ },
+                    onExit = {},
+                    onSay = { said += it.swedish },
+                    time = { LocalTime.of(8, 11, 42) },
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("display_night", compose.onRoot().captureToImage().asAndroidBitmap())
+        compose.mainClock.autoAdvance = false
+        compose.onNodeWithTag("ref_88").performClick()
+        compose.mainClock.advanceTimeBy(2_500)
+        save("display_clock_tap", compose.onRoot().captureToImage().asAndroidBitmap())
+        assertEquals(listOf("Klockan är 8 och 11."), said)
+        // While the time fills the screen a tap anywhere only brings the screen back; after that
+        // the address takes taps again.
+        compose.onNodeWithText("Västra Torggatan 12").performClick()
+        compose.mainClock.advanceTimeBy(800)
+        assertEquals(0, repeats)
+        compose.onNodeWithText("Västra Torggatan 12").performClick()
+        compose.mainClock.advanceTimeBy(800)
+        assertEquals(1, repeats)
+        compose.mainClock.autoAdvance = true
     }
 
     /** When the minute changes, the time grows into the middle of the screen, stays, then goes back. */

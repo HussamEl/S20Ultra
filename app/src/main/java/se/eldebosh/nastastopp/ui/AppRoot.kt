@@ -350,6 +350,10 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 onSay = { graph.announcer.speak(it) },
                                 spoken = spoken,
                                 onToggleSpeaks = { v -> graph.settings.update { it.copy(displaySpeaks = v) } },
+                                onTogglePanel = { v ->
+                                    graph.settings.update { it.copy(tabletPanel = v) }
+                                    if (v && !graph.tabletPanel.canShow) SystemIntents.openOverlaySettings(context)
+                                },
                                 onSwitchToController = { vm.setRole(DeviceRole.CONTROLLER) },
                             )
                         }

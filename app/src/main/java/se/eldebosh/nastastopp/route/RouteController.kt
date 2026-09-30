@@ -160,8 +160,8 @@ class RouteController(
             remaining = r.stops,
             item = { s ->
                 // The street address with the house number (setting 114), the area under it.
-                if (full) DisplayItem(time = s.time, title = DisplayItem.streetPart(s.displayText), subtitle = spokenName(s), doneInYouDrive = s.youDriveDone)
-                else DisplayItem(time = s.time, title = spokenName(s), doneInYouDrive = s.youDriveDone)
+                if (full) DisplayItem(time = s.time, title = DisplayItem.streetPart(s.displayText), subtitle = spokenName(s), doneInYouDrive = s.youDriveDone, kind = s.kind)
+                else DisplayItem(time = s.time, title = spokenName(s), doneInYouDrive = s.youDriveDone, kind = s.kind)
             },
             announcement = if (r.active && r.stops.isNotEmpty()) announcementFor(r.stops) else null,
         ).let { if (it.active) it.copy(weather = x.weather, eta = x.eta) else it }

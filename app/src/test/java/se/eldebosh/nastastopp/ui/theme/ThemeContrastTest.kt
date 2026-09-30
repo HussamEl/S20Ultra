@@ -34,15 +34,16 @@ class ThemeContrastTest {
         check(look, "time on card", c.time, c.card, 4.5)
         check(look, "passenger highlight on page", c.highlight, c.background, 4.5)
         check(look, "passenger highlight on card", c.highlight, c.card, 4.5)
-        check(look, "\"NÄSTA STOPP\" on its highlight chip", c.onInfo, c.highlight, 4.5)
         // The first card's time on the card's tint while it is said: large bold text.
         check(look, "passenger highlight on a lit card", c.highlight, c.infoSoft, 3.0)
         check(look, "\"DÄREFTER\" on its chip", c.text, c.tonalHigh, 4.5)
-        // The big time and the clock's ring: very large digits and a ring on the page.
+        // The big time and the outline on the clock's minutes: very large digits, a line on the page.
         c.showHues.forEach { check(look, "big time", it, c.background, 3.0) }
-        check(look, "ring of a trip due soon", c.soon, c.background, 3.0)
-        check(look, "ring of a late trip", c.danger, c.background, 3.0)
-        check(look, "\"NÄSTA\" on its yellow pill", c.onAccent, c.accent, 4.5)
+        check(look, "outline of a trip on time", c.success, c.background, 3.0)
+        check(look, "outline of a trip due soon", c.soon, c.background, 3.0)
+        check(look, "outline of a late trip", c.danger, c.background, 3.0)
+        check(look, "\"NÄSTA\" on its translucent chip", c.onNextChip, c.nextChip.compositeOver(c.background), 4.5)
+        check(look, "\"NÄSTA\" chip's edge", c.nextChipEdge.compositeOver(c.background), c.background, 1.4)
         check(look, "main button", c.onAction, c.action, 4.5)
         check(look, "yellow button", c.onAccent, c.accent, 4.5)
         check(look, "blue on blue", c.onInfo, c.info, 4.5)
@@ -82,6 +83,8 @@ class ThemeContrastTest {
             check(at, "street / name / address", p.text, well, 4.5)
             check(at, "area", p.textMuted, well, 4.5)
             for (status in listOf(p.success, p.warning, p.danger)) check(at, "on-time status", status, well, 4.5)
+            // The minimised capsule: its countdown on the deeper glass, in the display clock's colours.
+            for (status in listOf(p.success, p.soon, p.danger)) check(at, "countdown on the capsule", status, well, 4.5)
             check(at, "– and ×", p.text, control, 4.5)
             check(at, "the yellow Next", c.accent, frame, 3.0)
         }

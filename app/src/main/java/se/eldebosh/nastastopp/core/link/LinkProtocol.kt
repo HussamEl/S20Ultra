@@ -14,7 +14,8 @@ import java.util.UUID
 
 /**
  * Messages between the driver's device (controller) and a passenger display, one JSON object
- * per line. Only what the display shows is ever sent (see [DisplaySnapshot]).
+ * per line. Only what the display shows is ever sent to it (see [DisplaySnapshot]); the display
+ * sends back only the buttons pressed on its floating panel ([Command]).
  */
 @Serializable
 sealed interface LinkMessage {
@@ -36,6 +37,13 @@ sealed interface LinkMessage {
     @Serializable
     @SerialName("ping")
     data object Ping : LinkMessage
+
+    /** A button the driver pressed on the tablet's floating panel, for the phone to carry out. */
+    @Serializable
+    @SerialName("command")
+    data class Command(val action: Action) : LinkMessage {
+        enum class Action { NEXT, BACK, REPEAT }
+    }
 }
 
 object LinkProtocol {

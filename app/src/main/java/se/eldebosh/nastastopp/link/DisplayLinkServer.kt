@@ -30,7 +30,8 @@ import java.util.concurrent.ConcurrentHashMap
  * Controller side of the passenger display link: Bluetooth RFCOMM servers (no internet) on the
  * secure channel and on a fallback channel. Only devices paired with this one are served. Every
  * connected display gets the current [se.eldebosh.nastastopp.core.display.DisplaySnapshot] on
- * connect and on each change, plus the announcements as they are spoken.
+ * connect and on each change, plus the announcements as they are spoken. A display's floating
+ * panel may send back Next, Back and Repeat.
  */
 class DisplayLinkServer(
     private val context: Context,
@@ -174,8 +175,9 @@ class DisplayLinkServer(
                 }
             },
             io {
-                @Suppress("ControlFlowWithEmptyBody")
-                while (session.receive() != null) {
+                while (true) {
+                    val message = session.receive() ?: break
+                    if (message is LinkMessage.Command) scope.launch(Dispatchers.Main) { carryOut(message.action) }
                 }
             },
         )
@@ -185,6 +187,15 @@ class DisplayLinkServer(
         session.close()
         sockets.remove(socket)
         publishClients()
+    }
+
+    /** Next, Back or Repeat pressed on a tablet's floating panel: as if pressed on the phone's. */
+    private fun carryOut(action: LinkMessage.Command.Action) {
+        when (action) {
+            LinkMessage.Command.Action.NEXT -> controller.next()
+            LinkMessage.Command.Action.BACK -> controller.back()
+            LinkMessage.Command.Action.REPEAT -> controller.repeat()
+        }
     }
 
     private fun publishClients() {

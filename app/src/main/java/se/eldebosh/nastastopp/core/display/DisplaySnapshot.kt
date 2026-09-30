@@ -2,6 +2,7 @@ package se.eldebosh.nastastopp.core.display
 
 import kotlinx.serialization.Serializable
 import se.eldebosh.nastastopp.core.nav.DisplayEta
+import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.core.route.Announcement
 import se.eldebosh.nastastopp.core.weather.DisplayWeather
 
@@ -18,6 +19,8 @@ data class DisplayItem(
     val doneInYouDrive: Boolean = false,
     /** Done in this app: the route has passed it. */
     val doneHere: Boolean = false,
+    /** The list's Pick-up / Drop-off / Pull-out, for the stripe on a tablet's floating panel. */
+    val kind: TripKind? = null,
 ) {
     /** The same trip whatever its done marks: it keeps its place on the display when marked. */
     val trip: DisplayItem get() = if (doneInYouDrive || doneHere) copy(doneInYouDrive = false, doneHere = false) else this
@@ -31,7 +34,7 @@ data class DisplayItem(
 /**
  * Everything the passenger display shows — and the only route data that is ever sent to a
  * second device: up to seven trips done, the next destination and up to seven upcoming trips
- * (time, address and area, and where each was marked done), the current announcement text, the
+ * (time, address and area, trip kind, and where each was marked done), the current announcement text, the
  * area's weather and Google Maps' remaining travel time. Never names, never a position.
  */
 @Serializable

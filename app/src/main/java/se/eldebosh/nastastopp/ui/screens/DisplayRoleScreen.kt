@@ -67,6 +67,8 @@ fun DisplayRoleScreen(
     onSay: (Announcement) -> Unit,
     onToggleSpeaks: (Boolean) -> Unit,
     onSwitchToController: () -> Unit,
+    /** The phone's floating panel on this tablet (asks for the overlay permission when missing). */
+    onTogglePanel: (Boolean) -> Unit = {},
     availabilityStatus: DisplayLinkClient.Status = DisplayLinkClient.Status.IDLE,
     /** Goes up by one with each announcement from the driver's phone. */
     spoken: Int = 0,
@@ -145,6 +147,12 @@ fun DisplayRoleScreen(
                     title = stringResource(R.string.display_speaks),
                     onClick = { onToggleSpeaks(!settings.displaySpeaks) },
                     trailing = { Switch(checked = settings.displaySpeaks, onCheckedChange = onToggleSpeaks, modifier = Modifier.refCorner(198)) },
+                )
+                ListRow(
+                    title = stringResource(R.string.tablet_panel),
+                    help = R.string.help_tablet_panel,
+                    onClick = { onTogglePanel(!settings.tabletPanel) },
+                    trailing = { Switch(checked = settings.tabletPanel, onCheckedChange = onTogglePanel, modifier = Modifier.refCorner(206)) },
                 )
             }
             Spacer(Modifier.size(8.dp))

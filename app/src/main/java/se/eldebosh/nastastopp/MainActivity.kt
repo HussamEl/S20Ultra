@@ -81,6 +81,7 @@ class MainActivity : ComponentActivity() {
         graph.controller.clearIfExpired()
         graph.history.prune()
         graph.overlay.refresh()
+        graph.tabletPanel.refresh()
         // Naming the street: (re)start its service while we are in the foreground (after process death).
         graph.controller.ensureStreetService()
         // Watching YouDrive: (re)start its service while we are in the foreground.

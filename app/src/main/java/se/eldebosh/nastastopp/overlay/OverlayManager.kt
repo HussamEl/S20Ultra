@@ -1,5 +1,6 @@
 package se.eldebosh.nastastopp.overlay
 
+import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
@@ -39,12 +40,12 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import se.eldebosh.nastastopp.MainActivity
 import se.eldebosh.nastastopp.R
+import se.eldebosh.nastastopp.core.display.TimeStatus
 import se.eldebosh.nastastopp.core.parse.TimeLevel
 import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.core.parse.TripTimes
-import se.eldebosh.nastastopp.geo.CurrentStreet
-import se.eldebosh.nastastopp.route.RouteController
 import se.eldebosh.nastastopp.service.Notifications
+import se.eldebosh.nastastopp.settings.AppSettings
 import se.eldebosh.nastastopp.settings.SettingsStore
 import se.eldebosh.nastastopp.ui.theme.AppColors
 import se.eldebosh.nastastopp.ui.theme.AppTheme
@@ -78,17 +79,23 @@ import kotlin.math.roundToInt
  *
  * It follows the UI language (Arabic: mirrored). Next: tap = "Nästa", long-press = repeat. Back:
  * undo the last "Nästa". The street bar: tap = say the street, long-press = repeat. The stop's
- * street: tap = say its street and number. "–" shrinks it
- * to a small glass capsule (tap to expand); "×" closes it, and it comes back from the notification
+ * street: tap = say its street and number. "–" shrinks it to a small glass capsule with a
+ * countdown to the trip (tap to expand); "×" closes it, and it comes back from the notification
  * that appears, the Quick Settings tile or the app. Everything can be dragged; the position is
  * remembered and kept on screen.
+ *
+ * The phone's panel shows its own route ([RoutePanelSource]). A tablet can show the same panel
+ * over its passenger display ([LinkPanelSource]): without the passenger's name and without the
+ * street bar and speed, which stay on the phone; its Next, Back and Repeat go to the phone.
+ *
+ * @param wanted whether this panel belongs to the device's role and settings.
  */
 class OverlayManager(
     private val context: Context,
-    private val controller: RouteController,
+    private val source: PanelSource,
     private val settings: SettingsStore,
-    private val street: CurrentStreet,
     scope: CoroutineScope,
+    private val wanted: (AppSettings) -> Boolean,
 ) {
     private val wm = context.getSystemService(WindowManager::class.java)
     private val handler = Handler(Looper.getMainLooper())
@@ -98,6 +105,7 @@ class OverlayManager(
     private var layoutKey: String? = null
     private var ui: Context = context
     private var reminderShown: Boolean? = null
+    private var beat: ValueAnimator? = null
 
     /** The panel's colours and effects for the current look; set each time the panel is built. */
     private var pc = PanelColors(DayColors)
@@ -134,7 +142,7 @@ class OverlayManager(
 
     init {
         scope.launch {
-            combine(controller.route, settings.state, street.state) { _, _, _ -> }.collect { refresh() }
+            combine(source.changes, settings.state) { _, _ -> }.collect { refresh() }
         }
     }
 
@@ -151,16 +159,20 @@ class OverlayManager(
 
     /** Shows/updates/hides the panel according to the route, the settings and the permission. */
     fun refresh() {
-        val r = controller.route.value
         val s = settings.current
-        val routeOn = r != null && r.active && r.stops.isNotEmpty() && canShow
-        setReminder(routeOn && s.overlayHidden)
-        if (!routeOn || s.overlayHidden || suppressedBy.isNotEmpty()) {
-            street.want(WANT_KEY, false)
+        // The other role's panel: nothing to show here, and its reminder is left alone.
+        if (!wanted(s)) {
             hide()
             return
         }
-        street.want(WANT_KEY, !s.overlayMinimized)
+        val routeOn = source.trip() != null && canShow
+        setReminder(routeOn && s.overlayHidden)
+        if (!routeOn || s.overlayHidden || suppressedBy.isNotEmpty()) {
+            source.street?.want(WANT_KEY, false)
+            hide()
+            return
+        }
+        source.street?.want(WANT_KEY, !s.overlayMinimized)
         val key = "${s.overlayMinimized}|${s.uiLanguage}|${s.showRefNumbers}|${AppTheme.isNight(s.appearance, systemNight())}"
         if (root == null || key != layoutKey) {
             hide()
@@ -180,11 +192,10 @@ class OverlayManager(
 
     private fun bind() {
         val v = views ?: return
-        val r = controller.route.value ?: return
-        val current = r.stops.firstOrNull() ?: return
-        val info = street.state.value
+        val t = source.trip() ?: return
+        val info = source.street?.state?.value
         // Without location the street bar shows the next stop's area instead.
-        v.street?.text = info?.street ?: info?.area ?: controller.spokenName(current)
+        v.street?.text = info?.street ?: info?.area ?: t.area.orEmpty()
         v.area?.apply {
             val area = info?.area.takeIf { info?.street != null }
             text = area.orEmpty()
@@ -192,9 +203,9 @@ class OverlayManager(
         }
         // At the first stop Back does nothing: dim only its icon and caption, so the button's glass
         // stays as it is over the map and its reference number stays readable.
-        val backAlpha = if (r.completed.isEmpty()) 0.35f else 1f
+        val backAlpha = if (t.done == 0) 0.35f else 1f
         (v.back as? ViewGroup)?.let { b -> for (i in 0 until b.childCount) b.getChildAt(i).alpha = backAlpha }
-        v.progress?.text = progress(r.completedCount, r.stops.size)
+        v.progress?.text = progress(t.done, t.left)
         // The speaker on the street bar: is the street said by itself when it changes?
         v.sayStreet?.apply {
             val on = settings.current.sayStreetChanges
@@ -202,43 +213,40 @@ class OverlayManager(
             contentDescription = ui.getString(if (on) R.string.overlay_say_street_on else R.string.overlay_say_street_off)
             imageAlpha = if (on) 255 else 170
         }
-        // The stop's street and number beside the time; its postal code and town below.
-        v.address?.text = controller.streetOf(current)
+        // The stop's street and number beside the time; its town below.
+        v.address?.text = t.street
         v.town?.apply {
-            // The town only, without the postal code.
-            val town = current.displayText.substringAfter(',', "").replace(POSTAL_CODE, "").trim(' ', ',')
-            text = town
-            visibility = if (town.isEmpty()) View.GONE else View.VISIBLE
+            text = t.town.orEmpty()
+            visibility = if (t.town.isNullOrEmpty()) View.GONE else View.VISIBLE
         }
-        // The passenger's first + last name level with the time, as on YouDrive's card: this
-        // panel is the driver's own.
+        // The passenger's first + last name level with the time, as on YouDrive's card: only on
+        // the phone, whose panel is the driver's own.
         v.name?.apply {
-            text = current.name.orEmpty()
-            visibility = if (current.name == null) View.GONE else View.VISIBLE
+            text = t.name.orEmpty()
+            visibility = if (t.name == null) View.GONE else View.VISIBLE
         }
         // The trip's kind in YouDrive's card colour, as a stripe (no word: the time says enough).
-        v.stripe?.setColor(pc.trip(current.kind))
+        v.stripe?.setColor(pc.trip(t.kind))
         v.time?.apply {
-            text = current.time.orEmpty()
-            visibility = if (current.time == null) View.GONE else View.VISIBLE
+            text = t.time.orEmpty()
+            visibility = if (t.time == null) View.GONE else View.VISIBLE
         }
         updateTimes()
     }
 
-    /** Clock, speed and on-time status (every second). */
+    /** Clock, speed, on-time status and the capsule's countdown (every second). */
     private fun updateTimes() {
         val v = views ?: return
-        val r = controller.route.value ?: return
-        val current = r.stops.firstOrNull() ?: return
+        val t = source.trip() ?: return
         val now = LocalTime.now()
         v.clock?.text = now.format(clockFormat)
         // The vehicle's speed: just the number (km/h), in Western digits in every language like the
         // clock; "–" until a recent position has one. Only with location allowed.
         v.speed?.apply {
-            text = street.speedNow()?.toString() ?: "–"
+            text = source.street?.speedNow()?.toString() ?: "–"
             visibility = if (SystemIntents.hasLocation(context)) View.VISIBLE else View.GONE
         }
-        val until = TripTimes.minutesUntil(current.time, now.hour * 60 + now.minute)
+        val until = TripTimes.minutesUntil(t.time, now.hour * 60 + now.minute)
         val color = until?.let { pc.status(TripTimes.level(it)) }
         v.status?.apply {
             text = until?.let { TimeLabels.until(ui, it) }.orEmpty()
@@ -246,14 +254,44 @@ class OverlayManager(
             if (color != null) setTextColor(color)
         }
         if (color != null) v.statusDot?.setColor(color)
-        v.bubbleMain?.text = current.time ?: progress(r.completedCount, r.stops.size)
+        // The capsule counts down to the trip's time, in the display clock's colours: green, orange
+        // within five minutes (beating at its minute), red once late (beating from five minutes).
+        val status = TimeStatus.of(until)
+        val countdown = until?.let { pc.countdown(status) }
+        v.bubbleMain?.apply {
+            text = if (until != null) TimeStatus.countdown(until * 60 - now.second) else progress(t.done, t.left)
+            setTextColor(countdown ?: pc.text)
+        }
         v.bubbleSub?.apply {
-            text = if (current.time != null) progress(r.completedCount, r.stops.size) else ""
+            text = t.time ?: ""
             visibility = if (text.isNullOrEmpty()) View.GONE else View.VISIBLE
         }
-        // The capsule's ring and dot say on time / soon / late at a glance.
-        v.bubbleRing?.setStroke(dp(2.5f), color ?: pc.edgeLight)
-        v.bubbleDot?.setColor(color ?: pc.muted)
+        v.bubbleRing?.setStroke(dp(2.5f), countdown ?: pc.edgeLight)
+        v.bubbleDot?.setColor(countdown ?: pc.muted)
+        beat(v, until != null && status.beating)
+    }
+
+    /** The capsule's ring and dot beat while the trip is due or long late. */
+    private fun beat(v: Views, on: Boolean) {
+        if (on == (beat != null)) return
+        if (!on) {
+            beat?.cancel()
+            beat = null
+            v.bubbleRing?.alpha = 255
+            v.bubbleDot?.alpha = 255
+            return
+        }
+        beat = ValueAnimator.ofInt(255, (255 * BEAT_LOW).roundToInt()).apply {
+            duration = BEAT_MS
+            repeatMode = ValueAnimator.REVERSE
+            repeatCount = ValueAnimator.INFINITE
+            addUpdateListener {
+                val a = it.animatedValue as Int
+                v.bubbleRing?.alpha = a
+                v.bubbleDot?.alpha = a
+            }
+            start()
+        }
     }
 
     private fun progress(done: Int, remaining: Int) = "${done + 1}/${done + remaining}"
@@ -298,8 +336,9 @@ class OverlayManager(
     }
 
     /**
-     * Minimised: a small glass capsule with the next trip's time (its ring and dot: on time /
-     * soon / late) and the trip number. Tap = expand.
+     * Minimised: a small glass capsule counting down to the next trip ("7:42", "+3:10" once late),
+     * with the trip's time beside it; the countdown, its ring and dot in the display clock's
+     * colours. Tap = expand.
      */
     // TouchHandler calls performClick on a tap, so clicks stay accessible.
     @SuppressLint("ClickableViewAccessibility")
@@ -313,12 +352,13 @@ class OverlayManager(
             setColor(pc.clear)
             setStroke(dp(2.5f), pc.edgeLight)
         }
-        val main = text(17f, pc.text, bold = true)
+        val main = text(17f, pc.text, bold = true).apply { fontFeatureSettings = "tnum" }
         val sub = text(11f, pc.muted, bold = true)
         val bubble = LinearLayout(ui).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            background = LayerDrawable(arrayOf(glass(BUBBLE_H_DP / 2), ring))
+            // The deeper glass under the countdown, as under the panel's text, so its colours read on any map.
+            background = LayerDrawable(arrayOf(glass(BUBBLE_H_DP / 2), rounded(pc.well, BUBBLE_H_DP / 2), ring))
             elevation = dp(fx.panelShadow.value).toFloat()
             setPadding(dp(14f), 0, dp(16f), 0)
             contentDescription = ui.getString(R.string.overlay_expand_desc)
@@ -522,7 +562,8 @@ class OverlayManager(
         }
 
         card.addView(header, LinearLayout.LayoutParams(MATCH, WRAP))
-        card.addView(streetRow, LinearLayout.LayoutParams(MATCH, WRAP))
+        // The street bar and speed come from this phone's location: never on a tablet.
+        if (source.street != null) card.addView(streetRow, LinearLayout.LayoutParams(MATCH, WRAP))
         card.addView(trip, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(8f) })
         card.addView(actions, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(8f) })
 
@@ -544,15 +585,15 @@ class OverlayManager(
         nameView.ref(18)
         townView.ref(19)
 
-        next.setOnClickListener { controller.next() }
-        drag(next, press = true) { controller.repeat() }
-        back.setOnClickListener { if (!controller.back()) toast(R.string.overlay_no_previous) }
+        next.setOnClickListener { source.next() }
+        drag(next, press = true) { source.repeat() }
+        back.setOnClickListener { if (!source.back()) toast(R.string.overlay_no_previous) }
         drag(back, press = true)
-        streetBar.setOnClickListener { speakStreet() }
-        drag(streetBar, press = true) { controller.repeat() }
+        streetBar.setOnClickListener { source.sayStreet() }
+        drag(streetBar, press = true) { source.repeat() }
         sayStreet.setOnClickListener { settings.update { it.copy(sayStreetChanges = !it.sayStreetChanges) } }
         drag(sayStreet, press = true)
-        addressView.setOnClickListener { controller.speakStopStreet() }
+        addressView.setOnClickListener { source.sayStop() }
         drag(addressView, press = true)
         // × and – only react to a real tap: dragging from them moves the panel like elsewhere.
         close.setOnClickListener { hideByUser() }
@@ -564,10 +605,12 @@ class OverlayManager(
         drag(header)
         drag(card)
 
-        v.street = streetView
-        v.sayStreet = sayStreet
-        v.speed = speedView
-        v.area = areaView
+        if (source.street != null) {
+            v.street = streetView
+            v.sayStreet = sayStreet
+            v.speed = speedView
+            v.area = areaView
+        }
         v.back = back
         v.clock = clockView
         v.progress = progressView
@@ -706,11 +749,6 @@ class OverlayManager(
     // ------------------------------------------------------------------------------------------
     // Actions
 
-    /** Says the current street when it is known, otherwise repeats the next-stop announcement. */
-    private fun speakStreet() {
-        if (!controller.speakStreet(street.state.value)) controller.repeat()
-    }
-
     private fun toast(text: Int) = Toast.makeText(ui, text, Toast.LENGTH_SHORT).show()
 
     private fun hideByUser() {
@@ -788,6 +826,8 @@ class OverlayManager(
 
     fun hide() {
         handler.removeCallbacks(tick)
+        beat?.cancel()
+        beat = null
         val v = root
         root = null
         views = null
@@ -882,8 +922,9 @@ class OverlayManager(
         private const val ACTION_H_DP = 44f
         private const val ACTION_RADIUS_DP = 14f
 
-        /** A Swedish postal code ("664 52", "66452"). */
-        private val POSTAL_CODE = Regex("""\b\d{3}\s?\d{2}\b""")
+        /** The capsule's ring and dot beat between full and this, as the outline on the display clock does. */
+        private const val BEAT_LOW = 0.2f
+        private const val BEAT_MS = 700L
 
         /** The next stop's street beside its time, large enough to read at a glance. */
         private const val STOP_STREET_SP = 17f
@@ -937,4 +978,6 @@ private class PanelColors(c: AppColors) {
     fun trip(kind: TripKind?): Int = p.trip(kind).toArgb()
 
     fun status(level: TimeLevel): Int = p.status(level).toArgb()
+
+    fun countdown(status: TimeStatus): Int = p.status(status).toArgb()
 }

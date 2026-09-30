@@ -61,6 +61,7 @@ class DisplayLinkClient(
 
     private var job: Job? = null
     @Volatile private var socket: BluetoothSocket? = null
+    @Volatile private var session: LinkSession? = null
     @Volatile private var lastReceived = 0L
     private var preferred: String? = null
     private var started = false
@@ -164,6 +165,7 @@ class DisplayLinkClient(
         var watchdog: Job? = null
         try {
             val session = LinkSession(s.inputStream, s.outputStream)
+            this.session = session
             session.send(LinkMessage.Hello(LinkProtocol.VERSION, LinkProtocol.ROLE_DISPLAY))
             // The controller pings every 10 s; silence for 30 s means the link is dead.
             lastReceived = System.currentTimeMillis()
@@ -182,16 +184,23 @@ class DisplayLinkClient(
                 when (msg) {
                     is LinkMessage.State -> _snapshot.value = msg.snapshot
                     is LinkMessage.Announce -> _announcements.tryEmit(Announcement(msg.sv, msg.en))
-                    is LinkMessage.Hello, LinkMessage.Ping -> Unit
+                    is LinkMessage.Hello, LinkMessage.Ping, is LinkMessage.Command -> Unit
                 }
             }
         } catch (e: Exception) {
             DebugLog.d { "link closed: ${e.javaClass.simpleName}" }
         } finally {
+            session = null
             watchdog?.cancel()
             closeSocket()
             _state.value = State(Status.CONNECTING, target.name)
         }
+    }
+
+    /** Sends a button pressed on this tablet's floating panel to the driver's phone (while connected). */
+    fun send(action: LinkMessage.Command.Action) {
+        val to = session ?: return
+        scope.launch(Dispatchers.IO) { runCatching { to.send(LinkMessage.Command(action)) } }
     }
 
     private fun closeSocket() {

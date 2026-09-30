@@ -14,7 +14,8 @@ An Android app for a Swedish shared-ride driver:
 
 ## Hard rules (never break)
 - Images are never copied or stored. Keep only addresses, times, the trip kind (the list's Pick-up / Drop-off / Pull-out label) and the passenger's **first + last name**: no middle names, phone numbers or other text.
-- The name is for the driver's own screens only (review, route, floating panel). It is never spoken, sent to the passenger display, put in a notification or "Previous trips", or logged (`namesStayOnTheDriversScreens` guards this).
+- The name is for the driver's own screens only (review, route, the phone's floating panel). It is never spoken, sent to the passenger display, put in a notification or "Previous trips", or logged (`namesStayOnTheDriversScreens` guards this).
+- The floating panel on the tablet (switch 206 there, off by default) shows only what the tablet's passenger display receives: no name, and no street bar or speed (the location never leaves the phone). The tablet sends back only the button pressed (`LinkMessage.Command`: Next, Back, Repeat).
 - Never log addresses or OCR text in release (use `util/DebugLog`). `allowBackup=false`.
 - **Location only names the street the vehicle is on and shows its speed.** While-in-use only, never background (`ACCESS_BACKGROUND_LOCATION` stays removed). `service/StreetService` (LocationManager, no Play services) feeds `CurrentStreet` and nothing else: never the route (no automatic advance; only the driver's Next moves it), never stored, logged or sent. Asked at "Start route" and in Settings (119).
 - **The YouDrive WebView never gets location**: `setGeolocationEnabled(false)` and every page prompt is denied (`theYouDrivePageNeverGetsTheLocation`).

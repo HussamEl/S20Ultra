@@ -3,6 +3,7 @@ package se.eldebosh.nastastopp.ui.theme
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 import se.eldebosh.nastastopp.core.parse.TimeLevel
+import se.eldebosh.nastastopp.core.display.TimeStatus
 import se.eldebosh.nastastopp.core.parse.TripKind
 
 /**
@@ -57,12 +58,16 @@ data class AppColors(
     val onDangerSoft: Color,
     /** Trip times. */
     val time: Color,
-    /** The passenger display's highlight, the app's blue: "NÄSTA STOPP", its time, the clock's seconds and what is being said. */
+    /** The passenger display's highlight, the app's blue: the clock's seconds, what is being said and a tapped card. */
     val highlight: Color,
     /** The passenger display's big time takes these colours one after another, a new one each minute. */
     val showHues: List<Color>,
-    /** A trip due within a few minutes (the ring around the clock's minutes). */
+    /** A trip due within a few minutes (the outline on the clock's minutes, the panel's countdown). */
     val soon: Color,
+    /** The passenger display's "NÄSTA" chip: a translucent yellow with a hairline edge, and its word. */
+    val nextChip: Color,
+    val nextChipEdge: Color,
+    val onNextChip: Color,
     // Reference numbers.
     val refText: Color,
     val refPill: Color,
@@ -110,6 +115,8 @@ data class PanelRoles(
     val success: Color,
     val warning: Color,
     val danger: Color,
+    /** The minimised capsule's countdown to a trip due within five minutes: orange, as on the display. */
+    val soon: Color,
     /** The trip's stripe, in YouDrive's card colours. */
     val pickUp: Color,
     val dropOff: Color,
@@ -126,6 +133,13 @@ data class PanelRoles(
         TimeLevel.SOON -> warning
         TimeLevel.LATE -> danger
     }
+
+    /** The countdown's colour: the same meanings as the outline on the display clock's minutes. */
+    fun status(status: TimeStatus): Color = when (status) {
+        TimeStatus.ON_TIME -> success
+        TimeStatus.SOON, TimeStatus.DUE -> soon
+        TimeStatus.LATE, TimeStatus.VERY_LATE -> danger
+    }
 }
 
 /** By day: smoked black glass, like YouDrive's black buttons. */
@@ -141,6 +155,7 @@ val DayPanel = PanelRoles(
     success = Palette.Green400,
     warning = Palette.Amber400,
     danger = Palette.Red300,
+    soon = Palette.Ember400,
     pickUp = Palette.YouDriveGreen,
     dropOff = Palette.White,
     depot = Palette.YouDriveGrey,
@@ -192,6 +207,9 @@ val DayColors = AppColors(
     highlight = Palette.SkyInk,
     showHues = listOf(Palette.Ember700, Palette.Violet700, Palette.Teal700, Palette.Rose700, Palette.Emerald700, Palette.Fuchsia700),
     soon = Palette.Orange600,
+    nextChip = Palette.TaxiYellow.copy(alpha = 0.3f),
+    nextChipEdge = Palette.TaxiYellow,
+    onNextChip = Palette.Ink,
     refText = Color(0xFF6B7280),
     refPill = Palette.Ink.copy(alpha = 0.9f),
     onRefPill = Color(0xFFF1F2F4),
@@ -238,6 +256,9 @@ val NightColors = AppColors(
     highlight = Palette.Sky,
     showHues = listOf(Palette.Ember400, Palette.Violet400, Palette.Teal400, Palette.Rose400, Palette.Emerald400, Palette.Fuchsia400),
     soon = Palette.Ember400,
+    nextChip = Palette.TaxiYellow.copy(alpha = 0.14f),
+    nextChipEdge = Palette.TaxiYellow.copy(alpha = 0.55f),
+    onNextChip = Palette.TaxiYellow,
     refText = Color(0xFF7F8BA0),
     refPill = Palette.Night.copy(alpha = 0.9f),
     onRefPill = Color(0xFFB8C2D4),

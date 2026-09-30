@@ -32,11 +32,21 @@ class LinkProtocolTest {
             LinkMessage.State(snapshot),
             LinkMessage.Announce("Rutten är klar.", "The route is finished."),
             LinkMessage.Ping,
+            LinkMessage.Command(LinkMessage.Command.Action.NEXT),
+            LinkMessage.Command(LinkMessage.Command.Action.BACK),
+            LinkMessage.Command(LinkMessage.Command.Action.REPEAT),
         ).forEach { msg ->
             val line = LinkProtocol.encode(msg)
             assertTrue(line, !line.contains('\n'))
             assertEquals(msg, LinkProtocol.decode(line))
         }
+    }
+
+    /** A tablet's floating panel sends back only the button pressed: nothing else goes to the phone. */
+    @Test
+    fun aCommandIsOnlyItsButton() {
+        assertEquals("{\"type\":\"command\",\"action\":\"NEXT\"}", LinkProtocol.encode(LinkMessage.Command(LinkMessage.Command.Action.NEXT)))
+        assertNull(LinkProtocol.decode("{\"type\":\"command\",\"action\":\"END\"}"))
     }
 
     @Test

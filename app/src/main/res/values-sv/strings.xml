@@ -90,7 +90,7 @@
     <string name="voice_ready">Klar ✓</string>
     <string name="voice_missing">Saknas – tryck för att installera</string>
     <string name="voice_checking">Kontrollerar…</string>
-    <string name="settings_privacy_note">Integritet: bilderna läses bara i telefonen och sparas aldrig. Bara tider, adresser, typ av resa och passagerarens för- och efternamn (visas bara på dina skärmar) sparas; ruttlistan raderas när rutten avslutas, när du rensar eller efter 12 timmar, och avslutade resor finns kvar i historiken under den valda tiden (standard 12 timmar). Appen använder internet bara för att visa din YouDrive-sida och skickar själv inga data någonstans; ingen analys. Platsen (om du tillåter den) säger bara gatan du kör på under en rutt; den sparas eller skickas aldrig, och YouDrive-sidan får den aldrig. Inloggningen till YouDrive stannar i telefonen och kan raderas.</string>
+    <string name="settings_privacy_note">Integritet: bilderna läses bara i telefonen och sparas aldrig. Bara tider, adresser, typ av resa och passagerarens för- och efternamn (visas bara på dina skärmar) sparas; ruttlistan raderas när rutten avslutas, när du rensar eller efter 12 timmar, och avslutade resor finns kvar i historiken under den valda tiden (standard 12 timmar). Appen använder internet bara för din YouDrive-sida, gatukartan som du själv laddar ner och vädret på passagerarskärmen (SMHI, för en fast plats, Karlstad); den skickar inga av dina data någonstans; ingen analys. Med ditt tillstånd läser den bara navigeringsaviseringen från Google Maps, för restiden på passagerarskärmen. Platsen (om du tillåter den) säger bara gatan du kör på under en rutt; den sparas eller skickas aldrig, och YouDrive-sidan får den aldrig. Inloggningen till YouDrive stannar i telefonen och kan raderas.</string>
     <string name="settings_version">Version %1$s · %2$s</string>
 
     <string name="help_title">Hjälp</string>
@@ -162,6 +162,8 @@
     <string name="display_full_address">Visa gatuadressen på passagerarskärmen</string>
     <string name="display_full_address_hint">Gatan med husnummer visas stort och området under. Av = bara området visas.</string>
     <string name="display_speaks">Läs upp utropen även på den här enheten</string>
+    <string name="tablet_panel">Flytande knapp på surfplattan</string>
+    <string name="help_tablet_panel">Visar telefonens flytande knapp över passagerarskärmen: nästa resa (utan passagerarens namn), en nedräkning när den är minimerad, och Nästa, Tillbaka och Upprepa för telefonen. Gatan och farten stannar på telefonen. Kräver tillstånd att visas över andra appar på surfplattan.</string>
     <string name="display_choose_device">Välj förarens enhet</string>
     <string name="display_no_paired">Inga parkopplade enheter. Parkoppla enheterna i Bluetooth-inställningarna först.</string>
     <string name="open_bt_settings">Bluetooth-inställningar</string>

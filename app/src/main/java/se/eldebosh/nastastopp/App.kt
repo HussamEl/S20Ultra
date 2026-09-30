@@ -22,7 +22,10 @@ import se.eldebosh.nastastopp.link.DisplayLinkClient
 import se.eldebosh.nastastopp.link.DisplayLinkServer
 import se.eldebosh.nastastopp.maps.MapsLauncher
 import se.eldebosh.nastastopp.ocr.OcrEngine
+import se.eldebosh.nastastopp.overlay.LinkPanelSource
 import se.eldebosh.nastastopp.overlay.OverlayManager
+import se.eldebosh.nastastopp.overlay.RoutePanelSource
+import se.eldebosh.nastastopp.settings.DeviceRole
 import se.eldebosh.nastastopp.route.RouteController
 import se.eldebosh.nastastopp.route.RouteRepository
 import se.eldebosh.nastastopp.route.TripHistory
@@ -56,7 +59,8 @@ class AppGraph(app: Application) {
 
     /** Says the street's name when it changes (the driver can switch it off). */
     val streetCaller = StreetCaller(street, controller, scope)
-    val overlay = OverlayManager(app, controller, settings, street, scope)
+    /** The phone's floating panel over Maps (its own route, street and speed). */
+    val overlay = OverlayManager(app, RoutePanelSource(controller, street), settings, scope) { it.role != DeviceRole.DISPLAY }
     val importer = ScreenshotImporter(OcrEngine(app), extractor)
 
     /** Controller: Bluetooth server for passenger displays (runs only when enabled). */
@@ -79,6 +83,12 @@ class AppGraph(app: Application) {
             }
         }
     }
+
+    /**
+     * Display role: the phone's floating panel on this tablet, over the passenger display (Settings
+     * on the tablet: 206). Its Next, Back and Repeat go to the phone.
+     */
+    val tabletPanel = OverlayManager(app, LinkPanelSource(displayClient, announcer), settings, scope) { it.role == DeviceRole.DISPLAY && it.tabletPanel }
 
     /** The driver's YouDrive page, watched for added / cancelled trips (alerts as notifications). */
     /** The YouDrive login, only if the driver saved it on this phone (encrypted). */

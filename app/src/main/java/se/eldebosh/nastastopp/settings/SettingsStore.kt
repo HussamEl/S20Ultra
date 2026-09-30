@@ -38,6 +38,8 @@ data class AppSettings(
     val displayFullAddress: Boolean = true,
     /** Display role: speak the announcements on this device too, when the driver taps Next. */
     val displaySpeaks: Boolean = true,
+    /** Display role: show the phone's floating panel on this tablet too (Next and Back for the phone). */
+    val tabletPanel: Boolean = false,
     /** Display role: Bluetooth address of the controller device to connect to. */
     val displayControllerAddress: String? = null,
     /** Floating button hidden by the driver (can be shown again from the app). */
@@ -75,6 +77,7 @@ class SettingsStore(context: Context) {
             putBoolean(K_LINK, next.displayLinkEnabled)
             putBoolean(K_FULL_ADDR, next.displayFullAddress)
             putBoolean(K_DISPLAY_SPEAKS, next.displaySpeaks)
+            putBoolean(K_TABLET_PANEL, next.tabletPanel)
             putString(K_CONTROLLER, next.displayControllerAddress)
             putBoolean(K_OVERLAY_HIDDEN, next.overlayHidden)
             putBoolean(K_OVERLAY_MIN, next.overlayMinimized)
@@ -112,6 +115,7 @@ class SettingsStore(context: Context) {
         displayLinkEnabled = prefs.getBoolean(K_LINK, false),
         displayFullAddress = prefs.getBoolean(K_FULL_ADDR, true),
         displaySpeaks = prefs.getBoolean(K_DISPLAY_SPEAKS, true),
+        tabletPanel = prefs.getBoolean(K_TABLET_PANEL, false),
         displayControllerAddress = prefs.getString(K_CONTROLLER, null),
         overlayHidden = prefs.getBoolean(K_OVERLAY_HIDDEN, false),
         overlayMinimized = prefs.getBoolean(K_OVERLAY_MIN, false),
@@ -130,6 +134,7 @@ class SettingsStore(context: Context) {
         private const val K_LINK = "display_link_enabled"
         private const val K_FULL_ADDR = "display_full_address"
         private const val K_DISPLAY_SPEAKS = "display_speaks_announcements"
+        private const val K_TABLET_PANEL = "tablet_floating_panel"
         private const val K_CONTROLLER = "display_controller_address"
         private const val K_OVERLAY_HIDDEN = "overlay_hidden"
         private const val K_OVERLAY_MIN = "overlay_minimized"

@@ -90,7 +90,7 @@
     <string name="voice_ready">Ready ✓</string>
     <string name="voice_missing">Missing – tap to install</string>
     <string name="voice_checking">Checking…</string>
-    <string name="settings_privacy_note">Privacy: images are read on the phone only and never stored. Only times, addresses, the trip kind and the passenger\'s first and last name (shown on your screens only) are kept; the route list is deleted when the route ends, when you clear, or after 12 hours, and finished trips stay in the history for the chosen time (12 hours by default). The app uses the internet only to show your YouDrive page and sends no data anywhere itself; no analytics. Location (if you allow it) only names the street you are on during a route; it is never stored or sent, and the YouDrive page never gets it. The YouDrive login stays on this phone and can be deleted.</string>
+    <string name="settings_privacy_note">Privacy: images are read on the phone only and never stored. Only times, addresses, the trip kind and the passenger\'s first and last name (shown on your screens only) are kept; the route list is deleted when the route ends, when you clear, or after 12 hours, and finished trips stay in the history for the chosen time (12 hours by default). The app uses the internet only for your YouDrive page, the street map download you start, and the passenger display\'s weather (SMHI, for a fixed place, Karlstad); it sends no data of yours anywhere; no analytics. With your permission it reads only Google Maps\' navigation notification, for the travel time on the passenger display. Location (if you allow it) only names the street you are on during a route; it is never stored or sent, and the YouDrive page never gets it. The YouDrive login stays on this phone and can be deleted.</string>
     <string name="settings_version">Version %1$s · %2$s</string>
 
     <string name="help_title">Help</string>
@@ -162,6 +162,8 @@
     <string name="display_full_address">Show the street address on the passenger display</string>
     <string name="display_full_address_hint">The street with the house number is shown large, the area under it. Off = only the area.</string>
     <string name="display_speaks">Also speak announcements on this device</string>
+    <string name="tablet_panel">Floating button on this tablet</string>
+    <string name="help_tablet_panel">Shows the phone\'s floating button over the passenger display: the next trip (without the passenger\'s name), a countdown when shrunk, and Next, Back and Repeat for the phone. The street and speed stay on the phone. Needs the permission to show over other apps on this tablet.</string>
     <string name="display_choose_device">Choose the driver\'s device</string>
     <string name="display_no_paired">No paired devices. Pair the devices in Bluetooth settings first.</string>
     <string name="open_bt_settings">Bluetooth settings</string>

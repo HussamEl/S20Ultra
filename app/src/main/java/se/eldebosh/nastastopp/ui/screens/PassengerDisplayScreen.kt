@@ -7,7 +7,11 @@ import se.eldebosh.nastastopp.core.weather.WeatherKind
 import se.eldebosh.nastastopp.core.weather.DisplayWeather
 import se.eldebosh.nastastopp.core.parse.TripTimes
 import se.eldebosh.nastastopp.core.nav.DisplayEta
-import se.eldebosh.nastastopp.core.display.TimeRing
+import se.eldebosh.nastastopp.core.display.TimeStatus
+import androidx.compose.ui.graphics.ColorProducer
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.CornerRadius
@@ -200,7 +204,7 @@ fun PassengerDisplayScreen(
     KeepScreenOnFullscreen()
     var tapped by remember { mutableIntStateOf(0) }
     val cue = spoken + tapped
-    // Taps on the clock or a card: said on this device, and the time keeps still meanwhile.
+    // Taps on a card or an address: said on this device, and the time keeps still meanwhile.
     var said by remember { mutableIntStateOf(0) }
     val say: (Announcement) -> Unit = {
         said++
@@ -212,10 +216,14 @@ fun PassengerDisplayScreen(
     // Everything but the time (or the weather, or the travel time) steps back while it shows, and
     // is hidden behind a solid ground at its largest.
     val rest = Modifier.stepBack { moments.back }
-    // How the next stop's time stands, for the ring around the clock's minutes.
-    val ring by remember(live?.current?.time) {
-        derivedStateOf { TimeRing.of(TripTimes.minutesUntil(live?.current?.time, now.value.hour * 60 + now.value.minute)) }
+    // How the next stop's time stands, for the outline on the minutes (none without a route).
+    val nextTime = live?.current?.time
+    val hasNext = live != null
+    val timeStatus by remember(nextTime, hasNext) {
+        derivedStateOf { if (hasNext) TimeStatus.of(TripTimes.minutesUntil(nextTime, now.value.hour * 60 + now.value.minute)) else null }
     }
+    // Swedish for the passengers, read left to right whatever the app's language.
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
     BoxWithConstraints(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         val landscape = maxWidth > maxHeight
         val width = maxWidth
@@ -264,11 +272,14 @@ fun PassengerDisplayScreen(
                     // On a narrow phone the clock leaves room for the exit and status.
                     minuteSize = if (landscape) MINUTE_SP_WIDE else ((width - NARROW_LEFT_ROOM).value / CLOCK_WIDTH_PER_SP).coerceIn(MINUTE_SP_MIN, MINUTE_SP_NARROW).sp,
                     grow = { moments.grow.value },
-                    back = { moments.back },
                     hue = AppTheme.colors.showHues[moments.hue % AppTheme.colors.showHues.size],
-                    ring = ring,
+                    status = timeStatus,
                     screen = { screen },
-                    onClick = { say(Announcements.clock(now.value.hour, now.value.minute)) },
+                    // Said here, and the time springs out to fill the screen meanwhile.
+                    onClick = {
+                        onSay(Announcements.clock(now.value.hour, now.value.minute))
+                        moments.playTime(tapped = true)
+                    },
                     modifier = (if (landscape) Modifier.overhang() else Modifier)
                         .onGloballyPositioned { clockBottom = it.boundsInRoot().bottom }
                         .ref(88)
@@ -296,6 +307,7 @@ fun PassengerDisplayScreen(
                 live,
                 landscape,
                 cue,
+                status = timeStatus,
                 clear = clear,
                 // A tap on the next stop's address says the announcement here.
                 onSpeakNext = {
@@ -318,6 +330,7 @@ fun PassengerDisplayScreen(
             )
         }
     }
+    }
 }
 
 /** The time of day, ticking with the seconds. */
@@ -336,10 +349,11 @@ private fun rememberNow(time: () -> LocalTime): State<LocalTime> {
 
 /**
  * What takes the middle of the screen for a moment, over everything else:
- * - the time, each time the minute changes: [grow] 0 → 1 over five seconds, in a new colour each
- *   minute ([hue]). As it nears its largest, the rest of the screen fades gradually behind a solid
- *   ground ([solid]), which stays two seconds; then the time goes back, faster, while the ground
- *   clears again gradually;
+ * - the time with its seconds, each time the minute changes: [grow] 0 → 1 over five seconds, in a
+ *   new colour each time ([hue]). As it nears its largest, the rest of the screen fades gradually
+ *   behind a solid ground ([solid]), which stays two seconds; then the time goes back, faster,
+ *   while the ground clears again gradually. A tap on the clock springs it out the same way and
+ *   holds it a little longer;
  * - the weather in the middle of each minute, and Google Maps' travel time a little later
  *   ([info] 0 → 1 → 0 over seven seconds, [shown] saying which).
  *
@@ -364,17 +378,23 @@ private class Moments(private val scope: CoroutineScope) {
 
     val idle: Boolean get() = job?.isActive != true && grow.value == 0f && info.value == 0f
 
-    fun playTime() {
+    /** The time fills the screen: slowly as the minute changes, springing out when [tapped]. */
+    fun playTime(tapped: Boolean = false) {
         job?.cancel()
         hue++
         job = scope.launch {
             launch { info.animateTo(0f, tween(SETTLE_MS)) }
             coroutineScope {
-                launch { grow.animateTo(1f, tween(GROW_MS, easing = FastOutSlowInEasing)) }
-                delay((GROW_MS - SOLID_IN_MS).toLong())
+                if (tapped) {
+                    launch { grow.animateTo(1f, spring(dampingRatio = TAP_SPRING_DAMPING, stiffness = Spring.StiffnessVeryLow)) }
+                    delay(TAP_SOLID_AFTER_MS)
+                } else {
+                    launch { grow.animateTo(1f, tween(GROW_MS, easing = FastOutSlowInEasing)) }
+                    delay((GROW_MS - SOLID_IN_MS).toLong())
+                }
                 solid.animateTo(1f, tween(SOLID_IN_MS, easing = FastOutSlowInEasing))
             }
-            delay(SOLID_HOLD_MS)
+            delay(if (tapped) TAP_HOLD_MS else SOLID_HOLD_MS)
             coroutineScope {
                 launch { solid.animateTo(0f, tween(SOLID_OUT_MS, easing = FastOutSlowInEasing)) }
                 grow.animateTo(0f, tween(SHRINK_MS, easing = FastOutLinearInEasing))
@@ -616,6 +636,7 @@ private fun Stage(
     snapshot: DisplaySnapshot,
     landscape: Boolean,
     cue: Int,
+    status: TimeStatus?,
     clear: Dp,
     onSpeakNext: () -> Unit,
     onSay: (Announcement) -> Unit,
@@ -717,7 +738,7 @@ private fun Stage(
                     val page = @Composable { index: Int ->
                         val hero = Modifier.fillMaxSize().padding(top = clear)
                         if (index == home) {
-                            StopHero(current, HeroRole.NEXT, landscape, focused = spot == NEXT_STOP, dimmed = spot >= 0 && spotlight.lifting, shared = shared, onClick = onSpeakNext, modifier = hero)
+                            StopHero(current, HeroRole.NEXT, landscape, focused = spot == NEXT_STOP, dimmed = spot >= 0 && spotlight.lifting, shared = shared, onClick = onSpeakNext, status = status, modifier = hero)
                         } else {
                             // A card that is said lights up here too while its trip is shown.
                             val k = cardOf(index, home)
@@ -911,6 +932,7 @@ private fun StopHero(
     shared: SharedStop?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    status: TimeStatus? = null,
 ) {
     val next = role == HeroRole.NEXT
     val labelScale = remember { Animatable(if (next) 1f else PAGE_POP) }
@@ -953,21 +975,10 @@ private fun StopHero(
                     },
             ) {
                 if (next) {
-                    Text(
-                        stringResource(R.string.passenger_next).uppercase(),
-                        fontFamily = DisplayFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = if (landscape) 26.sp else 20.sp,
-                        letterSpacing = 1.5.sp,
-                        color = AppTheme.colors.onAccent,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(50))
-                            .background(AppTheme.colors.accent)
-                            .padding(horizontal = 16.dp, vertical = 2.dp),
-                    )
+                    NextChip(landscape)
                     Spacer(Modifier.width(14.dp))
                 }
-                if (current.time != null) TimeFace(current.time, if (landscape) HERO_TIME_SP else HERO_TIME_SP_NARROW)
+                if (current.time != null) TimeFace(current.time, if (landscape) HERO_TIME_SP else HERO_TIME_SP_NARROW, status = if (next) status else null)
                 if (current.doneInYouDrive || current.doneHere) {
                     Spacer(Modifier.width(12.dp))
                     DoneMarks(youDrive = current.doneInYouDrive, here = current.doneHere, size = if (landscape) 26.dp else 18.dp)
@@ -1239,9 +1250,8 @@ private fun Clock(
     now: State<LocalTime>,
     minuteSize: TextUnit,
     grow: () -> Float,
-    back: () -> Float,
     hue: Color,
-    ring: TimeRing?,
+    status: TimeStatus?,
     screen: () -> Rect,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -1261,14 +1271,16 @@ private fun Clock(
         lineHeight = 1.0.em,
         lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
     )
-    // The seconds tuck up under the digits, into the empty room below them, and the smaller hours
-    // and colon come down to sit level with the middle of the minutes.
-    val (tuck, drop) = with(LocalDensity.current) { (minuteSize * SECONDS_TUCK).toDp() to (minuteSize * (1f - HOUR_SHARE) / 2f).toDp() }
+    // The smaller hours with the seconds right under them sit level with the middle of the
+    // minutes, so the clock is no taller than its minutes; the colon is level with the hours.
+    val (lift, tuck) = with(LocalDensity.current) {
+        (minuteSize * ((1f - HOUR_SHARE - SECOND_SHARE + SECONDS_TUCK) / 2f)).toDp() to (minuteSize * SECONDS_TUCK).toDp()
+    }
     var hours by remember { mutableStateOf(Rect.Zero) }
     var dots by remember { mutableStateOf(Rect.Zero) }
     var minutes by remember { mutableStateOf(Rect.Zero) }
-    val time4 = { span(hours, minutes) }
-    val rest = Modifier.stepBack(back)
+    var seconds by remember { mutableStateOf(Rect.Zero) }
+    val whole = { span(span(hours, minutes), seconds) }
     Row(
         verticalAlignment = Alignment.Top,
         modifier = modifier
@@ -1284,46 +1296,51 @@ private fun Clock(
                 onClick()
             },
     ) {
-        BasicText(
-            twoDigits(time.hour),
-            style = style.copy(fontSize = minuteSize * HOUR_SHARE),
-            color = { lerp(ink, hue, grow()) },
-            modifier = Modifier
-                .offset(y = drop)
-                .onGloballyPositioned { hours = it.boundsInRoot() }
-                .growTogether(grow, own = { hours }, group = time4, area = screen),
-        )
-        Text(
-            ":",
-            style = style.copy(fontSize = minuteSize * HOUR_SHARE, color = AppTheme.colors.accent),
-            modifier = Modifier
-                .offset(y = drop)
-                .onGloballyPositioned { dots = it.boundsInRoot() }
-                .growTogether(grow, own = { dots }, group = time4, area = screen)
-                .alpha(colon),
-        )
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(
-                Modifier
-                    .onGloballyPositioned { minutes = it.boundsInRoot() }
-                    .growTogether(grow, own = { minutes }, group = time4, area = screen)
-                    .timeRing(ring),
-            ) {
-                AnimatedContent(
-                    targetState = twoDigits(time.minute),
-                    transitionSpec = { slideInVertically(tween(450)) { -it } + fadeIn(tween(450)) togetherWith slideOutVertically(tween(450)) { it } + fadeOut(tween(300)) },
-                    label = "minutes",
-                ) { m ->
-                    BasicText(m, style = style.copy(fontSize = minuteSize), color = { lerp(ink, hue, grow()) })
-                }
-            }
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.offset(y = lift)) {
+            BasicText(
+                twoDigits(time.hour),
+                style = style.copy(fontSize = minuteSize * HOUR_SHARE),
+                color = { lerp(ink, hue, grow()) },
+                modifier = Modifier
+                    .onGloballyPositioned { hours = it.boundsInRoot() }
+                    .growTogether(grow, own = { hours }, group = whole, area = screen),
+            )
             AnimatedContent(
                 targetState = twoDigits(time.second),
                 transitionSpec = { (slideInVertically(tween(250)) { it / 2 } + fadeIn(tween(250)) togetherWith fadeOut(tween(150))).using(SizeTransform(clip = false)) },
                 label = "seconds",
-                modifier = Modifier.offset(y = -tuck).then(rest),
+                modifier = Modifier
+                    .offset(y = -tuck)
+                    .onGloballyPositioned { seconds = it.boundsInRoot() }
+                    .growTogether(grow, own = { seconds }, group = whole, area = screen),
             ) { sec ->
-                Text(sec, style = style.copy(fontSize = minuteSize * SECOND_SHARE, fontWeight = FontWeight.Light, color = highlight, letterSpacing = 0.06.em))
+                BasicText(
+                    sec,
+                    style = style.copy(fontSize = minuteSize * SECOND_SHARE, fontWeight = FontWeight.Light, letterSpacing = 0.06.em),
+                    color = { lerp(highlight, hue, grow()) },
+                )
+            }
+        }
+        Text(
+            ":",
+            style = style.copy(fontSize = minuteSize * HOUR_SHARE, color = AppTheme.colors.accent),
+            modifier = Modifier
+                .offset(y = lift)
+                .onGloballyPositioned { dots = it.boundsInRoot() }
+                .growTogether(grow, own = { dots }, group = whole, area = screen)
+                .alpha(colon),
+        )
+        Box(
+            Modifier
+                .onGloballyPositioned { minutes = it.boundsInRoot() }
+                .growTogether(grow, own = { minutes }, group = whole, area = screen),
+        ) {
+            AnimatedContent(
+                targetState = twoDigits(time.minute),
+                transitionSpec = { slideInVertically(tween(450)) { -it } + fadeIn(tween(450)) togetherWith slideOutVertically(tween(450)) { it } + fadeOut(tween(300)) },
+                label = "minutes",
+            ) { m ->
+                OutlinedDigits(m, style.copy(fontSize = minuteSize), status, fill = { lerp(ink, hue, grow()) })
             }
         }
     }
@@ -1332,54 +1349,105 @@ private fun Clock(
 /** The smallest rectangle around both. */
 private fun span(a: Rect, b: Rect) = Rect(minOf(a.left, b.left), minOf(a.top, b.top), maxOf(a.right, b.right), maxOf(a.bottom, b.bottom))
 
-/** A thin ring with a soft glow around the digits: orange or red, beating when [ring] says so. */
+/**
+ * Digits with an outline in [status]'s colour (green on time, orange soon, red late), beating when
+ * it says so; plain digits for no status.
+ */
 @Composable
-private fun Modifier.timeRing(ring: TimeRing?): Modifier {
-    val beat = rememberInfiniteTransition(label = "ring")
-    val pulse by beat.animateFloat(1f, RING_BEAT_LOW, infiniteRepeatable(tween(RING_BEAT_MS), RepeatMode.Reverse), label = "beat")
-    if (ring == null) return this
-    val color = if (ring.late) AppTheme.colors.danger else AppTheme.colors.soon
-    return drawBehind {
-        val a = if (ring.beating) pulse else 1f
-        val inset = size.height * 0.1f
-        val topLeft = Offset(-size.width * 0.06f, inset)
-        val box = Size(size.width * 1.12f, size.height - 2 * inset)
-        val corner = CornerRadius(box.height * 0.28f)
-        drawRoundRect(color.copy(alpha = 0.22f * a), topLeft, box, corner, style = Stroke(width = RING_GLOW.toPx()))
-        drawRoundRect(color.copy(alpha = a), topLeft, box, corner, style = Stroke(width = RING_LINE.toPx()))
+private fun OutlinedDigits(text: String, style: TextStyle, status: TimeStatus?, fill: ColorProducer, modifier: Modifier = Modifier) {
+    val beat = rememberInfiniteTransition(label = "beat")
+    val pulse by beat.animateFloat(1f, BEAT_LOW, infiniteRepeatable(tween(BEAT_MS), RepeatMode.Reverse), label = "beat")
+    val line = status?.let { statusColor(it) }
+    Box(modifier) {
+        if (status != null && line != null) {
+            // The stroke is centred on the glyphs' edge; the digits drawn over it leave its outer half.
+            val width = with(LocalDensity.current) { (style.fontSize * OUTLINE_SHARE).toPx() }
+            BasicText(
+                text,
+                style = style.copy(drawStyle = Stroke(width = width, join = StrokeJoin.Round)),
+                color = { line.copy(alpha = if (status.beating) pulse else 1f) },
+            )
+        }
+        BasicText(text, style = style, color = fill)
     }
+}
+
+@Composable
+private fun statusColor(status: TimeStatus): Color = when (status) {
+    TimeStatus.ON_TIME -> AppTheme.colors.success
+    TimeStatus.SOON, TimeStatus.DUE -> AppTheme.colors.soon
+    TimeStatus.LATE, TimeStatus.VERY_LATE -> AppTheme.colors.danger
 }
 
 /**
  * A time ("08:00") in the clock's style: the hours smaller and level with the middle of the
- * minutes, the colon in the accent yellow; the digits gently breathe.
+ * minutes, the colon in the accent yellow, the minutes outlined in [status]'s colour; the digits
+ * breathe slowly.
  */
 @Composable
-private fun TimeFace(time: String, minuteSize: TextUnit, modifier: Modifier = Modifier) {
+private fun TimeFace(time: String, minuteSize: TextUnit, modifier: Modifier = Modifier, status: TimeStatus? = null) {
     val hour = time.substringBefore(':')
     val minute = time.substringAfter(':', "")
     val breath = rememberInfiniteTransition(label = "breath")
-    val scale by breath.animateFloat(1f, BREATH_SCALE, infiniteRepeatable(tween(BREATH_MS, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "breath scale")
+    val scale by breath.animateFloat(1f / BREATH_SCALE, 1f, infiniteRepeatable(tween(BREATH_MS, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "breath scale")
+    // Drawn at its largest and scaled down as one picture: the digits grow and shrink smoothly
+    // (text scaled directly jumps between the sizes its glyphs are drawn at).
+    val big = minuteSize * BREATH_SCALE
+    val ink = AppTheme.colors.text
     val style = TextStyle(
         fontFamily = DisplayFont,
         fontWeight = FontWeight.Bold,
-        color = AppTheme.colors.text,
+        color = ink,
         fontFeatureSettings = TABULAR,
         lineHeight = 1.0.em,
         lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
     )
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier.graphicsLayer {
-            scaleX = scale
-            scaleY = scale
-            transformOrigin = TransformOrigin(0f, 0.5f)
-        },
+        modifier = modifier.breathe(rest = 1f / BREATH_SCALE) { scale },
     ) {
-        Text(hour, style = style.copy(fontSize = minuteSize * HOUR_SHARE))
-        Text(":", style = style.copy(fontSize = minuteSize * HOUR_SHARE, color = AppTheme.colors.accent))
-        Text(minute, style = style.copy(fontSize = minuteSize))
+        Text(hour, style = style.copy(fontSize = big * HOUR_SHARE))
+        Text(":", style = style.copy(fontSize = big * HOUR_SHARE, color = AppTheme.colors.accent))
+        OutlinedDigits(minute, style.copy(fontSize = big), status, fill = { ink })
     }
+}
+
+/**
+ * Draws the content scaled by [scale] (at most 1) from the middle of its left edge, in a layer of
+ * its own so it is scaled as a picture, and takes the room of it at [rest].
+ */
+private fun Modifier.breathe(rest: Float, scale: () -> Float): Modifier = layout { measurable, constraints ->
+    val placeable = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0, maxWidth = Constraints.Infinity))
+    val w = (placeable.width * rest).roundToInt()
+    val h = (placeable.height * rest).roundToInt()
+    layout(w, h) {
+        placeable.placeWithLayer(0, (h - placeable.height) / 2) {
+            val s = scale()
+            scaleX = s
+            scaleY = s
+            transformOrigin = TransformOrigin(0f, 0.5f)
+            compositingStrategy = CompositingStrategy.Offscreen
+        }
+    }
+}
+
+/** "NÄSTA" (said "Nästa stopp") on a translucent yellow chip with a hairline edge. */
+@Composable
+private fun NextChip(landscape: Boolean) {
+    val shape = RoundedCornerShape(50)
+    Text(
+        stringResource(R.string.passenger_next).uppercase(),
+        fontFamily = DisplayFont,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = if (landscape) 26.sp else 20.sp,
+        letterSpacing = 3.sp,
+        color = AppTheme.colors.onNextChip,
+        modifier = Modifier
+            .clip(shape)
+            .background(AppTheme.colors.nextChip)
+            .border(1.5.dp, AppTheme.colors.nextChipEdge, shape)
+            .padding(horizontal = 18.dp, vertical = 3.dp),
+    )
 }
 
 /** Lays this out above where it would go, taking no room in its column: it floats over what is above. */
@@ -1477,8 +1545,8 @@ private const val SHOW_TRIP_MS = 6_000L
 /** The time above the address (its minutes; the hours are smaller), gently breathing. */
 private val HERO_TIME_SP = 52.sp
 private val HERO_TIME_SP_NARROW = 36.sp
-private const val BREATH_SCALE = 1.07f
-private const val BREATH_MS = 1_800
+private const val BREATH_SCALE = 1.2f
+private const val BREATH_MS = 2_200
 
 /** A trip paged to: its time comes in this much larger and settles. */
 private const val PAGE_POP = 1.8f
@@ -1527,8 +1595,9 @@ private const val CLOCK_WIDTH_PER_SP = 1.85f
 private val NARROW_LEFT_ROOM = 220.dp
 private const val HOUR_SHARE = 0.62f
 private const val SECOND_SHARE = 0.3f
-private const val SECONDS_TUCK = 0.2f
 
+/** The seconds tuck up this share of the minutes' size into the empty room under the hours' digits. */
+private const val SECONDS_TUCK = 0.08f
 
 /** The time grows to five times its size, or to this share of the screen if that is less. */
 private const val TIME_GROWTH = 5f
@@ -1545,6 +1614,11 @@ private const val SOLID_IN_MS = 1_800
 private const val SOLID_HOLD_MS = 2_000L
 private const val SOLID_OUT_MS = 1_800
 
+/** A tap on the clock: the time springs out, the ground follows a moment later, and both stay four seconds. */
+private const val TAP_SPRING_DAMPING = 0.7f
+private const val TAP_SOLID_AFTER_MS = 300L
+private const val TAP_HOLD_MS = 4_000L
+
 /**
  * The weather at this second of each minute, Google Maps' travel time at this one, each seven
  * seconds in all: in, held, out.
@@ -1558,10 +1632,9 @@ private val INFO_SP_WIDE = 220.sp
 private val INFO_SP_NARROW = 110.sp
 
 /** The ring around the clock's minutes: its line, its glow, and how it beats. */
-private val RING_LINE = 3.dp
-private val RING_GLOW = 10.dp
-private const val RING_BEAT_LOW = 0.25f
-private const val RING_BEAT_MS = 700
+private const val OUTLINE_SHARE = 0.045f
+private const val BEAT_LOW = 0.2f
+private const val BEAT_MS = 700
 
 /** How far the rest of the screen steps back while the time grows (before the solid ground). */
 private const val REST_FADE = 0.85f
