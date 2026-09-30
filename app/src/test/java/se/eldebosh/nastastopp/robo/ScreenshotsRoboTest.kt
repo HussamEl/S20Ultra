@@ -596,8 +596,8 @@ class ScreenshotsRoboTest {
     }
 
     /**
-     * A swipe pages to the following stops in the middle, marking their card; Home brings back the
-     * next stop. The route itself does not move.
+     * A swipe across the address pages to the following stops; Home brings back the next stop. The
+     * route itself does not move.
      */
     @Test
     @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
@@ -616,8 +616,8 @@ class ScreenshotsRoboTest {
             compose.mainClock.advanceTimeBy(1_500)
         }
         save("display_paged", compose.onRoot().captureToImage().asAndroidBitmap())
-        // The stop after "Därefter", large in the middle and on its card, and its time under the clock.
-        compose.onAllNodesWithText("Storgatan 14").assertCountEquals(2)
+        // The stop after "Därefter", large at the top, and its time beside the clock.
+        compose.onNodeWithText("Storgatan 14").assertIsDisplayed()
         compose.onNodeWithTag("ref_90", useUnmergedTree = true).assert(hasAnyDescendant(hasText("25")))
         compose.onNodeWithText("Västra Torggatan 12").assertDoesNotExist()
         compose.onNodeWithTag("ref_200").performClick()
@@ -632,6 +632,48 @@ class ScreenshotsRoboTest {
         compose.onAllNodesWithText("Järnvägsgatan 3B").onFirst().assertExists()
         compose.onNodeWithTag("ref_200").assertExists()
         compose.mainClock.autoAdvance = true
+    }
+
+    /**
+     * A swipe along the bottom line brings out the list of all the trips in place of everything
+     * else; it goes three seconds after the last swipe. A tap on a trip in it says the trip and
+     * shows it, and puts the list away.
+     */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun passengerDisplayListsAllTheTrips() {
+        val said = mutableListOf<String>()
+        compose.setContent {
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(
+                    tabletSnapshot,
+                    status = "Galaxy S20",
+                    connected = true,
+                    onSpeak = {},
+                    onExit = {},
+                    onSay = { said += it.swedish },
+                    time = { LocalTime.of(8, 11, 5) },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onAllNodesWithTag("ref_226").assertCountEquals(0)
+        compose.mainClock.autoAdvance = false
+        compose.onNodeWithTag("ref_94").performTouchInput { swipeLeft() }
+        compose.mainClock.advanceTimeBy(1_000)
+        save("display_list", compose.onRoot().captureToImage().asAndroidBitmap())
+        compose.onNodeWithText("Nästa stopp", ignoreCase = true).assertIsDisplayed()
+        compose.mainClock.advanceTimeBy(3_500)
+        compose.onAllNodesWithTag("ref_226").assertCountEquals(0)
+        // Out again from the clock; a tap on a coming trip in the list says it and shows it.
+        compose.onNodeWithTag("ref_88").performTouchInput { swipeLeft() }
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.onNodeWithText("Södra Kyrkogatan 7").performClick()
+        compose.mainClock.advanceTimeBy(1_500)
+        save("display_list_pick", compose.onRoot().captureToImage().asAndroidBitmap())
+        compose.onAllNodesWithTag("ref_226").assertCountEquals(0)
+        compose.mainClock.autoAdvance = true
+        assertEquals(listOf("Klockan 8 och 50 ska vi till Södra Kyrkogatan 7, Kristinehamn."), said)
     }
 
     /**
