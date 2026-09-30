@@ -117,6 +117,8 @@ data class PanelRoles(
     val pickUp: Color,
     val dropOff: Color,
     val depot: Color,
+    /** A soft dark halo under what floats on the map without glass (the capsule's chevrons and time). */
+    val halo: Color,
 ) {
     fun trip(kind: TripKind?): Color = when (kind) {
         TripKind.PICK_UP -> pickUp
@@ -155,6 +157,7 @@ val DayPanel = PanelRoles(
     pickUp = Palette.YouDriveGreen,
     dropOff = Palette.White,
     depot = Palette.YouDriveGrey,
+    halo = Palette.Black.copy(alpha = 0.7f),
 )
 
 /** By night: the night's navy glass, a little denser. */

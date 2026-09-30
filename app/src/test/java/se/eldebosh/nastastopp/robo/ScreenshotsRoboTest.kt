@@ -57,6 +57,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.hasAnyDescendant
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Rule
 import org.junit.Test
@@ -613,8 +616,9 @@ class ScreenshotsRoboTest {
             compose.mainClock.advanceTimeBy(1_500)
         }
         save("display_paged", compose.onRoot().captureToImage().asAndroidBitmap())
-        // The stop after "Därefter", large in the middle and on its card.
+        // The stop after "Därefter", large in the middle and on its card, and its time under the clock.
         compose.onAllNodesWithText("Storgatan 14").assertCountEquals(2)
+        compose.onNodeWithTag("ref_90", useUnmergedTree = true).assert(hasAnyDescendant(hasText("25")))
         compose.onNodeWithText("Västra Torggatan 12").assertDoesNotExist()
         compose.onNodeWithTag("ref_200").performClick()
         compose.mainClock.advanceTimeBy(3_000)
@@ -676,7 +680,7 @@ class ScreenshotsRoboTest {
     /**
      * On the tablet a long press on a trip asks for the way to it: Google Maps on its address while
      * the display's own map cannot show it. The map sign on the top line does the same for the next
-     * stop, which shows no time of its own above its address.
+     * stop, whose time stands under the clock.
      */
     @Test
     @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
@@ -696,7 +700,7 @@ class ScreenshotsRoboTest {
             }
         }
         compose.waitForIdle()
-        compose.onNodeWithTag("ref_90").assertDoesNotExist()
+        compose.onNodeWithTag("ref_90", useUnmergedTree = true).assert(hasAnyDescendant(hasText("36")))
         compose.onNodeWithText("Hamngatan 7").performTouchInput { longClick() }
         compose.onNodeWithTag("ref_219").performClick()
         compose.waitForIdle()

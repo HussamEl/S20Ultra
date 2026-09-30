@@ -26,19 +26,24 @@ enum class TimeStatus(val late: Boolean, val beating: Boolean) {
         }
 
         /**
-         * A countdown to the stop from [secondsUntil] (negative = late): "12:05", "1:04:30" from an
-         * hour on, and "+3:10" once it has passed. Western digits in every language.
+         * A countdown to the stop from [secondsUntil] (negative = late), in the parts the clock
+         * shows: hours from an hour on, minutes and seconds ("1", "04", "30"; "7", "42"), with
+         * "+" before the first once it has passed ("+3", "10"). Western digits in every language.
          */
-        fun countdown(secondsUntil: Int): String {
-            val late = secondsUntil < 0
+        fun countdown(secondsUntil: Int): Countdown {
+            val sign = if (secondsUntil < 0) "+" else ""
             val s = kotlin.math.abs(secondsUntil)
             val h = s / 3600
             val m = s % 3600 / 60
-            val sec = s % 60
-            val body = if (h > 0) String.format(java.util.Locale.ROOT, "%d:%02d:%02d", h, m, sec) else String.format(java.util.Locale.ROOT, "%d:%02d", m, sec)
-            return if (late) "+$body" else body
+            val sec = two(s % 60)
+            return if (h > 0) Countdown("$sign$h", two(m), sec) else Countdown(null, "$sign$m", sec)
         }
+
+        private fun two(n: Int) = String.format(java.util.Locale.ROOT, "%02d", n)
 
         private const val NEAR_MIN = 5
     }
 }
+
+/** A countdown as the clock shows it: [hours] (null under an hour), [minutes] and [seconds]. */
+data class Countdown(val hours: String?, val minutes: String, val seconds: String)

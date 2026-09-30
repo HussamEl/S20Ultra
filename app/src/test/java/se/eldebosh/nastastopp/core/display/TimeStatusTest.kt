@@ -14,10 +14,11 @@ class TimeStatusTest {
 
     @Test
     fun theCountdownReadsMinutesAndSeconds() {
-        assertEquals("12:05", TimeStatus.countdown(725))
-        assertEquals("0:09", TimeStatus.countdown(9))
-        assertEquals("1:04:30", TimeStatus.countdown(3870))
-        assertEquals("+3:10", TimeStatus.countdown(-190))
-        assertEquals("0:00", TimeStatus.countdown(0))
+        assertEquals(Countdown(null, "12", "05"), TimeStatus.countdown(725))
+        assertEquals(Countdown(null, "0", "09"), TimeStatus.countdown(9))
+        assertEquals(Countdown("1", "04", "30"), TimeStatus.countdown(3870))
+        assertEquals(Countdown(null, "+3", "10"), TimeStatus.countdown(-190))
+        assertEquals(Countdown("+1", "00", "05"), TimeStatus.countdown(-3605))
+        assertEquals(Countdown(null, "0", "00"), TimeStatus.countdown(0))
     }
 }

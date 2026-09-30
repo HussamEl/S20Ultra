@@ -12,7 +12,9 @@ import android.graphics.Canvas
 import android.graphics.ColorFilter
 import android.graphics.Paint
 import android.graphics.PixelFormat
+import android.graphics.Path
 import android.graphics.RectF
+import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
@@ -82,7 +84,8 @@ import kotlin.math.roundToInt
  * It follows the UI language (Arabic: mirrored). Next: tap = "Nästa", long-press = repeat. Back:
  * undo the last "Nästa". The street bar: tap = say the street, long-press = repeat. The stop's
  * street: tap = say its street and number. "–" shrinks it to a small glass capsule with a
- * countdown to the trip (tap to expand); "×" closes it, and it comes back from the notification
+ * countdown to the trip, its time above and a chevron at each side for Back and Next (tap the
+ * capsule to expand); "×" closes it, and it comes back from the notification
  * that appears, the Quick Settings tile or the app. Everything can be dragged; the position is
  * remembered and kept on screen.
  *
@@ -139,8 +142,13 @@ class OverlayManager(
         var town: TextView? = null
         var bubble: LinearLayout? = null
         var bubbleDotView: View? = null
-        var bubbleMain: TextView? = null
-        var bubbleSub: TextView? = null
+        var bubbleHours: TextView? = null
+        var bubbleColon: TextView? = null
+        var bubbleMinutes: TextView? = null
+        var bubbleSeconds: TextView? = null
+        var bubbleTime: TextView? = null
+        var bubbleBack: View? = null
+        var bubbleNext: View? = null
         var bubbleRing: GradientDrawable? = null
         var bubbleDot: GradientDrawable? = null
     }
@@ -266,17 +274,34 @@ class OverlayManager(
             if (color != null) setTextColor(color)
         }
         if (color != null) v.statusDot?.setColor(color)
-        // The capsule counts down to the trip's time, in the display clock's colours: green, orange
-        // within five minutes (beating at its minute), red once late (beating from five minutes).
+        // The capsule counts down to the trip's time like the display's clock (hours, minutes,
+        // small seconds), in its colours: green, orange within five minutes (beating at its
+        // minute), red once late (beating from five minutes). Without a time: the trip's number.
         val status = TimeStatus.of(until)
         val countdown = until?.let { pc.countdown(status) }
-        v.bubbleMain?.apply {
-            text = if (until != null) TimeStatus.countdown(until * 60 - now.second) else progress(t.done, t.left)
-            setTextColor(countdown ?: pc.text)
+        val parts = until?.let { TimeStatus.countdown(it * 60 - now.second) }
+        val ink = countdown ?: pc.text
+        v.bubbleHours?.apply {
+            text = parts?.hours.orEmpty()
+            visibility = if (parts?.hours == null) View.GONE else View.VISIBLE
+            setTextColor(ink)
         }
-        v.bubbleSub?.apply {
-            text = t.time ?: ""
-            visibility = if (text.isNullOrEmpty()) View.GONE else View.VISIBLE
+        v.bubbleColon?.apply {
+            visibility = if (parts?.hours == null) View.GONE else View.VISIBLE
+            setTextColor(ink)
+        }
+        v.bubbleMinutes?.apply {
+            text = parts?.minutes ?: progress(t.done, t.left)
+            setTextColor(ink)
+        }
+        v.bubbleSeconds?.apply {
+            text = parts?.seconds.orEmpty()
+            visibility = if (parts == null) View.GONE else View.VISIBLE
+            setTextColor(ink)
+        }
+        v.bubbleTime?.apply {
+            text = t.time.orEmpty()
+            visibility = if (t.time == null) View.INVISIBLE else View.VISIBLE
         }
         v.bubbleRing?.setStroke(dp(BUBBLE_RING_DP * bubbleScale * swell), countdown ?: pc.edgeLight)
         v.bubbleDot?.setColor(countdown ?: pc.muted)
@@ -313,23 +338,36 @@ class OverlayManager(
         }
     }
 
-    /** Lays the capsule out at [f] times its base size: its height, text, dot, ring and rounding. */
+    /**
+     * Lays the capsule out at [f] times its base size: its height, digits, dot, ring and rounding,
+     * the chevrons beside it and the trip's time above it.
+     */
     private fun sizeBubble(v: Views, f: Float) {
         val bubble = v.bubble ?: return
         bubble.background = bubbleBackground(BUBBLE_H_DP * f, v.bubbleRing)
         bubble.setPadding(dp(14f * f), 0, dp(16f * f), 0)
         bubble.layoutParams = bubble.layoutParams?.apply { height = dp(BUBBLE_H_DP * f) }
-        v.bubbleMain?.apply {
-            setTextSize(TypedValue.COMPLEX_UNIT_PX, sp(BUBBLE_MAIN_SP * f).toFloat())
-            (layoutParams as? LinearLayout.LayoutParams)?.marginStart = dp(8f * f)
+        fun TextView.size(sp: Float) = setTextSize(TypedValue.COMPLEX_UNIT_PX, sp(sp * f).toFloat())
+        v.bubbleHours?.size(BUBBLE_MIN_SP * BUBBLE_HOUR_SHARE)
+        v.bubbleColon?.size(BUBBLE_MIN_SP * BUBBLE_HOUR_SHARE)
+        v.bubbleMinutes?.size(BUBBLE_MIN_SP)
+        v.bubbleSeconds?.apply {
+            size(BUBBLE_MIN_SP * BUBBLE_SECOND_SHARE)
+            (layoutParams as? LinearLayout.LayoutParams)?.marginStart = dp(3f * f)
         }
-        v.bubbleSub?.apply {
-            setTextSize(TypedValue.COMPLEX_UNIT_PX, sp(BUBBLE_SUB_SP * f).toFloat())
-            (layoutParams as? LinearLayout.LayoutParams)?.marginStart = dp(6f * f)
+        v.bubbleTime?.size(BUBBLE_TIME_SP)
+        (v.bubbleHours?.parent as? View)?.let { count ->
+            (count.layoutParams as? LinearLayout.LayoutParams)?.marginStart = dp(8f * f)
         }
         v.bubbleDotView?.layoutParams = v.bubbleDotView?.layoutParams?.apply {
             width = dp(10f * f)
             height = dp(10f * f)
+        }
+        for (chevron in listOfNotNull(v.bubbleBack, v.bubbleNext)) {
+            chevron.layoutParams = chevron.layoutParams?.apply {
+                width = dp(CHEVRON_W_DP * f)
+                height = dp(BUBBLE_H_DP * f)
+            }
         }
         v.bubbleRing?.cornerRadius = dp(BUBBLE_H_DP * f / 2).toFloat()
         bubble.requestLayout()
@@ -404,9 +442,12 @@ class OverlayManager(
     }
 
     /**
-     * Minimised: a small glass capsule counting down to the next trip ("7:42", "+3:10" once late),
-     * with the trip's time beside it; the countdown, its ring and dot in the display clock's
-     * colours. Tap = expand.
+     * Minimised: a small glass capsule counting down to the next trip like the display's clock:
+     * the hours (from an hour away) medium, the minutes large and the seconds small at their
+     * right with nothing between them ("7 42", "+3 10" once late); the digits, the ring and the dot
+     * in the display clock's colours. The trip's time floats above it, and a chevron floats at
+     * each side: back and on to the next trip, as in the full panel (a long press on the next one
+     * repeats the announcement). Tap the capsule = expand.
      */
     // TouchHandler calls performClick on a tap, so clicks stay accessible.
     @SuppressLint("ClickableViewAccessibility")
@@ -420,8 +461,23 @@ class OverlayManager(
             setColor(pc.clear)
             setStroke(dp(BUBBLE_RING_DP * bubbleScale), pc.edgeLight)
         }
-        val main = text(BUBBLE_MAIN_SP, pc.text, bold = true).apply { fontFeatureSettings = "tnum" }
-        val sub = text(BUBBLE_SUB_SP, pc.muted, bold = true)
+        val bold = context.resources.getFont(R.font.atkinson_hyperlegible_next_bold)
+        fun digits(face: Typeface) = text(BUBBLE_MIN_SP, pc.text).apply {
+            typeface = face
+            includeFontPadding = false
+        }
+        val hours = digits(bold)
+        val colon = digits(bold).apply { text = ":" }
+        val minutes = digits(bold)
+        val seconds = digits(context.resources.getFont(R.font.atkinson_hyperlegible_next_light)).apply { fontFeatureSettings = "tnum" }
+        // The digits stand on one baseline.
+        val count = LinearLayout(ui).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(hours, LinearLayout.LayoutParams(WRAP, WRAP))
+            addView(colon, LinearLayout.LayoutParams(WRAP, WRAP))
+            addView(minutes, LinearLayout.LayoutParams(WRAP, WRAP))
+            addView(seconds, LinearLayout.LayoutParams(WRAP, WRAP))
+        }
         val dotView = View(ui).apply { background = dot }
         val bubble = LinearLayout(ui).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -429,24 +485,99 @@ class OverlayManager(
             elevation = dp(fx.panelShadow.value).toFloat()
             contentDescription = ui.getString(R.string.overlay_expand_desc)
             addView(dotView, LinearLayout.LayoutParams(dp(10f), dp(10f)))
-            addView(main, LinearLayout.LayoutParams(WRAP, WRAP))
-            addView(sub, LinearLayout.LayoutParams(WRAP, WRAP))
+            addView(count, LinearLayout.LayoutParams(WRAP, WRAP))
+        }
+        val rtl = ui.resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_RTL
+        val back = View(ui).apply {
+            background = Chevron(pointsRight = rtl)
+            contentDescription = ui.getString(R.string.overlay_back)
+        }
+        val next = View(ui).apply {
+            background = Chevron(pointsRight = !rtl)
+            contentDescription = ui.getString(R.string.overlay_next)
+        }
+        val row = LinearLayout(ui).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(back, LinearLayout.LayoutParams(dp(CHEVRON_W_DP), dp(BUBBLE_H_DP)))
+            addView(bubble, LinearLayout.LayoutParams(WRAP, dp(BUBBLE_H_DP)))
+            addView(next, LinearLayout.LayoutParams(dp(CHEVRON_W_DP), dp(BUBBLE_H_DP)))
+        }
+        // The trip's time, floating above the capsule with a soft dark halo so it reads on any map.
+        val time = text(BUBBLE_TIME_SP, pc.text).apply {
+            typeface = context.resources.getFont(R.font.atkinson_hyperlegible_next_medium)
+            setShadowLayer(dp(3f).toFloat(), 0f, dp(1f).toFloat(), pc.halo)
+        }
+        val column = LinearLayout(ui).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            addView(time, LinearLayout.LayoutParams(WRAP, WRAP))
+            addView(row, LinearLayout.LayoutParams(WRAP, WRAP))
         }
         val frame = FrameLayout(ui).apply {
             shadowRoom()
-            addView(bubble, FrameLayout.LayoutParams(WRAP, dp(BUBBLE_H_DP)))
+            addView(column, FrameLayout.LayoutParams(WRAP, WRAP))
         }
         bubble.ref(17)
+        time.ref(10, padText = false)
+        back.ref(12)
+        next.ref(14)
         bubble.setOnClickListener { settings.update { it.copy(overlayMinimized = false) } }
         bubble.setOnTouchListener(TouchHandler(lp, frame, onLongPress = null, press = true))
+        back.setOnClickListener { if (!source.back()) toast(R.string.overlay_no_previous) }
+        back.setOnTouchListener(TouchHandler(lp, frame, onLongPress = null, press = true))
+        next.setOnClickListener { source.next() }
+        next.setOnTouchListener(TouchHandler(lp, frame, onLongPress = { source.repeat() }, press = true))
         v.bubble = bubble
         v.bubbleDotView = dotView
-        v.bubbleMain = main
-        v.bubbleSub = sub
+        v.bubbleHours = hours
+        v.bubbleColon = colon
+        v.bubbleMinutes = minutes
+        v.bubbleSeconds = seconds
+        v.bubbleTime = time
+        v.bubbleBack = back
+        v.bubbleNext = next
         v.bubbleRing = ring
         v.bubbleDot = dot
         sizeBubble(v, bubbleScale * swell)
         return frame
+    }
+
+    /**
+     * A chevron floating beside the capsule (‹ or ›): a rounded stroke in the panel's text colour
+     * with a soft dark halo, so it reads on a light map as well as on a dark one.
+     */
+    private inner class Chevron(private val pointsRight: Boolean) : Drawable() {
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+            color = pc.text
+            setShadowLayer(dp(3f).toFloat(), 0f, dp(1f).toFloat(), pc.halo)
+        }
+        private val path = Path()
+
+        override fun draw(canvas: Canvas) {
+            val b = bounds
+            val tall = b.height() * CHEVRON_TALL
+            val wide = tall * 0.5f
+            val cx = b.exactCenterX()
+            val cy = b.exactCenterY()
+            val dir = if (pointsRight) 1f else -1f
+            paint.strokeWidth = b.height() * CHEVRON_STROKE
+            path.reset()
+            path.moveTo(cx - dir * wide / 2, cy - tall / 2)
+            path.lineTo(cx + dir * wide / 2, cy)
+            path.lineTo(cx - dir * wide / 2, cy + tall / 2)
+            canvas.drawPath(path, paint)
+        }
+
+        override fun setAlpha(alpha: Int) = Unit
+
+        override fun setColorFilter(colorFilter: ColorFilter?) = Unit
+
+        @Deprecated("Deprecated in Java")
+        override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -1001,9 +1132,19 @@ class OverlayManager(
         private const val BEAT_LOW = 0.2f
         private const val BEAT_MS = 700L
 
-        /** The capsule: its base size, and how it swells and blinks in the trip's last minute. */
-        private const val BUBBLE_MAIN_SP = 17f
-        private const val BUBBLE_SUB_SP = 11f
+        /**
+         * The capsule: its minutes' size (the hours and seconds are shares of it, as on the
+         * display's clock), the trip's time above it, the chevrons beside it (their width, and the
+         * stroke's height and weight as shares of the capsule's height), its ring, and how it
+         * swells and blinks in the trip's last minute.
+         */
+        private const val BUBBLE_MIN_SP = 21f
+        private const val BUBBLE_HOUR_SHARE = 0.62f
+        private const val BUBBLE_SECOND_SHARE = 0.55f
+        private const val BUBBLE_TIME_SP = 12f
+        private const val CHEVRON_W_DP = 30f
+        private const val CHEVRON_TALL = 0.4f
+        private const val CHEVRON_STROKE = 0.08f
         private const val BUBBLE_RING_DP = 2.5f
         private const val SWELL = 2f
         private const val SWELL_MS = 500L
@@ -1057,6 +1198,9 @@ private class PanelColors(c: AppColors) {
     val refPill = c.refPill.toArgb()
     val onRefPill = c.onRefPill.toArgb()
     val clear = Color.Transparent.toArgb()
+
+    /** The soft dark halo behind what floats on the map without glass (the capsule's chevrons and time). */
+    val halo = p.halo.toArgb()
 
     /** The trip's stripe and kind chip, in its YouDrive card colour. */
     fun trip(kind: TripKind?): Int = p.trip(kind).toArgb()
