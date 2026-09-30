@@ -70,6 +70,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -81,6 +82,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
@@ -135,8 +139,8 @@ import java.util.Locale
  *   "Därefter" card grows well past its size when its name comes, and settles;
  * - a tap on a card says it ("Därefter: …") and grows it the same way, over four seconds;
  * - a tap on the clock says the time;
- * - when the minute changes, the minutes grow into the middle of the screen over five seconds
- *   and go back faster (never while something is being said).
+ * - when the minute changes, the time grows into the middle of the screen over five seconds,
+ *   stays five more and goes back faster (never while something is being said).
  *
  * Landscape (a tablet): the following trips side by side. Portrait (the phone): one below the other.
  *
@@ -160,7 +164,7 @@ fun PassengerDisplayScreen(
     KeepScreenOnFullscreen()
     var tapped by remember { mutableIntStateOf(0) }
     val cue = spoken + tapped
-    // Taps on the clock or a card: said on this device, and the minutes keep still meanwhile.
+    // Taps on the clock or a card: said on this device, and the time keeps still meanwhile.
     var said by remember { mutableIntStateOf(0) }
     val say: (Announcement) -> Unit = {
         said++
@@ -168,11 +172,16 @@ fun PassengerDisplayScreen(
     }
     val now = rememberNow(time)
     val grow = rememberMinuteGrowth(now, cue + said, snapshot?.announcementSv)
-    // Everything but the minutes steps back while they grow.
+    // Everything but the time steps back while it grows.
     val rest = Modifier.stepBack { grow.value }
     BoxWithConstraints(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         val landscape = maxWidth > maxHeight
         var screen by remember { mutableStateOf(Rect.Zero) }
+        // On a tablet the clock hangs down beside "NÄSTA STOPP" instead of pushing the stop down;
+        // the address itself starts below it.
+        var clockBottom by remember { mutableFloatStateOf(0f) }
+        var stageTop by remember { mutableFloatStateOf(0f) }
+        val clear = with(LocalDensity.current) { (clockBottom - stageTop).coerceAtLeast(0f).toDp() }
         Column(
             Modifier
                 .fillMaxSize()
@@ -180,7 +189,7 @@ fun PassengerDisplayScreen(
                 .padding(horizontal = if (landscape) 32.dp else 20.dp, vertical = 12.dp),
         ) {
             val live = snapshot?.takeIf { it.active && it.current != null }
-            // Drawn over what follows, so the growing minutes pass in front of it.
+            // Drawn over what follows, so the clock hangs over it and the growing time passes in front.
             Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth().zIndex(1f)) {
                 Column(rest.weight(1f)) {
                     TopLine(status, connected, onExit, extraActions)
@@ -204,7 +213,10 @@ fun PassengerDisplayScreen(
                     grow = { grow.value },
                     screen = { screen },
                     onClick = { say(Announcements.clock(now.value.hour, now.value.minute)) },
-                    modifier = Modifier.ref(88).padding(start = 16.dp),
+                    modifier = (if (landscape) Modifier.overhang() else Modifier)
+                        .onGloballyPositioned { clockBottom = it.boundsInRoot().bottom }
+                        .ref(88)
+                        .padding(start = 16.dp),
                 )
             }
 
@@ -224,11 +236,13 @@ fun PassengerDisplayScreen(
 
             if (!landscape) live.previous?.let { PreviousLine(it, rest.ref(89).padding(top = 4.dp)) }
 
-            Box(rest.weight(1f).fillMaxWidth()) {
+            Box(rest.weight(1f).fillMaxWidth().onGloballyPositioned { stageTop = it.boundsInRoot().top }) {
                 Stage(
                     live,
                     landscape,
                     cue,
+                    // "NÄSTA STOPP" may sit beside the clock on a tablet; the address goes below it.
+                    clear = if (landscape) (clear - LABEL_BAND).coerceAtLeast(0.dp) else clear,
                     onSay = say,
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -261,7 +275,8 @@ private fun rememberNow(time: () -> LocalTime): State<LocalTime> {
 }
 
 /**
- * 0 → 1 → 0 each time the minute changes: the minutes grow for five seconds, then go back faster.
+ * 0 → 1 → 0 each time the minute changes: the time grows for five seconds, stays five more, then
+ * goes back faster.
  * Nothing grows while something is being said ([cue] goes up with each announcement and tap), and
  * a new cue sends the minutes straight back.
  */
@@ -281,6 +296,7 @@ private fun rememberMinuteGrowth(now: State<LocalTime>, cue: Int, spokenText: St
     LaunchedEffect(minute) {
         if (minute == opened || quiet) return@LaunchedEffect
         grow.animateTo(1f, tween(GROW_MS, easing = FastOutSlowInEasing))
+        delay(HOLD_MS)
         grow.animateTo(0f, tween(SHRINK_MS, easing = FastOutLinearInEasing))
     }
     return grow
@@ -294,10 +310,12 @@ private fun rememberMinuteGrowth(now: State<LocalTime>, cue: Int, spokenText: St
  * trip in turn (swiped sideways on a tablet, up and down on the phone, like the cards). This only
  * changes what the display shows, never the route. Home brings back the next stop, and so do an
  * announcement and half a minute left alone.
+ *
+ * The stops in the middle keep [clear] free at their top, for the clock hanging down beside them.
  */
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
-private fun Stage(snapshot: DisplaySnapshot, landscape: Boolean, cue: Int, onSay: (Announcement) -> Unit, modifier: Modifier = Modifier) {
+private fun Stage(snapshot: DisplaySnapshot, landscape: Boolean, cue: Int, clear: Dp, onSay: (Announcement) -> Unit, modifier: Modifier = Modifier) {
     SharedTransitionLayout(modifier) {
         AnimatedContent(
             targetState = snapshot,
@@ -336,13 +354,14 @@ private fun Stage(snapshot: DisplaySnapshot, landscape: Boolean, cue: Int, onSay
             }
             val spot = spotlight.on
             Box(Modifier.fillMaxSize()) {
-                Column(Modifier.fillMaxSize().padding(end = if (landscape) SPEAKER_ROOM else 0.dp, bottom = if (landscape) 0.dp else SPEAKER_ROOM)) {
+                // The stops in the middle take the whole width; the cards leave room for the buttons.
+                Column(Modifier.fillMaxSize().padding(bottom = if (landscape) 0.dp else SPEAKER_ROOM)) {
                     val page = @Composable { index: Int ->
                         if (index == 0) {
-                            StopHero(current, next = true, landscape, focused = spot == NEXT_STOP, dimmed = spot >= 0, shared = shared, modifier = Modifier.fillMaxSize())
+                            StopHero(current, next = true, landscape, focused = spot == NEXT_STOP, dimmed = spot >= 0, shared = shared, modifier = Modifier.fillMaxSize().padding(top = clear))
                         } else {
                             // A card that is said lights up here too while its stop is shown.
-                            StopHero(stops[index], next = false, landscape, focused = spot == index - 1, dimmed = spot != NONE && spot != index - 1, shared = null, modifier = Modifier.fillMaxSize())
+                            StopHero(stops[index], next = false, landscape, focused = spot == index - 1, dimmed = spot != NONE && spot != index - 1, shared = null, modifier = Modifier.fillMaxSize().padding(top = clear))
                         }
                     }
                     val pages = Modifier.weight(1f).fillMaxWidth()
@@ -374,7 +393,7 @@ private fun Stage(snapshot: DisplaySnapshot, landscape: Boolean, cue: Int, onSay
                             )
                         }
                         if (landscape) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(end = SPEAKER_ROOM)) {
                                 shown.upcoming.forEachIndexed { i, item -> card(i, item, Modifier.ref(94).weight(if (i == 0) FIRST_CARD_WEIGHT else 1f)) }
                                 // Fewer trips left: the cards keep their width.
                                 repeat(MAX_UPCOMING - shown.upcoming.size) { Spacer(Modifier.weight(1f)) }
@@ -508,101 +527,101 @@ private fun StopHero(
         labelScale.animateTo(1.35f, spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessMediumLow))
         labelScale.animateTo(1f, spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessLow))
     }
-    // How far the address may grow and stay on the screen: less for a long one.
+    // How far the address may grow and stay within its page (a page cuts off what passes its
+    // edge): less for a long one.
     var room by remember { mutableFloatStateOf(TITLE_FOCUS) }
     val scale by animateFloatAsState(if (focused) room else 1f, tween(FOCUS_MS, easing = FastOutSlowInEasing), label = "focus")
     val shade by animateFloatAsState(if (dimmed) DIM else 1f, tween(DIM_MS), label = "dim")
     val titleColor by animateColorAsState(if (focused) AppTheme.colors.highlight else AppTheme.colors.text, tween(FOCUS_MS / 2), label = "street")
     val placed = if (shared == null) modifier else with(shared) { modifier.stop(current) }
-    Column(
-        placed.graphicsLayer { alpha = shade },
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.ref(90).graphicsLayer {
-                scaleX = labelScale.value
-                scaleY = labelScale.value
-            },
-        ) {
-            Text(
-                stringResource(if (next) R.string.passenger_next_stop else R.string.passenger_then).uppercase(),
-                fontFamily = DisplayFont,
-                fontWeight = FontWeight.Bold,
-                fontSize = if (landscape) 34.sp else 26.sp,
-                letterSpacing = 1.5.sp,
-                color = if (next) AppTheme.colors.onInfo else AppTheme.colors.text,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(if (next) AppTheme.colors.highlight else AppTheme.colors.tonalHigh)
-                    .padding(horizontal = 22.dp, vertical = 2.dp),
-            )
-            if (current.time != null) {
-                Spacer(Modifier.width(18.dp))
-                Text(
-                    current.time,
-                    fontFamily = DisplayFont,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = if (landscape) 50.sp else 36.sp,
-                    color = if (next) AppTheme.colors.highlight else AppTheme.colors.time,
-                    style = TextStyle(fontFeatureSettings = TABULAR),
-                )
-            }
-        }
-        Column(
-            Modifier
-                .weight(1f, fill = false)
-                .fillMaxWidth()
-                .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
+    // Somewhat above the middle, so the address stays high on the screen.
+    Box(placed.graphicsLayer { alpha = shade }, contentAlignment = BiasAlignment(0f, HERO_BIAS)) {
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.ref(90).graphicsLayer {
+                    scaleX = labelScale.value
+                    scaleY = labelScale.value
                 },
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            BoxWithConstraints(Modifier.ref(91).weight(1f, fill = false).fillMaxWidth()) {
-                val style = TextStyle(
+            ) {
+                Text(
+                    stringResource(if (next) R.string.passenger_next_stop else R.string.passenger_then).uppercase(),
                     fontFamily = DisplayFont,
                     fontWeight = FontWeight.Bold,
-                    color = titleColor,
-                    textAlign = TextAlign.Center,
-                    textDirection = TextDirection.Content,
-                    lineHeight = 1.0.em,
+                    fontSize = if (landscape) 34.sp else 26.sp,
+                    letterSpacing = 1.5.sp,
+                    color = if (next) AppTheme.colors.onInfo else AppTheme.colors.text,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(if (next) AppTheme.colors.highlight else AppTheme.colors.tonalHigh)
+                        .padding(horizontal = 22.dp, vertical = 2.dp),
                 )
-                // Never larger than the size at which the longest word still fits on one line,
-                // so a street name is not split in the middle ("Järnvägsg-atan").
-                val measurer = rememberTextMeasurer()
-                val width = constraints.maxWidth
-                val maxSp = remember(current.title, width) {
-                    val widest = current.title.split(' ').filter { it.isNotBlank() }
-                        .maxOfOrNull { measurer.measure(it, style.copy(fontSize = 100.sp)).size.width } ?: 0
-                    if (widest <= 0) MAX_TITLE_SP else (100f * width / widest * 0.95f).coerceIn(MIN_TITLE_SP, MAX_TITLE_SP)
+                if (current.time != null) {
+                    Spacer(Modifier.width(18.dp))
+                    Text(
+                        current.time,
+                        fontFamily = DisplayFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = if (landscape) 50.sp else 36.sp,
+                        color = if (next) AppTheme.colors.highlight else AppTheme.colors.time,
+                        style = TextStyle(fontFeatureSettings = TABULAR),
+                    )
                 }
-                BasicText(
-                    text = current.title,
-                    style = style,
-                    maxLines = 2,
-                    autoSize = TextAutoSize.StepBased(minFontSize = MIN_TITLE_SP.sp, maxFontSize = maxSp.sp, stepSize = 2.sp),
-                    onTextLayout = { layout ->
-                        val line = (0 until layout.lineCount).maxOfOrNull { layout.getLineRight(it) - layout.getLineLeft(it) } ?: 0f
-                        if (line > 0f) room = (layout.size.width * TITLE_ROOM / line).coerceIn(1f, TITLE_FOCUS)
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                )
             }
-            current.subtitle?.let {
-                Text(
-                    it,
-                    fontFamily = DisplayFont,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = if (landscape) 44.sp else 30.sp,
-                    color = AppTheme.colors.textMuted,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    style = TextStyle(textDirection = TextDirection.Content),
-                    modifier = Modifier.ref(92),
-                )
+            Column(
+                Modifier
+                    .weight(1f, fill = false)
+                    .fillMaxWidth()
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                    },
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                BoxWithConstraints(Modifier.ref(91).weight(1f, fill = false).fillMaxWidth()) {
+                    val style = TextStyle(
+                        fontFamily = DisplayFont,
+                        fontWeight = FontWeight.Bold,
+                        color = titleColor,
+                        textAlign = TextAlign.Center,
+                        textDirection = TextDirection.Content,
+                        lineHeight = 1.0.em,
+                    )
+                    // Never larger than the size at which the longest word still fits on one line,
+                    // so a street name is not split in the middle ("Järnvägsg-atan").
+                    val measurer = rememberTextMeasurer()
+                    val width = constraints.maxWidth
+                    val maxSp = remember(current.title, width) {
+                        val widest = current.title.split(' ').filter { it.isNotBlank() }
+                            .maxOfOrNull { measurer.measure(it, style.copy(fontSize = 100.sp)).size.width } ?: 0
+                        if (widest <= 0) MAX_TITLE_SP else (100f * width / widest * 0.95f).coerceIn(MIN_TITLE_SP, MAX_TITLE_SP)
+                    }
+                    BasicText(
+                        text = current.title,
+                        style = style,
+                        maxLines = 2,
+                        autoSize = TextAutoSize.StepBased(minFontSize = MIN_TITLE_SP.sp, maxFontSize = maxSp.sp, stepSize = 2.sp),
+                        onTextLayout = { layout ->
+                            val line = (0 until layout.lineCount).maxOfOrNull { layout.getLineRight(it) - layout.getLineLeft(it) } ?: 0f
+                            if (line > 0f) room = (layout.size.width / line).coerceIn(1f, TITLE_FOCUS)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                current.subtitle?.let {
+                    Text(
+                        it,
+                        fontFamily = DisplayFont,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = if (landscape) 44.sp else 30.sp,
+                        color = AppTheme.colors.textMuted,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = TextStyle(textDirection = TextDirection.Content),
+                        modifier = Modifier.ref(92),
+                    )
+                }
             }
         }
     }
@@ -789,9 +808,9 @@ private fun SpeakerButton(speakingText: String?, cue: Int, onSpeak: () -> Unit, 
 /**
  * The clock, without a frame: the minutes large, the hours smaller and raised beside them, the
  * seconds thin under the minutes in the highlight colour, and the colon beating with the seconds.
- * When the minute changes ([grow] 0 → 1), the minutes move to the middle of the screen and grow
- * to five times their size, or as far as the screen allows, turning to the highlight colour; the
- * rest of the clock steps back with the screen. A tap says the time.
+ * When the minute changes ([grow] 0 → 1), the time (hours, colon and minutes, as one) moves to the
+ * middle of the screen and grows to five times its size, or as far as the screen allows, turning
+ * to the highlight colour; the seconds step back with the screen. A tap says the time.
  */
 @Composable
 private fun Clock(now: State<LocalTime>, landscape: Boolean, grow: () -> Float, screen: () -> Rect, onClick: () -> Unit, modifier: Modifier = Modifier) {
@@ -814,7 +833,10 @@ private fun Clock(now: State<LocalTime>, landscape: Boolean, grow: () -> Float, 
     // The seconds tuck up under the digits, into the empty room below them, and the smaller hours
     // come down so that their tops line up with the minutes'.
     val (tuck, drop) = with(LocalDensity.current) { (minuteSize * SECONDS_TUCK).toDp() to (minuteSize * (1f - HOUR_SHARE) * TOP_ROOM).toDp() }
+    var hours by remember { mutableStateOf(Rect.Zero) }
+    var dots by remember { mutableStateOf(Rect.Zero) }
     var minutes by remember { mutableStateOf(Rect.Zero) }
+    val time4 = { span(hours, minutes) }
     val rest = Modifier.stepBack(grow)
     Row(
         verticalAlignment = Alignment.Top,
@@ -831,24 +853,29 @@ private fun Clock(now: State<LocalTime>, landscape: Boolean, grow: () -> Float, 
                 onClick()
             },
     ) {
-        Text(twoDigits(time.hour), style = style.copy(fontSize = minuteSize * HOUR_SHARE), modifier = Modifier.offset(y = drop).then(rest))
-        Text(":", style = style.copy(fontSize = minuteSize * HOUR_SHARE, color = highlight), modifier = Modifier.offset(y = drop).then(rest).alpha(colon))
+        BasicText(
+            twoDigits(time.hour),
+            style = style.copy(fontSize = minuteSize * HOUR_SHARE),
+            color = { lerp(ink, highlight, grow()) },
+            modifier = Modifier
+                .offset(y = drop)
+                .onGloballyPositioned { hours = it.boundsInRoot() }
+                .growTogether(grow, own = { hours }, group = time4, area = screen),
+        )
+        Text(
+            ":",
+            style = style.copy(fontSize = minuteSize * HOUR_SHARE, color = highlight),
+            modifier = Modifier
+                .offset(y = drop)
+                .onGloballyPositioned { dots = it.boundsInRoot() }
+                .growTogether(grow, own = { dots }, group = time4, area = screen)
+                .alpha(colon),
+        )
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Box(
                 Modifier
                     .onGloballyPositioned { minutes = it.boundsInRoot() }
-                    .graphicsLayer {
-                        val p = grow()
-                        val area = screen()
-                        if (p > 0f && !minutes.isEmpty && !area.isEmpty) {
-                            val most = minOf(MINUTE_GROWTH, area.height * MINUTE_FILL / minutes.height, area.width * MINUTE_FILL / minutes.width)
-                            val s = 1f + (most - 1f) * p
-                            scaleX = s
-                            scaleY = s
-                            translationX = (area.center.x - minutes.center.x) * p
-                            translationY = (area.center.y - minutes.center.y) * p
-                        }
-                    },
+                    .growTogether(grow, own = { minutes }, group = time4, area = screen),
             ) {
                 AnimatedContent(
                     targetState = twoDigits(time.minute),
@@ -870,8 +897,36 @@ private fun Clock(now: State<LocalTime>, landscape: Boolean, grow: () -> Float, 
     }
 }
 
+/** The smallest rectangle around both. */
+private fun span(a: Rect, b: Rect) = Rect(minOf(a.left, b.left), minOf(a.top, b.top), maxOf(a.right, b.right), maxOf(a.bottom, b.bottom))
+
 /**
- * Fades what is not the minutes while they grow ([grow] 0 → 1). The alpha goes to each drawing
+ * One part ([own]) of something that grows as one piece ([group]): with [grow] 0 → 1 the piece
+ * moves to the middle of [area] and grows to [TIME_GROWTH] times its size, or [TIME_FILL] of the
+ * area if that is less, each part keeping its place in it. The bounds are taken before this layer.
+ */
+private fun Modifier.growTogether(grow: () -> Float, own: () -> Rect, group: () -> Rect, area: () -> Rect): Modifier = graphicsLayer {
+    val p = grow()
+    val g = group()
+    val a = area()
+    val e = own()
+    if (p <= 0f || g.isEmpty || a.isEmpty || e.isEmpty) return@graphicsLayer
+    val most = minOf(TIME_GROWTH, a.height * TIME_FILL / g.height, a.width * TIME_FILL / g.width)
+    val s = 1f + (most - 1f) * p
+    scaleX = s
+    scaleY = s
+    translationX = p * (a.center.x - g.center.x) + (s - 1f) * (e.center.x - g.center.x)
+    translationY = p * (a.center.y - g.center.y) + (s - 1f) * (e.center.y - g.center.y)
+}
+
+/** Lays this out at its full height but takes none in its row: it hangs down over what follows. */
+private fun Modifier.overhang(): Modifier = layout { measurable, constraints ->
+    val placeable = measurable.measure(constraints.copy(minHeight = 0, maxHeight = Constraints.Infinity))
+    layout(placeable.width, 0) { placeable.place(0, 0) }
+}
+
+/**
+ * Fades what is not the time while it grows ([grow] 0 → 1). The alpha goes to each drawing
  * rather than through a layer of its own, so nothing that reaches past its box is cut off.
  */
 private fun Modifier.stepBack(grow: () -> Float): Modifier = graphicsLayer {
@@ -937,9 +992,6 @@ private const val DIM_MS = 600
 /** The next stop grows slowly to at most this while it is said. */
 private const val TITLE_FOCUS = 1.25f
 private const val FOCUS_MS = 1_400
-
-/** The address may grow a little past its box, into the screen's margins. */
-private const val TITLE_ROOM = 1.06f
 private const val CARD_FOCUS = 1.6f
 
 /** One card under another fills the width already: it only swells. */
@@ -950,13 +1002,18 @@ private const val CARD_GROW_MS = 1_600
 private const val CARD_LIT_MS = 2_400L
 private const val NONE = -2
 
+/** Where a stop sits in the middle: -1 top, 0 centre. */
+private const val HERO_BIAS = -0.4f
+
+/** The height of the "NÄSTA STOPP" line, which may sit beside the clock. */
+private val LABEL_BAND = 64.dp
+
 /** A later stop paged to and left alone gives way to the next stop again. */
 private const val BROWSE_RETURN_MS = 30_000L
 private const val NEXT_STOP = -1
 
-/** Twice the size the clock had with its hours large. */
-private val MINUTE_SP_WIDE = 240.sp
-private val MINUTE_SP_NARROW = 128.sp
+private val MINUTE_SP_WIDE = 200.sp
+private val MINUTE_SP_NARROW = 110.sp
 private const val HOUR_SHARE = 0.62f
 private const val SECOND_SHARE = 0.3f
 private const val SECONDS_TUCK = 0.2f
@@ -964,14 +1021,15 @@ private const val SECONDS_TUCK = 0.2f
 /** The room above a digit in its line, as a share of the font size. */
 private const val TOP_ROOM = 0.24f
 
-/** The minutes grow to five times their size, or to this share of the screen if that is less. */
-private const val MINUTE_GROWTH = 5f
-private const val MINUTE_FILL = 0.9f
+/** The time grows to five times its size, or to this share of the screen if that is less. */
+private const val TIME_GROWTH = 5f
+private const val TIME_FILL = 0.9f
 private const val GROW_MS = 5_000
+private const val HOLD_MS = 5_000L
 private const val SHRINK_MS = 1_200
 private const val SETTLE_MS = 300
 
-/** How far the rest of the screen steps back while the minutes grow. */
+/** How far the rest of the screen steps back while the time grows. */
 private const val REST_FADE = 0.85f
 
 /** Digits of equal width, so times and the clock do not shift as they change. */

@@ -502,7 +502,7 @@ class ScreenshotsRoboTest {
         assertEquals(listOf("Därefter: Hamngatan 7, Skoghall.", "Klockan är 8 och 11."), said)
     }
 
-    /** When the minute changes, the minutes grow into the middle of the screen, then go back. */
+    /** When the minute changes, the time grows into the middle of the screen, stays, then goes back. */
     @Test
     @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
     fun passengerDisplayMinuteGrows() {
@@ -515,7 +515,8 @@ class ScreenshotsRoboTest {
         compose.waitForIdle()
         compose.mainClock.autoAdvance = false
         now = LocalTime.of(8, 11, 0)
-        for (ms in listOf(1_000L, 2_500L, 3_000L, 800L, 1_500L)) {
+        // Growing, held, going back, back.
+        for (ms in listOf(1_000L, 2_500L, 5_000L, 3_100L, 1_400L)) {
             compose.mainClock.advanceTimeBy(ms)
             save("display_minute_${compose.mainClock.currentTime}", compose.onRoot().captureToImage().asAndroidBitmap())
         }
