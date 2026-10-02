@@ -42,8 +42,6 @@ data class AppSettings(
     val tabletPanel: Boolean = false,
     /** The passenger display on this device is black (on) or light (223). */
     val displayDark: Boolean = true,
-    /** Controller: send the vehicle's position to a connected tablet for its map (off by default). */
-    val displayMap: Boolean = false,
     /** Display role: the driver's own Google Maps key for the map on this tablet, or null. */
     val mapsKey: String? = null,
     /** Display role: the weather app's widget shown on this tablet's display, or -1 for SMHI's weather. */
@@ -87,7 +85,6 @@ class SettingsStore(context: Context) {
             putBoolean(K_DISPLAY_SPEAKS, next.displaySpeaks)
             putBoolean(K_TABLET_PANEL, next.tabletPanel)
             putBoolean(K_DISPLAY_DARK, next.displayDark)
-            putBoolean(K_DISPLAY_MAP, next.displayMap)
             putString(K_MAPS_KEY, next.mapsKey)
             putInt(K_WEATHER_WIDGET, next.weatherWidgetId)
             putString(K_CONTROLLER, next.displayControllerAddress)
@@ -129,7 +126,6 @@ class SettingsStore(context: Context) {
         displaySpeaks = prefs.getBoolean(K_DISPLAY_SPEAKS, true),
         tabletPanel = prefs.getBoolean(K_TABLET_PANEL, false),
         displayDark = prefs.getBoolean(K_DISPLAY_DARK, true),
-        displayMap = prefs.getBoolean(K_DISPLAY_MAP, false),
         mapsKey = prefs.getString(K_MAPS_KEY, null),
         weatherWidgetId = prefs.getInt(K_WEATHER_WIDGET, -1),
         displayControllerAddress = prefs.getString(K_CONTROLLER, null),
@@ -152,7 +148,6 @@ class SettingsStore(context: Context) {
         private const val K_DISPLAY_SPEAKS = "display_speaks_announcements"
         private const val K_TABLET_PANEL = "tablet_floating_panel"
         private const val K_DISPLAY_DARK = "display_dark"
-        private const val K_DISPLAY_MAP = "display_map_position"
         private const val K_MAPS_KEY = "tablet_maps_key"
         private const val K_WEATHER_WIDGET = "tablet_weather_widget"
         private const val K_CONTROLLER = "display_controller_address"

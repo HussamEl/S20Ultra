@@ -21,9 +21,19 @@ data class DisplayItem(
     val doneHere: Boolean = false,
     /** The list's Pick-up / Drop-off / Pull-out, for the stripe on a tablet's floating panel. */
     val kind: TripKind? = null,
+    /** The address as the phone navigates to it ("Storgatan 14, 652 24 Karlstad"), for the tablet's map. */
+    val place: String? = null,
+    /** The stop's point when the phone has located it, for the tablet's map. */
+    val lat: Double? = null,
+    val lng: Double? = null,
+    /** The passenger's last name, on the next stop only: shown under its address and said when tapped. */
+    val lastName: String? = null,
 ) {
-    /** The same trip whatever its done marks: it keeps its place on the display when marked. */
-    val trip: DisplayItem get() = if (doneInYouDrive || doneHere) copy(doneInYouDrive = false, doneHere = false) else this
+    /**
+     * The same trip whatever its done marks or name: it keeps its place on the display when marked,
+     * and "Därefter" grows into the next stop.
+     */
+    val trip: DisplayItem get() = if (doneInYouDrive || doneHere || lastName != null) copy(doneInYouDrive = false, doneHere = false, lastName = null) else this
 
     companion object {
         /** "Storgatan 14, 652 24 Karlstad" → "Storgatan 14" (the part before the first comma). */
@@ -34,8 +44,10 @@ data class DisplayItem(
 /**
  * Everything the passenger display shows — and the only route data that is ever sent to a
  * second device: up to seven trips done, the next destination and up to seven upcoming trips
- * (time, address and area, trip kind, and where each was marked done), the current announcement text, the
- * area's weather and Google Maps' remaining travel time. Never names, never a position.
+ * (time, address and area, the address and point the tablet's map routes to, trip kind, and where
+ * each was marked done), the next stop's passenger's last name, the current announcement text, the
+ * area's weather and Google Maps' remaining travel time. Never a first name or another trip's
+ * name, never the vehicle's position.
  */
 @Serializable
 data class DisplaySnapshot(
@@ -65,6 +77,7 @@ data class DisplaySnapshot(
         /**
          * @param completed finished trips, oldest first.
          * @param remaining remaining trips; the first is the next destination.
+         * @param nextName the last name of the next destination's passenger (no other trip's).
          */
         fun <T> build(
             active: Boolean,
@@ -72,6 +85,7 @@ data class DisplaySnapshot(
             remaining: List<T>,
             item: (T) -> DisplayItem,
             announcement: Announcement?,
+            nextName: (T) -> String? = { null },
         ): DisplaySnapshot {
             if (!active || remaining.isEmpty()) return DisplaySnapshot(active = false, completed = completed.size)
             val done = completed.takeLast(EARLIER).map { item(it).copy(doneHere = true) }
@@ -79,7 +93,7 @@ data class DisplaySnapshot(
                 active = true,
                 previous = done.lastOrNull(),
                 earlier = done,
-                current = item(remaining.first()),
+                current = item(remaining.first()).copy(lastName = nextName(remaining.first())),
                 upcoming = remaining.drop(1).take(UPCOMING).map(item),
                 remaining = remaining.size,
                 completed = completed.size,

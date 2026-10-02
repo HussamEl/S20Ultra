@@ -23,7 +23,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import se.eldebosh.nastastopp.core.link.LinkMessage
+import se.eldebosh.nastastopp.core.nav.MapWay
 import se.eldebosh.nastastopp.core.nav.RouteLine
 import se.eldebosh.nastastopp.core.nav.RoutesApi
 import java.net.HttpURLConnection
@@ -33,8 +33,9 @@ import java.util.Locale
 /**
  * The tablet's map of the way to the next stop: Google's map in a WebView of its own, with the
  * driver's own key (entered on the tablet, 208) and the route from Google's Routes API. Only the
- * vehicle's position and the next stop go to Google, and only while the driver has the map on
- * (phone Settings 209). No controls, no touch, no device location; nothing is stored or logged.
+ * tablet's own position (from [se.eldebosh.nastastopp.geo.TabletPosition]) and the stop go to
+ * Google. No controls, no touch, and the page itself never gets the location; nothing is stored
+ * or logged.
  *
  * @param ground the page's colour ("#F3F4F6"), shown until the tiles come.
  */
@@ -56,18 +57,20 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
     var route by mutableStateOf<RouteLine?>(null)
         private set
 
-    /** Where the vehicle is, as the phone last sent it (only while the driver lets it, 209). */
-    private var vehicle by mutableStateOf<LinkMessage.Where?>(null)
+    /** Where the vehicle is (the tablet's own position) and where the next stop is. */
+    private var vehicle by mutableStateOf<MapWay?>(null)
 
-    /** The map can show a way: it has loaded and knows where the vehicle is. */
-    val canShowWay: Boolean get() = ready && vehicle != null
+    /** The map knows where the vehicle is. */
+    val located: Boolean get() = vehicle != null
 
     private val main = Handler(Looper.getMainLooper())
     private var askedFor: String? = null
     private var askedAtMs = 0L
     private var asking: Job? = null
     private var toNext: RouteLine? = null
-    private var focused: String? = null
+
+    /** What the map shows the way to until [unfocus]: a [MapWay.Stop], or [NEXT]. */
+    private var focused: Any? = null
 
     // JavaScript runs Google's map; the page is the app's own and nothing else can be loaded.
     // onRenderProcessGone is implemented below; lint does not see it in an object expression.
@@ -112,32 +115,36 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
     }
 
     /** Moves the vehicle on the map, and asks for the way again when the stop changed or a while has passed. */
-    fun show(where: LinkMessage.Where) {
-        vehicle = where
-        js(String.format(Locale.ROOT, "setCar(%.6f,%.6f)", where.lat, where.lng))
-        if (focused != null) return
-        val destination = "${where.toLat},${where.toLng},${where.to}"
+    fun show(way: MapWay) {
+        val first = vehicle == null
+        vehicle = way
+        js(String.format(Locale.ROOT, "setCar(%.6f,%.6f)", way.lat, way.lng))
+        focused?.let { target ->
+            // Asked for before the position came: the way now.
+            if (first) ask(target)
+            return
+        }
+        val destination = "${way.toLat},${way.toLng},${way.to}"
         val now = SystemClock.elapsedRealtime()
         if (asking?.isActive == true) return
         if (destination == askedFor && now - askedAtMs < REFRESH_MS) return
         askedFor = destination
         askedAtMs = now
         asking = scope.launch {
-            val line = withContext(Dispatchers.IO) { fetch(where) } ?: return@launch
+            val line = withContext(Dispatchers.IO) { fetch(way) } ?: return@launch
             toNext = line
             if (focused == null) draw(line)
         }
     }
 
     /**
-     * Shows the way from the vehicle to [address] (a trip the driver pressed long), or to the next
-     * stop when [address] is null, until [unfocus].
+     * Shows the way from the vehicle to [to] (a trip pressed long), or to the next stop when [to] is
+     * null, until [unfocus]; as soon as the vehicle's position is known.
      */
-    fun focus(address: String?) {
-        val from = vehicle ?: return
-        val key = address ?: NEXT
-        focused = key
-        if (address == null && toNext != null) {
+    fun focus(to: MapWay.Stop?) {
+        val target = to ?: NEXT
+        focused = target
+        if (to == null && toNext != null) {
             draw(toNext!!)
             return
         }
@@ -145,11 +152,17 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
         js("setRoute([])")
         asking?.cancel()
         askedFor = null
-        val to = if (address == null) from else from.copy(toLat = null, toLng = null, to = address)
+        ask(target)
+    }
+
+    private fun ask(target: Any) {
+        val from = vehicle ?: return
+        val stop = target as? MapWay.Stop
+        val to = if (stop == null) from else from.copy(toLat = stop.lat, toLng = stop.lng, to = stop.address)
         asking = scope.launch {
             val line = withContext(Dispatchers.IO) { fetch(to) } ?: return@launch
-            if (address == null) toNext = line
-            if (focused == key) draw(line)
+            if (stop == null) toNext = line
+            if (focused == target) draw(line)
         }
     }
 
@@ -175,8 +188,8 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
 
     private fun js(code: String) = view.evaluateJavascript(code, null)
 
-    private fun fetch(where: LinkMessage.Where): RouteLine? = runCatching {
-        val body = RoutesApi.body(where.lat, where.lng, where.toLat, where.toLng, where.to) ?: return null
+    private fun fetch(way: MapWay): RouteLine? = runCatching {
+        val body = RoutesApi.body(way.lat, way.lng, way.toLat, way.toLng, way.to) ?: return null
         val conn = URI(RoutesApi.URL).toURL().openConnection() as HttpURLConnection
         try {
             conn.requestMethod = "POST"
@@ -215,7 +228,7 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
         /** The page's address: a key restricted to websites must allow it and every page under it. */
         const val BASE = "https://nastastopp.app/"
         private const val PAGE = "route_map.html"
-        private const val NEXT = "\u0000next"
+        private val NEXT = Any()
 
         /** The way is asked for again at most this often for the same stop (Google counts each request). */
         private const val REFRESH_MS = 4 * 60_000L

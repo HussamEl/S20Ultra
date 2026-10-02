@@ -15,4 +15,5 @@
     <string name="passenger_to_next_stop" translatable="false">till nästa stopp</string>
     <string name="passenger_to_place" translatable="false">till %1$s</string>
     <string name="passenger_waiting" translatable="false">Rutten har inte börjat än</string>
+    <string name="passenger_finding_position" translatable="false">Söker bilens position…</string>
 </resources>

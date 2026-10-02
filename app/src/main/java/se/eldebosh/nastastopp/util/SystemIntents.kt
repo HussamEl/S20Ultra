@@ -5,7 +5,6 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
@@ -80,14 +79,6 @@ object SystemIntents {
 
     fun openTtsSettings(context: Context): Boolean =
         start(context, Intent("com.android.settings.TTS_SETTINGS")) || start(context, Intent(Settings.ACTION_SETTINGS))
-
-    /** Google Maps (or another maps app) on [address], for a long press on the tablet when its own map cannot show the way. */
-    fun openPlace(context: Context, address: String) {
-        val uri = ("geo:0,0?q=" + Uri.encode(address)).toUri()
-        if (!start(context, Intent(Intent.ACTION_VIEW, uri).setPackage(MAPS_PACKAGE))) start(context, Intent(Intent.ACTION_VIEW, uri))
-    }
-
-    private const val MAPS_PACKAGE = "com.google.android.apps.maps"
 
     private fun start(context: Context, intent: Intent): Boolean = try {
         if (context !is android.app.Activity) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

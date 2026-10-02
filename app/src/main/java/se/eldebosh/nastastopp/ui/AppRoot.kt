@@ -49,6 +49,9 @@ import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.compose.LifecycleStartEffect
+import se.eldebosh.nastastopp.core.nav.MapWay
+import se.eldebosh.nastastopp.geo.TabletPosition
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.core.route.Announcements
@@ -361,8 +364,6 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             }
                             val widgetId = settings.weatherWidgetId
                             val widgetLabel = remember(widgetId, resumeTick) { widgetId.takeIf { it >= 0 }?.let { widgets.label(it) } }
-                            // The Google map (208), with the driver's key; the phone sends where the vehicle is (209).
-                            val where by client.where.collectAsStateWithLifecycle()
                             // In the passenger display's own look (black or light, 223), whatever the app's.
                             val night = settings.displayDark
                             val ground = displayColors(night).background.toArgb()
@@ -376,7 +377,23 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             DisposableEffect(routeMap) { onDispose { routeMap?.destroy() } }
                             // A map whose renderer stopped is replaced by a new one.
                             LaunchedEffect(routeMap?.gone) { if (routeMap?.gone == true) mapRestarts++ }
-                            LaunchedEffect(routeMap, where) { where?.let { routeMap?.show(it) } }
+                            // Where the car is, for the map: this tablet's own GPS, while the display
+                            // is in sight and the location is allowed (asked when the map is wanted).
+                            val position = remember { TabletPosition(context.applicationContext) }
+                            var located by remember(resumeTick) { mutableStateOf(position.allowed) }
+                            val askPosition = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { located = position.allowed }
+                            LifecycleStartEffect(routeMap, located) {
+                                if (routeMap != null && located) position.start()
+                                onStopOrDispose { position.stop() }
+                            }
+                            val fix by position.fix.collectAsStateWithLifecycle()
+                            val next = remote?.takeIf { it.active }?.current
+                            LaunchedEffect(routeMap, fix, next) {
+                                val at = fix ?: return@LaunchedEffect
+                                val stop = next ?: return@LaunchedEffect
+                                val to = stop.place ?: listOfNotNull(stop.title, stop.subtitle).joinToString(", ")
+                                routeMap?.show(MapWay(at.lat, at.lng, at.bearingDeg, stop.lat, stop.lng, to))
+                            }
                             DisplayRoleScreen(
                                 settings = settings,
                                 link = link,
@@ -429,8 +446,10 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 onSaveMapsKey = { key -> graph.settings.update { it.copy(mapsKey = key) } },
                                 mapRefused = routeMap?.refused == true,
                                 routeMap = routeMap,
-                                mapLive = where != null,
-                                openInMaps = { address -> SystemIntents.openPlace(context, address) },
+                                mapLive = fix != null,
+                                onWantPosition = {
+                                    if (!position.allowed) askPosition.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                                },
                             )
                         }
                         Screen.SETTINGS -> SettingsScreen(

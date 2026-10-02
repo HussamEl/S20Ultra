@@ -88,8 +88,15 @@
     if (bounds.isEmpty()) return;
     var shown = map.getBounds();
     if (refit || !shown || (car && !shown.contains(car))) {
-      if (path.length) map.fitBounds(bounds, 56); else { map.setCenter(car); map.setZoom(15); }
+      if (path.length) map.fitBounds(bounds, clear()); else { map.setCenter(car); map.setZoom(15); }
     }
+  }
+
+  // The map's edges melt into the screen's ground: the way keeps to the clear middle, with room
+  // for the minutes and distance at the bottom.
+  function clear() {
+    var d = map.getDiv(), w = d.offsetWidth, h = d.offsetHeight;
+    return { top: Math.round(h * 0.2), bottom: Math.round(h * 0.34), left: Math.round(w * 0.16), right: Math.round(w * 0.16) };
   }
 </script>
 <script async src="https://maps.googleapis.com/maps/api/js?key=__KEY__&callback=ready&loading=async"></script>

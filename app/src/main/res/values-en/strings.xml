@@ -138,6 +138,7 @@
     <string name="overlay_hide">Hide floating button</string>
     <string name="display_repeat">Repeat</string>
     <string name="display_say_time">Say the time</string>
+    <string name="display_say_name">Say the name</string>
     <string name="display_say_trip">Say this trip</string>
     <string name="display_home">Back to the next stop</string>
     <string name="done_in_youdrive">Done in YouDrive</string>
@@ -161,8 +162,6 @@
     <string name="display_full_address">Show the street address on the passenger display</string>
     <string name="display_full_address_hint">The street with the house number is shown large, the area under it. Off = only the area.</string>
     <string name="display_speaks">Also speak announcements on this device</string>
-    <string name="display_map">Map on the tablet (sends the car\'s position)</string>
-    <string name="help_display_map">Off by default. While on and a tablet shows the route, the phone sends the car\'s position and the next stop to the tablet over Bluetooth every 5 seconds. The tablet shows them on a Google map with the way to the next stop, and sends them to Google with your own key (set on the tablet). Nothing is stored or logged. Off: the position never leaves the phone.</string>
     <string name="weather_widget">Weather widget on this display</string>
     <string name="weather_widget_none">SMHI\'s weather (no widget)</string>
     <string name="weather_widget_pick">Choose a weather widget</string>
@@ -172,7 +171,7 @@
     <string name="maps_key_set">Key saved on this tablet</string>
     <string name="maps_key_refused">Google refused the key</string>
     <string name="maps_key_label">Google Maps API key</string>
-    <string name="help_maps_key">The map uses your own Google key. In Google Cloud: create an API key, enable "Maps JavaScript API" and "Routes API", and restrict the key to the website https://nastastopp.app/* . Normal use stays within Google\'s free monthly amount. The car\'s position and the next stop go to Google while the map is on (phone setting 209).</string>
+    <string name="help_maps_key">The map uses your own Google key. In Google Cloud: create an API key, enable "Maps JavaScript API" and "Routes API", and restrict the key to the website https://nastastopp.app/* . Normal use stays within Google\'s free monthly amount. The map takes the car\'s position from this tablet\'s own GPS (location while the display is open, never in the background; asked the first time the map sign is tapped). That position and the next stop go to Google for the way; nothing is stored or logged.</string>
     <string name="display_show_way">Show the way on the map</string>
     <string name="display_weather">Show the weather</string>
     <string name="display_look_light">Light display</string>

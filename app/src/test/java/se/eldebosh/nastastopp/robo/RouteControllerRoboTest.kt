@@ -159,8 +159,9 @@ class RouteControllerRoboTest {
     }
 
     /**
-     * The passenger's name (first + last) is for the driver's own screens only: never spoken,
-     * sent to the passenger display, put in the route notification or the history (invented data).
+     * The passenger's name (first + last) is for the driver's own screens; the passenger display
+     * gets only the next stop's last name. A name is never in an announcement, the route
+     * notification or the history (invented data).
      */
     @Test
     fun namesStayOnTheDriversScreens() {
@@ -179,7 +180,11 @@ class RouteControllerRoboTest {
         c.next()
         idle()
         assertFalse("spoken: ${tts.lastSpokenText}", tts.lastSpokenText.orEmpty().contains("Testsson"))
-        assertFalse("passenger display", c.display.value.toString().contains("Testsson"))
+        // The passenger display gets the next stop's last name only: no first name, no other trip's.
+        val display = c.display.value
+        assertEquals("Testsson", display.current?.lastName)
+        assertFalse("passenger display", display.toString().contains("Anna"))
+        assertTrue("other trips", (display.earlier + display.upcoming).all { it.lastName == null })
         val notification = shadowOf(app.getSystemService(android.app.NotificationManager::class.java))
             .getNotification(se.eldebosh.nastastopp.service.Notifications.ID_ROUTE)
         assertNotNull(notification)

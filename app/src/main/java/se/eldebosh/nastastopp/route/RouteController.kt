@@ -138,6 +138,9 @@ class RouteController(
         town = null,
     )
 
+    /** A passenger's last name ("Anna Testsson" → "Testsson"): the next stop's, for the passenger display. */
+    private fun lastNameOf(name: String?): String? = name?.trim()?.substringAfterLast(' ')?.takeIf { it.isNotBlank() }
+
     /**
      * "Nästa stopp: …. Därefter: …." With the full announcement (the default) the next stop is
      * said with its street and number, district and town, and the one after it with its street
@@ -159,11 +162,18 @@ class RouteController(
             completed = r.completed,
             remaining = r.stops,
             item = { s ->
-                // The street address with the house number (setting 114), the area under it.
-                if (full) DisplayItem(time = s.time, title = DisplayItem.streetPart(s.displayText), subtitle = spokenName(s), doneInYouDrive = s.youDriveDone, kind = s.kind)
-                else DisplayItem(time = s.time, title = spokenName(s), doneInYouDrive = s.youDriveDone, kind = s.kind)
+                // The street address with the house number (setting 114), the area under it; and
+                // where the tablet's map routes to.
+                val at = s.geo?.takeIf { s.isLocated }
+                if (full) {
+                    DisplayItem(time = s.time, title = DisplayItem.streetPart(s.displayText), subtitle = spokenName(s), doneInYouDrive = s.youDriveDone, kind = s.kind, place = s.navigationText, lat = at?.lat, lng = at?.lng)
+                } else {
+                    DisplayItem(time = s.time, title = spokenName(s), doneInYouDrive = s.youDriveDone, kind = s.kind, place = s.navigationText, lat = at?.lat, lng = at?.lng)
+                }
             },
             announcement = if (r.active && r.stops.isNotEmpty()) announcementFor(r.stops) else null,
+            // Only the next stop's passenger, and only the last name, for the passengers to see.
+            nextName = { s -> lastNameOf(s.name) },
         ).let { if (it.active) it.copy(weather = x.weather, eta = x.eta) else it }
     }
 

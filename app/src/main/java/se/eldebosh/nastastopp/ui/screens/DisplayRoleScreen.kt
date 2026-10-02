@@ -91,9 +91,10 @@ fun DisplayRoleScreen(
     onSaveMapsKey: (String?) -> Unit = {},
     mapRefused: Boolean = false,
     routeMap: RouteMap? = null,
+    /** The tablet knows where it is (its own GPS), for the map. */
     mapLive: Boolean = false,
-    /** A long press when the map cannot show the way: the address in Google Maps. */
-    openInMaps: ((String) -> Unit)? = null,
+    /** The map is asked for: the tablet's location permission, if not given yet. */
+    onWantPosition: (() -> Unit)? = null,
     availabilityStatus: DisplayLinkClient.Status = DisplayLinkClient.Status.IDLE,
     /** Goes up by one with each announcement from the driver's phone. */
     spoken: Int = 0,
@@ -120,7 +121,7 @@ fun DisplayRoleScreen(
             weatherWidget = weatherWidget,
             routeMap = routeMap,
             mapLive = mapLive,
-            openInMaps = openInMaps,
+            onWantPosition = onWantPosition,
             dark = settings.displayDark,
             onToggleLook = onToggleLook,
         )

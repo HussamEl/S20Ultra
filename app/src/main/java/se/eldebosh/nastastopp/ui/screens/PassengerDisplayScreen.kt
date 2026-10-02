@@ -17,6 +17,9 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.isSpecified
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import se.eldebosh.nastastopp.core.nav.MapWay
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -216,10 +219,10 @@ import java.util.Locale
  * @param onSay says what a tap on the clock or a card asks for, on this device.
  * @param time the time of day (tests set it).
  * @param weatherWidget a weather app's widget hosted on this tablet (207), shown in place of SMHI's weather.
- * @param routeMap the tablet's Google map of the way to the next stop (208), shown in the middle
- *   of each minute while [mapLive] (the phone sends where the vehicle is, 209).
- * @param openInMaps opens an address in Google Maps, for a long press when the map above cannot
- *   show the way.
+ * @param routeMap the tablet's Google map of the way to the next stop (208): it fills the screen
+ *   in the middle of each minute while [mapLive] (the tablet knows where it is), and when the map
+ *   sign is tapped or a trip pressed long; the display never opens Google Maps itself.
+ * @param onWantPosition the map is asked for: the tablet's location permission, if not given yet.
  * @param dark the black look ([DisplayColors]) or the light one; [onToggleLook] switches it (223).
  */
 @Composable
@@ -236,7 +239,7 @@ fun PassengerDisplayScreen(
     weatherWidget: (@Composable (Modifier) -> Unit)? = null,
     routeMap: RouteMap? = null,
     mapLive: Boolean = false,
-    openInMaps: ((String) -> Unit)? = null,
+    onWantPosition: (() -> Unit)? = null,
     dark: Boolean = true,
     onToggleLook: (() -> Unit)? = null,
 ) {
@@ -268,23 +271,20 @@ fun PassengerDisplayScreen(
     val timeStatus by remember(nextTime, hasNext) {
         derivedStateOf { if (hasNext) TimeStatus.of(TripTimes.minutesUntil(nextTime, now.value.hour * 60 + now.value.minute)) else null }
     }
-    // A long press on a trip (or the map sign by the next stop): the way to it on the map, until a
-    // tap; Google Maps itself when the map cannot show it.
+    // A long press on a trip (or the map sign for the next stop): the way to it on the map, filling
+    // the screen until a tap; the way comes as soon as the tablet knows where it is.
     var wayTo by remember { mutableStateOf<String?>(null) }
-    val showWay: ((DisplayItem, Boolean) -> Unit)? = if (routeMap == null && openInMaps == null) {
-        null
-    } else {
+    val map = routeMap?.takeIf { !it.refused }
+    val showWay: ((DisplayItem, Boolean) -> Unit)? = map?.let { m ->
         { item, isNext ->
-            val address = listOfNotNull(item.title, item.subtitle).joinToString(", ")
-            if (routeMap != null && mapLive && routeMap.canShowWay) {
-                wayTo = if (isNext) null else item.title
-                routeMap.focus(if (isNext) null else address)
-                moments.playFocus()
-            } else {
-                openInMaps?.invoke(address)
-            }
+            onWantPosition?.invoke()
+            wayTo = if (isNext) null else item.title
+            m.focus(if (isNext) null else MapWay.Stop(item.lat, item.lng, item.place ?: listOfNotNull(item.title, item.subtitle).joinToString(", ")))
+            moments.playFocus()
         }
     }
+    // Where the map sign is: the map grows out of it.
+    var pinAt by remember { mutableStateOf(Offset.Unspecified) }
     LaunchedEffect(moments.holding) { if (!moments.holding) routeMap?.unfocus() }
     // The trip shown at the top (the next stop, or one paged to): reported by the stage with the
     // next stop it belongs to (so a stale one is never shown) and whether the screen is focused on it.
@@ -366,15 +366,7 @@ fun PassengerDisplayScreen(
         val arrow = arrowSize(tripSize)
         // The map lies under everything, unseen until its moment, so it loads once and stays ready.
         if (routeMap != null) {
-            MapLayer(
-                routeMap,
-                moments,
-                if (landscape) {
-                    Modifier.align(Alignment.CenterStart).padding(start = maxWidth * MAP_INSET).size(maxWidth * MAP_WIDE_W, maxHeight * MAP_WIDE_H)
-                } else {
-                    Modifier.align(Alignment.TopCenter).padding(top = maxHeight * MAP_INSET * 2).size(maxWidth * MAP_NARROW_W, maxHeight * MAP_NARROW_H)
-                },
-            )
+            MapLayer(routeMap, moments, from = { if (pinAt.isSpecified) pinAt - screen.topLeft else Offset.Unspecified })
         }
         Column(
             Modifier
@@ -401,6 +393,7 @@ fun PassengerDisplayScreen(
                         onExit = onExit,
                         // The way to the next stop: the display's map, or Google Maps on its address.
                         onMap = live?.current?.let { next -> showWay?.let { { it(next, true) } } },
+                        onMapPlaced = { pinAt = it },
                         weather = live?.weather,
                         hasWeather = live?.weather != null || weatherWidget != null,
                         onWeather = { moments.playInfo(Moments.Info.WEATHER) },
@@ -457,6 +450,11 @@ fun PassengerDisplayScreen(
                 showWay = showWay,
                 onShown = { next, item, byTap -> shownTrip = Triple(next, item, byTap) },
                 onFocusBottom = { heroBottom = it },
+                // The passenger's last name, tapped: said here and shown large.
+                onName = { name ->
+                    onSay(Announcements.passenger(name))
+                    moments.playInfo(Moments.Info.NAME)
+                },
                 modifier = rest.weight(1f).fillMaxWidth(),
             )
         }
@@ -539,19 +537,15 @@ fun PassengerDisplayScreen(
             )
         }
         // The weather or the travel time, in the middle while it shows.
-        InfoMoment(moments, live?.weather, live?.eta, landscape, weatherWidget, Modifier.align(Alignment.Center))
+        InfoMoment(moments, live?.weather, live?.eta, landscape, weatherWidget, live?.current, Modifier.align(Alignment.Center))
         if (routeMap != null) {
             MapMomentText(
                 moments,
                 live?.eta,
                 routeMap.route,
-                wayTo,
-                landscape,
-                if (landscape) {
-                    Modifier.align(Alignment.CenterEnd).padding(end = maxWidth * MAP_INSET).width(maxWidth * (1f - MAP_WIDE_W - 3 * MAP_INSET))
-                } else {
-                    Modifier.align(Alignment.BottomCenter).padding(bottom = maxHeight * MAP_INSET * 2)
-                },
+                located = routeMap.located,
+                wayTo = wayTo,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = maxHeight * MAP_TEXT_LOW),
             )
         }
         // While the time, the weather or the travel time fills the screen, a tap anywhere brings the
@@ -694,7 +688,7 @@ private class Moments(private val scope: CoroutineScope) {
         }
     }
 
-    enum class Info { WEATHER, ETA, MAP, FOCUS }
+    enum class Info { WEATHER, ETA, MAP, FOCUS, NAME }
 }
 
 /**
@@ -735,7 +729,10 @@ private fun rememberMoments(now: State<LocalTime>, cue: Int, spokenText: String?
     return moments
 }
 
-/** The weather or Google Maps' travel time, large in the middle while [moments] shows it. */
+/**
+ * The weather, Google Maps' travel time or the next stop's passenger's last name (with its
+ * street, [next]), large in the middle while [moments] shows it.
+ */
 @Composable
 private fun InfoMoment(
     moments: Moments,
@@ -743,6 +740,7 @@ private fun InfoMoment(
     eta: DisplayEta?,
     landscape: Boolean,
     weatherWidget: (@Composable (Modifier) -> Unit)?,
+    next: DisplayItem?,
     modifier: Modifier = Modifier,
 ) {
     if (moments.info.value <= 0f || moments.shown == Moments.Info.MAP || moments.shown == Moments.Info.FOCUS) return
@@ -814,46 +812,120 @@ private fun InfoMoment(
                     )
                 }
             }
+            Moments.Info.NAME -> next?.lastName?.let { name ->
+                Box(Modifier.fillMaxWidth(NAME_WIDTH), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.ref(232)) {
+                        BasicText(
+                            name,
+                            style = TextStyle(
+                                fontFamily = DisplayFont,
+                                fontWeight = FontWeight.Bold,
+                                color = AppTheme.colors.highlight,
+                                textAlign = TextAlign.Center,
+                                textDirection = TextDirection.Content,
+                                lineHeight = 1.0.em,
+                            ),
+                            maxLines = 1,
+                            autoSize = TextAutoSize.StepBased(minFontSize = MIN_TITLE_SP.sp, maxFontSize = if (landscape) NAME_SP_WIDE else NAME_SP_NARROW, stepSize = 2.sp),
+                        )
+                        Text(
+                            next.title,
+                            fontFamily = DisplayFont,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = if (landscape) 44.sp else 28.sp,
+                            color = AppTheme.colors.textMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = TextStyle(textDirection = TextDirection.Content),
+                        )
+                    }
+                }
+            }
             Moments.Info.MAP, Moments.Info.FOCUS -> Unit
         }
     }
 }
 
 /**
- * The tablet's map of the way to the next stop, under everything else: unseen (and taking no
- * taps from what lies above it) until its moment, when it fades in as all else steps back.
+ * The tablet's map of the way to the next stop, under everything else and filling the screen:
+ * unseen (and taking no taps from what lies above it) until its moment, when it grows out of the
+ * map sign ([from], in this layer) as all else steps back, like the time grows out of the clock.
+ * It has no frame: its edges melt into the screen's ground ([feather]).
  */
 @Composable
-private fun MapLayer(map: RouteMap, moments: Moments, modifier: Modifier = Modifier) {
-    AndroidView(
-        factory = {
-            (map.view.parent as? ViewGroup)?.removeView(map.view)
-            map.view
-        },
-        modifier = modifier.ref(210).graphicsLayer {
-            alpha = if (moments.shown == Moments.Info.MAP || moments.shown == Moments.Info.FOCUS) moments.info.value else 0f
-            shape = RoundedCornerShape(MAP_CORNER)
-            clip = true
-        },
-    )
+private fun MapLayer(map: RouteMap, moments: Moments, from: () -> Offset) {
+    val ground = AppTheme.colors.background
+    Box(
+        Modifier
+            .fillMaxSize()
+            .graphicsLayer {
+                val p = if (moments.shown == Moments.Info.MAP || moments.shown == Moments.Info.FOCUS) moments.info.value else 0f
+                alpha = (p * MAP_ALPHA_SPEED).coerceAtMost(1f)
+                val s = MAP_FROM + (1f - MAP_FROM) * p
+                scaleX = s
+                scaleY = s
+                val o = from()
+                transformOrigin = if (o.isSpecified && size.width > 0f && size.height > 0f) TransformOrigin(o.x / size.width, o.y / size.height) else TransformOrigin.Center
+            },
+    ) {
+        AndroidView(
+            factory = {
+                (map.view.parent as? ViewGroup)?.removeView(map.view)
+                map.view
+            },
+            modifier = Modifier.fillMaxSize().ref(210),
+        )
+        Canvas(Modifier.fillMaxSize()) { feather(ground) }
+    }
 }
 
 /**
- * Beside the map: the minutes and the distance to the next stop (Google Maps' own when it
- * navigates), or to the trip pressed long ([wayTo]).
+ * The ground's colour over the map's edges, from solid at the edge to clear inside, along a soft
+ * curve: the map has no edge of its own. The bottom fades furthest, for the minutes and distance.
+ */
+private fun DrawScope.feather(ground: Color) {
+    val stops = arrayOf(0f to ground, 0.3f to ground.copy(alpha = 0.82f), 0.6f to ground.copy(alpha = 0.38f), 0.85f to ground.copy(alpha = 0.1f), 1f to ground.copy(alpha = 0f))
+    val w = size.width
+    val h = size.height
+    fun edge(start: Offset, end: Offset, topLeft: Offset, area: Size) =
+        drawRect(Brush.linearGradient(*stops, start = start, end = end), topLeft = topLeft, size = area)
+    val top = h * FEATHER_TOP
+    val bottom = h * FEATHER_BOTTOM
+    val side = w * FEATHER_SIDE
+    edge(Offset(0f, 0f), Offset(0f, top), Offset.Zero, Size(w, top))
+    edge(Offset(0f, h), Offset(0f, h - bottom), Offset(0f, h - bottom), Size(w, bottom))
+    edge(Offset(0f, 0f), Offset(side, 0f), Offset.Zero, Size(side, h))
+    edge(Offset(w, 0f), Offset(w - side, 0f), Offset(w - side, 0f), Size(side, h))
+}
+
+/**
+ * Under the map, in its faded bottom: the minutes and the distance to the next stop (Google Maps'
+ * own when it navigates), or to the trip pressed long ([wayTo]); until the tablet knows where it
+ * is ([located]), a word that it is looking.
  */
 @Composable
-private fun MapMomentText(moments: Moments, eta: DisplayEta?, route: RouteLine?, wayTo: String?, landscape: Boolean, modifier: Modifier = Modifier) {
+private fun MapMomentText(moments: Moments, eta: DisplayEta?, route: RouteLine?, located: Boolean, wayTo: String?, modifier: Modifier = Modifier) {
     val focus = moments.shown == Moments.Info.FOCUS
     if (!(moments.shown == Moments.Info.MAP || focus) || moments.info.value <= 0f) return
+    if (!located) {
+        Text(
+            stringResource(R.string.passenger_finding_position),
+            fontFamily = DisplayFont,
+            fontWeight = FontWeight.Medium,
+            fontSize = MAP_SP * 0.22f,
+            color = AppTheme.colors.textMuted,
+            modifier = modifier.ref(205).graphicsLayer { alpha = moments.info.value },
+        )
+        return
+    }
     // To the next stop Google Maps' own time counts first; to another trip only the map's way.
     val next = !focus || wayTo == null
     val minutes = (if (next) eta?.minutes else null) ?: route?.minutes ?: return
     val meters = (if (next) eta?.meters else null) ?: route?.meters
     val hue = AppTheme.colors.showHues[(moments.hue + 2) % AppTheme.colors.showHues.size]
-    val big = if (landscape) MAP_SP_WIDE else INFO_SP_NARROW
+    val big = MAP_SP
     Column(
-        horizontalAlignment = if (landscape) Alignment.Start else Alignment.CenterHorizontally,
+        horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier.ref(205).graphicsLayer {
             val p = moments.info.value
             alpha = p
@@ -955,6 +1027,16 @@ private fun WeatherGlyph(kind: WeatherKind, color: Color, modifier: Modifier = M
     }
 }
 
+/** A person, simply: a head over shoulders, in [color]. */
+@Composable
+private fun PersonGlyph(color: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val w = size.width
+        drawCircle(color, radius = w * 0.22f, center = Offset(w / 2f, w * 0.3f))
+        drawRoundRect(color, topLeft = Offset(w * 0.14f, w * 0.6f), size = Size(w * 0.72f, w * 0.4f), cornerRadius = CornerRadius(w * 0.3f, w * 0.3f))
+    }
+}
+
 /** A road winding from a dot to a pin: the way to the next stop. */
 @Composable
 private fun RouteGlyph(color: Color, modifier: Modifier = Modifier) {
@@ -1010,6 +1092,7 @@ private fun Stage(
     showWay: ((DisplayItem, Boolean) -> Unit)?,
     onShown: (next: DisplayItem, shown: DisplayItem, tapped: Boolean) -> Unit,
     onFocusBottom: (Float) -> Unit,
+    onName: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val arrow = arrowSize(tripSize)
@@ -1151,6 +1234,7 @@ private fun Stage(
                             onClick = if (index == home) onSpeakNext else { { sayTrip(item, index > home) } },
                             onLongClick = showWay?.let { { it(item, index == home) } },
                             onBottom = if (focused) onFocusBottom else null,
+                            onName = item.lastName?.let { name -> { onName(name) } },
                             modifier = Modifier.fillMaxSize(),
                         )
                     }
@@ -1392,6 +1476,7 @@ private fun TopLine(
     wide: Boolean,
     onExit: () -> Unit,
     onMap: (() -> Unit)?,
+    onMapPlaced: (Offset) -> Unit,
     weather: DisplayWeather?,
     hasWeather: Boolean,
     onWeather: () -> Unit,
@@ -1437,7 +1522,7 @@ private fun TopLine(
                 }
             }
         }
-        if (onMap != null) MapSign(onMap, enabled)
+        if (onMap != null) MapSign(onMap, enabled, onMapPlaced)
         if (hasWeather) WeatherSign(weather, onWeather, enabled)
         if (onToggleLook != null) {
             // The look it switches to: the sun for light, the moon for black.
@@ -1502,6 +1587,7 @@ private fun StopHero(
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
     onBottom: ((Float) -> Unit)? = null,
+    onName: (() -> Unit)? = null,
 ) {
     val next = role == HeroRole.NEXT
     var bottom by remember { mutableFloatStateOf(0f) }
@@ -1575,6 +1661,36 @@ private fun StopHero(
                         style = TextStyle(textDirection = TextDirection.Content),
                         modifier = Modifier.ref(92).entering(area, shine),
                     )
+                }
+                // The passenger getting on or off here (the next stop only): the last name; a tap
+                // says it and shows it large. It steps aside while the stop is focused.
+                val name = current.lastName
+                if (name != null && onName != null) {
+                    val nameShown by animateFloatAsState(if (focused) 0f else 1f, tween(CLOCK_FADE_MS), label = "name")
+                    val nameSp = if (landscape) NAME_LINE_SP else NAME_LINE_SP_NARROW
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .ref(231)
+                            .padding(top = 4.dp)
+                            .graphicsLayer { alpha = nameShown }
+                            .clip(RoundedCornerShape(14.dp))
+                            .clickable(enabled = !focused, onClickLabel = stringResource(R.string.display_say_name), role = Role.Button, onClick = onName)
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                    ) {
+                        PersonGlyph(AppTheme.colors.highlight, Modifier.size(with(LocalDensity.current) { (nameSp * 0.8f).toDp() }))
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            name,
+                            fontFamily = DisplayFont,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = nameSp,
+                            color = AppTheme.colors.highlight,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = TextStyle(textDirection = TextDirection.Content),
+                        )
+                    }
                 }
             }
             // Paged to, or in the strip's middle: its time under it, as large as the room left
@@ -2164,13 +2280,17 @@ private fun Modifier.breathe(rest: Float, scale: () -> Float): Modifier = layout
     }
 }
 
-/** The way to the next stop on the map (as a long press on its address): a small pin, with no frame. */
+/**
+ * The way to the next stop on the map (as a long press on its address): a small pin, with no frame.
+ * The map grows out of it ([onPlaced]: its middle on the screen).
+ */
 @Composable
-private fun MapSign(onClick: () -> Unit, enabled: Boolean) {
+private fun MapSign(onClick: () -> Unit, enabled: Boolean, onPlaced: (Offset) -> Unit) {
     val description = stringResource(R.string.display_show_way)
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
+            .onGloballyPositioned { onPlaced(it.boundsInRoot().center) }
             .refCorner(219)
             .size(TouchTarget)
             .clip(CircleShape)
@@ -2411,19 +2531,35 @@ private const val MAP_HOLD_MS = 7_600L
 
 /** The way to a trip pressed long stays until a tap, or this long at most. */
 private const val FOCUS_MAX_MS = 120_000L
-private const val MAP_INSET = 0.04f
-private const val MAP_WIDE_W = 0.56f
-private const val MAP_WIDE_H = 0.72f
-private const val MAP_NARROW_W = 0.92f
-private const val MAP_NARROW_H = 0.5f
-private val MAP_CORNER = 28.dp
-private val MAP_SP_WIDE = 170.sp
+
+/**
+ * The map grows out of its sign from this share of its size, and is opaque this much faster than
+ * it grows; its edges fade over these shares of the screen (top, bottom, sides); the minutes and
+ * distance under it, this size and this share of the height above the bottom.
+ */
+private const val MAP_FROM = 0.06f
+private const val MAP_ALPHA_SPEED = 1.6f
+private const val FEATHER_TOP = 0.18f
+private const val FEATHER_BOTTOM = 0.34f
+private const val FEATHER_SIDE = 0.14f
+private val MAP_SP = 150.sp
+private const val MAP_TEXT_LOW = 0.04f
 
 /** A weather app's widget, large in the middle. */
 private val WIDGET_WIDE_W = 640.dp
 private val WIDGET_NARROW_W = 340.dp
 private const val WIDGET_ASPECT = 0.5f
 private val INFO_SP_WIDE = 220.sp
+
+/**
+ * The next stop's passenger's last name: on its line under the address (tablet, phone), and as
+ * large as fits (up to these sizes, within this share of the width) when tapped.
+ */
+private val NAME_LINE_SP = 40.sp
+private val NAME_LINE_SP_NARROW = 28.sp
+private val NAME_SP_WIDE = 260.sp
+private val NAME_SP_NARROW = 120.sp
+private const val NAME_WIDTH = 0.9f
 private val INFO_SP_NARROW = 110.sp
 
 /** The colon: how faint it blinks with the seconds, and how it beats when the next stop is due or well past. */

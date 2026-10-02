@@ -138,6 +138,7 @@
     <string name="overlay_hide">Dölj flytande knapp</string>
     <string name="display_repeat">Upprepa</string>
     <string name="display_say_time">Säg tiden</string>
+    <string name="display_say_name">Säg namnet</string>
     <string name="display_say_trip">Säg resan</string>
     <string name="display_home">Till nästa stopp</string>
     <string name="done_in_youdrive">Klar i YouDrive</string>
@@ -161,8 +162,6 @@
     <string name="display_full_address">Visa gatuadressen på passagerarskärmen</string>
     <string name="display_full_address_hint">Gatan med husnummer visas stort och området under. Av = bara området visas.</string>
     <string name="display_speaks">Läs upp utropen även på den här enheten</string>
-    <string name="display_map">Karta på surfplattan (skickar bilens position)</string>
-    <string name="help_display_map">Av från början. När den är på och en surfplatta visar rutten skickar telefonen bilens position och nästa stopp till surfplattan via Bluetooth var 5:e sekund. Surfplattan visar dem på en Google-karta med vägen till nästa stopp och skickar dem till Google med din egen nyckel (anges på surfplattan). Inget sparas eller loggas. Av: positionen lämnar aldrig telefonen.</string>
     <string name="weather_widget">Väderwidget på skärmen</string>
     <string name="weather_widget_none">SMHI:s väder (ingen widget)</string>
     <string name="weather_widget_pick">Välj en väderwidget</string>
@@ -172,7 +171,7 @@
     <string name="maps_key_set">Nyckeln är sparad på surfplattan</string>
     <string name="maps_key_refused">Google avvisade nyckeln</string>
     <string name="maps_key_label">API-nyckel för Google Maps</string>
-    <string name="help_maps_key">Kartan använder din egen Google-nyckel. I Google Cloud: skapa en API-nyckel, aktivera "Maps JavaScript API" och "Routes API" och begränsa nyckeln till webbplatsen https://nastastopp.app/* . Normal användning ryms i Googles kostnadsfria månadsmängd. Bilens position och nästa stopp går till Google när kartan är på (telefonens inställning 209).</string>
+    <string name="help_maps_key">Kartan använder din egen Google-nyckel. I Google Cloud: skapa en API-nyckel, aktivera "Maps JavaScript API" och "Routes API" och begränsa nyckeln till webbplatsen https://nastastopp.app/* . Normal användning ryms i Googles kostnadsfria månadsmängd. Kartan tar bilens position från surfplattans egen GPS (plats medan skärmen är öppen, aldrig i bakgrunden; frågas första gången kartknappen trycks). Den positionen och nästa stopp går till Google för vägen; inget sparas eller loggas.</string>
     <string name="display_show_way">Visa vägen på kartan</string>
     <string name="display_weather">Visa vädret</string>
     <string name="display_look_light">Ljus skärm</string>

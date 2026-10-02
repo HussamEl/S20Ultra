@@ -139,6 +139,7 @@
     <string name="overlay_hide">إخفاء الزر العائم</string>
     <string name="display_repeat">إعادة الصوت</string>
     <string name="display_say_time">قل الوقت</string>
+    <string name="display_say_name">انطق الاسم</string>
     <string name="display_say_trip">انطق هذه الرحلة</string>
     <string name="display_home">العودة إلى المحطة التالية</string>
     <string name="done_in_youdrive">منتهية في YouDrive</string>
@@ -162,8 +163,6 @@
     <string name="display_full_address">إظهار عنوان الشارع في شاشة الركاب</string>
     <string name="display_full_address_hint">يظهر الشارع مع رقم البناء بخط كبير والحي تحته. عند الإيقاف يظهر الحي فقط.</string>
     <string name="display_speaks">تشغيل الإعلانات الصوتية على هذا الجهاز أيضاً</string>
-    <string name="display_map">الخريطة على التابلت (ترسل موقع السيارة)</string>
-    <string name="help_display_map">مطفأ افتراضياً. حين يعمل ويعرض التابلت المسار، يرسل الجوال موقع السيارة والمحطة التالية إلى التابلت عبر البلوتوث كل 5 ثوانٍ. يعرضهما التابلت على خريطة Google مع الطريق إلى المحطة التالية، ويرسلهما إلى Google بمفتاحك الخاص (يُكتب في التابلت). لا يُحفظ شيء ولا يُسجَّل. إن أطفأته: لا يخرج الموقع من الجوال أبداً.</string>
     <string name="weather_widget">ودجيت الطقس على هذه الشاشة</string>
     <string name="weather_widget_none">طقس SMHI (بلا ودجيت)</string>
     <string name="weather_widget_pick">اختر ودجيت طقس</string>
@@ -173,7 +172,7 @@
     <string name="maps_key_set">المفتاح محفوظ على هذا التابلت</string>
     <string name="maps_key_refused">رفضت Google المفتاح</string>
     <string name="maps_key_label">مفتاح Google Maps API</string>
-    <string name="help_maps_key">الخريطة تستخدم مفتاح Google الخاص بك. في Google Cloud: أنشئ مفتاح API، وفعّل «Maps JavaScript API» و«Routes API»، وقيّد المفتاح بالموقع https://nastastopp.app/* . الاستخدام العادي ضمن الكمية المجانية الشهرية من Google. موقع السيارة والمحطة التالية يذهبان إلى Google ما دامت الخريطة تعمل (إعداد الجوال 209).</string>
+    <string name="help_maps_key">الخريطة تستخدم مفتاح Google الخاص بك. في Google Cloud: أنشئ مفتاح API، وفعّل «Maps JavaScript API» و«Routes API»، وقيّد المفتاح بالموقع https://nastastopp.app/* . الاستخدام العادي ضمن الكمية المجانية الشهرية من Google. تأخذ الخريطة موقع السيارة من GPS التابلت نفسه (الموقع ما دامت الشاشة مفتوحة، وليس في الخلفية أبداً؛ يُطلب الإذن عند أول ضغطة على زر الخريطة). هذا الموقع والمحطة التالية يذهبان إلى Google لرسم الطريق، ولا يُحفظ ولا يُسجَّل شيء.</string>
     <string name="display_show_way">إظهار الطريق على الخريطة</string>
     <string name="display_weather">عرض الطقس</string>
     <string name="display_look_light">شاشة فاتحة</string>

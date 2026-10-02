@@ -63,6 +63,9 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Rule
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.remember
+import se.eldebosh.nastastopp.ui.screens.RouteMap
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
@@ -726,15 +729,19 @@ class ScreenshotsRoboTest {
     }
 
     /**
-     * On the tablet a long press on a trip asks for the way to it: Google Maps on its address while
-     * the display's own map cannot show it. The map sign on the top line does the same for the next
-     * stop, whose time stands under the clock.
+     * The map sign and a long press on a trip open the tablet's own map, filling the screen, and
+     * ask for the tablet's position (its permission, when not given yet); until the tablet knows
+     * where it is the map says it is looking. A tap brings the screen back. Google Maps is never
+     * opened from the display.
      */
     @Test
     @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
-    fun passengerDisplayLongPressOpensTheWay() {
-        val opened = mutableListOf<String>()
+    fun passengerDisplayMapAsksForThePosition() {
+        var asked = 0
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         compose.setContent {
+            val scope = rememberCoroutineScope()
+            val map = remember { RouteMap(context, "AIzaTestKeyForTheMapOnly", true, "#000000", scope) }
             NastaTheme(Appearance.DAY) {
                 PassengerDisplayScreen(
                     tabletSnapshot,
@@ -743,17 +750,61 @@ class ScreenshotsRoboTest {
                     onSpeak = {},
                     onExit = {},
                     time = { LocalTime.of(8, 11, 42) },
-                    openInMaps = { opened += it },
+                    routeMap = map,
+                    onWantPosition = { asked++ },
                 )
             }
         }
         compose.waitForIdle()
         compose.onNodeWithTag("ref_90", useUnmergedTree = true).assert(hasAnyDescendant(hasText("36")))
-        compose.onNodeWithText("Hamngatan 7").performTouchInput { longClick() }
+        compose.mainClock.autoAdvance = false
         compose.onNodeWithTag("ref_219").performClick()
+        compose.mainClock.advanceTimeBy(1_500)
+        save("display_map_looking", compose.onRoot().captureToImage().asAndroidBitmap())
+        compose.onNodeWithText("Söker bilens position…").assertIsDisplayed()
+        compose.onRoot().performClick()
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.onNodeWithText("Söker bilens position…").assertDoesNotExist()
+        compose.onNodeWithText("Hamngatan 7").performTouchInput { longClick() }
+        compose.mainClock.advanceTimeBy(1_500)
+        compose.onNodeWithText("Söker bilens position…").assertIsDisplayed()
+        compose.mainClock.autoAdvance = true
+        assertEquals(2, asked)
+    }
+
+    /**
+     * The next stop's passenger's last name stands under its address; a tap says it and shows it
+     * large. No other trip has a name.
+     */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun passengerDisplayShowsTheNextPassengersLastName() {
+        val said = mutableListOf<String>()
+        compose.setContent {
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(
+                    tabletSnapshot,
+                    status = "Galaxy S20",
+                    connected = true,
+                    onSpeak = {},
+                    onExit = {},
+                    onSay = { said += it.swedish },
+                    time = { LocalTime.of(8, 11, 5) },
+                )
+            }
+        }
         compose.waitForIdle()
-        assertEquals(listOf("Hamngatan 7, Skoghall", "Västra Torggatan 12, Karlstad"), opened)
-        save("display_tablet_late", compose.onRoot().captureToImage().asAndroidBitmap())
+        save("display_name", compose.onRoot().captureToImage().asAndroidBitmap())
+        compose.onNodeWithTag("ref_231").assertIsDisplayed()
+        compose.mainClock.autoAdvance = false
+        compose.onNodeWithTag("ref_231").performClick()
+        compose.mainClock.advanceTimeBy(1_500)
+        save("display_name_large", compose.onRoot().captureToImage().asAndroidBitmap())
+        compose.onNodeWithTag("ref_232").assertIsDisplayed()
+        compose.mainClock.advanceTimeBy(8_000)
+        compose.onNodeWithTag("ref_232").assertDoesNotExist()
+        compose.mainClock.autoAdvance = true
+        assertEquals(listOf("Testsson."), said)
     }
 
     /** A weather app's widget, when the tablet hosts one, takes the weather's moment in the middle. */
@@ -792,7 +843,7 @@ class ScreenshotsRoboTest {
             DisplayItem("07:05", "Kyrkogatan 2", "Karlstad", doneInYouDrive = true, doneHere = true),
             DisplayItem("07:30", "Järnvägsgatan 3B", "Storfors", doneInYouDrive = true, doneHere = true),
         ),
-        current = DisplayItem("07:36", "Västra Torggatan 12", "Karlstad"),
+        current = DisplayItem("07:36", "Västra Torggatan 12", "Karlstad", lastName = "Testsson"),
         upcoming = listOf(
             DisplayItem("08:00", "Hamngatan 7", "Skoghall"),
             DisplayItem("08:25", "Storgatan 14", "Karlstad", doneInYouDrive = true),
@@ -811,7 +862,10 @@ class ScreenshotsRoboTest {
     fun passengerDisplaySwitchesItsLook() {
         var dark by mutableStateOf(true)
         var exited = false
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         compose.setContent {
+            val scope = rememberCoroutineScope()
+            val map = remember { RouteMap(context, "AIzaTestKeyForTheMapOnly", false, "#F3F4F6", scope) }
             NastaTheme(Appearance.DAY) {
                 PassengerDisplayScreen(
                     tabletSnapshot.copy(weather = DisplayWeather(14, 3)),
@@ -820,7 +874,7 @@ class ScreenshotsRoboTest {
                     onSpeak = {},
                     onExit = { exited = true },
                     time = { LocalTime.of(8, 11, 42) },
-                    openInMaps = {},
+                    routeMap = map,
                     dark = dark,
                     onToggleLook = { dark = !dark },
                 )

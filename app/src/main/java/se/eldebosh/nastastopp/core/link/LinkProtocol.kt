@@ -14,9 +14,9 @@ import java.util.UUID
 
 /**
  * Messages between the driver's device (controller) and a passenger display, one JSON object
- * per line. Only what the display shows is ever sent to it (see [DisplaySnapshot]), and the
- * vehicle's position for its map while the driver has that on ([Where]); the display sends back
- * only the buttons pressed on its floating panel ([Command]).
+ * per line: the display's state ([DisplaySnapshot]) and the announcements; the display sends back
+ * only the buttons pressed on its floating panel ([Command]). The vehicle's position is never sent:
+ * a tablet's map takes it from the tablet itself.
  */
 @Serializable
 sealed interface LinkMessage {
@@ -38,22 +38,6 @@ sealed interface LinkMessage {
     @Serializable
     @SerialName("ping")
     data object Ping : LinkMessage
-
-    /**
-     * For the tablet's map, only while the driver has it on (phone Settings 209): where the vehicle
-     * is ([lat], [lng], heading [bearing]) and where the next stop is (its point, or its address
-     * [to] when not located). Never a name.
-     */
-    @Serializable
-    @SerialName("where")
-    data class Where(
-        val lat: Double,
-        val lng: Double,
-        val bearing: Float? = null,
-        val toLat: Double? = null,
-        val toLng: Double? = null,
-        val to: String? = null,
-    ) : LinkMessage
 
     /** A button the driver pressed on the tablet's floating panel, for the phone to carry out. */
     @Serializable

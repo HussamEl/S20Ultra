@@ -65,7 +65,7 @@ class AppGraph(app: Application) {
     val importer = ScreenshotImporter(OcrEngine(app), extractor)
 
     /** Controller: Bluetooth server for passenger displays (runs only when enabled). */
-    val displayServer = DisplayLinkServer(app, controller, settings, street, scope)
+    val displayServer = DisplayLinkServer(app, controller, settings, scope)
 
     /** Passenger displays shown on this phone itself (the screen counts itself while open). */
     val localDisplays = MutableStateFlow(0)

@@ -32,7 +32,6 @@ class LinkProtocolTest {
             LinkMessage.State(snapshot),
             LinkMessage.Announce("Rutten är klar.", "The route is finished."),
             LinkMessage.Ping,
-            LinkMessage.Where(59.38, 13.5, 90f, 59.4, 13.52, "Hamngatan 7, Skoghall"),
             LinkMessage.Command(LinkMessage.Command.Action.NEXT),
             LinkMessage.Command(LinkMessage.Command.Action.BACK),
             LinkMessage.Command(LinkMessage.Command.Action.REPEAT),

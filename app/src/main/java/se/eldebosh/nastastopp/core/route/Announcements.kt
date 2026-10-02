@@ -45,6 +45,12 @@ object Announcements {
         return Announcement(sv, String.format(Locale.ROOT, "The time is %d:%02d.", hour, minute))
     }
 
+    /**
+     * The next stop's passenger's last name, said only when it is tapped on the passenger display
+     * (never in an announcement).
+     */
+    fun passenger(lastName: String) = Announcement("$lastName.", "$lastName.")
+
     /** Announcement for the remaining stops (current first), or "finished" if none remain. */
     fun forRemaining(spokenNames: List<String>, withEnglish: Boolean): Announcement =
         if (spokenNames.isEmpty()) finished(withEnglish) else nextStops(spokenNames[0], spokenNames.getOrNull(1), withEnglish)
