@@ -1,17 +1,18 @@
 <!doctype html>
 <!--
-  The tablet's map of the way to the next stop (RouteMap.kt). Google's map with the driver's own
-  key; no device location. The app hands it the vehicle's position (setCar), the route to draw
-  (setRoute), the stop (setStop) and when to come and go (reveal, conceal); nothing else is sent
-  anywhere from here. The map grows and fades here, in the page: the app never scales or fades the
-  WebView itself, so the map is drawn the same on every device.
+  The tablet's map of the way (RouteMap.kt). Google's map with the driver's own key; no device
+  location. The app hands it the vehicle's position (setCar), the way (setWay: the stops in turn,
+  lettered A, B, C…, the one looked at, and each leg's line) and when to come and go (reveal,
+  conceal); nothing else is sent anywhere from here. The map grows and fades here, in the page:
+  the app never scales or fades the WebView itself, so the map is drawn the same on every device.
 
   Two maps:
   - the way, flat (Google's map), only looked at: the minute's moment;
   - the driver's own (hold), opened by his tap: Google's 3D map of real buildings, moved by touch
     and by the app's buttons (zoom, toCar, toStop, whole). It opens with a flight (tour): from
-    above the car up, along to the stop, and down to its building, once around it. Where the 3D
-    map cannot be drawn, the flat one is held and moved by touch instead.
+    above the car up, along to the stop looked at, and down to its building; then Google's own
+    street photos of it (Street View, street) when there are some, else once around it. Where the
+    3D map cannot be drawn, the flat one is held and moved by touch instead.
 -->
 <html>
 <head>
@@ -37,14 +38,17 @@
   .dot { position: absolute; transform: translate(-50%, -50%); border-radius: 50%; box-sizing: border-box; }
   .car { width: 26px; height: 26px; background: #1A73E8; border: 5px solid #FFFFFF;
          box-shadow: 0 0 0 10px rgba(26, 115, 232, 0.22), 0 2px 8px rgba(0, 0, 0, 0.35); }
-  .stop { width: 30px; height: 30px; background: #EA4335; border: 8px solid #FFFFFF;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); }
+  .pin { position: absolute; transform: translate(-50%, -50%); line-height: 0; }
+  #street { position: absolute; left: 0; top: 0; right: 0; bottom: 0; display: none; background: __GROUND__; }
+  body.street #street { display: block; }
+  body.street #map3d, body.street #map { visibility: hidden; }
 </style>
 </head>
 <body>
 <div id="stage">
   <div id="map"></div>
   <div id="map3d"></div>
+  <div id="street"></div>
   <div class="fade top"></div><div class="fade bottom"></div><div class="fade left"></div><div class="fade right"></div>
 </div>
 <script>
@@ -54,12 +58,16 @@
   var FROM = 0.06;
   // Without the map's pictures this long after it is shown, the app is told.
   var TILES_WAIT_MS = 12000;
-  var map = null, carDot = null, stopDot = null, line = null, casing = null;
-  var car = null, path = [], shown = false, tiles = false;
+  var map = null, carDot = null, Dot = null, lines2d = [], pins2d = [];
+  // The way: its stops in turn (points, or null until known), the one looked at, each leg's line.
+  var car = null, stops = [], focusAt = 0, legs = [], shown = false, tiles = false;
+  var LETTERS = 'ABCDEFGHIJK';
   var stage = document.getElementById('stage');
   // The driver's own map (hold): Google's 3D map, made the first time it is wanted and kept.
   var held = false, stopAt = null;
-  var m3 = null, m3state = 'none', m3car = null, m3stop = null, m3line = null;
+  var m3 = null, m3lib = null, m3state = 'none', m3car = null, m3lines = [], m3pins = [];
+  // Google's street photos of the stop: the panorama (made once), and whether they show.
+  var pano = null, streetShown = false, STREET_AFTER_MS = 1200;
   // The flight to the stop: 0 none, 1 over the car, 2 flying, 3 around the building.
   var leg = 0, tourWanted = false, tourHeading = 0;
   // Over the car, at the stop's building, and once around it (metres, degrees, milliseconds).
@@ -121,9 +129,9 @@
       tiles = true;
       Android.onTiles();
     });
-    function Dot(cls) { this.div = document.createElement('div'); this.div.className = 'dot ' + cls; this.at = null; }
+    Dot = function (cls, html) { this.div = document.createElement('div'); this.div.className = cls; if (html) this.div.innerHTML = html; this.at = null; };
     Dot.prototype = new google.maps.OverlayView();
-    Dot.prototype.onAdd = function () { this.getPanes().overlayLayer.appendChild(this.div); };
+    Dot.prototype.onAdd = function () { this.getPanes().overlayMouseTarget.appendChild(this.div); };
     Dot.prototype.draw = function () {
       var projection = this.getProjection();
       if (!this.at || !projection) { this.div.style.display = 'none'; return; }
@@ -134,10 +142,7 @@
     };
     Dot.prototype.onRemove = function () { this.div.remove(); };
     Dot.prototype.place = function (at) { this.at = at; this.draw(); };
-    stopDot = new Dot('stop'); stopDot.setMap(map);
-    carDot = new Dot('car'); carDot.setMap(map);
-    casing = new google.maps.Polyline({ map: map, strokeColor: NIGHT ? '#0B3D91' : '#FFFFFF', strokeWeight: 13, strokeOpacity: 1, clickable: false });
-    line = new google.maps.Polyline({ map: map, strokeColor: '#1A73E8', strokeWeight: 8, strokeOpacity: 1, clickable: false });
+    carDot = new Dot('dot car'); carDot.setMap(map);
     draw(true);
     Android.onReady();
     if (shown) waitForTiles();
@@ -175,34 +180,70 @@
     if (m3car) m3car.position = car;
   }
 
-  function setRoute(points) {
-    path = points.map(function (p) { return { lat: p[0], lng: p[1] }; });
+  // The way: {stops: [[lat, lng] or null…], focus: n, legs: [[[lat, lng]…]…] or null (not yet)}.
+  function setWay(w) {
+    stops = (w.stops || []).map(function (p) { return p ? { lat: p[0], lng: p[1] } : null; });
+    focusAt = Math.max(0, Math.min(stops.length - 1, w.focus || 0));
+    legs = (w.legs || []).map(function (leg) { return leg.map(function (p) { return { lat: p[0], lng: p[1] }; }); });
     if (map) draw(!held);
     draw3d();
     if (tourWanted) tour();
   }
 
-  // The stop's own point when the app knows it; else the way's end.
-  function setStop(lat, lng) {
-    stopAt = lat == null || lng == null ? null : { lat: lat, lng: lng };
-    draw3d();
-    if (tourWanted) tour();
+  // Every point of the way, for the view to take in.
+  function wayPoints() {
+    var all = [];
+    legs.forEach(function (leg) { all = all.concat(leg); });
+    stops.forEach(function (p) { if (p) all.push(p); });
+    return all;
   }
 
-  function target() { return stopAt || (path.length ? path[path.length - 1] : null); }
+  // The stop looked at: its point, else where its leg ends.
+  function target() {
+    var s = stops[focusAt];
+    if (s) return s;
+    var leg = legs[focusAt];
+    return leg && leg.length ? leg[leg.length - 1] : null;
+  }
+
+  // A stop's letter on a round pin: larger and red for the one looked at.
+  function pinSvg(i) {
+    var focus = i === focusAt, size = focus ? 58 : 40, half = size / 2;
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '">' +
+      '<circle cx="' + half + '" cy="' + half + '" r="' + (half - 3) + '" fill="' + (focus ? '#EA4335' : '#1A73E8') + '" stroke="#FFFFFF" stroke-width="4"/>' +
+      '<text x="' + half + '" y="' + half + '" dy="0.36em" text-anchor="middle" font-family="sans-serif" font-weight="700" font-size="' + (focus ? 28 : 19) + '" fill="#FFFFFF">' +
+      LETTERS.charAt(i) + '</text></svg>';
+  }
+
+  // A leg up to the stop looked at is drawn full; the legs after it, lighter.
+  function legStyle(i) { return i <= focusAt ? { color: '#1A73E8', opacity: 1, weight: 8 } : { color: '#1A73E8', opacity: 0.45, weight: 6 }; }
 
   function draw(refit) {
-    casing.setPath(path);
-    line.setPath(path);
-    stopDot.place(path.length ? path[path.length - 1] : null);
+    lines2d.forEach(function (l) { l.setMap(null); });
+    lines2d = [];
+    legs.forEach(function (leg, i) {
+      var st = legStyle(i);
+      if (i <= focusAt) lines2d.push(new google.maps.Polyline({ map: map, path: leg, strokeColor: NIGHT ? '#0B3D91' : '#FFFFFF', strokeWeight: st.weight + 5, strokeOpacity: 1, clickable: false }));
+      lines2d.push(new google.maps.Polyline({ map: map, path: leg, strokeColor: st.color, strokeWeight: st.weight, strokeOpacity: st.opacity, clickable: false }));
+    });
+    pins2d.forEach(function (d) { d.setMap(null); });
+    pins2d = [];
+    stops.forEach(function (p, i) {
+      var at = p || (legs[i] && legs[i].length ? legs[i][legs[i].length - 1] : null);
+      if (!at) return;
+      var pin = new Dot('pin', pinSvg(i));
+      pin.at = at;
+      pin.setMap(map);
+      pins2d.push(pin);
+    });
     carDot.place(car);
     var bounds = new google.maps.LatLngBounds();
-    path.forEach(function (p) { bounds.extend(p); });
+    wayPoints().forEach(function (p) { bounds.extend(p); });
     if (car) bounds.extend(car);
     if (bounds.isEmpty()) return;
     var seen = map.getBounds();
     if (refit || !seen || (!held && car && !seen.contains(car))) {
-      if (path.length) map.fitBounds(bounds, clear()); else { map.setCenter(car); map.setZoom(15); }
+      if (wayPoints().length) map.fitBounds(bounds, clear()); else { map.setCenter(car); map.setZoom(15); }
     }
   }
 
@@ -223,6 +264,7 @@
       tourWanted = false;
       leg = 0;
       if (m3) m3.stopCameraAnimation();
+      street(false);
       document.body.classList.remove('deep');
       return;
     }
@@ -255,19 +297,13 @@
       document.getElementById('map3d').addEventListener('pointerdown', function () {
         if (leg) { leg = 0; tourWanted = false; m3.stopCameraAnimation(); }
       }, true);
-      m3line = new lib.Polyline3DElement({
-        altitudeMode: 'CLAMP_TO_GROUND', strokeColor: '#1A73E8', strokeWidth: 10,
-        outerColor: '#FFFFFF', outerWidth: 0.35, drawsOccludedSegments: true
-      });
-      m3stop = new lib.Marker3DElement({ altitudeMode: 'CLAMP_TO_GROUND', drawsWhenOccluded: true });
+      m3lib = lib;
       m3car = new lib.Marker3DElement({ altitudeMode: 'CLAMP_TO_GROUND', drawsWhenOccluded: true, sizePreserved: true });
       var dot = document.createElement('template');
       dot.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44">' +
         '<circle cx="22" cy="22" r="20" fill="#1A73E8" fill-opacity="0.25"/>' +
         '<circle cx="22" cy="22" r="11" fill="#1A73E8" stroke="#FFFFFF" stroke-width="5"/></svg>';
       m3car.append(dot);
-      m3.append(m3line);
-      m3.append(m3stop);
       m3.append(m3car);
       document.getElementById('map3d').appendChild(m3);
       m3state = 'ready';
@@ -291,10 +327,30 @@
   }
 
   function draw3d() {
-    if (!m3line) return;
-    m3line.path = path;
-    var s = target();
-    if (s) m3stop.position = s;
+    if (!m3lib) return;
+    m3lines.forEach(function (l) { l.remove(); });
+    m3lines = legs.map(function (leg, i) {
+      var st = legStyle(i);
+      var l = new m3lib.Polyline3DElement({
+        altitudeMode: 'CLAMP_TO_GROUND', strokeColor: st.opacity < 1 ? 'rgba(26, 115, 232, 0.5)' : st.color, strokeWidth: st.weight + 2,
+        outerColor: '#FFFFFF', outerWidth: i <= focusAt ? 0.35 : 0, drawsOccludedSegments: true
+      });
+      l.path = leg;
+      m3.append(l);
+      return l;
+    });
+    m3pins.forEach(function (m) { m.remove(); });
+    m3pins = [];
+    stops.forEach(function (p, i) {
+      var at = p || (legs[i] && legs[i].length ? legs[i][legs[i].length - 1] : null);
+      if (!at) return;
+      var m = new m3lib.Marker3DElement({ position: at, altitudeMode: 'CLAMP_TO_GROUND', drawsWhenOccluded: true, sizePreserved: true, zIndex: i === focusAt ? 2 : 1 });
+      var t = document.createElement('template');
+      t.innerHTML = pinSvg(i);
+      m.append(t);
+      m3.append(m);
+      m3pins.push(m);
+    });
   }
 
   // A camera looking at (p) on the ground, from (range) metres away.
@@ -306,6 +362,7 @@
   // building; and once slowly around it. It waits for the stop's point.
   function tour() {
     if (!m3 || !held) return;
+    street(false);
     var s = target();
     if (!s) { tourWanted = true; return; }
     tourWanted = false;
@@ -323,14 +380,80 @@
     m3.flyCameraTo({ endCamera: cam(s, STOP_RANGE, STOP_TILT, tourHeading), durationMillis: Math.min(FLY_MAX_MS, Math.max(FLY_MIN_MS, 2500 + metres * 0.4)) });
   }
 
+  // At the stop's building: Google's street photos of it when there are some, else once around it.
   function landed() {
     if (leg === 2 && held) {
       leg = 3;
       var s = target();
-      if (s) m3.flyCameraAround({ camera: cam(s, STOP_RANGE, STOP_TILT, tourHeading), durationMillis: AROUND_MS, repeatCount: 1 });
+      if (!s) return;
+      findStreet(s, function (found) {
+        if (leg !== 3 || !held) return;
+        if (found) {
+          setTimeout(function () { if (leg === 3 && held) { leg = 0; showStreet(found, s); } }, STREET_AFTER_MS);
+        } else {
+          m3.flyCameraAround({ camera: cam(s, STOP_RANGE, STOP_TILT, tourHeading), durationMillis: AROUND_MS, repeatCount: 1 });
+        }
+      });
     } else if (leg === 3) {
       leg = 0;
     }
+  }
+
+  // --- Google's street photos (Street View) -----------------------------------------------
+
+  // The street photos nearest the stop (within 80 m, outdoors), or null.
+  function findStreet(s, then) {
+    // Google's answer is a promise that fails when there are none: caught, never an error.
+    google.maps.importLibrary('streetView').then(function (lib) {
+      return new lib.StreetViewService().getPanorama({ location: s, radius: 80, preference: lib.StreetViewPreference.NEAREST, sources: [lib.StreetViewSource.OUTDOOR] });
+    }).then(function (answer) {
+      then(answer && answer.data && answer.data.location ? answer.data.location : null);
+    }).catch(function () { then(null); });
+  }
+
+  // The photos, turned towards the stop's building.
+  function showStreet(found, s) {
+    google.maps.importLibrary('streetView').then(function (lib) {
+      var from = { lat: found.latLng.lat(), lng: found.latLng.lng() };
+      var pov = { heading: bearing(from, s), pitch: 6 };
+      // Shown first: a panorama made in a hidden box stays blank.
+      streetShown = true;
+      document.body.classList.add('street');
+      if (!pano) {
+        pano = new lib.StreetViewPanorama(document.getElementById('street'), {
+          pano: found.pano, pov: pov, zoom: 0, visible: true,
+          addressControl: false, fullscreenControl: false, motionTracking: false, motionTrackingControl: false,
+          enableCloseButton: false, zoomControl: false, panControl: false, linksControl: true, clickToGo: true,
+          showRoadLabels: true, imageDateControl: false
+        });
+      } else {
+        pano.setPano(found.pano);
+        pano.setPov(pov);
+        pano.setZoom(0);
+        pano.setVisible(true);
+      }
+      Android.onStreet('shown');
+    }).catch(function (e) { problem('page', e && e.message || e); });
+  }
+
+  // On (true): the stop's street photos, or the note that there are none. Off: back to the map.
+  function street(on) {
+    if (!on) {
+      if (!streetShown) return;
+      streetShown = false;
+      document.body.classList.remove('street');
+      try { Android.onStreet('hidden'); } catch (e) {}
+      return;
+    }
+    var s = target();
+    if (!s) return;
+    leg = 0;
+    tourWanted = false;
+    if (m3) m3.stopCameraAnimation();
+    findStreet(s, function (found) {
+      if (!held) return;
+      if (found) showStreet(found, s); else Android.onStreet('none');
+    });
   }
 
   // The app's buttons: closer (1) or farther (-1); to the car; to the stop; the whole way. A map
@@ -340,7 +463,9 @@
   }
 
   var zoom = button(function (step) {
-    if (deep()) {
+    if (streetShown && pano) {
+      pano.setZoom(Math.max(0, Math.min(4, (pano.getZoom() || 0) + step)));
+    } else if (deep()) {
       leg = 0;
       var c = m3.center;
       if (!c) return;
@@ -353,6 +478,7 @@
 
   var toCar = button(function () {
     if (!car) return;
+    street(false);
     if (deep()) {
       leg = 0;
       m3.flyCameraTo({ endCamera: cam(car, CAR_RANGE, CAR_TILT, m3.heading || 0), durationMillis: 1500 });
@@ -365,6 +491,21 @@
   var toStop = button(function () {
     var s = target();
     if (!s) return;
+    street(false);
+    if (deep()) {
+      leg = 0;
+      m3.flyCameraTo({ endCamera: cam(s, STOP_RANGE, STOP_TILT, m3.heading || 0), durationMillis: 1500 });
+    } else if (map) {
+      map.panTo(s);
+      map.setZoom(17);
+    }
+  });
+
+  // Stop i of the way: its building, or the place on the flat map.
+  var lookAt = button(function (i) {
+    var s = stops[i] || (legs[i] && legs[i].length ? legs[i][legs[i].length - 1] : null);
+    if (!s) return;
+    street(false);
     if (deep()) {
       leg = 0;
       m3.flyCameraTo({ endCamera: cam(s, STOP_RANGE, STOP_TILT, m3.heading || 0), durationMillis: 1500 });
@@ -376,8 +517,9 @@
 
   // The car, the way and the stop at once, seen from above with the stop ahead.
   var whole = button(function () {
+    street(false);
     var s = target();
-    var all = path.slice();
+    var all = wayPoints();
     if (car) all.push(car);
     if (s) all.push(s);
     if (!all.length) return;

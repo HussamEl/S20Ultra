@@ -175,6 +175,8 @@ class RouteController(
     )
 
     /** A passenger's last name ("Anna Testsson" → "Testsson"): the next stop's, for the passenger display. */
+    private fun riderKey(name: String?): String? = name?.trim()?.lowercase(TextNorm.SWEDISH)?.takeIf { it.isNotEmpty() }
+
     private fun lastNameOf(name: String?): String? = name?.trim()?.substringAfterLast(' ')?.takeIf { it.isNotBlank() }
 
     /**
@@ -193,6 +195,8 @@ class RouteController(
     private fun buildDisplay(r: RouteData?, x: DisplayExtras): DisplaySnapshot {
         if (r == null) return DisplaySnapshot()
         val full = settings.current.displayFullAddress
+        // One number per passenger, the same on their pick-up and drop-off; never the name.
+        val riders = (r.completed + r.stops).mapNotNull { riderKey(it.name) }.distinct().withIndex().associate { (i, key) -> key to i + 1 }
         return DisplaySnapshot.build(
             active = r.active,
             completed = r.completed,
@@ -205,9 +209,9 @@ class RouteController(
                 if (full) {
                     // A place of care by its short name, said in full when tapped.
                     val said = Places.spokenName(placeOf(s), localities::contains)
-                    DisplayItem(time = s.time, title = displayTitle(s), subtitle = spokenName(s), doneInYouDrive = s.youDriveDone, kind = s.kind, place = routeTo, lat = at?.lat, lng = at?.lng, said = said, card = s.card)
+                    DisplayItem(time = s.time, title = displayTitle(s), subtitle = spokenName(s), doneInYouDrive = s.youDriveDone, kind = s.kind, place = routeTo, lat = at?.lat, lng = at?.lng, said = said, card = s.card, id = s.id, rider = riders[riderKey(s.name)])
                 } else {
-                    DisplayItem(time = s.time, title = spokenName(s), doneInYouDrive = s.youDriveDone, kind = s.kind, place = routeTo, lat = at?.lat, lng = at?.lng, card = s.card)
+                    DisplayItem(time = s.time, title = spokenName(s), doneInYouDrive = s.youDriveDone, kind = s.kind, place = routeTo, lat = at?.lat, lng = at?.lng, card = s.card, id = s.id, rider = riders[riderKey(s.name)])
                 }
             },
             announcement = if (r.active && r.stops.isNotEmpty()) announcementFor(r.stops) else null,
@@ -298,6 +302,29 @@ class RouteController(
             list.add(to, list.removeAt(from))
             r.copy(stops = list)
         }
+    }
+
+    /**
+     * The driver's order for the trips [ids], set on the tablet's map: they take the places they
+     * hold now, in this order, and every other trip keeps its place. On an active route the next
+     * stops are said again when the next stop or the one after changed, and Maps opens again when
+     * its first ten stops changed (each follows the driver's tap on the tablet).
+     */
+    fun reorder(ids: List<Long>) {
+        val r = _route.value ?: return
+        if (ids.toSet().size != ids.size) return
+        val places = r.stops.indices.filter { r.stops[it].id in ids }
+        if (places.size != ids.size) return
+        val byId = r.stops.associateBy { it.id }
+        val stops = r.stops.toMutableList()
+        places.forEachIndexed { k, at -> stops[at] = byId.getValue(ids[k]) }
+        if (stops == r.stops) return
+        set(r.copy(stops = stops))
+        if (!r.active) return
+        val before = r.stops.map { it.id }
+        val now = stops.map { it.id }
+        if (now.take(2) != before.take(2)) speak(announcementFor(stops))
+        if (now.take(MapsUrlBuilder.MAX_STOPS_PER_LAUNCH) != before.take(MapsUrlBuilder.MAX_STOPS_PER_LAUNCH)) openMaps(fromBackground = true)
     }
 
     fun delete(id: Long) = update { r -> r.copy(stops = r.stops.filterNot { it.id == id }) }
@@ -620,12 +647,12 @@ class RouteController(
     }
 
     /** "Öppna Maps": re-launches navigation with the remaining stops (max 10). */
-    fun openMaps() {
+    fun openMaps(fromBackground: Boolean = false) {
         val r = _route.value ?: return
         if (r.stops.isEmpty()) return
         val batch = r.stops.take(MapsUrlBuilder.MAX_STOPS_PER_LAUNCH)
         if (r.active) set(r.copy(batchStartStopId = batch.first().id, batchEndStopId = batch.last().id))
-        maps.launch(batch.map { it.navigationText })
+        maps.launch(batch.map { it.navigationText }, fromBackground)
     }
 
     /**

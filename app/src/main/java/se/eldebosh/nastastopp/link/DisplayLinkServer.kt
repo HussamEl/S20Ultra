@@ -179,7 +179,11 @@ class DisplayLinkServer(
             io {
                 while (true) {
                     val message = session.receive() ?: break
-                    if (message is LinkMessage.Command) scope.launch(Dispatchers.Main) { carryOut(message.action) }
+                    when (message) {
+                        is LinkMessage.Command -> scope.launch(Dispatchers.Main) { carryOut(message.action) }
+                        is LinkMessage.Order -> scope.launch(Dispatchers.Main) { controller.reorder(message.ids) }
+                        else -> Unit
+                    }
                 }
             },
         )

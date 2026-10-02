@@ -7,6 +7,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -372,6 +373,37 @@ class RouteControllerRoboTest {
         @Suppress("DEPRECATION")
         val extras = notification.extras.keySet().map { notification.extras.get(it)?.toString().orEmpty() }
         assertFalse("notification", extras.any { it.contains("0700000006") || it.contains("1234") })
+        c.end()
+    }
+
+    /**
+     * The order the driver sets on the tablet's map: the trips take the places they held, in his
+     * order; the new next stop is said. A passenger's pick-up and drop-off share a number, never
+     * the name; an order naming a trip that is not there is ignored.
+     */
+    @Test
+    fun theTabletsOrderIsTaken() {
+        val tts = readyTts()
+        val cards = listOf(
+            "08:00\nPick-up\nFrida Maria Uppdiktad\nStrandvägen 3, 66530 Kil\nCompensation 1 KR",
+            "08:20\nPick-up\nErik Påhittad\nStorgatan 14, 65224 Karlstad\nCompensation 1 KR",
+            "08:30\nDrop-off\nFrida Maria Uppdiktad\nSkolgatan 5, 66530 Kil\nCompensation 1 KR",
+        )
+        val c = graph.controller
+        assertEquals(3, c.importTrips(YouDriveCards.toAdd(YouDriveCards.parse(cards, graph.extractor))))
+        idleUntil { c.route.value!!.stops.none { it.geoStatus == GeoStatus.PENDING } }
+        assertTrue(c.start())
+        idle()
+        val shown = listOf(c.display.value.current!!) + c.display.value.upcoming
+        assertEquals(shown[0].rider, shown[2].rider)
+        assertNotEquals(shown[0].rider, shown[1].rider)
+        val ids = c.route.value!!.stops.map { it.id }
+        c.reorder(listOf(ids[1], ids[0]))
+        idle()
+        assertEquals(listOf(ids[1], ids[0], ids[2]), c.route.value!!.stops.map { it.id })
+        assertTrue(tts.lastSpokenText.orEmpty(), tts.lastSpokenText.orEmpty().startsWith("Nästa stopp: Storgatan 14"))
+        c.reorder(listOf(ids[0], 999L))
+        assertEquals(listOf(ids[1], ids[0], ids[2]), c.route.value!!.stops.map { it.id })
         c.end()
     }
 

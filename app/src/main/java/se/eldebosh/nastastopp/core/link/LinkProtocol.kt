@@ -15,8 +15,9 @@ import java.util.UUID
 /**
  * Messages between the driver's device (controller) and a passenger display, one JSON object
  * per line: the display's state ([DisplaySnapshot]) and the announcements; the display sends back
- * only the buttons pressed on its floating panel ([Command]). The vehicle's position is never sent:
- * a tablet's map takes it from the tablet itself.
+ * only the buttons pressed on its floating panel ([Command]) and the trips' order the driver set
+ * on its map ([Order]: their numbers). The vehicle's position is never sent: a tablet's map takes
+ * it from the tablet itself.
  */
 @Serializable
 sealed interface LinkMessage {
@@ -45,6 +46,11 @@ sealed interface LinkMessage {
     data class Command(val action: Action) : LinkMessage {
         enum class Action { NEXT, BACK, REPEAT }
     }
+
+    /** The order the driver set on the tablet's map for these trips (their [DisplaySnapshot] item ids), for the phone to take. */
+    @Serializable
+    @SerialName("order")
+    data class Order(val ids: List<Long>) : LinkMessage
 }
 
 object LinkProtocol {

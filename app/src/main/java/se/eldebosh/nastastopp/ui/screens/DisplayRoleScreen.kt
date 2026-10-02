@@ -82,6 +82,8 @@ fun DisplayRoleScreen(
     panelAllowed: Boolean = true,
     onAllowPanel: () -> Unit = {},
     onToggleLook: () -> Unit = {},
+    /** Sends the order the driver set on the display's map to the phone (the trips' numbers). */
+    onOrder: ((List<Long>) -> Unit)? = null,
     /** The weather app's widget on the display (207): its name (null: SMHI's weather), the choices, the choice. */
     widgetLabel: String? = null,
     widgetChoices: () -> List<WeatherWidgets.Choice> = { emptyList() },
@@ -124,6 +126,7 @@ fun DisplayRoleScreen(
             onWantPosition = onWantPosition,
             dark = settings.displayDark,
             onToggleLook = onToggleLook,
+            onOrder = onOrder,
         )
         return
     }

@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LifecycleStartEffect
+import se.eldebosh.nastastopp.core.display.DisplaySnapshot
 import se.eldebosh.nastastopp.core.nav.MapWay
 import se.eldebosh.nastastopp.geo.TabletPosition
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -387,12 +388,12 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 onStopOrDispose { position.stop() }
                             }
                             val fix by position.fix.collectAsStateWithLifecycle()
-                            val next = remote?.takeIf { it.active }?.current
-                            LaunchedEffect(routeMap, fix, next) {
+                            // The minute's map: from the car through the next stop and the three after it.
+                            val nextStops = remote?.takeIf { it.active }?.ahead?.take(DisplaySnapshot.AROUND + 1)?.map { it.mapStop }.orEmpty()
+                            LaunchedEffect(routeMap, fix, nextStops) {
                                 val at = fix ?: return@LaunchedEffect
-                                val stop = next ?: return@LaunchedEffect
-                                val to = stop.place ?: listOfNotNull(stop.title, stop.subtitle).joinToString(", ")
-                                routeMap?.show(MapWay(at.lat, at.lng, at.bearingDeg, stop.lat, stop.lng, to))
+                                if (nextStops.isEmpty()) return@LaunchedEffect
+                                routeMap?.show(MapWay(at.lat, at.lng, at.bearingDeg, nextStops))
                             }
                             DisplayRoleScreen(
                                 settings = settings,
@@ -418,6 +419,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 spoken = spoken,
                                 onToggleSpeaks = { v -> graph.settings.update { it.copy(displaySpeaks = v) } },
                                 onToggleLook = { graph.settings.update { it.copy(displayDark = !it.displayDark) } },
+                                onOrder = { ids -> client.order(ids) },
                                 panelAllowed = remember(resumeTick) { graph.tabletPanel.canShow },
                                 onAllowPanel = { SystemIntents.openOverlaySettings(context) },
                                 onTogglePanel = { v ->

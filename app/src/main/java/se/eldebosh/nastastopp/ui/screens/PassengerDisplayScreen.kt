@@ -27,7 +27,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.isSpecified
 import se.eldebosh.nastastopp.core.geo.GeoLogic
 import se.eldebosh.nastastopp.core.youdrive.TripCardText
-import se.eldebosh.nastastopp.core.nav.MapWay
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -235,6 +234,7 @@ import java.util.Locale
  *   the stop, moved by touch and buttons, closed by its ×). The display never opens Google Maps.
  * @param onWantPosition the map is asked for: the tablet's location permission, if not given yet.
  * @param dark the black look ([DisplayColors]) or the light one; [onToggleLook] switches it (223).
+ * @param onOrder sends the order the driver set on his map to the phone (the trips' numbers).
  */
 @Composable
 fun PassengerDisplayScreen(
@@ -253,6 +253,7 @@ fun PassengerDisplayScreen(
     onWantPosition: (() -> Unit)? = null,
     dark: Boolean = true,
     onToggleLook: (() -> Unit)? = null,
+    onOrder: ((List<Long>) -> Unit)? = null,
 ) {
     KeepScreenOnFullscreen()
     var tapped by remember { mutableIntStateOf(0) }
@@ -286,17 +287,27 @@ fun PassengerDisplayScreen(
     }
     // A long press on a trip (or the map sign for the next stop): the driver's own map of the way
     // to it, filling the screen until he closes it; it flies to the stop's building in 3D, and his
-    // fingers and buttons move it. The way comes as soon as the tablet knows where it is.
-    var wayTo by remember { mutableStateOf<String?>(null) }
+    // fingers and buttons move it. The way goes from the car through up to three trips before it
+    // and three after it ([DisplaySnapshot.around]), and comes as soon as the tablet knows where
+    // it is. On it the driver can try another order and send it to the phone ([WayStrip]).
+    var wayTrip by remember { mutableStateOf<DisplayItem?>(null) }
+    val edit = remember { WayEdit() }
     val map = routeMap?.takeIf { !it.refused }
-    val showWay: ((DisplayItem, Boolean) -> Unit)? = map?.let { m ->
+    val showWay: ((DisplayItem, Boolean) -> Unit)? = map?.let { _ ->
         { item, isNext ->
             onWantPosition?.invoke()
-            wayTo = if (isNext) null else item.title
-            m.focus(if (isNext) null else MapWay.Stop(item.lat, item.lng, item.place ?: listOfNotNull(item.title, item.subtitle).joinToString(", ")))
+            wayTrip = if (isNext) null else item.trip
+            edit.clear()
             moments.playFocus()
         }
     }
+    val ahead = live?.ahead.orEmpty()
+    val wayAt = wayTrip?.let { t -> ahead.indexOfFirst { it.sameTrip(t) } }?.takeIf { it >= 0 } ?: 0
+    val (window, windowAt) = DisplaySnapshot.around(ahead, wayAt)
+    val windowKey = window.map { it.mapStop.key }
+    LaunchedEffect(windowKey) { edit.settle(window) }
+    val wayShown = edit.preview ?: window
+    val wayShownAt = window.getOrNull(windowAt)?.let { looked -> wayShown.indexOfFirst { it.sameTrip(looked) } }?.takeIf { it >= 0 } ?: 0
     // Where the map sign is: the map grows out of it.
     var pinAt by remember { mutableStateOf(Offset.Unspecified) }
     // The trip whose YouDrive card is open (235, from its person figure), over everything until a
@@ -312,6 +323,14 @@ fun PassengerDisplayScreen(
     DisposableEffect(routeMap, moments) {
         routeMap?.onTouch = { moments.touched() }
         onDispose { routeMap?.onTouch = null }
+    }
+    LaunchedEffect(held) { if (!held) edit.clear() }
+    // The driver's way on his map; an order he tries a moment after his last tap on the arrows.
+    val wayKey = wayShown.map { it.mapStop.key }
+    LaunchedEffect(map, held, wayKey, wayShownAt) {
+        if (!held || map == null || wayShown.isEmpty()) return@LaunchedEffect
+        if (edit.preview != null) delay(ORDER_ASK_MS)
+        map.focus(wayShown.map { it.mapStop }, wayShownAt)
     }
     // The trip shown at the top (the next stop, or one paged to): reported by the stage with the
     // next stop it belongs to (so a stale one is never shown) and whether the screen is focused on it.
@@ -585,8 +604,6 @@ fun PassengerDisplayScreen(
                 moments,
                 live?.eta,
                 routeMap,
-                wayTo = wayTo,
-                held = held,
                 modifier = Modifier.align(Alignment.BottomCenter).zIndex(MAP_OVER_Z).padding(bottom = maxHeight * MAP_TEXT_LOW),
             )
             MapControls(
@@ -595,6 +612,20 @@ fun PassengerDisplayScreen(
                 onUse = { moments.touched() },
                 onClose = { moments.settle() },
                 modifier = Modifier.fillMaxSize().zIndex(MAP_OVER_Z),
+            )
+            WayStrip(
+                visible = held && moments.infoShown && wayShown.isNotEmpty(),
+                map = routeMap,
+                edit = edit,
+                shown = wayShown,
+                at = wayShownAt,
+                window = window,
+                fromNext = wayAt - windowAt == 0,
+                now = { now.value },
+                note = mapNote(routeMap, held),
+                onOrder = onOrder,
+                onUse = { moments.touched() },
+                modifier = Modifier.align(Alignment.BottomStart).zIndex(MAP_OVER_Z),
             )
         }
         // While the time, the weather or the travel time fills the screen, a tap anywhere brings the
@@ -984,8 +1015,9 @@ private fun MapLayer(map: RouteMap, moments: Moments, held: Boolean, from: () ->
 
 /**
  * The driver's buttons on his own map, at the right: closer (237), farther (238), the car (239),
- * the stop's building (240), the whole way (241) and the flight again (242, on the 3D map); and ×
- * at the top (243). Each use keeps the map open ([onUse]).
+ * the stop's building (240), the whole way (241), the flight again (242, on the 3D map) and
+ * Google's street photos of the stop and back (244); and × at the top (243). Each use keeps the
+ * map open ([onUse]).
  */
 @Composable
 private fun MapControls(map: RouteMap, visible: Boolean, onUse: () -> Unit, onClose: () -> Unit, modifier: Modifier = Modifier) {
@@ -1008,6 +1040,12 @@ private fun MapControls(map: RouteMap, visible: Boolean, onUse: () -> Unit, onCl
                 MapButton(R.drawable.ic_pin, R.string.display_map_stop, 240, onClick = use { map.toStop() })
                 MapButton(R.drawable.ic_zoom_out_map, R.string.display_map_whole, 241, onClick = use { map.whole() })
                 if (map.threeD == true) MapButton(R.drawable.ic_flight, R.string.display_map_tour, 242, onClick = use { map.tour() })
+                MapButton(
+                    if (map.streetShown) R.drawable.ic_map else R.drawable.ic_street,
+                    if (map.streetShown) R.string.display_map_back else R.string.display_map_street,
+                    244,
+                    onClick = use { map.street(!map.streetShown) },
+                )
             }
         }
     }
@@ -1038,21 +1076,19 @@ private fun MapButton(icon: Int, label: Int, ref: Int, onClick: () -> Unit, modi
 }
 
 /**
- * Under the map, in its faded bottom: the minutes and the distance to the next stop (Google Maps'
- * own when it navigates), or to the trip pressed long ([wayTo]); until the tablet knows where it
- * is, a word that it is looking. Under them, small, what keeps the map or the way from coming
- * ([mapNote]).
+ * Under the minute's map, in its faded bottom: the minutes and the distance to the next stop
+ * (Google Maps' own when it navigates); until the tablet knows where it is, a word that it is
+ * looking. Under them, small, what keeps the map or the way from coming ([mapNote]). The driver's
+ * own map has its way strip instead ([WayStrip]).
  */
 @Composable
-private fun MapMomentText(moments: Moments, eta: DisplayEta?, map: RouteMap, wayTo: String?, held: Boolean, modifier: Modifier = Modifier) {
-    val focus = moments.shown == Moments.Info.FOCUS
-    if (!(moments.shown == Moments.Info.MAP || focus) || !moments.infoShown) return
-    // To the next stop Google Maps' own time counts first; to another trip only the map's way.
-    val next = !focus || wayTo == null
-    val route = map.route
-    val minutes = if (map.located) (if (next) eta?.minutes else null) ?: route?.minutes else null
-    val meters = (if (next) eta?.meters else null) ?: route?.meters
-    val note = mapNote(map, held)
+private fun MapMomentText(moments: Moments, eta: DisplayEta?, map: RouteMap, modifier: Modifier = Modifier) {
+    if (moments.shown != Moments.Info.MAP || !moments.infoShown) return
+    // Google Maps' own time counts first; else the map's way to the next stop (its first leg).
+    val toNext = map.route?.to(0)
+    val minutes = if (map.located) eta?.minutes ?: toNext?.first else null
+    val meters = eta?.meters ?: toNext?.second
+    val note = mapNote(map, held = false)
     val hue = AppTheme.colors.showHues[(moments.hue + 2) % AppTheme.colors.showHues.size]
     val big = MAP_SP
     Column(
@@ -1092,10 +1128,7 @@ private fun MapMomentText(moments: Moments, eta: DisplayEta?, map: RouteMap, way
                 )
             }
             Text(
-                listOfNotNull(
-                    meters?.let(::distanceText),
-                    if (next) stringResource(R.string.passenger_to_next_stop) else stringResource(R.string.passenger_to_place, wayTo.orEmpty()),
-                ).joinToString("  ·  "),
+                listOfNotNull(meters?.let(::distanceText), stringResource(R.string.passenger_to_next_stop)).joinToString("  ·  "),
                 fontFamily = DisplayFont,
                 fontWeight = FontWeight.Medium,
                 fontSize = big * 0.2f,
@@ -1134,6 +1167,7 @@ private fun mapNote(map: RouteMap, held: Boolean): String? {
     }
     val deep = when {
         !held || !map.ready -> null
+        map.noStreet -> stringResource(R.string.display_way_no_street)
         map.noThreeD != null -> stringResource(R.string.passenger_map_no_3d, map.noThreeD!!)
         map.threeD == null -> stringResource(R.string.passenger_map_3d_loading)
         else -> null
@@ -2854,6 +2888,9 @@ private const val MAP_HOLD_MS = 7_600L
 
 /** The driver's own map stays until he closes it, or this long after he last used it. */
 private const val FOCUS_MAX_MS = 120_000L
+
+/** An order tried on the driver's map is asked of Google this long after the last arrow tap. */
+private const val ORDER_ASK_MS = 450L
 
 /** The driver's map over the stepped-back screen, its text and buttons over it, a trip's card over all. */
 private const val MAP_HELD_Z = 1f

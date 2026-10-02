@@ -2,6 +2,7 @@ package se.eldebosh.nastastopp.core.display
 
 import kotlinx.serialization.Serializable
 import se.eldebosh.nastastopp.core.nav.DisplayEta
+import se.eldebosh.nastastopp.core.nav.MapWay
 import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.core.route.Announcement
 import se.eldebosh.nastastopp.core.weather.DisplayWeather
@@ -32,12 +33,22 @@ data class DisplayItem(
     val said: String? = null,
     /** Everything on the trip's YouDrive card, as written: shown only when the driver opens it (234), never said. */
     val card: String? = null,
+    /** The trip's number in the route, for the order the driver sets on the tablet's map. */
+    val id: Long? = null,
+    /**
+     * The same number on a passenger's pick-up and drop-off (never the name), so the tablet's map
+     * keeps a pick-up before its drop-off when the driver changes the order.
+     */
+    val rider: Int? = null,
 ) {
     /**
      * The same trip whatever its done marks or name: it keeps its place on the display when marked,
      * and "Därefter" grows into the next stop.
      */
     val trip: DisplayItem get() = if (doneInYouDrive || doneHere || lastName != null || card != null) copy(doneInYouDrive = false, doneHere = false, lastName = null, card = null) else this
+
+    /** The trip on the tablet's map: its point, or the address the phone navigates to (never a name). */
+    val mapStop: MapWay.Stop get() = MapWay.Stop(lat, lng, place ?: listOfNotNull(title, subtitle).joinToString(", "), id)
 
     companion object {
         /** "Storgatan 14, 652 24 Karlstad" → "Storgatan 14" (the part before the first comma). */
@@ -48,8 +59,9 @@ data class DisplayItem(
 /**
  * Everything the passenger display shows — and the only route data that is ever sent to a
  * second device: up to seven trips done, the next destination and up to seven upcoming trips
- * (time, address and area, the address and point the tablet's map routes to, trip kind, and where
- * each was marked done), the next stop's passenger's last name, each YouDrive trip's whole card
+ * (time, address and area, the address and point the tablet's map routes to, trip kind, where
+ * each was marked done, its number and a number shared by a passenger's pick-up and drop-off),
+ * the next stop's passenger's last name, each YouDrive trip's whole card
  * (for the driver, shown only when opened), the current announcement text, the area's weather and
  * Google Maps' remaining travel time. Outside the trip cards, never a first name or another trip's
  * name; never the vehicle's position.
@@ -75,9 +87,26 @@ data class DisplaySnapshot(
     val announcement: Announcement?
         get() = announcementSv?.let { Announcement(it, announcementEn) }
 
+    /** The trips still to come, the next first. */
+    val ahead: List<DisplayItem> get() = listOfNotNull(current) + upcoming
+
     companion object {
         const val UPCOMING = 7
         const val EARLIER = 7
+
+        /** Trips before and after the one looked at on the tablet's map. */
+        const val AROUND = 3
+
+        /**
+         * The trips of the tablet's map around [at] (an index into [ahead]): up to [AROUND] before
+         * and after it, and its place among them.
+         */
+        fun <T> around(ahead: List<T>, at: Int): Pair<List<T>, Int> {
+            if (ahead.isEmpty()) return emptyList<T>() to 0
+            val i = at.coerceIn(0, ahead.size - 1)
+            val from = (i - AROUND).coerceAtLeast(0)
+            return ahead.subList(from, minOf(ahead.size, i + AROUND + 1)) to i - from
+        }
 
         /**
          * @param completed finished trips, oldest first.

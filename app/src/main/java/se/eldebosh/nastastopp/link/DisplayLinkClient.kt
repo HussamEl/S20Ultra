@@ -184,7 +184,7 @@ class DisplayLinkClient(
                 when (msg) {
                     is LinkMessage.State -> _snapshot.value = msg.snapshot
                     is LinkMessage.Announce -> _announcements.tryEmit(Announcement(msg.sv, msg.en))
-                    is LinkMessage.Hello, LinkMessage.Ping, is LinkMessage.Command -> Unit
+                    is LinkMessage.Hello, LinkMessage.Ping, is LinkMessage.Command, is LinkMessage.Order -> Unit
                 }
             }
         } catch (e: Exception) {
@@ -201,6 +201,12 @@ class DisplayLinkClient(
     fun send(action: LinkMessage.Command.Action) {
         val to = session ?: return
         scope.launch(Dispatchers.IO) { runCatching { to.send(LinkMessage.Command(action)) } }
+    }
+
+    /** Sends the trips' order the driver set on this tablet's map to the phone (while connected). */
+    fun order(ids: List<Long>) {
+        val to = session ?: return
+        scope.launch(Dispatchers.IO) { runCatching { to.send(LinkMessage.Order(ids)) } }
     }
 
     private fun closeSocket() {

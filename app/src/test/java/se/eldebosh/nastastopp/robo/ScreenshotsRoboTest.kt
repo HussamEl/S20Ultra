@@ -68,6 +68,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import se.eldebosh.nastastopp.ui.screens.RouteMap
 import org.junit.Test
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.onNodeWithContentDescription
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
@@ -933,6 +935,72 @@ class ScreenshotsRoboTest {
             DisplayItem("09:35", "Kungsgatan 5", "Karlstad"),
         ),
     )
+
+    /** The tablet's trips with their numbers, kinds and passengers' numbers, for the driver's way. */
+    private val orderSnapshot = tabletSnapshot.copy(
+        current = DisplayItem("07:36", "Västra Torggatan 12", "Karlstad", lastName = "Testsson", kind = TripKind.PICK_UP, id = 11, rider = 1),
+        upcoming = listOf(
+            DisplayItem("08:00", "Hamngatan 7", "Skoghall", kind = TripKind.DROP_OFF, id = 12, rider = 1),
+            DisplayItem("08:25", "Storgatan 14", "Karlstad", kind = TripKind.PICK_UP, id = 13, rider = 2),
+            DisplayItem("08:50", "Södra Kyrkogatan 7", "Kristinehamn", kind = TripKind.DROP_OFF, id = 14, rider = 2),
+            DisplayItem("09:10", "Lindvägen 9", "Grums", kind = TripKind.PICK_UP, id = 15, rider = 3),
+        ),
+    )
+
+    /**
+     * The driver's map shows his way lettered at its bottom: the next stop (A, looked at) and the
+     * three after it. A tap picks a trip and gives it arrows; moving it shows the new order with
+     * Undo and Use, and Use sends the trips' numbers in the new order. A drop-off before its
+     * pick-up cannot be used.
+     */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun theDriverSetsTheOrderOnHisMap() {
+        val sent = mutableListOf<List<Long>>()
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        compose.setContent {
+            val scope = rememberCoroutineScope()
+            val map = remember { RouteMap(context, "AIzaTestKeyForTheMapOnly", true, "#000000", scope) }
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(
+                    orderSnapshot,
+                    status = "Galaxy S20",
+                    connected = true,
+                    onSpeak = {},
+                    onExit = {},
+                    time = { LocalTime.of(7, 20, 42) },
+                    routeMap = map,
+                    onOrder = { sent += it },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.mainClock.autoAdvance = false
+        compose.onNodeWithTag("ref_219").performClick()
+        compose.mainClock.advanceTimeBy(1_500)
+        // A, B, C, D: the next stop and the three after it.
+        compose.onAllNodesWithTag("ref_245").assertCountEquals(4)
+        compose.onNodeWithTag("ref_250").assertDoesNotExist()
+        compose.onNodeWithContentDescription("C: Storgatan 14").performClick()
+        compose.mainClock.advanceTimeBy(500)
+        save("display_way_order", compose.onRoot().captureToImage().asAndroidBitmap())
+        // Storgatan 14 one place earlier: before Hamngatan 7.
+        compose.onNodeWithTag("ref_246").performClick()
+        compose.mainClock.advanceTimeBy(500)
+        compose.onNodeWithTag("ref_249").assertIsDisplayed()
+        compose.onNodeWithTag("ref_250").performClick()
+        assertEquals(listOf(listOf(11L, 13L, 12L, 14L)), sent)
+        // Hamngatan 7 (a drop-off) before its pick-up: it cannot be used.
+        compose.onNodeWithTag("ref_249").performClick()
+        compose.mainClock.advanceTimeBy(500)
+        compose.onNodeWithContentDescription("B: Hamngatan 7").performClick()
+        compose.mainClock.advanceTimeBy(500)
+        compose.onNodeWithTag("ref_246").performClick()
+        compose.mainClock.advanceTimeBy(500)
+        compose.onNodeWithText("A drop-off before its pick-up: cannot be used").assertIsDisplayed()
+        compose.onNodeWithTag("ref_250").assertIsNotEnabled()
+        compose.mainClock.autoAdvance = true
+    }
 
     /**
      * The look sign on the top line switches the display between black and light, and a tap on the

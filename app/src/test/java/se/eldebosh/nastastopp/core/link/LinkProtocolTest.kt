@@ -35,6 +35,7 @@ class LinkProtocolTest {
             LinkMessage.Command(LinkMessage.Command.Action.NEXT),
             LinkMessage.Command(LinkMessage.Command.Action.BACK),
             LinkMessage.Command(LinkMessage.Command.Action.REPEAT),
+            LinkMessage.Order(listOf(12L, 9L, 14L)),
         ).forEach { msg ->
             val line = LinkProtocol.encode(msg)
             assertTrue(line, !line.contains('\n'))
@@ -47,6 +48,12 @@ class LinkProtocolTest {
     fun aCommandIsOnlyItsButton() {
         assertEquals("{\"type\":\"command\",\"action\":\"NEXT\"}", LinkProtocol.encode(LinkMessage.Command(LinkMessage.Command.Action.NEXT)))
         assertNull(LinkProtocol.decode("{\"type\":\"command\",\"action\":\"END\"}"))
+    }
+
+    /** The order set on the tablet's map is only the trips' numbers. */
+    @Test
+    fun anOrderIsOnlyTheTripsNumbers() {
+        assertEquals("{\"type\":\"order\",\"ids\":[12,9]}", LinkProtocol.encode(LinkMessage.Order(listOf(12L, 9L))))
     }
 
     @Test
