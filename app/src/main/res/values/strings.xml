@@ -175,6 +175,7 @@
     <string name="maps_key_label">مفتاح Google Maps API</string>
     <string name="help_maps_key">الخريطة تستخدم مفتاح Google الخاص بك. في Google Cloud: أنشئ مفتاح API، وفعّل «Maps JavaScript API» و«Routes API»، وقيّد المفتاح بالموقع https://nastastopp.app/* . الاستخدام العادي ضمن الكمية المجانية الشهرية من Google. تأخذ الخريطة موقع السيارة من GPS التابلت نفسه (الموقع ما دامت الشاشة مفتوحة، وليس في الخلفية أبداً؛ يُطلب الإذن عند أول ضغطة على زر الخريطة). هذا الموقع والمحطة التالية يذهبان إلى Google لرسم الطريق، ولا يُحفظ ولا يُسجَّل شيء.</string>
     <string name="display_show_way">إظهار الطريق على الخريطة</string>
+    <string name="display_show_card">إظهار بطاقة الرحلة</string>
     <string name="display_weather">عرض الطقس</string>
     <string name="display_look_light">شاشة فاتحة</string>
     <string name="display_look_dark">شاشة سوداء</string>

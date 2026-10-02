@@ -29,7 +29,7 @@ adb push testdata/screenshots/fixture_youdrive.png /sdcard/Pictures/NastaStoppTe
 ```
 
 ## All invented terms (for the privacy log search)
-None of these may appear in logcat from the app. The app shows the passenger's **first and last name** (e.g. "Anna Testsson") on the driver's own screens: the review list, the route screen and the floating panel. The passenger display shows only the next stop's **last name** ("Testsson"), and says it only when it is tapped there. A name must still never appear in a notification, in "Previous trips" or in a spoken announcement, and phone numbers and middle names never appear anywhere.
+None of these may appear in logcat from the app. The app shows the passenger's **first and last name** (e.g. "Anna Testsson") on the driver's own screens: the review list, the route screen and the floating panel. The passenger display shows only the next stop's **last name** ("Testsson"), and says it only when it is tapped there. A name must still never appear in a notification, in "Previous trips" or in a spoken announcement, and phone numbers and middle names never appear anywhere else than in a YouDrive trip's card on the passenger display (235), which the driver opens. None of them may ever appear in logcat.
 - **Names:** Anna Testsson, Bengt Provare, Cecilia Exempel, David Demo, Erik Påhittad, Frida Uppdiktad (middle names in tests: Maria, Anders, Kalle)
 - **Phone numbers:** 070-000 00 01, 070-000 00 02, 070-000 00 04, 070-000 00 05, 070-000 00 06
 - **Streets:** Depågatan, Storgatan, Järnvägsgatan, Lindvägen, Kyrkogatan, Skolgatan, Västra Torggatan, Torggatan, Hamngatan, Kungsgatan, Östra Storgatan, Norra allén, Södra Kyrkogatan, S:t Olofsgatan, Stora torget, Lilla Badhusgatan, Gamla Kyrkogatan, Övre Torggatan, Strandvägen

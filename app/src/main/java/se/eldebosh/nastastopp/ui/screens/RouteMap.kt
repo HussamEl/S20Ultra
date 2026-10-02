@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.view.View
 import android.webkit.ConsoleMessage
 import android.webkit.GeolocationPermissions
 import android.webkit.JavascriptInterface
@@ -101,9 +102,11 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
         settings.allowContentAccess = false
         settings.setSupportZoom(false)
         isFocusable = false
-        // Always drawn under the display (the page shows and hides the map): the ground's colour
-        // from the start, never a white flash before the page.
+        // The ground's colour from the start, never a white flash before the page. Not drawn while
+        // the map is away ([conceal]): a full-screen page drawn under the display with every frame
+        // of its moving parts would cost the tablet smoothness.
         setBackgroundColor(ground.toColorInt())
+        visibility = View.INVISIBLE
         // The map is only looked at: touches never reach it.
         setOnTouchListener { _, _ -> true }
         webViewClient = object : WebViewClient() {
@@ -141,15 +144,21 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
 
     /** The map grows out of ([x], [y]), fractions of its size, over [ms]. */
     fun reveal(x: Float, y: Float, ms: Int) {
+        main.removeCallbacks(hide)
+        view.visibility = View.VISIBLE
         stage = String.format(Locale.ROOT, "reveal(%.4f,%.4f,%d)", x, y, ms)
         js(stage!!)
     }
 
-    /** The map goes back where it came from, over [ms]. */
+    /** The map goes back where it came from, over [ms], and is then no longer drawn. */
     fun conceal(ms: Int) {
         stage = "conceal($ms)"
         js(stage!!)
+        main.removeCallbacks(hide)
+        main.postDelayed(hide, ms + HIDE_AFTER_MS)
     }
+
+    private val hide = Runnable { view.visibility = View.INVISIBLE }
 
     /** Moves the vehicle on the map, and asks for the way again when the stop changed or a while has passed. */
     fun show(way: MapWay) {
@@ -219,6 +228,7 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
     }
 
     fun destroy() {
+        main.removeCallbacks(hide)
         asking?.cancel()
         view.destroy()
     }
@@ -318,6 +328,9 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
         const val BASE = "https://nastastopp.app/"
         private const val PAGE = "route_map.html"
         private val NEXT = Any()
+
+        /** The map stops being drawn this long after it has gone. */
+        private const val HIDE_AFTER_MS = 100L
 
         /** The way is asked for again at most this often for the same stop (Google counts each request). */
         private const val REFRESH_MS = 4 * 60_000L

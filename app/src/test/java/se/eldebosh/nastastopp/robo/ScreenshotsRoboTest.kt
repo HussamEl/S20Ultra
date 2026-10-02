@@ -47,6 +47,7 @@ import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onFirst
 import java.time.LocalTime
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -807,6 +808,47 @@ class ScreenshotsRoboTest {
         compose.onNodeWithTag("ref_232").assertDoesNotExist()
         compose.mainClock.autoAdvance = true
         assertEquals(listOf("Testsson."), said)
+    }
+
+    /**
+     * The card sign opens the shown trip's whole YouDrive card, for the driver, over everything until a
+     * tap; nothing of it is said. A trip without a card has no sign.
+     */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun passengerDisplayShowsTheTripCardOnTap() {
+        val said = mutableListOf<String>()
+        val card = "07:36\nPick-up\nAnna Maria Testsson\nVÄSTRA TORGGATAN 12, 65224 KARLSTAD\n0700000001\nRU1\nportkod 1234\nCompensation 84.92 KR"
+        val snapshot = tabletSnapshot.copy(current = tabletSnapshot.current!!.copy(card = card))
+        compose.setContent {
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(snapshot, status = "Galaxy S20", connected = true, onSpeak = {}, onExit = {}, onSay = { said += it.swedish }, time = { LocalTime.of(8, 11, 5) })
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("ref_235").assertDoesNotExist()
+        compose.onNodeWithTag("ref_234", useUnmergedTree = true).performClick()
+        compose.waitForIdle()
+        save("display_trip_card", compose.onRoot().captureToImage().asAndroidBitmap())
+        compose.onNodeWithTag("ref_235").assertIsDisplayed()
+        compose.onNodeWithText("0700000001", substring = true).assertIsDisplayed()
+        compose.onNodeWithTag("ref_235").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithTag("ref_235").assertDoesNotExist()
+        assertTrue("nothing said: $said", said.isEmpty())
+    }
+
+    /** A trip without a YouDrive card (a screenshot, a stop typed by hand) has no card sign. */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun passengerDisplayHasNoCardSignWithoutACard() {
+        compose.setContent {
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(tabletSnapshot, status = "Galaxy S20", connected = true, onSpeak = {}, onExit = {}, time = { LocalTime.of(8, 11, 5) })
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("ref_234", useUnmergedTree = true).assertDoesNotExist()
     }
 
     /** A weather app's widget, when the tablet hosts one, takes the weather's moment in the middle. */

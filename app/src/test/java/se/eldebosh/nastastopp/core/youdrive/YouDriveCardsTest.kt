@@ -88,6 +88,14 @@ class YouDriveCardsTest {
         assertEquals("Karlstad", stop.parsedTown)
     }
 
+    /** The whole card goes with the trip as written (for the driver's trip card on the display). */
+    @Test
+    fun theWholeCardGoesWithTheTrip() {
+        val pickUp = trips()[4].stop!!
+        assertEquals(cards[4], pickUp.card)
+        assertTrue(pickUp.card!!.contains("inne 10.50 tel 0700000003"))
+    }
+
     @Test
     fun aRepeatedWordIsShownOnce() {
         assertEquals("Depågatan 1, 653 40 Karlstad", trips().first().stop?.displayText)

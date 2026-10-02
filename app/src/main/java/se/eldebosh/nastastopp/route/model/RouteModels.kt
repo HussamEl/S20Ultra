@@ -54,6 +54,12 @@ data class Stop(
      * ([se.eldebosh.nastastopp.core.parse.Places]).
      */
     val place: String? = null,
+    /**
+     * Everything on the trip's YouDrive card, as written (names, phone numbers, codes, fees,
+     * notes), or null. Shown only on the passenger display's trip card when the driver opens it
+     * there; never said, put in a notification or the history, or logged. It goes with the route.
+     */
+    val card: String? = null,
 ) {
     val isLocated: Boolean get() = geoStatus == GeoStatus.LOCATED && geo != null
 

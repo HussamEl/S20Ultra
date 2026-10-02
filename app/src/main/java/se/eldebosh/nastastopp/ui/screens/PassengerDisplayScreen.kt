@@ -1,6 +1,12 @@
 package se.eldebosh.nastastopp.ui.screens
 
 import android.app.Activity
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import android.view.ViewGroup
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlin.math.sin
@@ -127,6 +133,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -263,6 +270,8 @@ fun PassengerDisplayScreen(
     // Everything but the time (or the weather, or the travel time) steps back while it shows, and
     // is hidden behind a solid ground at its largest.
     val rest = Modifier.stepBack { moments.back }
+    // The bottom line beside the clock goes at once: the clock never grows over another time.
+    val lineRest = Modifier.stepBack { moments.lineBack }
     // How the next stop's time stands, for the clock's colon (none without a route).
     val nextTime = live?.current?.time
     val hasNext = live != null
@@ -283,6 +292,11 @@ fun PassengerDisplayScreen(
     }
     // Where the map sign is: the map grows out of it.
     var pinAt by remember { mutableStateOf(Offset.Unspecified) }
+    // The trip whose YouDrive card is open (234), over everything until a tap; nothing comes over it.
+    var cardOf by remember { mutableStateOf<DisplayItem?>(null) }
+    LaunchedEffect(cardOf != null) {
+        if (cardOf != null) moments.settle()
+    }
     LaunchedEffect(moments.holding) { if (!moments.holding) routeMap?.unfocus() }
     // The trip shown at the top (the next stop, or one paged to): reported by the stage with the
     // next stop it belongs to (so a stale one is never shown) and whether the screen is focused on it.
@@ -323,10 +337,16 @@ fun PassengerDisplayScreen(
     }
     LaunchedEffect(live?.current?.trip) { browse.open = false }
     val away = tripShown != null && tripShown.trip != live?.current?.trip
+    // Busy: the minute's moments wait (two clocks never move at once).
+    val busy = cardOf != null || focus || browse.open || away
+    LaunchedEffect(busy) { moments.paused = busy }
     val lineHidden = focus || browse.open
     val line by animateFloatAsState(if (lineHidden) 0f else 1f, tween(if (lineHidden) CLOCK_FADE_MS else CLOCK_BACK_MS), label = "line")
     val chrome by animateFloatAsState(if (focus) 0f else 1f, tween(if (focus) CLOCK_FADE_MS else CLOCK_BACK_MS), label = "chrome")
-    val focusing by animateFloatAsState(if (focus) 1f else 0f, tween(if (focus) CLOCK_FADE_MS else CLOCK_FADE_MS * 2), label = "focus")
+    val focusingState = animateFloatAsState(if (focus) 1f else 0f, tween(if (focus) CLOCK_FADE_MS else CLOCK_FADE_MS * 2), label = "focus")
+    val focusing by focusingState
+    // Followed per frame only where it is drawn: the screen itself is laid out again only as it comes and goes.
+    val focusSeen by remember { derivedStateOf { focusingState.value > 0f } }
     // The trip whose time stands large under its address, kept while it fades away.
     var focusedTrip by remember { mutableStateOf<DisplayItem?>(null) }
     if (focus && tripShown != null) focusedTrip = tripShown
@@ -338,12 +358,19 @@ fun PassengerDisplayScreen(
         val before = poppedFor
         poppedFor = nextKey
         if (before == null || nextKey == null) return@LaunchedEffect
+        // It grows into its place from smaller: never over the clock or the arrows beside it.
         pop.snapTo(PAGE_POP)
-        pop.animateTo(1f, spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessLow))
+        pop.animateTo(1f, spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessLow))
     }
     // Black (or light, 223); Swedish for the passengers, read left to right whatever the app's language.
+    // The arrows' light: one frame loop, while there is a route to show.
+    val arrowPhase = remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(live != null) {
+        if (live == null) return@LaunchedEffect
+        while (true) withInfiniteAnimationFrameMillis { arrowPhase.floatValue = (it % ARROW_FLOW_MS).toFloat() / ARROW_FLOW_MS }
+    }
     DisplayTheme(dark) {
-    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr, LocalArrowPhase provides { arrowPhase.floatValue }) {
     // Black to the screen's very edge (under a camera's cutout too); the content keeps clear of it.
     BoxWithConstraints(Modifier.fillMaxSize().background(AppTheme.colors.background).safeDrawingPadding()) {
         val landscape = maxWidth > maxHeight
@@ -392,6 +419,7 @@ fun PassengerDisplayScreen(
                         // The way to the next stop: the display's map, or Google Maps on its address.
                         onMap = live?.current?.let { next -> showWay?.let { { it(next, true) } } },
                         onMapPlaced = { pinAt = it },
+                        onCard = tripShown?.takeIf { it.card != null }?.let { shown -> { cardOf = shown } },
                         weather = live?.weather,
                         hasWeather = live?.weather != null || weatherWidget != null,
                         onWeather = { moments.playInfo(Moments.Info.WEATHER) },
@@ -448,6 +476,7 @@ fun PassengerDisplayScreen(
                 showWay = showWay,
                 onShown = { next, item, byTap -> shownTrip = Triple(next, item, byTap) },
                 onFocusBottom = { heroBottom = it },
+                lineBack = { moments.lineBack },
                 // The passenger's last name, tapped: said here and shown large.
                 onName = { name ->
                     onSay(Announcements.passenger(name))
@@ -497,14 +526,14 @@ fun PassengerDisplayScreen(
             NextArrow(
                 visible = live?.current?.time != null,
                 first = 0,
-                modifier = rest.graphicsLayer { alpha = line }.ref(224).padding(horizontal = arrow.height * ARROW_SPACE).size(arrow),
+                modifier = lineRest.graphicsLayer { alpha = line }.ref(224).padding(horizontal = arrow.height * ARROW_SPACE).size(arrow),
             )
             TripTime(
                 live?.current,
                 tripSize,
                 landscape,
                 marks = true,
-                modifier = rest
+                modifier = lineRest
                     .ref(90)
                     .ink(tripSize)
                     .onGloballyPositioned { tripRect = it.boundsInRoot() }
@@ -518,7 +547,7 @@ fun PassengerDisplayScreen(
         // Focused: the trip's time large under its address, in the middle of the room left down to
         // the screen's bottom, drawn at that size so it stays sharp.
         val big = focusedTrip?.time
-        if (big != null && focusing > 0f && !tripRect.isEmpty && !screen.isEmpty) {
+        if (big != null && focusSeen && !tripRect.isEmpty && !screen.isEmpty) {
             val floor = screen.bottom - with(density) { SECONDS_CLEAR.toPx() }
             val roomTop = if (heroBottom > screen.top && heroBottom < floor) heroBottom else floor - clockLine.height
             val room = (floor - roomTop).coerceAtLeast(1f)
@@ -553,6 +582,16 @@ fun PassengerDisplayScreen(
                     .fillMaxSize()
                     .pointerInput(Unit) { detectTapGestures { moments.settle() } },
             )
+        }
+        // The trip's YouDrive card, for the driver: over everything until a tap, never said.
+        var lastCard by remember { mutableStateOf<DisplayItem?>(null) }
+        if (cardOf != null) lastCard = cardOf
+        AnimatedVisibility(
+            cardOf != null,
+            enter = fadeIn(tween(CARD_IN_MS)) + scaleIn(tween(CARD_IN_MS, easing = FastOutSlowInEasing), initialScale = 0.94f),
+            exit = fadeOut(tween(CARD_OUT_MS)),
+        ) {
+            lastCard?.let { TripCard(it, landscape, onClose = { cardOf = null }) }
         }
     }
     }
@@ -617,10 +656,23 @@ private class Moments(private val scope: CoroutineScope) {
     /** The map shows the way to a trip the driver pressed long: nothing else comes until a tap. */
     var holding by mutableStateOf(false)
         private set
+
+    /**
+     * The display is busy (a trip shown large or said, the strip out, a page away from the next
+     * stop, a trip's card open): the minute's own moments do not come, so two clocks never move at
+     * once. A tap still brings what it asks for.
+     */
+    var paused by mutableStateOf(false)
+
+    /** [info] shows something (read without following every frame of it). */
+    val infoShown: Boolean by derivedStateOf { info.value > 0f }
     private var job: Job? = null
 
     /** How far everything else steps back: 0 in view, 1 gone. */
     val back: Float get() = maxOf(REST_FADE * grow.value, solid.value, info.value)
+
+    /** How far the bottom line beside the clock steps back: gone before the growing clock reaches it. */
+    val lineBack: Float get() = maxOf(minOf(1f, LINE_FADE_SPEED * grow.value), back)
 
     /** Something fills the middle now (a tap brings the screen back). */
     val showing: Boolean by derivedStateOf { grow.value > 0f || info.value > 0f }
@@ -717,14 +769,14 @@ private fun rememberMoments(now: State<LocalTime>, cue: Int, spokenText: String?
     val minute by remember { derivedStateOf { now.value.hour * 60 + now.value.minute } }
     val opened = remember { minute }
     LaunchedEffect(minute) {
-        if (minute != opened && !quiet) moments.playTime()
+        if (minute != opened && !quiet && !moments.paused) moments.playTime()
     }
     val second by remember { derivedStateOf { now.value.second } }
     val weather by rememberUpdatedState(hasWeather)
     val eta by rememberUpdatedState(hasEta)
     val map by rememberUpdatedState(hasMap)
     LaunchedEffect(second) {
-        if (quiet || !moments.idle) return@LaunchedEffect
+        if (quiet || !moments.idle || moments.paused) return@LaunchedEffect
         when (second) {
             WEATHER_AT_S -> if (weather) moments.playInfo(Moments.Info.WEATHER)
             // The map with the way when the tablet has it; else Google Maps' travel time alone.
@@ -748,7 +800,7 @@ private fun InfoMoment(
     next: DisplayItem?,
     modifier: Modifier = Modifier,
 ) {
-    if (moments.info.value <= 0f || moments.shown == Moments.Info.MAP || moments.shown == Moments.Info.FOCUS) return
+    if (!moments.infoShown || moments.shown == Moments.Info.MAP || moments.shown == Moments.Info.FOCUS) return
     val hue = AppTheme.colors.showHues[(moments.hue + 2) % AppTheme.colors.showHues.size]
     val big = if (landscape) INFO_SP_WIDE else INFO_SP_NARROW
     Row(
@@ -889,7 +941,7 @@ private fun MapLayer(map: RouteMap, moments: Moments, from: () -> Offset) {
 @Composable
 private fun MapMomentText(moments: Moments, eta: DisplayEta?, map: RouteMap, wayTo: String?, modifier: Modifier = Modifier) {
     val focus = moments.shown == Moments.Info.FOCUS
-    if (!(moments.shown == Moments.Info.MAP || focus) || moments.info.value <= 0f) return
+    if (!(moments.shown == Moments.Info.MAP || focus) || !moments.infoShown) return
     // To the next stop Google Maps' own time counts first; to another trip only the map's way.
     val next = !focus || wayTo == null
     val route = map.route
@@ -1108,6 +1160,7 @@ private fun Stage(
     onShown: (next: DisplayItem, shown: DisplayItem, tapped: Boolean) -> Unit,
     onFocusBottom: (Float) -> Unit,
     onName: (String) -> Unit,
+    lineBack: () -> Float,
     modifier: Modifier = Modifier,
 ) {
     val arrow = arrowSize(tripSize)
@@ -1260,7 +1313,7 @@ private fun Stage(
                         VerticalPager(pager, pages, userScrollEnabled = !browse.open) { page(it) }
                     }
                     ThenLine(besideClock, line) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.graphicsLayer { alpha = thenShown }) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.graphicsLayer { alpha = thenShown * (1f - lineBack()) }) {
                             // The light of the arrows flows on from the next stop's time to "Därefter"
                             // and to the trip after it.
                             if (then != null) {
@@ -1400,11 +1453,8 @@ private fun ThenLine(besideClock: Int, line: Dp, content: @Composable () -> Unit
 @Composable
 private fun NextArrow(visible: Boolean, first: Int, modifier: Modifier = Modifier) {
     val shown by animateFloatAsState(if (visible) 1f else 0f, tween(500), label = "arrow")
-    // Read from the frame clock, so both arrows are at the same point of the wave.
-    val phase = remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(Unit) {
-        while (true) withInfiniteAnimationFrameMillis { phase.floatValue = (it % ARROW_FLOW_MS).toFloat() / ARROW_FLOW_MS }
-    }
+    // One light for all the arrows ([LocalArrowPhase]), read only as they are drawn.
+    val phase = LocalArrowPhase.current
     val color = AppTheme.colors.accent
     Canvas(modifier.graphicsLayer { alpha = shown }) {
         val step = size.width / ARROW_COUNT
@@ -1412,7 +1462,7 @@ private fun NextArrow(visible: Boolean, first: Int, modifier: Modifier = Modifie
         val stroke = size.height * 0.12f
         for (i in 0 until ARROW_COUNT) {
             // A light running along the chevrons: each is brightest a little after the one before.
-            val wave = 0.5f + 0.5f * cos(2.0 * Math.PI * (phase.floatValue - (first + i).toFloat() / (ARROW_LINES * ARROW_COUNT))).toFloat()
+            val wave = 0.5f + 0.5f * cos(2.0 * Math.PI * (phase() - (first + i).toFloat() / (ARROW_LINES * ARROW_COUNT))).toFloat()
             val a = ARROW_LOW + (ARROW_HIGH - ARROW_LOW) * wave * wave * wave * wave
             val left = step * i + (step - wide) / 2f
             val path = Path().apply {
@@ -1424,6 +1474,9 @@ private fun NextArrow(visible: Boolean, first: Int, modifier: Modifier = Modifie
         }
     }
 }
+
+/** Where the light running along the arrows is (0 → 1), from one frame loop for all of them. */
+private val LocalArrowPhase = staticCompositionLocalOf<() -> Float> { { 0f } }
 
 /** An arrow of the bottom line, for a trip's time of [tripSize]: about as tall as its hours' digits. */
 @Composable
@@ -1479,8 +1532,8 @@ private fun TripTime(item: DisplayItem?, size: TextUnit, landscape: Boolean, mar
 
 /**
  * The top line, in the top-right corner, small and quiet (it is for the driver): the connection (a
- * dot and the phone's name; a tap offers to close the display, [onExit]), the map sign ([onMap]:
- * the way to the next stop), the weather sign, which brings the weather up, and the look sign
+ * dot and the phone's name; a tap offers to close the display, [onExit]), the card sign ([onCard]:
+ * the shown trip's YouDrive card), the map sign ([onMap]: the way to the next stop), the weather sign, which brings the weather up, and the look sign
  * ([onToggleLook]: black or light). Each is only its picture, with no frame. On the driver's own
  * device there is no connection: the system's Back closes the display.
  */
@@ -1492,6 +1545,7 @@ private fun TopLine(
     onExit: () -> Unit,
     onMap: (() -> Unit)?,
     onMapPlaced: (Offset) -> Unit,
+    onCard: (() -> Unit)?,
     weather: DisplayWeather?,
     hasWeather: Boolean,
     onWeather: () -> Unit,
@@ -1537,6 +1591,7 @@ private fun TopLine(
                 }
             }
         }
+        if (onCard != null) CardSign(onCard, enabled)
         if (onMap != null) MapSign(onMap, enabled, onMapPlaced)
         if (hasWeather) WeatherSign(weather, onWeather, enabled)
         if (onToggleLook != null) {
@@ -1634,7 +1689,8 @@ private fun StopHero(
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .onGloballyPositioned { bottom = it.positionInRoot().y + it.size.height },
+                    // Whole pixels: a moving layer above does not lay the screen out again every frame.
+                    .onGloballyPositioned { bottom = (it.positionInRoot().y + it.size.height).roundToInt().toFloat() },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 BoxWithConstraints(Modifier.ref(91).heightIn(max = titleRoom).weight(1f, fill = false).fillMaxWidth().entering(title, shine)) {
@@ -2206,8 +2262,12 @@ private fun span(a: Rect, b: Rect) = Rect(minOf(a.left, b.left), minOf(a.top, b.
 @Composable
 private fun Colon(digitSize: TextUnit, status: TimeStatus?, second: Int?, modifier: Modifier = Modifier) {
     val color = status?.let { statusColor(it) } ?: AppTheme.colors.accent
-    val beat = rememberInfiniteTransition(label = "beat")
-    val pulse by beat.animateFloat(1f, BEAT_LOW, infiniteRepeatable(tween(BEAT_MS), RepeatMode.Reverse), label = "beat")
+    // The beat runs only while it beats: a still colon asks for no frames.
+    val pulse = if (status?.beating == true) {
+        rememberInfiniteTransition(label = "beat").animateFloat(1f, BEAT_LOW, infiniteRepeatable(tween(BEAT_MS), RepeatMode.Reverse), label = "beat")
+    } else {
+        null
+    }
     val blink by animateFloatAsState(if (second == null || second % 2 == 0) 1f else COLON_LOW, tween(450), label = "colon")
     val (wide, tall) = with(LocalDensity.current) { (digitSize * (COLON_DOT + 2 * COLON_SIDE)).toDp() to (digitSize * (DIGIT_ASCENT + DIGIT_DESCENT)).toDp() }
     Canvas(
@@ -2221,7 +2281,7 @@ private fun Colon(digitSize: TextUnit, status: TimeStatus?, second: Int?, modifi
         val em = digitSize.toPx()
         val middle = em * (DIGIT_ASCENT - DIGIT_HEIGHT / 2f)
         val apart = em * COLON_SPREAD / 2f
-        val dot = color.copy(alpha = if (status?.beating == true) pulse else blink)
+        val dot = color.copy(alpha = pulse?.value ?: blink)
         drawCircle(dot, radius = em * COLON_DOT / 2f, center = Offset(size.width / 2f, middle - apart))
         drawCircle(dot, radius = em * COLON_DOT / 2f, center = Offset(size.width / 2f, middle + apart))
     }
@@ -2273,17 +2333,17 @@ private fun TimeFace(time: String, minuteSize: TextUnit, modifier: Modifier = Mo
 
 /**
  * Draws the content scaled by [scale] (at most 1) around its colon ([ColonLine], else its middle),
- * so the colon stays still, in a layer of its own so it is scaled as a picture, and takes the room
- * of it at [rest].
+ * so the colon stays still, in a layer of its own so it is scaled as a picture. It takes the width
+ * of its largest (nothing beside it is ever covered) and the height of it at [rest].
  */
 private fun Modifier.breathe(rest: Float, scale: () -> Float): Modifier = layout { measurable, constraints ->
     val placeable = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0, maxWidth = Constraints.Infinity))
-    val w = (placeable.width * rest).roundToInt()
+    // As wide as it is at its largest, so it never grows over what stands beside it; as tall as at rest.
+    val w = placeable.width
     val h = (placeable.height * rest).roundToInt()
     val colon = placeable[ColonLine].takeIf { it != AlignmentLine.Unspecified } ?: (placeable.width / 2)
     val around = colon.toFloat() / placeable.width
-    // At rest the picture starts at this layout's left edge.
-    val x = (-around * placeable.width * (1f - rest)).roundToInt()
+    val x = 0
     layout(w, h) {
         placeable.placeWithLayer(x, (h - placeable.height) / 2) {
             val s = scale()
@@ -2292,6 +2352,60 @@ private fun Modifier.breathe(rest: Float, scale: () -> Float): Modifier = layout
             transformOrigin = TransformOrigin(around, 0.5f)
             compositingStrategy = CompositingStrategy.Offscreen
         }
+    }
+}
+
+/** The shown trip's YouDrive card (235), for the driver: a small card picture, with no frame. */
+@Composable
+private fun CardSign(onClick: () -> Unit, enabled: Boolean) {
+    val description = stringResource(R.string.display_show_card)
+    IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.refCorner(234).size(TouchTarget)) {
+        Icon(painterResource(R.drawable.ic_card), contentDescription = description, tint = AppTheme.colors.textMuted, modifier = Modifier.size(TOP_ICON))
+    }
+}
+
+/**
+ * A trip's whole YouDrive card, as written, for the driver ([CardSign] opens it): large, over
+ * everything, until a tap; long cards scroll. Never said. Numbers in [DigitFont], words in [DisplayFont].
+ */
+@Composable
+private fun TripCard(item: DisplayItem, landscape: Boolean, onClose: () -> Unit) {
+    val digits = AppTheme.colors.highlight
+    val text = remember(item.card, digits) { withDigitFont(item.card.orEmpty()) }
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AppTheme.colors.background.copy(alpha = CARD_SCRIM))
+            .pointerInput(Unit) { detectTapGestures { onClose() } }
+            .ref(235),
+    ) {
+        Text(
+            text,
+            fontFamily = DisplayFont,
+            fontWeight = FontWeight.Medium,
+            fontSize = if (landscape) CARD_SP else CARD_SP_NARROW,
+            color = AppTheme.colors.text,
+            style = TextStyle(textDirection = TextDirection.Content, lineHeight = 1.25.em),
+            modifier = Modifier
+                .fillMaxWidth(if (landscape) CARD_WIDTH else CARD_WIDTH_NARROW)
+                .clip(RoundedCornerShape(28.dp))
+                .background(AppTheme.colors.card)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 32.dp, vertical = 24.dp),
+        )
+    }
+}
+
+/** [text] with every run of digits in [DigitFont] (the display's figures). */
+private fun withDigitFont(text: String): AnnotatedString = buildAnnotatedString {
+    var i = 0
+    while (i < text.length) {
+        val digit = text[i].isDigit()
+        var j = i
+        while (j < text.length && text[j].isDigit() == digit) j++
+        if (digit) withStyle(SpanStyle(fontFamily = DigitFont)) { append(text, i, j) } else append(text, i, j)
+        i = j
     }
 }
 
@@ -2438,8 +2552,8 @@ private val HERO_TIME_SP_NARROW = 40.sp
 private const val BREATH_SCALE = 1.2f
 private const val BREATH_MS = 2_200
 
-/** The next stop's time beside the clock springs up this much as the next stop changes. */
-private const val PAGE_POP = 1.5f
+/** The next stop's time beside the clock grows into its place from this share of its size as the next stop changes. */
+private const val PAGE_POP = 0.6f
 private const val ENTER_MS = 450
 
 /** The speech starts a moment after the tap, and a new stop first grows into place. */
@@ -2547,6 +2661,15 @@ private const val MAP_HOLD_MS = 7_600L
 /** The way to a trip pressed long stays until a tap, or this long at most. */
 private const val FOCUS_MAX_MS = 120_000L
 
+/** A trip's card: its text size (a tablet, a phone), its share of the width, the ground over the screen behind it, in and out. */
+private val CARD_SP = 34.sp
+private val CARD_SP_NARROW = 22.sp
+private const val CARD_WIDTH = 0.72f
+private const val CARD_WIDTH_NARROW = 0.94f
+private const val CARD_SCRIM = 0.9f
+private const val CARD_IN_MS = 260
+private const val CARD_OUT_MS = 180
+
 /** The minutes and distance under the map: this size, and this share of the height above the bottom. */
 private val MAP_SP = 150.sp
 private const val MAP_TEXT_LOW = 0.04f
@@ -2622,6 +2745,9 @@ private const val BEAT_MS = 700
 
 /** How far the rest of the screen steps back while the time grows (before the solid ground). */
 private const val REST_FADE = 0.85f
+
+/** The bottom line beside the clock fades this many times faster than the clock grows. */
+private const val LINE_FADE_SPEED = 6f
 
 /** Digits of equal width, for what changes each second (the seconds), so it does not shift. */
 private const val TABULAR = "tnum"

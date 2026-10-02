@@ -202,9 +202,9 @@ class RouteController(
                 if (full) {
                     // A place of care by its short name, said in full when tapped.
                     val said = Places.spokenName(s.place, localities::contains)
-                    DisplayItem(time = s.time, title = displayTitle(s), subtitle = spokenName(s), doneInYouDrive = s.youDriveDone, kind = s.kind, place = routeTo, lat = at?.lat, lng = at?.lng, said = said)
+                    DisplayItem(time = s.time, title = displayTitle(s), subtitle = spokenName(s), doneInYouDrive = s.youDriveDone, kind = s.kind, place = routeTo, lat = at?.lat, lng = at?.lng, said = said, card = s.card)
                 } else {
-                    DisplayItem(time = s.time, title = spokenName(s), doneInYouDrive = s.youDriveDone, kind = s.kind, place = routeTo, lat = at?.lat, lng = at?.lng)
+                    DisplayItem(time = s.time, title = spokenName(s), doneInYouDrive = s.youDriveDone, kind = s.kind, place = routeTo, lat = at?.lat, lng = at?.lng, card = s.card)
                 }
             },
             announcement = if (r.active && r.stops.isNotEmpty()) announcementFor(r.stops) else null,
@@ -272,7 +272,7 @@ class RouteController(
         update { r ->
             r.copy(
                 stops = r.stops.map {
-                    if (it.id == id) e.toStop(id).copy(sourceOrder = it.sourceOrder, time = time, kind = it.kind, name = it.name, place = it.place) else it
+                    if (it.id == id) e.toStop(id).copy(sourceOrder = it.sourceOrder, time = time, kind = it.kind, name = it.name, place = it.place, card = it.card) else it
                 },
             )
         }
@@ -411,7 +411,7 @@ class RouteController(
     private fun refreshed(base: RouteData, matches: List<Stop>, e: ExtractedStop): List<Stop> {
         val current = base.stops.firstOrNull()?.takeIf { base.active }
         val keep = matches.firstOrNull { it.id == current?.id } ?: matches.first()
-        var fresh = keep.copy(time = e.time ?: keep.time, kind = e.kind ?: keep.kind, name = e.name ?: keep.name, youDriveDone = e.youDriveDone, place = e.place ?: keep.place)
+        var fresh = keep.copy(time = e.time ?: keep.time, kind = e.kind ?: keep.kind, name = e.name ?: keep.name, youDriveDone = e.youDriveDone, place = e.place ?: keep.place, card = e.card ?: keep.card)
         if (!keep.isLocated && keep.displayText != e.displayText) {
             fresh = fresh.copy(
                 displayText = e.displayText,
@@ -750,9 +750,10 @@ class RouteController(
         name = name,
         youDriveDone = youDriveDone,
         place = place,
+        card = card,
     )
 
-    private fun Stop.toExtracted() = ExtractedStop(displayText, candidates, parsedPostalCode, parsedTown, sourceOrder, parsedTownKnown, time, kind, name, youDriveDone, place)
+    private fun Stop.toExtracted() = ExtractedStop(displayText, candidates, parsedPostalCode, parsedTown, sourceOrder, parsedTownKnown, time, kind, name, youDriveDone, place, card)
 
     companion object {
         /** Two readings of one YouDrive trip are at most this many minutes apart (see [sameTrip]). */

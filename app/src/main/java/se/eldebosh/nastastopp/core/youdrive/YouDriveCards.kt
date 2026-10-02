@@ -51,7 +51,8 @@ object YouDriveCards {
         val times = lines.take(at).mapNotNull(time).ifEmpty { lines.drop(at + 1).mapNotNull(time) }
         // The card's first line (the right column's top) is the passenger's name.
         val name = lines.take(at).firstNotNullOfOrNull { extractor.personName(it, strict = false) }
-        val trip = stop.copy(time = times.firstOrNull(), kind = kind, name = name, sourceOrder = order, youDriveDone = done)
+        // The whole card as written, for the driver's trip card on the passenger display.
+        val trip = stop.copy(time = times.firstOrNull(), kind = kind, name = name, sourceOrder = order, youDriveDone = done, card = lines.joinToString("\n"))
         return WatchedTrip(trip.time, TripWatch.streetAddress(trip), trip, booked = times.getOrNull(1), done = done)
     }
 

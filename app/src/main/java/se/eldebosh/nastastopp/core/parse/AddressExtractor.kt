@@ -15,6 +15,8 @@ package se.eldebosh.nastastopp.core.parse
  * @property name the passenger's first and last name from the line above the address, or null.
  * @property place the named place written with the address on a YouDrive card ("Kils
  *   Vårdcentral", "Centralsjukhuset Huvudentrén"), or null; see [Places].
+ * @property card everything on the trip's YouDrive card, as written, or null: shown only on the
+ *   passenger display's trip card, when the driver opens it; never said, sent anywhere else or logged.
  */
 data class ExtractedStop(
     val displayText: String,
@@ -29,6 +31,7 @@ data class ExtractedStop(
     /** YouDrive's card says the trip is done ("Performed"). */
     val youDriveDone: Boolean = false,
     val place: String? = null,
+    val card: String? = null,
 )
 
 /** Which detection rule accepted the line. */

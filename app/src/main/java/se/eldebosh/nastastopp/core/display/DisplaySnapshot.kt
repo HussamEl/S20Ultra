@@ -30,12 +30,14 @@ data class DisplayItem(
     val lastName: String? = null,
     /** How [title] is said when it differs from what is written: a place of care's full name ("Centralsjukhuset, huvudentrén" for "Sjukhuset C"). */
     val said: String? = null,
+    /** Everything on the trip's YouDrive card, as written: shown only when the driver opens it (234), never said. */
+    val card: String? = null,
 ) {
     /**
      * The same trip whatever its done marks or name: it keeps its place on the display when marked,
      * and "Därefter" grows into the next stop.
      */
-    val trip: DisplayItem get() = if (doneInYouDrive || doneHere || lastName != null) copy(doneInYouDrive = false, doneHere = false, lastName = null) else this
+    val trip: DisplayItem get() = if (doneInYouDrive || doneHere || lastName != null || card != null) copy(doneInYouDrive = false, doneHere = false, lastName = null, card = null) else this
 
     companion object {
         /** "Storgatan 14, 652 24 Karlstad" → "Storgatan 14" (the part before the first comma). */
@@ -47,9 +49,10 @@ data class DisplayItem(
  * Everything the passenger display shows — and the only route data that is ever sent to a
  * second device: up to seven trips done, the next destination and up to seven upcoming trips
  * (time, address and area, the address and point the tablet's map routes to, trip kind, and where
- * each was marked done), the next stop's passenger's last name, the current announcement text, the
- * area's weather and Google Maps' remaining travel time. Never a first name or another trip's
- * name, never the vehicle's position.
+ * each was marked done), the next stop's passenger's last name, each YouDrive trip's whole card
+ * (for the driver, shown only when opened), the current announcement text, the area's weather and
+ * Google Maps' remaining travel time. Outside the trip cards, never a first name or another trip's
+ * name; never the vehicle's position.
  */
 @Serializable
 data class DisplaySnapshot(

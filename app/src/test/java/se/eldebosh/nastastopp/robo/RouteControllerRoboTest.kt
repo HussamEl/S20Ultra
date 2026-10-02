@@ -333,10 +333,45 @@ class RouteControllerRoboTest {
         assertEquals("Strandvägen 3", display.current?.title)
         assertEquals(listOf("Sjukhuset C", "Provby Vårdcentral"), display.upcoming.map { it.title })
         assertEquals("Centralsjukhuset, huvudentrén", display.upcoming.first().said)
-        assertFalse("passenger display", display.toString().contains("Äldreboende"))
+        // Shown and sent: never the home's name (only its YouDrive card, which the driver opens, has it).
+        val shown = (listOfNotNull(display.current) + display.earlier + display.upcoming).flatMap { listOfNotNull(it.title, it.subtitle, it.said, it.place) }
+        assertFalse("passenger display", (shown + display.announcementSv.orEmpty()).any { it.contains("Äldreboende") })
         c.next()
         idle()
         assertEquals("Nästa stopp: Centralsjukhuset, huvudentrén, Karlstad. Därefter: Provby Vårdcentral, Skolgatan 5, Kil.", tts.lastSpokenText)
+        c.end()
+    }
+
+    /**
+     * A YouDrive trip's whole card goes to the passenger display for the driver to open, and nowhere
+     * else: never in an announcement, the route notification or the history (invented data).
+     */
+    @Test
+    fun theTripCardGoesOnlyToTheDisplay() {
+        val tts = readyTts()
+        val cards = listOf(
+            "08:00\nPick-up\nFrida Maria Uppdiktad\nStrandvägen 3, 66530 Kil\n0700000006\nportkod 1234\nCompensation 1 KR",
+            "08:30\nDrop-off\nFrida Maria Uppdiktad\nSkolgatan 5, 66530 Kil\nRS\nCompensation 1 KR",
+        )
+        val c = graph.controller
+        assertEquals(2, c.importTrips(YouDriveCards.toAdd(YouDriveCards.parse(cards, graph.extractor))))
+        idleUntil { c.route.value!!.stops.none { it.geoStatus == GeoStatus.PENDING } }
+        assertTrue(c.start())
+        idle()
+        assertEquals(cards[0], c.display.value.current?.card)
+        assertEquals(cards[1], c.display.value.upcoming.first().card)
+        c.next()
+        idle()
+        for (secret in listOf("0700000006", "1234", "Maria", "Compensation")) {
+            assertFalse("spoken: $secret", tts.lastSpokenText.orEmpty().contains(secret))
+            assertFalse("history: $secret", graph.history.entries.value.toString().contains(secret))
+            assertFalse("announcement: $secret", c.display.value.announcementSv.orEmpty().contains(secret))
+        }
+        val notification = shadowOf(app.getSystemService(android.app.NotificationManager::class.java))
+            .getNotification(se.eldebosh.nastastopp.service.Notifications.ID_ROUTE)
+        @Suppress("DEPRECATION")
+        val extras = notification.extras.keySet().map { notification.extras.get(it)?.toString().orEmpty() }
+        assertFalse("notification", extras.any { it.contains("0700000006") || it.contains("1234") })
         c.end()
     }
 
