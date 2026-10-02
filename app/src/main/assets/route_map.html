@@ -2,15 +2,23 @@
 <!--
   The tablet's map of the way to the next stop (RouteMap.kt). Google's map with the driver's own
   key; no controls, no touch, no device location. The app hands it the vehicle's position
-  (setCar) and the route to draw (setRoute); nothing else is sent anywhere from here.
+  (setCar), the route to draw (setRoute) and when to come and go (reveal, conceal); nothing else
+  is sent anywhere from here. The map grows and fades here, in the page: the app never scales or
+  fades the WebView itself, so the map is drawn the same on every device.
 -->
 <html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 <style>
-  html, body, #map { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: __GROUND__; }
-  #map { pointer-events: none; }
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: __GROUND__; }
+  #stage { position: fixed; left: 0; top: 0; right: 0; bottom: 0; opacity: 0; transform: scale(0.06); will-change: transform, opacity; }
+  #map { position: absolute; left: 0; top: 0; right: 0; bottom: 0; pointer-events: none; background: __GROUND__; }
+  .fade { position: absolute; pointer-events: none; }
+  .top { left: 0; right: 0; top: 0; height: 18%; }
+  .bottom { left: 0; right: 0; bottom: 0; height: 34%; }
+  .left { top: 0; bottom: 0; left: 0; width: 14%; }
+  .right { top: 0; bottom: 0; right: 0; width: 14%; }
   .dot { position: absolute; transform: translate(-50%, -50%); border-radius: 50%; box-sizing: border-box; }
   .car { width: 26px; height: 26px; background: #1A73E8; border: 5px solid #FFFFFF;
          box-shadow: 0 0 0 10px rgba(26, 115, 232, 0.22), 0 2px 8px rgba(0, 0, 0, 0.35); }
@@ -19,40 +27,81 @@
 </style>
 </head>
 <body>
-<div id="map"></div>
+<div id="stage">
+  <div id="map"></div>
+  <div class="fade top"></div><div class="fade bottom"></div><div class="fade left"></div><div class="fade right"></div>
+</div>
 <script>
   var NIGHT = __NIGHT__;
+  var GROUND = '__GROUND__';
+  // How small the map starts, as it grows out of the map sign.
+  var FROM = 0.06;
+  // Without the map's pictures this long after it is shown, the app is told.
+  var TILES_WAIT_MS = 12000;
   var map = null, carDot = null, stopDot = null, line = null, casing = null;
-  var car = null, path = [];
+  var car = null, path = [], shown = false, tiles = false;
+  var stage = document.getElementById('stage');
+
+  // Anything that stops the map is told to the app (which shows it under the map; nothing is logged).
+  function problem(kind, detail) {
+    try { Android.onProblem(kind, String(detail || '').slice(0, 120)); } catch (e) {}
+  }
+  window.onerror = function (message) { problem('page', message); };
+  window.addEventListener('unhandledrejection', function (e) { problem('page', e.reason && e.reason.message || e.reason); });
+  window.gm_authFailure = function () { Android.onAuthFailure(); };
+
+  // The map's edges melt into the screen's ground, from solid at the edge to clear inside.
+  (function () {
+    var n = parseInt(GROUND.slice(1), 16), rgb = [(n >> 16) & 255, (n >> 8) & 255, n & 255].join(',');
+    function fade(to) {
+      return 'linear-gradient(' + to + ', rgba(' + rgb + ',1) 0%, rgba(' + rgb + ',0.82) 30%, rgba(' + rgb + ',0.38) 60%, rgba(' + rgb + ',0.1) 85%, rgba(' + rgb + ',0) 100%)';
+    }
+    document.querySelector('.top').style.background = fade('to bottom');
+    document.querySelector('.bottom').style.background = fade('to top');
+    document.querySelector('.left').style.background = fade('to right');
+    document.querySelector('.right').style.background = fade('to left');
+  })();
 
   var quiet = [
     { featureType: 'poi', stylers: [{ visibility: 'off' }] },
     { featureType: 'transit', stylers: [{ visibility: 'off' }] }
   ];
-  // Neutral greys on the passenger display's black.
+  // Neutral greys on the passenger display's black, light enough to be read in a car.
   var dark = quiet.concat([
-    { elementType: 'geometry', stylers: [{ color: '#15171b' }] },
-    { elementType: 'labels.text.fill', stylers: [{ color: '#a9aeb6' }] },
-    { elementType: 'labels.text.stroke', stylers: [{ color: '#15171b' }] },
-    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2c3036' }] },
-    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#40454d' }] },
-    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0a1220' }] }
+    { elementType: 'geometry', stylers: [{ color: '#22262c' }] },
+    { elementType: 'labels.text.fill', stylers: [{ color: '#c3c8cf' }] },
+    { elementType: 'labels.text.stroke', stylers: [{ color: '#22262c' }] },
+    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#3b4048' }] },
+    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#525862' }] },
+    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#10213a' }] }
   ]);
 
-  window.gm_authFailure = function () { Android.onAuthFailure(); };
-
+  // Google's script is here: the map is made once the page has its size (a map made at no size
+  // can stay blank).
   function ready() {
+    var div = document.getElementById('map');
+    if (!div.offsetWidth || !div.offsetHeight) { setTimeout(ready, 200); return; }
+    google.maps.importLibrary('maps').then(make, function (e) { problem('page', e && e.message || e); });
+  }
+
+  function make() {
     map = new google.maps.Map(document.getElementById('map'), {
       center: { lat: 59.38, lng: 13.5 }, zoom: 14,
       disableDefaultUI: true, gestureHandling: 'none', keyboardShortcuts: false,
-      clickableIcons: false, backgroundColor: '__GROUND__', styles: NIGHT ? dark : quiet
+      clickableIcons: false, backgroundColor: GROUND, styles: NIGHT ? dark : quiet
+    });
+    map.addListener('tilesloaded', function () {
+      if (tiles) return;
+      tiles = true;
+      Android.onTiles();
     });
     function Dot(cls) { this.div = document.createElement('div'); this.div.className = 'dot ' + cls; this.at = null; }
     Dot.prototype = new google.maps.OverlayView();
     Dot.prototype.onAdd = function () { this.getPanes().overlayLayer.appendChild(this.div); };
     Dot.prototype.draw = function () {
-      if (!this.at) { this.div.style.display = 'none'; return; }
-      var p = this.getProjection().fromLatLngToDivPixel(new google.maps.LatLng(this.at.lat, this.at.lng));
+      var projection = this.getProjection();
+      if (!this.at || !projection) { this.div.style.display = 'none'; return; }
+      var p = projection.fromLatLngToDivPixel(new google.maps.LatLng(this.at.lat, this.at.lng));
       this.div.style.display = 'block';
       this.div.style.left = p.x + 'px';
       this.div.style.top = p.y + 'px';
@@ -65,6 +114,32 @@
     line = new google.maps.Polyline({ map: map, strokeColor: '#1A73E8', strokeWeight: 8, strokeOpacity: 1, clickable: false });
     draw(true);
     Android.onReady();
+    if (shown) waitForTiles();
+  }
+
+  // The map grows out of (x, y), fractions of the screen, over ms.
+  function reveal(x, y, ms) {
+    shown = true;
+    stage.style.transformOrigin = (x * 100) + '% ' + (y * 100) + '%';
+    stage.style.transition = 'transform ' + ms + 'ms cubic-bezier(0.4, 0, 0.2, 1), opacity ' + Math.round(ms / 1.6) + 'ms ease-out';
+    stage.style.opacity = '1';
+    stage.style.transform = 'scale(1)';
+    if (!map) return;
+    try { draw(true); } catch (e) { problem('page', e && e.message); }
+    waitForTiles();
+  }
+
+  // Back into where it came from, over ms.
+  function conceal(ms) {
+    shown = false;
+    stage.style.transition = 'transform ' + ms + 'ms cubic-bezier(0.4, 0, 1, 1), opacity ' + ms + 'ms ease-in';
+    stage.style.opacity = '0';
+    stage.style.transform = 'scale(' + FROM + ')';
+  }
+
+  function waitForTiles() {
+    if (tiles) return;
+    setTimeout(function () { if (shown && !tiles) problem('tiles', ''); }, TILES_WAIT_MS);
   }
 
   function setCar(lat, lng) {
@@ -86,19 +161,27 @@
     path.forEach(function (p) { bounds.extend(p); });
     if (car) bounds.extend(car);
     if (bounds.isEmpty()) return;
-    var shown = map.getBounds();
-    if (refit || !shown || (car && !shown.contains(car))) {
+    var seen = map.getBounds();
+    if (refit || !seen || (car && !seen.contains(car))) {
       if (path.length) map.fitBounds(bounds, clear()); else { map.setCenter(car); map.setZoom(15); }
     }
   }
 
-  // The map's edges melt into the screen's ground: the way keeps to the clear middle, with room
-  // for the minutes and distance at the bottom.
+  // The way keeps to the clear middle, with room for the minutes and distance at the bottom.
   function clear() {
     var d = map.getDiv(), w = d.offsetWidth, h = d.offsetHeight;
     return { top: Math.round(h * 0.2), bottom: Math.round(h * 0.34), left: Math.round(w * 0.16), right: Math.round(w * 0.16) };
   }
+
+  // Google's script, tried again every half minute while it does not come (no internet yet).
+  function load() {
+    var script = document.createElement('script');
+    script.async = true;
+    script.src = 'https://maps.googleapis.com/maps/api/js?key=__KEY__&callback=ready&loading=async';
+    script.onerror = function () { script.remove(); problem('script', ''); setTimeout(load, 30000); };
+    document.body.appendChild(script);
+  }
+  load();
 </script>
-<script async src="https://maps.googleapis.com/maps/api/js?key=__KEY__&callback=ready&loading=async"></script>
 </body>
 </html>

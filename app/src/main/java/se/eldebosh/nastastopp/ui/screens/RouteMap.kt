@@ -18,6 +18,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.graphics.toColorInt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -35,7 +36,9 @@ import java.util.Locale
  * driver's own key (entered on the tablet, 208) and the route from Google's Routes API. Only the
  * tablet's own position (from [se.eldebosh.nastastopp.geo.TabletPosition]) and the stop go to
  * Google. No controls, no touch, and the page itself never gets the location; nothing is stored
- * or logged.
+ * or logged. The page grows and fades the map itself ([reveal], [conceal]): the WebView is never
+ * scaled or faded from outside, so it is drawn the same on every device. What stops the map
+ * ([trouble], [routeAnswer]) is shown under it, for the driver to see why.
  *
  * @param ground the page's colour ("#F3F4F6"), shown until the tiles come.
  */
@@ -51,6 +54,18 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
 
     /** The WebView's renderer stopped (memory): this map is finished, and a new one takes its place. */
     var gone by mutableStateOf(false)
+        private set
+
+    /** The map's pictures (Google's tiles) have come at least once. */
+    var tiles by mutableStateOf(false)
+        private set
+
+    /** What stops the map, or null. */
+    var trouble by mutableStateOf<Trouble?>(null)
+        private set
+
+    /** Google's answer to the last ask for the way when it gave none (an HTTP code; 0: no answer), or null. */
+    var routeAnswer by mutableStateOf<Int?>(null)
         private set
 
     /** The way on the map: to the next stop, or to the trip the driver asked for ([focus]); null before an answer. */
@@ -72,6 +87,9 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
     /** What the map shows the way to until [unfocus]: a [MapWay.Stop], or [NEXT]. */
     private var focused: Any? = null
 
+    /** The page's last [reveal] or [conceal], given again when the page has loaded. */
+    private var stage: String? = null
+
     // JavaScript runs Google's map; the page is the app's own and nothing else can be loaded.
     // onRenderProcessGone is implemented below; lint does not see it in an object expression.
     @SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility", "MissingOnRenderProcessGone")
@@ -83,10 +101,17 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
         settings.allowContentAccess = false
         settings.setSupportZoom(false)
         isFocusable = false
+        // Always drawn under the display (the page shows and hides the map): the ground's colour
+        // from the start, never a white flash before the page.
+        setBackgroundColor(ground.toColorInt())
         // The map is only looked at: touches never reach it.
         setOnTouchListener { _, _ -> true }
         webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean = true
+
+            override fun onPageFinished(view: WebView, url: String?) {
+                stage?.let { view.evaluateJavascript(it, null) }
+            }
 
             override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
                 ready = false
@@ -112,6 +137,18 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
             .replace("__NIGHT__", night.toString())
             .replace("__GROUND__", ground)
         loadDataWithBaseURL(BASE, page, "text/html", "utf-8", null)
+    }
+
+    /** The map grows out of ([x], [y]), fractions of its size, over [ms]. */
+    fun reveal(x: Float, y: Float, ms: Int) {
+        stage = String.format(Locale.ROOT, "reveal(%.4f,%.4f,%d)", x, y, ms)
+        js(stage!!)
+    }
+
+    /** The map goes back where it came from, over [ms]. */
+    fun conceal(ms: Int) {
+        stage = "conceal($ms)"
+        js(stage!!)
     }
 
     /** Moves the vehicle on the map, and asks for the way again when the stop changed or a while has passed. */
@@ -202,17 +239,51 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
             // The same page address the map loads from, for a key restricted to it.
             conn.setRequestProperty("Referer", BASE)
             conn.outputStream.use { it.write(body.toByteArray()) }
-            if (conn.responseCode != HttpURLConnection.HTTP_OK) return null
-            RoutesApi.parse(conn.inputStream.bufferedReader().use { it.readText() })
+            val code = conn.responseCode
+            if (code != HttpURLConnection.HTTP_OK) {
+                answered(code)
+                return null
+            }
+            RoutesApi.parse(conn.inputStream.bufferedReader().use { it.readText() }).also { answered(if (it == null) code else null) }
         } finally {
             conn.disconnect()
         }
-    }.getOrNull()
+    }.onFailure { answered(0) }.getOrNull()
+
+    private fun answered(code: Int?) {
+        main.post { routeAnswer = code }
+    }
 
     private inner class Bridge {
         @JavascriptInterface
         fun onReady() {
-            main.post { ready = true }
+            main.post {
+                ready = true
+                if (trouble == Trouble.NO_SCRIPT) trouble = null
+            }
+        }
+
+        @JavascriptInterface
+        fun onTiles() {
+            main.post {
+                tiles = true
+                if (trouble == Trouble.NO_TILES) trouble = null
+            }
+        }
+
+        /** [kind]: "script" (Google's script did not come), "tiles" (no pictures yet) or "page" (an error, [detail]). */
+        @JavascriptInterface
+        fun onProblem(kind: String?, detail: String?) {
+            val found = when (kind) {
+                "script" -> Trouble.NO_SCRIPT
+                "tiles" -> Trouble.NO_TILES
+                else -> Trouble.PAGE
+            }
+            main.post {
+                if (found == Trouble.NO_TILES && tiles) return@post
+                trouble = found
+                troubleDetail = detail?.take(DETAIL_CHARS)?.takeIf { it.isNotBlank() }
+            }
         }
 
         @JavascriptInterface
@@ -224,7 +295,25 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
         }
     }
 
+    /** What stops the map. */
+    enum class Trouble {
+        /** Google's map script did not load (no internet, or blocked). */
+        NO_SCRIPT,
+
+        /** The map is made but its pictures have not come. */
+        NO_TILES,
+
+        /** An error in the page ([troubleDetail]). */
+        PAGE,
+    }
+
+    /** The page's own words for a [Trouble.PAGE], short; never logged. */
+    var troubleDetail by mutableStateOf<String?>(null)
+        private set
+
     companion object {
+        private const val DETAIL_CHARS = 80
+
         /** The page's address: a key restricted to websites must allow it and every page under it. */
         const val BASE = "https://nastastopp.app/"
         private const val PAGE = "route_map.html"

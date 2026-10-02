@@ -1,7 +1,6 @@
 package se.eldebosh.nastastopp.ui.screens
 
 import android.app.Activity
-import se.eldebosh.nastastopp.core.nav.RouteLine
 import android.view.ViewGroup
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlin.math.sin
@@ -18,7 +17,6 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.isSpecified
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import se.eldebosh.nastastopp.core.nav.MapWay
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.input.pointer.pointerInput
@@ -542,8 +540,7 @@ fun PassengerDisplayScreen(
             MapMomentText(
                 moments,
                 live?.eta,
-                routeMap.route,
-                located = routeMap.located,
+                routeMap,
                 wayTo = wayTo,
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = maxHeight * MAP_TEXT_LOW),
             )
@@ -613,6 +610,10 @@ private class Moments(private val scope: CoroutineScope) {
     var hue by mutableIntStateOf(0)
         private set
 
+    /** How long [info] takes to go, as it goes (the map goes along with it). */
+    var outMs = INFO_OUT_MS
+        private set
+
     /** The map shows the way to a trip the driver pressed long: nothing else comes until a tap. */
     var holding by mutableStateOf(false)
         private set
@@ -631,6 +632,7 @@ private class Moments(private val scope: CoroutineScope) {
         if (holding) return
         job?.cancel()
         hue++
+        outMs = SETTLE_MS
         job = scope.launch {
             launch { info.animateTo(0f, tween(SETTLE_MS)) }
             coroutineScope {
@@ -655,6 +657,7 @@ private class Moments(private val scope: CoroutineScope) {
         if (holding) return
         job?.cancel()
         shown = which
+        outMs = INFO_OUT_MS
         job = scope.launch {
             info.animateTo(1f, tween(INFO_IN_MS, easing = FastOutSlowInEasing))
             delay(if (which == Info.MAP) MAP_HOLD_MS else INFO_HOLD_MS)
@@ -667,6 +670,7 @@ private class Moments(private val scope: CoroutineScope) {
         job?.cancel()
         shown = Info.FOCUS
         holding = true
+        outMs = INFO_OUT_MS
         job = scope.launch {
             launch { solid.animateTo(0f, tween(SETTLE_MS)) }
             launch { grow.animateTo(0f, tween(SETTLE_MS)) }
@@ -681,6 +685,7 @@ private class Moments(private val scope: CoroutineScope) {
     fun settle() {
         holding = false
         job?.cancel()
+        outMs = SETTLE_MS
         job = scope.launch {
             launch { solid.animateTo(0f, tween(SETTLE_MS)) }
             launch { info.animateTo(0f, tween(SETTLE_MS)) }
@@ -848,80 +853,49 @@ private fun InfoMoment(
 
 /**
  * The tablet's map of the way to the next stop, under everything else and filling the screen:
- * unseen (and taking no taps from what lies above it) until its moment, when it grows out of the
- * map sign ([from], in this layer) as all else steps back, like the time grows out of the clock.
- * It has no frame: its edges melt into the screen's ground ([feather]).
+ * unseen until its moment, when it grows out of the map sign ([from], in this layer) as all else
+ * steps back, like the time grows out of the clock. Its page does the growing and the edges that
+ * melt into the screen's ground ([RouteMap.reveal]): the map's view itself is never scaled or
+ * faded here, as a WebView drawn that way can stay blank.
  */
 @Composable
 private fun MapLayer(map: RouteMap, moments: Moments, from: () -> Offset) {
-    val ground = AppTheme.colors.background
-    Box(
-        Modifier
-            .fillMaxSize()
-            .graphicsLayer {
-                val p = if (moments.shown == Moments.Info.MAP || moments.shown == Moments.Info.FOCUS) moments.info.value else 0f
-                alpha = (p * MAP_ALPHA_SPEED).coerceAtMost(1f)
-                val s = MAP_FROM + (1f - MAP_FROM) * p
-                scaleX = s
-                scaleY = s
-                val o = from()
-                transformOrigin = if (o.isSpecified && size.width > 0f && size.height > 0f) TransformOrigin(o.x / size.width, o.y / size.height) else TransformOrigin.Center
-            },
-    ) {
-        AndroidView(
-            factory = {
-                (map.view.parent as? ViewGroup)?.removeView(map.view)
-                map.view
-            },
-            modifier = Modifier.fillMaxSize().ref(210),
-        )
-        Canvas(Modifier.fillMaxSize()) { feather(ground) }
+    var size by remember { mutableStateOf(IntSize.Zero) }
+    val on = (moments.shown == Moments.Info.MAP || moments.shown == Moments.Info.FOCUS) && moments.info.targetValue > 0f
+    LaunchedEffect(map, on) {
+        if (on) {
+            val o = from()
+            val known = o.isSpecified && size.width > 0 && size.height > 0
+            map.reveal(if (known) o.x / size.width else 0.5f, if (known) o.y / size.height else 0.5f, INFO_IN_MS)
+        } else {
+            map.conceal(moments.outMs)
+        }
     }
-}
-
-/**
- * The ground's colour over the map's edges, from solid at the edge to clear inside, along a soft
- * curve: the map has no edge of its own. The bottom fades furthest, for the minutes and distance.
- */
-private fun DrawScope.feather(ground: Color) {
-    val stops = arrayOf(0f to ground, 0.3f to ground.copy(alpha = 0.82f), 0.6f to ground.copy(alpha = 0.38f), 0.85f to ground.copy(alpha = 0.1f), 1f to ground.copy(alpha = 0f))
-    val w = size.width
-    val h = size.height
-    fun edge(start: Offset, end: Offset, topLeft: Offset, area: Size) =
-        drawRect(Brush.linearGradient(*stops, start = start, end = end), topLeft = topLeft, size = area)
-    val top = h * FEATHER_TOP
-    val bottom = h * FEATHER_BOTTOM
-    val side = w * FEATHER_SIDE
-    edge(Offset(0f, 0f), Offset(0f, top), Offset.Zero, Size(w, top))
-    edge(Offset(0f, h), Offset(0f, h - bottom), Offset(0f, h - bottom), Size(w, bottom))
-    edge(Offset(0f, 0f), Offset(side, 0f), Offset.Zero, Size(side, h))
-    edge(Offset(w, 0f), Offset(w - side, 0f), Offset(w - side, 0f), Size(side, h))
+    AndroidView(
+        factory = {
+            (map.view.parent as? ViewGroup)?.removeView(map.view)
+            map.view
+        },
+        modifier = Modifier.fillMaxSize().onSizeChanged { size = it }.ref(210),
+    )
 }
 
 /**
  * Under the map, in its faded bottom: the minutes and the distance to the next stop (Google Maps'
  * own when it navigates), or to the trip pressed long ([wayTo]); until the tablet knows where it
- * is ([located]), a word that it is looking.
+ * is, a word that it is looking. Under them, small, what keeps the map or the way from coming
+ * ([mapNote]).
  */
 @Composable
-private fun MapMomentText(moments: Moments, eta: DisplayEta?, route: RouteLine?, located: Boolean, wayTo: String?, modifier: Modifier = Modifier) {
+private fun MapMomentText(moments: Moments, eta: DisplayEta?, map: RouteMap, wayTo: String?, modifier: Modifier = Modifier) {
     val focus = moments.shown == Moments.Info.FOCUS
     if (!(moments.shown == Moments.Info.MAP || focus) || moments.info.value <= 0f) return
-    if (!located) {
-        Text(
-            stringResource(R.string.passenger_finding_position),
-            fontFamily = DisplayFont,
-            fontWeight = FontWeight.Medium,
-            fontSize = MAP_SP * 0.22f,
-            color = AppTheme.colors.textMuted,
-            modifier = modifier.ref(205).graphicsLayer { alpha = moments.info.value },
-        )
-        return
-    }
     // To the next stop Google Maps' own time counts first; to another trip only the map's way.
     val next = !focus || wayTo == null
-    val minutes = (if (next) eta?.minutes else null) ?: route?.minutes ?: return
+    val route = map.route
+    val minutes = if (map.located) (if (next) eta?.minutes else null) ?: route?.minutes else null
     val meters = (if (next) eta?.meters else null) ?: route?.meters
+    val note = mapNote(map)
     val hue = AppTheme.colors.showHues[(moments.hue + 2) % AppTheme.colors.showHues.size]
     val big = MAP_SP
     Column(
@@ -932,35 +906,76 @@ private fun MapMomentText(moments: Moments, eta: DisplayEta?, route: RouteLine?,
             translationY = (1f - p) * 40.dp.toPx()
         },
     ) {
-        Row(verticalAlignment = Alignment.Bottom) {
+        if (!map.located) {
             Text(
-                "$minutes",
-                fontFamily = DigitFont,
-                fontWeight = FontWeight.Bold,
-                fontSize = big,
-                color = hue,
-                style = TextStyle(lineHeight = 1.0.em),
-            )
-            Text(
-                " min",
+                stringResource(R.string.passenger_finding_position),
                 fontFamily = DisplayFont,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = big * 0.35f,
-                color = hue,
-                modifier = Modifier.padding(bottom = 12.dp),
+                fontWeight = FontWeight.Medium,
+                fontSize = big * 0.22f,
+                color = AppTheme.colors.textMuted,
             )
         }
-        Text(
-            listOfNotNull(
-                meters?.let(::distanceText),
-                if (next) stringResource(R.string.passenger_to_next_stop) else stringResource(R.string.passenger_to_place, wayTo.orEmpty()),
-            ).joinToString("  ·  "),
-            fontFamily = DisplayFont,
-            fontWeight = FontWeight.Medium,
-            fontSize = big * 0.2f,
-            color = AppTheme.colors.textMuted,
-        )
+        if (minutes != null) {
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(
+                    "$minutes",
+                    fontFamily = DigitFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = big,
+                    color = hue,
+                    style = TextStyle(lineHeight = 1.0.em),
+                )
+                Text(
+                    " min",
+                    fontFamily = DisplayFont,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = big * 0.35f,
+                    color = hue,
+                    modifier = Modifier.padding(bottom = 12.dp),
+                )
+            }
+            Text(
+                listOfNotNull(
+                    meters?.let(::distanceText),
+                    if (next) stringResource(R.string.passenger_to_next_stop) else stringResource(R.string.passenger_to_place, wayTo.orEmpty()),
+                ).joinToString("  ·  "),
+                fontFamily = DisplayFont,
+                fontWeight = FontWeight.Medium,
+                fontSize = big * 0.2f,
+                color = AppTheme.colors.textMuted,
+            )
+        }
+        if (note != null) {
+            Text(
+                note,
+                fontFamily = DisplayFont,
+                fontWeight = FontWeight.Medium,
+                fontSize = big * 0.13f,
+                color = AppTheme.colors.textMuted,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 8.dp).ref(233, centered = true),
+            )
+        }
     }
+}
+
+/**
+ * Why the map or the way does not come, in a few words, or null: Google's script did not load,
+ * its pictures did not come, the page stopped (its own words), the map is still loading; and
+ * Google's answer when it gave no way.
+ */
+@Composable
+private fun mapNote(map: RouteMap): String? {
+    val page = when (map.trouble?.takeIf { !map.tiles }) {
+        RouteMap.Trouble.NO_SCRIPT -> stringResource(R.string.passenger_map_no_script)
+        RouteMap.Trouble.NO_TILES -> stringResource(R.string.passenger_map_no_tiles)
+        RouteMap.Trouble.PAGE -> stringResource(R.string.passenger_map_stopped, map.troubleDetail ?: "?")
+        null -> if (!map.ready) stringResource(R.string.passenger_map_loading) else null
+    }
+    val way = map.routeAnswer?.let { if (it == 0) stringResource(R.string.passenger_way_no_answer) else stringResource(R.string.passenger_way_refused, it) }
+    return listOfNotNull(page, way).joinToString("  ·  ").ifEmpty { null }
 }
 
 /** "5,3 km" / "800 m", the Swedish way. */
@@ -2526,22 +2541,13 @@ private const val INFO_IN_MS = 1_200
 private const val INFO_HOLD_MS = 4_600L
 private const val INFO_OUT_MS = 1_200
 
-/** The map: ten seconds in all, at the left of a tablet (above the minutes on a phone), with rounded corners. */
+/** The map: ten seconds in all, filling the screen. */
 private const val MAP_HOLD_MS = 7_600L
 
 /** The way to a trip pressed long stays until a tap, or this long at most. */
 private const val FOCUS_MAX_MS = 120_000L
 
-/**
- * The map grows out of its sign from this share of its size, and is opaque this much faster than
- * it grows; its edges fade over these shares of the screen (top, bottom, sides); the minutes and
- * distance under it, this size and this share of the height above the bottom.
- */
-private const val MAP_FROM = 0.06f
-private const val MAP_ALPHA_SPEED = 1.6f
-private const val FEATHER_TOP = 0.18f
-private const val FEATHER_BOTTOM = 0.34f
-private const val FEATHER_SIDE = 0.14f
+/** The minutes and distance under the map: this size, and this share of the height above the bottom. */
 private val MAP_SP = 150.sp
 private const val MAP_TEXT_LOW = 0.04f
 

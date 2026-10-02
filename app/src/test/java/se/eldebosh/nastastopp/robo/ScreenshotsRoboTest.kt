@@ -731,8 +731,8 @@ class ScreenshotsRoboTest {
     /**
      * The map sign and a long press on a trip open the tablet's own map, filling the screen, and
      * ask for the tablet's position (its permission, when not given yet); until the tablet knows
-     * where it is the map says it is looking. A tap brings the screen back. Google Maps is never
-     * opened from the display.
+     * where it is the map says it is looking, and under it why the map is not there yet. A tap
+     * brings the screen back. Google Maps is never opened from the display.
      */
     @Test
     @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
@@ -762,6 +762,8 @@ class ScreenshotsRoboTest {
         compose.mainClock.advanceTimeBy(1_500)
         save("display_map_looking", compose.onRoot().captureToImage().asAndroidBitmap())
         compose.onNodeWithText("Söker bilens position…").assertIsDisplayed()
+        // Under it, small, why the map is not there yet.
+        compose.onNodeWithTag("ref_233", useUnmergedTree = true).assert(hasText("Kartan laddas…"))
         compose.onRoot().performClick()
         compose.mainClock.advanceTimeBy(1_000)
         compose.onNodeWithText("Söker bilens position…").assertDoesNotExist()

@@ -16,4 +16,10 @@
     <string name="passenger_to_place" translatable="false">till %1$s</string>
     <string name="passenger_waiting" translatable="false">Rutten har inte börjat än</string>
     <string name="passenger_finding_position" translatable="false">Söker bilens position…</string>
+    <string name="passenger_map_loading" translatable="false">Kartan laddas…</string>
+    <string name="passenger_map_no_script" translatable="false">Kartan kunde inte hämtas från Google</string>
+    <string name="passenger_map_no_tiles" translatable="false">Kartans bilder kom inte från Google</string>
+    <string name="passenger_map_stopped" translatable="false">Kartan stannade: %1$s</string>
+    <string name="passenger_way_refused" translatable="false">Vägen: Google svarade %1$d</string>
+    <string name="passenger_way_no_answer" translatable="false">Vägen: inget svar från Google</string>
 </resources>
