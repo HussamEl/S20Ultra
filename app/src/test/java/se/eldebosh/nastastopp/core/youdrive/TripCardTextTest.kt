@@ -24,7 +24,7 @@ class TripCardTextTest {
             listOf(
                 Row("Address", "STRANDVÄGEN 3 LGH 1001, 66530 KIL"),
                 Row("Phone number", "0700000006"),
-                Row("Space Type(s)", "Sittande passagerare, Fram, Rollator fällbar"),
+                Row("Space Type(s)", "Sittande passagerare 1, Fram 1, Rollator fällbar 1"),
                 Row("Mobility Aids", "Hämtas/Lämnas inne"),
                 Row("Fare amount", "0 KR"),
                 Row("Compensation", "13.73 KR"),
@@ -35,17 +35,25 @@ class TripCardTextTest {
         )
     }
 
-    /** Codes written out as YouDrive writes them; a code not known yet stays as it is. */
+    /** Codes written out as YouDrive writes them, with their count; a code not known yet stays as it is. */
     @Test
     fun theCodesAreWrittenOutAndAnUnknownOneKept() {
         val card = TripCardText.of(
             "08:43\n08:45\nPick-up\nFrida Uppdiktad\nCentralsjukhuset Karlstad, Karlstad\nHLI, AVD, RU1, TRP1, BEN1\n" +
                 "Client fee 0 KR\nCompensation 178.19 KR\nSJU\nHämtas avd 9 med transportrullstol",
         )
-        assertEquals("Rullstol, Transportrullstol, BEN1", card.rows.first { it.label == TripCardText.SPACE }.value)
+        assertEquals("Rullstol 1, Transportrullstol 1, BEN1", card.rows.first { it.label == TripCardText.SPACE }.value)
         assertEquals("Hämtas/Lämnas inne, Hämtning på avdelning", card.rows.first { it.label == TripCardText.AIDS }.value)
         assertEquals("Hämtas avd 9 med transportrullstol", card.rows.last().value)
         assertNull(card.status)
+    }
+
+    /** The number in a code counts: "SP2" is two seated passengers. */
+    @Test
+    fun aCodesNumberCounts() {
+        val card = TripCardText.of("08:00\nPick-up\nErik Påhittad\nStrandvägen 3, 66530 Kil\nSP2, RU1, TRA\nCompensation 1 KR")
+        assertEquals("Sittande passagerare 2, Rullstol 1", card.rows.first { it.label == TripCardText.SPACE }.value)
+        assertEquals("Trappklättrare", card.rows.first { it.label == TripCardText.AIDS }.value)
     }
 
     /** An address on two lines stays one field; a line of its own without a label keeps its place. */

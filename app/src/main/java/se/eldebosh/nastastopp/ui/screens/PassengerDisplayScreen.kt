@@ -180,6 +180,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -229,8 +230,9 @@ import java.util.Locale
  * @param time the time of day (tests set it).
  * @param weatherWidget a weather app's widget hosted on this tablet (207), shown in place of SMHI's weather.
  * @param routeMap the tablet's Google map of the way to the next stop (208): it fills the screen
- *   in the middle of each minute while [mapLive] (the tablet knows where it is), and when the map
- *   sign is tapped or a trip pressed long; the display never opens Google Maps itself.
+ *   in the middle of each minute while [mapLive] (the tablet knows where it is), only looked at;
+ *   and when the map sign is tapped or a trip pressed long, as the driver's own map (3D, flying to
+ *   the stop, moved by touch and buttons, closed by its ×). The display never opens Google Maps.
  * @param onWantPosition the map is asked for: the tablet's location permission, if not given yet.
  * @param dark the black look ([DisplayColors]) or the light one; [onToggleLook] switches it (223).
  */
@@ -282,8 +284,9 @@ fun PassengerDisplayScreen(
     val timeStatus by remember(nextTime, hasNext) {
         derivedStateOf { if (hasNext) TimeStatus.of(TripTimes.minutesUntil(nextTime, now.value.hour * 60 + now.value.minute)) else null }
     }
-    // A long press on a trip (or the map sign for the next stop): the way to it on the map, filling
-    // the screen until a tap; the way comes as soon as the tablet knows where it is.
+    // A long press on a trip (or the map sign for the next stop): the driver's own map of the way
+    // to it, filling the screen until he closes it; it flies to the stop's building in 3D, and his
+    // fingers and buttons move it. The way comes as soon as the tablet knows where it is.
     var wayTo by remember { mutableStateOf<String?>(null) }
     val map = routeMap?.takeIf { !it.refused }
     val showWay: ((DisplayItem, Boolean) -> Unit)? = map?.let { m ->
@@ -303,6 +306,13 @@ fun PassengerDisplayScreen(
         if (openCard != null) moments.settle()
     }
     LaunchedEffect(moments.holding) { if (!moments.holding) routeMap?.unfocus() }
+    // The driver's own map (the map sign, a trip pressed long): his touches move it, and it stays
+    // while he uses it.
+    val held = moments.holding && moments.shown == Moments.Info.FOCUS
+    DisposableEffect(routeMap, moments) {
+        routeMap?.onTouch = { moments.touched() }
+        onDispose { routeMap?.onTouch = null }
+    }
     // The trip shown at the top (the next stop, or one paged to): reported by the stage with the
     // next stop it belongs to (so a stale one is never shown) and whether the screen is focused on it.
     var shownTrip by remember { mutableStateOf<Triple<DisplayItem, DisplayItem, Boolean>?>(null) }
@@ -396,7 +406,7 @@ fun PassengerDisplayScreen(
         val arrow = arrowSize(tripSize)
         // The map lies under everything, unseen until its moment, so it loads once and stays ready.
         if (routeMap != null) {
-            MapLayer(routeMap, moments, from = { if (pinAt.isSpecified) pinAt - screen.topLeft else Offset.Unspecified })
+            MapLayer(routeMap, moments, held, from = { if (pinAt.isSpecified) pinAt - screen.topLeft else Offset.Unspecified })
         }
         Column(
             Modifier
@@ -576,12 +586,20 @@ fun PassengerDisplayScreen(
                 live?.eta,
                 routeMap,
                 wayTo = wayTo,
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = maxHeight * MAP_TEXT_LOW),
+                held = held,
+                modifier = Modifier.align(Alignment.BottomCenter).zIndex(MAP_OVER_Z).padding(bottom = maxHeight * MAP_TEXT_LOW),
+            )
+            MapControls(
+                routeMap,
+                visible = held && moments.infoShown,
+                onUse = { moments.touched() },
+                onClose = { moments.settle() },
+                modifier = Modifier.fillMaxSize().zIndex(MAP_OVER_Z),
             )
         }
         // While the time, the weather or the travel time fills the screen, a tap anywhere brings the
-        // screen back at once.
-        if (moments.showing) {
+        // screen back at once (the driver's own map takes his touches, and closes on its ×).
+        if (moments.showing && !held) {
             Box(
                 Modifier
                     .fillMaxSize()
@@ -593,6 +611,7 @@ fun PassengerDisplayScreen(
         if (openCard != null) lastCard = openCard
         AnimatedVisibility(
             openCard != null,
+            modifier = Modifier.zIndex(CARD_Z),
             enter = fadeIn(tween(CARD_IN_MS)) + scaleIn(tween(CARD_IN_MS, easing = FastOutSlowInEasing), initialScale = 0.94f),
             exit = fadeOut(tween(CARD_OUT_MS)),
         ) {
@@ -722,7 +741,7 @@ private class Moments(private val scope: CoroutineScope) {
         }
     }
 
-    /** The map with the way to a trip, held until a tap (or a long while). */
+    /** The driver's map with the way to a trip, held until it is closed (or long unused). */
     fun playFocus() {
         job?.cancel()
         shown = Info.FOCUS
@@ -732,6 +751,18 @@ private class Moments(private val scope: CoroutineScope) {
             launch { solid.animateTo(0f, tween(SETTLE_MS)) }
             launch { grow.animateTo(0f, tween(SETTLE_MS)) }
             info.animateTo(1f, tween(INFO_IN_MS, easing = FastOutSlowInEasing))
+            delay(FOCUS_MAX_MS)
+            holding = false
+            info.animateTo(0f, tween(INFO_OUT_MS, easing = FastOutSlowInEasing))
+        }
+    }
+
+    /** The held map is being used: it stays [FOCUS_MAX_MS] from now. */
+    fun touched() {
+        if (!holding) return
+        job?.cancel()
+        job = scope.launch {
+            launch { info.animateTo(1f, tween(SETTLE_MS)) }
             delay(FOCUS_MAX_MS)
             holding = false
             info.animateTo(0f, tween(INFO_OUT_MS, easing = FastOutSlowInEasing))
@@ -914,27 +945,96 @@ private fun InfoMoment(
  * steps back, like the time grows out of the clock. Its page does the growing and the edges that
  * melt into the screen's ground ([RouteMap.reveal]): the map's view itself is never scaled or
  * faded here, as a WebView drawn that way can stay blank.
+ *
+ * The driver's own map ([held]) comes over everything else, which has stepped back, so his
+ * touches reach it.
  */
 @Composable
-private fun MapLayer(map: RouteMap, moments: Moments, from: () -> Offset) {
+private fun MapLayer(map: RouteMap, moments: Moments, held: Boolean, from: () -> Offset) {
     var size by remember { mutableStateOf(IntSize.Zero) }
     val on = (moments.shown == Moments.Info.MAP || moments.shown == Moments.Info.FOCUS) && moments.info.targetValue > 0f
-    LaunchedEffect(map, on) {
+    val driver = moments.shown == Moments.Info.FOCUS
+    LaunchedEffect(map, on, driver) {
         if (on) {
             val o = from()
             val known = o.isSpecified && size.width > 0 && size.height > 0
-            map.reveal(if (known) o.x / size.width else 0.5f, if (known) o.y / size.height else 0.5f, INFO_IN_MS)
+            map.reveal(if (known) o.x / size.width else 0.5f, if (known) o.y / size.height else 0.5f, INFO_IN_MS, held = driver)
         } else {
             map.conceal(moments.outMs)
         }
+    }
+    // A view's touches also go to what lies under it: here they stop, so a touch on the map never
+    // reaches the stepped-back screen (an address said, the map closed).
+    if (held) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .zIndex(MAP_HELD_Z - MAP_FLOOR_BELOW)
+                .pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } },
+        )
     }
     AndroidView(
         factory = {
             (map.view.parent as? ViewGroup)?.removeView(map.view)
             map.view
         },
-        modifier = Modifier.fillMaxSize().onSizeChanged { size = it }.ref(210),
+        modifier = Modifier.fillMaxSize().zIndex(if (held) MAP_HELD_Z else 0f).onSizeChanged { size = it }.ref(210),
     )
+}
+
+/**
+ * The driver's buttons on his own map, at the right: closer (237), farther (238), the car (239),
+ * the stop's building (240), the whole way (241) and the flight again (242, on the 3D map); and ×
+ * at the top (243). Each use keeps the map open ([onUse]).
+ */
+@Composable
+private fun MapControls(map: RouteMap, visible: Boolean, onUse: () -> Unit, onClose: () -> Unit, modifier: Modifier = Modifier) {
+    AnimatedVisibility(visible, modifier, enter = fadeIn(tween(INFO_IN_MS)), exit = fadeOut(tween(SETTLE_MS))) {
+        Box(Modifier.fillMaxSize().padding(MAP_CONTROLS_EDGE)) {
+            MapButton(R.drawable.ic_close, R.string.display_map_close, 243, highlight = true, modifier = Modifier.align(Alignment.TopEnd), onClick = onClose)
+            Column(
+                verticalArrangement = Arrangement.spacedBy(MAP_CONTROLS_GAP),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.align(Alignment.CenterEnd),
+            ) {
+                fun use(action: () -> Unit): () -> Unit = {
+                    onUse()
+                    action()
+                }
+                MapButton(R.drawable.ic_add, R.string.display_map_closer, 237, onClick = use { map.zoom(1) })
+                MapButton(R.drawable.ic_remove, R.string.display_map_farther, 238, onClick = use { map.zoom(-1) })
+                Spacer(Modifier.height(MAP_CONTROLS_GAP))
+                MapButton(R.drawable.ic_my_location, R.string.display_map_car, 239, onClick = use { map.toCar() })
+                MapButton(R.drawable.ic_pin, R.string.display_map_stop, 240, onClick = use { map.toStop() })
+                MapButton(R.drawable.ic_zoom_out_map, R.string.display_map_whole, 241, onClick = use { map.whole() })
+                if (map.threeD == true) MapButton(R.drawable.ic_flight, R.string.display_map_tour, 242, onClick = use { map.tour() })
+            }
+        }
+    }
+}
+
+/** A round button on the driver's map, light over the map in both looks. */
+@Composable
+private fun MapButton(icon: Int, label: Int, ref: Int, onClick: () -> Unit, modifier: Modifier = Modifier, highlight: Boolean = false) {
+    val description = stringResource(label)
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .refCorner(ref)
+            .shadow(AppTheme.effects.currentShadow, CircleShape)
+            .size(MAP_BUTTON)
+            .clip(CircleShape)
+            .background(if (highlight) AppTheme.colors.highlight else AppTheme.colors.card)
+            .clickable(onClickLabel = description, role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = description },
+    ) {
+        Icon(
+            painterResource(icon),
+            contentDescription = null,
+            tint = if (highlight) AppTheme.colors.onInfo else AppTheme.colors.text,
+            modifier = Modifier.size(MAP_ICON),
+        )
+    }
 }
 
 /**
@@ -944,7 +1044,7 @@ private fun MapLayer(map: RouteMap, moments: Moments, from: () -> Offset) {
  * ([mapNote]).
  */
 @Composable
-private fun MapMomentText(moments: Moments, eta: DisplayEta?, map: RouteMap, wayTo: String?, modifier: Modifier = Modifier) {
+private fun MapMomentText(moments: Moments, eta: DisplayEta?, map: RouteMap, wayTo: String?, held: Boolean, modifier: Modifier = Modifier) {
     val focus = moments.shown == Moments.Info.FOCUS
     if (!(moments.shown == Moments.Info.MAP || focus) || !moments.infoShown) return
     // To the next stop Google Maps' own time counts first; to another trip only the map's way.
@@ -952,7 +1052,7 @@ private fun MapMomentText(moments: Moments, eta: DisplayEta?, map: RouteMap, way
     val route = map.route
     val minutes = if (map.located) (if (next) eta?.minutes else null) ?: route?.minutes else null
     val meters = (if (next) eta?.meters else null) ?: route?.meters
-    val note = mapNote(map)
+    val note = mapNote(map, held)
     val hue = AppTheme.colors.showHues[(moments.hue + 2) % AppTheme.colors.showHues.size]
     val big = MAP_SP
     Column(
@@ -1020,19 +1120,26 @@ private fun MapMomentText(moments: Moments, eta: DisplayEta?, map: RouteMap, way
 
 /**
  * Why the map or the way does not come, in a few words, or null: Google's script did not load,
- * its pictures did not come, the page stopped (its own words), the map is still loading; and
- * Google's answer when it gave no way.
+ * its pictures did not come, the page stopped (its own words), the map is still loading; on the
+ * driver's own map ([held]), the 3D map still loading or not drawn here; and Google's answer when
+ * it gave no way.
  */
 @Composable
-private fun mapNote(map: RouteMap): String? {
+private fun mapNote(map: RouteMap, held: Boolean): String? {
     val page = when (map.trouble?.takeIf { !map.tiles }) {
         RouteMap.Trouble.NO_SCRIPT -> stringResource(R.string.passenger_map_no_script)
         RouteMap.Trouble.NO_TILES -> stringResource(R.string.passenger_map_no_tiles)
         RouteMap.Trouble.PAGE -> stringResource(R.string.passenger_map_stopped, map.troubleDetail ?: "?")
         null -> if (!map.ready) stringResource(R.string.passenger_map_loading) else null
     }
+    val deep = when {
+        !held || !map.ready -> null
+        map.noThreeD != null -> stringResource(R.string.passenger_map_no_3d, map.noThreeD!!)
+        map.threeD == null -> stringResource(R.string.passenger_map_3d_loading)
+        else -> null
+    }
     val way = map.routeAnswer?.let { if (it == 0) stringResource(R.string.passenger_way_no_answer) else stringResource(R.string.passenger_way_refused, it) }
-    return listOfNotNull(page, way).joinToString("  ·  ").ifEmpty { null }
+    return listOfNotNull(page, deep, way).joinToString("  ·  ").ifEmpty { null }
 }
 
 /** "5,3 km" / "800 m", the Swedish way. */
@@ -2745,8 +2852,20 @@ private const val INFO_OUT_MS = 1_200
 /** The map: ten seconds in all, filling the screen. */
 private const val MAP_HOLD_MS = 7_600L
 
-/** The way to a trip pressed long stays until a tap, or this long at most. */
+/** The driver's own map stays until he closes it, or this long after he last used it. */
 private const val FOCUS_MAX_MS = 120_000L
+
+/** The driver's map over the stepped-back screen, its text and buttons over it, a trip's card over all. */
+private const val MAP_HELD_Z = 1f
+private const val MAP_FLOOR_BELOW = 0.5f
+private const val MAP_OVER_Z = 2f
+private const val CARD_Z = 3f
+
+/** The driver's map buttons: their size, their icons, the room between them and from the edge. */
+private val MAP_BUTTON = 64.dp
+private val MAP_ICON = 30.dp
+private val MAP_CONTROLS_GAP = 14.dp
+private val MAP_CONTROLS_EDGE = 20.dp
 
 /** A trip's card: its text size (a tablet, a phone), its share of the width, the ground over the screen behind it, in and out. */
 private val CARD_SP = 28.sp

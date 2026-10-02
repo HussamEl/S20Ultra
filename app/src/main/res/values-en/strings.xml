@@ -175,6 +175,13 @@
     <string name="maps_key_label">Google Maps API key</string>
     <string name="help_maps_key">The map uses your own Google key. In Google Cloud: create an API key, enable "Maps JavaScript API" and "Routes API", and restrict the key to the website https://nastastopp.app/* . Normal use stays within Google\'s free monthly amount. The map takes the car\'s position from this tablet\'s own GPS (location while the display is open, never in the background; asked the first time the map sign is tapped). That position and the next stop go to Google for the way; nothing is stored or logged.</string>
     <string name="display_show_way">Show the way on the map</string>
+    <string name="display_map_close">Close the map</string>
+    <string name="display_map_closer">Zoom in</string>
+    <string name="display_map_farther">Zoom out</string>
+    <string name="display_map_car">The car\'s position</string>
+    <string name="display_map_stop">The stop\'s building</string>
+    <string name="display_map_whole">The whole way</string>
+    <string name="display_map_tour">Fly to the stop again</string>
     <string name="display_show_card">Show the trip\'s card</string>
     <string name="display_weather">Show the weather</string>
     <string name="display_look_light">Light display</string>

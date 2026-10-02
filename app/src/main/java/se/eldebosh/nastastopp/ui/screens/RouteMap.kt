@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.view.MotionEvent
 import android.view.View
 import android.webkit.ConsoleMessage
 import android.webkit.GeolocationPermissions
@@ -36,10 +37,15 @@ import java.util.Locale
  * The tablet's map of the way to the next stop: Google's map in a WebView of its own, with the
  * driver's own key (entered on the tablet, 208) and the route from Google's Routes API. Only the
  * tablet's own position (from [se.eldebosh.nastastopp.geo.TabletPosition]) and the stop go to
- * Google. No controls, no touch, and the page itself never gets the location; nothing is stored
- * or logged. The page grows and fades the map itself ([reveal], [conceal]): the WebView is never
- * scaled or faded from outside, so it is drawn the same on every device. What stops the map
- * ([trouble], [routeAnswer]) is shown under it, for the driver to see why.
+ * Google. The page itself never gets the location; nothing is stored or logged. The page grows
+ * and fades the map itself ([reveal], [conceal]): the WebView is never scaled or faded from
+ * outside, so it is drawn the same on every device. What stops the map ([trouble],
+ * [routeAnswer]) is shown under it, for the driver to see why.
+ *
+ * Only looked at, touches never reach it. Opened by the driver ([reveal] held), it is his: Google's 3D
+ * map of real buildings ([threeD]) flies from above the car to the stop's building ([tour]), and
+ * then moves under his fingers and his buttons ([zoom], [toCar], [toStop], [whole]). Where the 3D
+ * map cannot be drawn, the flat map is moved instead.
  *
  * @param ground the page's colour ("#F3F4F6"), shown until the tiles come.
  */
@@ -88,8 +94,21 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
     /** What the map shows the way to until [unfocus]: a [MapWay.Stop], or [NEXT]. */
     private var focused: Any? = null
 
+    /** Google's 3D map: null until it is first wanted (a held [reveal]), then whether it can be drawn here. */
+    var threeD by mutableStateOf<Boolean?>(null)
+        private set
+
+    /** The driver holds the map (a held [reveal]): his touches reach it. */
+    private var held = false
+
+    /** Each touch on the held map (the display keeps it open while it is used). */
+    var onTouch: (() -> Unit)? = null
+
     /** The page's last [reveal] or [conceal], given again when the page has loaded. */
     private var stage: String? = null
+
+    /** The stop's point last given to the page ("lat,lng" or "null,null"), given again when it has loaded. */
+    private var stopSent: String? = null
 
     // JavaScript runs Google's map; the page is the app's own and nothing else can be loaded.
     // onRenderProcessGone is implemented below; lint does not see it in an object expression.
@@ -107,12 +126,16 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
         // of its moving parts would cost the tablet smoothness.
         setBackgroundColor(ground.toColorInt())
         visibility = View.INVISIBLE
-        // The map is only looked at: touches never reach it.
-        setOnTouchListener { _, _ -> true }
+        // Only the map the driver holds is touched; else touches never reach it.
+        setOnTouchListener { _, event ->
+            if (held && event.actionMasked == MotionEvent.ACTION_DOWN) onTouch?.invoke()
+            !held
+        }
         webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean = true
 
             override fun onPageFinished(view: WebView, url: String?) {
+                stopSent?.let { view.evaluateJavascript("setStop($it)", null) }
                 stage?.let { view.evaluateJavascript(it, null) }
             }
 
@@ -142,21 +165,41 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
         loadDataWithBaseURL(BASE, page, "text/html", "utf-8", null)
     }
 
-    /** The map grows out of ([x], [y]), fractions of its size, over [ms]. */
-    fun reveal(x: Float, y: Float, ms: Int) {
+    /**
+     * The map grows out of ([x], [y]), fractions of its size, over [ms]: the driver's own when he
+     * opened it ([held]: 3D, flying to the stop, touched), else only looked at.
+     */
+    fun reveal(x: Float, y: Float, ms: Int, held: Boolean = false) {
         main.removeCallbacks(hide)
+        this.held = held
         view.visibility = View.VISIBLE
-        stage = String.format(Locale.ROOT, "reveal(%.4f,%.4f,%d)", x, y, ms)
+        stage = String.format(Locale.ROOT, "hold(%b);reveal(%.4f,%.4f,%d)", held, x, y, ms)
         js(stage!!)
     }
 
     /** The map goes back where it came from, over [ms], and is then no longer drawn. */
     fun conceal(ms: Int) {
-        stage = "conceal($ms)"
+        held = false
+        stage = "hold(false);conceal($ms)"
         js(stage!!)
         main.removeCallbacks(hide)
         main.postDelayed(hide, ms + HIDE_AFTER_MS)
     }
+
+    /** The held map closer ([step] 1) or farther (-1). */
+    fun zoom(step: Int) = js("zoom($step)")
+
+    /** The held map to the car. */
+    fun toCar() = js("toCar()")
+
+    /** The held map to the stop's building. */
+    fun toStop() = js("toStop()")
+
+    /** The car, the way and the stop at once. */
+    fun whole() = js("whole()")
+
+    /** The flight from the car to the stop again. */
+    fun tour() = js("tour()")
 
     private val hide = Runnable { view.visibility = View.INVISIBLE }
 
@@ -165,6 +208,7 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
         val first = vehicle == null
         vehicle = way
         js(String.format(Locale.ROOT, "setCar(%.6f,%.6f)", way.lat, way.lng))
+        if (focused == null || focused === NEXT) stop(way.toLat, way.toLng)
         focused?.let { target ->
             // Asked for before the position came: the way now.
             if (first) ask(target)
@@ -190,6 +234,7 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
     fun focus(to: MapWay.Stop?) {
         val target = to ?: NEXT
         focused = target
+        if (to == null) stop(vehicle?.toLat, vehicle?.toLng) else stop(to.lat, to.lng)
         if (to == null && toNext != null) {
             draw(toNext!!)
             return
@@ -216,11 +261,21 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
     fun unfocus() {
         if (focused == null) return
         focused = null
+        stop(vehicle?.toLat, vehicle?.toLng)
         toNext?.let { draw(it) } ?: run {
             route = null
             js("setRoute([])")
         }
     }
+
+    /** The stop's own point for the map, when known (else the way's end stands for it). */
+    private fun stop(lat: Double?, lng: Double?) {
+        val at = if (lat != null && lng != null) String.format(Locale.ROOT, "%.6f,%.6f", lat, lng) else "null,null"
+        if (at == stopSent) return
+        stopSent = at
+        js("setStop($at)")
+    }
+
 
     private fun draw(line: RouteLine) {
         route = line
@@ -281,9 +336,22 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
             }
         }
 
-        /** [kind]: "script" (Google's script did not come), "tiles" (no pictures yet) or "page" (an error, [detail]). */
+        /** Google's 3D map is made ([ok]), or cannot be drawn here. */
+        @JavascriptInterface
+        fun on3d(ok: Boolean) {
+            main.post { threeD = ok }
+        }
+
+        /**
+         * [kind]: "script" (Google's script did not come), "tiles" (no pictures yet), "3d" (no 3D
+         * map here, [detail]) or "page" (an error, [detail]).
+         */
         @JavascriptInterface
         fun onProblem(kind: String?, detail: String?) {
+            if (kind == "3d") {
+                main.post { noThreeD = detail?.take(DETAIL_CHARS)?.takeIf { it.isNotBlank() } ?: "?" }
+                return
+            }
             val found = when (kind) {
                 "script" -> Trouble.NO_SCRIPT
                 "tiles" -> Trouble.NO_TILES
@@ -319,6 +387,10 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
 
     /** The page's own words for a [Trouble.PAGE], short; never logged. */
     var troubleDetail by mutableStateOf<String?>(null)
+        private set
+
+    /** Why there is no 3D map here (the page's own words, short), or null. */
+    var noThreeD by mutableStateOf<String?>(null)
         private set
 
     companion object {

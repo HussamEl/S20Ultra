@@ -730,19 +730,21 @@ class ScreenshotsRoboTest {
     }
 
     /**
-     * The map sign and a long press on a trip open the tablet's own map, filling the screen, and
+     * The map sign and a long press on a trip open the driver's own map, filling the screen, and
      * ask for the tablet's position (its permission, when not given yet); until the tablet knows
-     * where it is the map says it is looking, and under it why the map is not there yet. A tap
-     * brings the screen back. Google Maps is never opened from the display.
+     * where it is the map says it is looking, and under it why the map is not there yet. The map
+     * takes his touches; its buttons move it, and its × brings the screen back. Google Maps is
+     * never opened from the display.
      */
     @Test
     @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
     fun passengerDisplayMapAsksForThePosition() {
         var asked = 0
+        var map: RouteMap? = null
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         compose.setContent {
             val scope = rememberCoroutineScope()
-            val map = remember { RouteMap(context, "AIzaTestKeyForTheMapOnly", true, "#000000", scope) }
+            map = remember { RouteMap(context, "AIzaTestKeyForTheMapOnly", true, "#000000", scope) }
             NastaTheme(Appearance.DAY) {
                 PassengerDisplayScreen(
                     tabletSnapshot,
@@ -765,9 +767,21 @@ class ScreenshotsRoboTest {
         compose.onNodeWithText("Söker bilens position…").assertIsDisplayed()
         // Under it, small, why the map is not there yet.
         compose.onNodeWithTag("ref_233", useUnmergedTree = true).assert(hasText("Kartan laddas…"))
+        // The driver's buttons; the flight again (242) only once the 3D map is made.
+        for (ref in listOf(237, 238, 239, 240, 241, 243)) compose.onNodeWithTag("ref_$ref").assertIsDisplayed()
+        compose.onNodeWithTag("ref_242").assertDoesNotExist()
+        compose.onNodeWithTag("ref_237").performClick()
+        assertEquals("zoom(1)", shadowOf(map!!.view).lastEvaluatedJavascript)
+        compose.onNodeWithTag("ref_239").performClick()
+        assertEquals("toCar()", shadowOf(map!!.view).lastEvaluatedJavascript)
+        // A tap on the map is the map's own: it stays.
         compose.onRoot().performClick()
         compose.mainClock.advanceTimeBy(1_000)
+        compose.onNodeWithText("Söker bilens position…").assertIsDisplayed()
+        compose.onNodeWithTag("ref_243").performClick()
+        compose.mainClock.advanceTimeBy(1_000)
         compose.onNodeWithText("Söker bilens position…").assertDoesNotExist()
+        compose.onNodeWithTag("ref_243").assertDoesNotExist()
         compose.onNodeWithText("Hamngatan 7").performTouchInput { longClick() }
         compose.mainClock.advanceTimeBy(1_500)
         compose.onNodeWithText("Söker bilens position…").assertIsDisplayed()
@@ -847,7 +861,7 @@ class ScreenshotsRoboTest {
         compose.onNodeWithText("Pick-up 07:36").assertIsDisplayed()
         compose.onNodeWithText("Phone number:").assertIsDisplayed()
         compose.onNodeWithText("0700000001").assertIsDisplayed()
-        compose.onNodeWithText("Rullstol").assertIsDisplayed()
+        compose.onNodeWithText("Rullstol 1").assertIsDisplayed()
         compose.onNodeWithText("Hämtas/Lämnas inne").assertIsDisplayed()
         compose.onNodeWithTag("ref_235").performClick()
         compose.waitForIdle()

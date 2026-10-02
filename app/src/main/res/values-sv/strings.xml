@@ -175,6 +175,13 @@
     <string name="maps_key_label">API-nyckel för Google Maps</string>
     <string name="help_maps_key">Kartan använder din egen Google-nyckel. I Google Cloud: skapa en API-nyckel, aktivera "Maps JavaScript API" och "Routes API" och begränsa nyckeln till webbplatsen https://nastastopp.app/* . Normal användning ryms i Googles kostnadsfria månadsmängd. Kartan tar bilens position från surfplattans egen GPS (plats medan skärmen är öppen, aldrig i bakgrunden; frågas första gången kartknappen trycks). Den positionen och nästa stopp går till Google för vägen; inget sparas eller loggas.</string>
     <string name="display_show_way">Visa vägen på kartan</string>
+    <string name="display_map_close">Stäng kartan</string>
+    <string name="display_map_closer">Zooma in</string>
+    <string name="display_map_farther">Zooma ut</string>
+    <string name="display_map_car">Bilens position</string>
+    <string name="display_map_stop">Stoppets byggnad</string>
+    <string name="display_map_whole">Hela vägen</string>
+    <string name="display_map_tour">Flyg till stoppet igen</string>
     <string name="display_show_card">Visa resans kort</string>
     <string name="display_weather">Visa vädret</string>
     <string name="display_look_light">Ljus skärm</string>

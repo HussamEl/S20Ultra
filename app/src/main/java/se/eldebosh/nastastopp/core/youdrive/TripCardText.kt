@@ -11,8 +11,9 @@ import se.eldebosh.nastastopp.core.parse.TripTimes
  * Type(s), Mobility Aids, Fare amount, Compensation, Eligibility, Instructions.
  *
  * Every word of the card is kept, as written; only the page's own controls ("Arrive", "27 min")
- * are left out. The trip's codes are written out as YouDrive's details write them ("RU1" →
- * "Rullstol"); a code not known yet stays as it is.
+ * are left out. The trip's codes are written out as YouDrive's details write them, with their
+ * number, which counts them ("RU1" → "Rullstol 1": one wheelchair); a code not known yet stays as
+ * it is.
  */
 data class TripCardText(
     val title: String?,
@@ -78,7 +79,7 @@ data class TripCardText(
                 when {
                     eligibility == null && !paid && space.isEmpty() && isPhone(line) -> phones += line
                     eligibility == null && !paid && space.isEmpty() && aids.isEmpty() && isCodes(line) ->
-                        codes(line).forEach { c -> AID_CODES[c]?.let { aids += it } ?: space.add(SPACE_CODES[c] ?: c) }
+                        codes(line).forEach { c -> aid(c)?.let { aids += it } ?: space.add(spaceType(c) ?: c) }
                     folded.startsWith("client fee") -> fare = line.substring("client fee".length).trim()
                     folded.startsWith("compensation") -> compensation = line.substring("compensation".length).trim()
                     eligibility == null && line in ELIGIBILITIES -> eligibility = line
@@ -122,10 +123,21 @@ data class TripCardText(
 
         private fun codes(line: String): List<String> = line.split(',').map { it.trim() }.filter { it.isNotEmpty() }
 
+        /** A code's meaning with its count ("RU1" → "Rullstol 1"), or null when it is not one of [table]'s. */
+        private fun written(code: String, table: Map<String, String>): String? {
+            val letters = code.trimEnd { it.isDigit() }
+            val meaning = table[letters] ?: return null
+            return listOf(meaning, code.substring(letters.length)).filter { it.isNotEmpty() }.joinToString(" ")
+        }
+
+        private fun spaceType(code: String): String? = written(code, SPACE_CODES)
+
+        private fun aid(code: String): String? = written(code, AID_CODES)
+
         private val ICON = Regex("""^[a-z_]+$""")
         private val MINUTES_LEFT = Regex("""^-?\d+\s*min$""", RegexOption.IGNORE_CASE)
         private val PHONE_ONLY = Regex("""^\+?[\d \-]+$""")
-        private val CODE = Regex("""^[A-ZÅÄÖ]{2,4}\d?$""")
+        private val CODE = Regex("""^[A-ZÅÄÖ]{2,4}\d{0,2}$""")
 
         /** Folded statuses a card shows under its kind. */
         private val STATUSES = setOf("performed", "departed", "arrived", "noshow", "cancelled", "canceled", "utford", "avgatt", "ankommen")
@@ -136,13 +148,13 @@ data class TripCardText(
         /** Who pays for the trip (färdtjänst, sjukresa). */
         private val ELIGIBILITIES = setOf("FTJ", "SJU", "SJR", "RFT", "RFTJ")
 
-        /** The trip's codes as YouDrive's details write them: where the passenger sits … */
+        /** The trip's codes as YouDrive's details write them, without their count: where the passenger sits … */
         private val SPACE_CODES = mapOf(
-            "SP1" to "Sittande passagerare",
-            "FRA1" to "Fram",
-            "ROL1" to "Rollator fällbar",
-            "RU1" to "Rullstol",
-            "TRP1" to "Transportrullstol",
+            "SP" to "Sittande passagerare",
+            "FRA" to "Fram",
+            "ROL" to "Rollator fällbar",
+            "RU" to "Rullstol",
+            "TRP" to "Transportrullstol",
         )
 
         /** … and the help they get. */
