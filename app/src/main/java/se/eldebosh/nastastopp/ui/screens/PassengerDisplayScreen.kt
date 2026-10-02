@@ -26,6 +26,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.isSpecified
 import se.eldebosh.nastastopp.core.geo.GeoLogic
+import se.eldebosh.nastastopp.core.youdrive.TripCardText
 import se.eldebosh.nastastopp.core.nav.MapWay
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.input.pointer.pointerInput
@@ -295,10 +296,11 @@ fun PassengerDisplayScreen(
     }
     // Where the map sign is: the map grows out of it.
     var pinAt by remember { mutableStateOf(Offset.Unspecified) }
-    // The trip whose YouDrive card is open (234), over everything until a tap; nothing comes over it.
-    var cardOf by remember { mutableStateOf<DisplayItem?>(null) }
-    LaunchedEffect(cardOf != null) {
-        if (cardOf != null) moments.settle()
+    // The trip whose YouDrive card is open (235, from its person figure), over everything until a
+    // tap; nothing comes over it.
+    var openCard by remember { mutableStateOf<DisplayItem?>(null) }
+    LaunchedEffect(openCard != null) {
+        if (openCard != null) moments.settle()
     }
     LaunchedEffect(moments.holding) { if (!moments.holding) routeMap?.unfocus() }
     // The trip shown at the top (the next stop, or one paged to): reported by the stage with the
@@ -341,7 +343,7 @@ fun PassengerDisplayScreen(
     LaunchedEffect(live?.current?.trip) { browse.open = false }
     val away = tripShown != null && tripShown.trip != live?.current?.trip
     // Busy: the minute's moments wait (two clocks never move at once).
-    val busy = cardOf != null || focus || browse.open || away
+    val busy = openCard != null || focus || browse.open || away
     LaunchedEffect(busy) { moments.paused = busy }
     val lineHidden = focus || browse.open
     val line by animateFloatAsState(if (lineHidden) 0f else 1f, tween(if (lineHidden) CLOCK_FADE_MS else CLOCK_BACK_MS), label = "line")
@@ -422,7 +424,6 @@ fun PassengerDisplayScreen(
                         // The way to the next stop: the display's map, or Google Maps on its address.
                         onMap = live?.current?.let { next -> showWay?.let { { it(next, true) } } },
                         onMapPlaced = { pinAt = it },
-                        onCard = tripShown?.takeIf { it.card != null }?.let { shown -> { cardOf = shown } },
                         weather = live?.weather,
                         hasWeather = live?.weather != null || weatherWidget != null,
                         onWeather = { moments.playInfo(Moments.Info.WEATHER) },
@@ -481,6 +482,7 @@ fun PassengerDisplayScreen(
                 onFocusBottom = { heroBottom = it },
                 lineBack = { moments.lineBack },
                 // The passenger's last name, tapped: said here and shown large.
+                onCard = { openCard = it },
                 onName = { name ->
                     onSay(Announcements.passenger(name))
                     moments.playInfo(Moments.Info.NAME)
@@ -588,13 +590,13 @@ fun PassengerDisplayScreen(
         }
         // The trip's YouDrive card, for the driver: over everything until a tap, never said.
         var lastCard by remember { mutableStateOf<DisplayItem?>(null) }
-        if (cardOf != null) lastCard = cardOf
+        if (openCard != null) lastCard = openCard
         AnimatedVisibility(
-            cardOf != null,
+            openCard != null,
             enter = fadeIn(tween(CARD_IN_MS)) + scaleIn(tween(CARD_IN_MS, easing = FastOutSlowInEasing), initialScale = 0.94f),
             exit = fadeOut(tween(CARD_OUT_MS)),
         ) {
-            lastCard?.let { TripCard(it, landscape, onClose = { cardOf = null }) }
+            lastCard?.let { TripCard(it, landscape, onClose = { openCard = null }) }
         }
     }
     }
@@ -1164,6 +1166,7 @@ private fun Stage(
     showWay: ((DisplayItem, Boolean) -> Unit)?,
     onShown: (next: DisplayItem, shown: DisplayItem, tapped: Boolean) -> Unit,
     onFocusBottom: (Float) -> Unit,
+    onCard: (DisplayItem) -> Unit,
     onName: (String) -> Unit,
     lineBack: () -> Float,
     modifier: Modifier = Modifier,
@@ -1309,6 +1312,7 @@ private fun Stage(
                             onLongClick = showWay?.let { { it(item, index == home) } },
                             onBottom = if (focused) onFocusBottom else null,
                             onName = item.lastName?.let { name -> { onName(name) } },
+                            onCard = item.card?.let { { onCard(item) } },
                             modifier = Modifier.fillMaxSize(),
                         )
                     }
@@ -1331,6 +1335,7 @@ private fun Stage(
                                     tapped = spot == home,
                                     onClick = { showCard(home) },
                                     onLongClick = showWay?.let { { it(then, false) } },
+                                    onCard = then.card?.let { { onCard(then) } },
                                     shared = shared,
                                     modifier = Modifier.ref(94).then(swipe),
                                 )
@@ -1344,6 +1349,7 @@ private fun Stage(
                                     tapped = spot == home + 1,
                                     onClick = { showCard(home + 1) },
                                     onLongClick = showWay?.let { { it(after, false) } },
+                                    onCard = after.card?.let { { onCard(after) } },
                                     shared = shared,
                                     modifier = Modifier.ref(229).then(swipe),
                                 )
@@ -1368,6 +1374,7 @@ private fun Stage(
                         middle = if (following) middle else home,
                         onPick = pick,
                         onLongPick = showWay?.let { { p: Int -> it(pageItem(p), p == home) } },
+                        onCard = onCard,
                     )
                 }
                 // The dots saying which trip the top shows: small, floating at the very bottom.
@@ -1538,8 +1545,8 @@ private fun TripTime(item: DisplayItem?, size: TextUnit, landscape: Boolean, mar
 
 /**
  * The top line, in the top-right corner, small and quiet (it is for the driver): the connection (a
- * dot and the phone's name; a tap offers to close the display, [onExit]), the card sign ([onCard]:
- * the shown trip's YouDrive card), the map sign ([onMap]: the way to the next stop), the weather sign, which brings the weather up, and the look sign
+ * dot and the phone's name; a tap offers to close the display, [onExit]), the map sign ([onMap]:
+ * the way to the next stop), the weather sign, which brings the weather up, and the look sign
  * ([onToggleLook]: black or light). Each is only its picture, with no frame. On the driver's own
  * device there is no connection: the system's Back closes the display.
  */
@@ -1551,7 +1558,6 @@ private fun TopLine(
     onExit: () -> Unit,
     onMap: (() -> Unit)?,
     onMapPlaced: (Offset) -> Unit,
-    onCard: (() -> Unit)?,
     weather: DisplayWeather?,
     hasWeather: Boolean,
     onWeather: () -> Unit,
@@ -1597,7 +1603,6 @@ private fun TopLine(
                 }
             }
         }
-        if (onCard != null) CardSign(onCard, enabled)
         if (onMap != null) MapSign(onMap, enabled, onMapPlaced)
         if (hasWeather) WeatherSign(weather, onWeather, enabled)
         if (onToggleLook != null) {
@@ -1664,6 +1669,7 @@ private fun StopHero(
     onLongClick: (() -> Unit)? = null,
     onBottom: ((Float) -> Unit)? = null,
     onName: (() -> Unit)? = null,
+    onCard: (() -> Unit)? = null,
 ) {
     val next = role == HeroRole.NEXT
     var bottom by remember { mutableFloatStateOf(0f) }
@@ -1739,11 +1745,12 @@ private fun StopHero(
                         modifier = Modifier.ref(92).entering(area, shine),
                     )
                 }
-                // The passenger getting on or off here (the next stop only), hidden behind a small
-                // outlined figure: a tap on it shows the last name beside it for a while, a tap on
-                // the name says it and shows it large. It steps aside while the stop is focused.
-                val name = current.lastName
-                if (name != null && onName != null) {
+                // The passenger getting on or off here, behind a small outlined figure: a tap on it
+                // opens the trip's YouDrive card ([onCard]); without a card, on the next stop, it
+                // shows the last name beside it for a while, and a tap on the name says it and shows
+                // it large. It steps aside while the stop is focused.
+                val name = current.lastName?.takeIf { onName != null }
+                if (onCard != null || name != null) {
                     val nameShown by animateFloatAsState(if (focused) 0f else 1f, tween(CLOCK_FADE_MS), label = "name")
                     val nameSp = if (landscape) NAME_LINE_SP else NAME_LINE_SP_NARROW
                     var open by remember(current.trip) { mutableStateOf(false) }
@@ -1761,14 +1768,18 @@ private fun StopHero(
                         Box(
                             contentAlignment = Alignment.Center,
                             modifier = Modifier
-                                .ref(231, centered = true)
+                                .ref(if (next) 231 else 234, centered = true)
                                 .size(TouchTarget)
                                 .clip(CircleShape)
-                                .clickable(enabled = !focused, onClickLabel = stringResource(R.string.display_show_name), role = Role.Button) { open = !open },
+                                .clickable(
+                                    enabled = !focused,
+                                    onClickLabel = stringResource(if (onCard != null) R.string.display_show_card else R.string.display_show_name),
+                                    role = Role.Button,
+                                ) { if (onCard != null) onCard() else open = !open },
                         ) {
                             PersonGlyph(AppTheme.colors.highlight, Modifier.size(with(LocalDensity.current) { (nameSp * PERSON_SIZE).toDp() }))
                         }
-                        AnimatedVisibility(
+                        if (name != null) AnimatedVisibility(
                             open,
                             enter = fadeIn(tween(NAME_IN_MS)) + expandHorizontally(tween(NAME_IN_MS, easing = FastOutSlowInEasing), expandFrom = Alignment.Start),
                             exit = fadeOut(tween(NAME_OUT_MS)) + shrinkHorizontally(tween(NAME_OUT_MS), shrinkTowards = Alignment.Start),
@@ -1785,7 +1796,7 @@ private fun StopHero(
                                 modifier = Modifier
                                     .ref(236)
                                     .clip(RoundedCornerShape(14.dp))
-                                    .clickable(enabled = !focused, onClickLabel = stringResource(R.string.display_say_name), role = Role.Button, onClick = onName)
+                                    .clickable(enabled = !focused, onClickLabel = stringResource(R.string.display_say_name), role = Role.Button, onClick = { onName?.invoke() })
                                     .padding(horizontal = 8.dp, vertical = 4.dp),
                             )
                         }
@@ -1908,6 +1919,7 @@ private fun ThenChip(
     shared: SharedStop,
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
+    onCard: (() -> Unit)? = null,
 ) {
     val size = if (landscape) THEN_SP else THEN_SP_NARROW
     val swell by animateFloatAsState(if (tapped) CARD_TAP_SWELL else 1f, spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessMediumLow), label = "swell")
@@ -1957,8 +1969,25 @@ private fun ThenChip(
                     style = TextStyle(textDirection = TextDirection.Content),
                     modifier = Modifier.widthIn(max = streetWidth),
                 )
+                // The passenger's figure: a tap opens the trip's YouDrive card.
+                if (onCard != null) PersonSign(onCard, size, AppTheme.colors.textMuted, box = SMALL_TOUCH)
             }
         }
+    }
+}
+
+/** The small outlined figure (234) beside a trip: a tap opens the trip's YouDrive card. */
+@Composable
+private fun PersonSign(onClick: () -> Unit, textSize: TextUnit, color: Color, box: Dp = TouchTarget) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .ref(234, centered = true)
+            .size(box)
+            .clip(CircleShape)
+            .clickable(onClickLabel = stringResource(R.string.display_show_card), role = Role.Button, onClick = onClick),
+    ) {
+        PersonGlyph(color, Modifier.size(with(LocalDensity.current) { (textSize * PERSON_SIZE * 1.6f).toDp() }))
     }
 }
 
@@ -1981,6 +2010,7 @@ private fun TripStrip(
     middle: Int?,
     onPick: (Int) -> Unit,
     onLongPick: ((Int) -> Unit)?,
+    onCard: (DisplayItem) -> Unit,
 ) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val width = maxWidth * if (landscape) STRIP_TRIP_SHARE else STRIP_TRIP_SHARE_NARROW
@@ -2005,6 +2035,7 @@ private fun TripStrip(
                     lit = p == middle,
                     onClick = { onPick(p) },
                     onLongClick = onLongPick?.let { { it(p) } },
+                    onCard = item(p).card?.let { { onCard(item(p)) } },
                     modifier = Modifier.ref(226).width(width),
                 )
             }
@@ -2023,6 +2054,7 @@ private fun StripTrip(
     onClick: () -> Unit,
     onLongClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
+    onCard: (() -> Unit)? = null,
 ) {
     val description = stringResource(R.string.display_say_trip)
     val grow by animateFloatAsState(if (lit) STRIP_LIT_SCALE else 1f, spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessMediumLow), label = "lit")
@@ -2062,6 +2094,8 @@ private fun StripTrip(
                 Spacer(Modifier.width(8.dp))
                 DoneMarks(youDrive = item.doneInYouDrive, here = item.doneHere, size = 12.dp)
             }
+            // The passenger's figure: a tap opens the trip's YouDrive card.
+            if (onCard != null) PersonSign(onCard, STRIP_TIME_SP, AppTheme.colors.textMuted, box = SMALL_TOUCH)
         }
         Text(
             item.title,
@@ -2383,23 +2417,20 @@ private fun Modifier.breathe(rest: Float, scale: () -> Float): Modifier = layout
     }
 }
 
-/** The shown trip's YouDrive card (235), for the driver: a small card picture, with no frame. */
-@Composable
-private fun CardSign(onClick: () -> Unit, enabled: Boolean) {
-    val description = stringResource(R.string.display_show_card)
-    IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.refCorner(234).size(TouchTarget)) {
-        Icon(painterResource(R.drawable.ic_card), contentDescription = description, tint = AppTheme.colors.textMuted, modifier = Modifier.size(TOP_ICON))
-    }
-}
-
 /**
- * A trip's whole YouDrive card, as written, for the driver ([CardSign] opens it): large, over
- * everything, until a tap; long cards scroll. Never said. Numbers in [DigitFont], words in [DisplayFont].
+ * A trip's whole YouDrive card (235), laid out as YouDrive's own details window shows it
+ * ([TripCardText]): the kind and time on top, the name, the times, the kind and status, then a
+ * row per field, label and value, in YouDrive's order. Over everything, for the driver, until a
+ * tap; a long card scrolls. Never said. Numbers in [DigitFont], words in [DisplayFont].
  */
 @Composable
 private fun TripCard(item: DisplayItem, landscape: Boolean, onClose: () -> Unit) {
-    val digits = AppTheme.colors.highlight
-    val text = remember(item.card, digits) { withDigitFont(item.card.orEmpty()) }
+    val card = remember(item.card) { TripCardText.of(item.card.orEmpty()) }
+    val text = AppTheme.colors.text
+    val muted = AppTheme.colors.textMuted
+    val line = AppTheme.colors.outline
+    val big = if (landscape) CARD_SP else CARD_SP_NARROW
+    val words = TextStyle(fontFamily = DisplayFont, color = text, fontSize = big, lineHeight = 1.25.em, textDirection = TextDirection.Content)
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
@@ -2408,21 +2439,49 @@ private fun TripCard(item: DisplayItem, landscape: Boolean, onClose: () -> Unit)
             .pointerInput(Unit) { detectTapGestures { onClose() } }
             .ref(235),
     ) {
-        Text(
-            text,
-            fontFamily = DisplayFont,
-            fontWeight = FontWeight.Medium,
-            fontSize = if (landscape) CARD_SP else CARD_SP_NARROW,
-            color = AppTheme.colors.text,
-            style = TextStyle(textDirection = TextDirection.Content, lineHeight = 1.25.em),
-            modifier = Modifier
+        Column(
+            Modifier
                 .fillMaxWidth(if (landscape) CARD_WIDTH else CARD_WIDTH_NARROW)
-                .clip(RoundedCornerShape(28.dp))
+                .clip(RoundedCornerShape(24.dp))
                 .background(AppTheme.colors.card)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 32.dp, vertical = 24.dp),
-        )
+                .padding(horizontal = 28.dp, vertical = 20.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(withDigitFont(card.title.orEmpty()), style = words.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.weight(1f))
+                Icon(painterResource(R.drawable.ic_close), contentDescription = null, tint = muted, modifier = Modifier.size(with(LocalDensity.current) { big.toDp() }))
+            }
+            CardRule(line)
+            card.name?.let { Text(it, style = words.copy(fontSize = big * 1.15f, fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(top = 4.dp)) }
+            card.estimated?.let { Text(withDigitFont("Estimated time $it"), style = words.copy(color = muted)) }
+            card.negotiated?.let { Text(withDigitFont("Client's negotiated time: $it"), style = words.copy(color = muted)) }
+            if (card.kind != null || card.status != null) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
+                    card.kind?.let { Text(it, style = words.copy(fontWeight = FontWeight.Bold)) }
+                    card.status?.let {
+                        Spacer(Modifier.width(16.dp))
+                        Text(it, style = words.copy(color = AppTheme.colors.success, fontWeight = FontWeight.SemiBold))
+                    }
+                }
+            }
+            for (row in card.rows) {
+                CardRule(line)
+                Row(Modifier.padding(vertical = 6.dp)) {
+                    if (row.label != null) {
+                        Text("${row.label}:", style = words.copy(color = muted), modifier = Modifier.weight(CARD_LABEL_SHARE))
+                        Spacer(Modifier.width(16.dp))
+                    }
+                    Text(withDigitFont(row.value), style = words, modifier = Modifier.weight(1f))
+                }
+            }
+        }
     }
+}
+
+/** A thin line between a card's parts. */
+@Composable
+private fun CardRule(color: Color) {
+    Box(Modifier.padding(vertical = 8.dp).fillMaxWidth().height(1.dp).background(color))
 }
 
 /** [text] with every run of digits in [DigitFont] (the display's figures). */
@@ -2690,10 +2749,14 @@ private const val MAP_HOLD_MS = 7_600L
 private const val FOCUS_MAX_MS = 120_000L
 
 /** A trip's card: its text size (a tablet, a phone), its share of the width, the ground over the screen behind it, in and out. */
-private val CARD_SP = 34.sp
-private val CARD_SP_NARROW = 22.sp
+private val CARD_SP = 28.sp
+private val CARD_SP_NARROW = 18.sp
 private const val CARD_WIDTH = 0.72f
 private const val CARD_WIDTH_NARROW = 0.94f
+private const val CARD_LABEL_SHARE = 0.42f
+
+/** A figure's touch room beside a small trip (the bottom line, the strip). */
+private val SMALL_TOUCH = 36.dp
 private const val CARD_SCRIM = 0.9f
 private const val CARD_IN_MS = 260
 private const val CARD_OUT_MS = 180

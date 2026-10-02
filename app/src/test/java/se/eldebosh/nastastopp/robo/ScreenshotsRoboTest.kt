@@ -819,15 +819,20 @@ class ScreenshotsRoboTest {
     }
 
     /**
-     * The card sign opens the shown trip's whole YouDrive card, for the driver, over everything until a
-     * tap; nothing of it is said. A trip without a card has no sign.
+     * The person figure under the next stop opens its whole YouDrive card, laid out as YouDrive's
+     * details window, over everything until a tap; nothing of it is said. A coming trip with a card
+     * has its own figure; the top line has no card sign.
      */
     @Test
     @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
     fun passengerDisplayShowsTheTripCardOnTap() {
         val said = mutableListOf<String>()
-        val card = "07:36\nPick-up\nAnna Maria Testsson\nVÄSTRA TORGGATAN 12, 65224 KARLSTAD\n0700000001\nRU1\nportkod 1234\nCompensation 84.92 KR"
-        val snapshot = tabletSnapshot.copy(current = tabletSnapshot.current!!.copy(card = card))
+        val card = "07:36\nPick-up\nAnna Maria Testsson\nVÄSTRA TORGGATAN 12, 65224 KARLSTAD\n0700000001\nHLI, RU1\nClient fee 0 KR\nCompensation 84.92 KR\nFTJ\nportkod 1234"
+        val then = "08:00\nDrop-off\nAnna Maria Testsson\nHamngatan 7, 66330 Skoghall\nRU1\nCompensation 12.00 KR\nFTJ"
+        val snapshot = tabletSnapshot.copy(
+            current = tabletSnapshot.current!!.copy(card = card),
+            upcoming = listOf(tabletSnapshot.upcoming.first().copy(card = then)) + tabletSnapshot.upcoming.drop(1),
+        )
         compose.setContent {
             NastaTheme(Appearance.DAY) {
                 PassengerDisplayScreen(snapshot, status = "Galaxy S20", connected = true, onSpeak = {}, onExit = {}, onSay = { said += it.swedish }, time = { LocalTime.of(8, 11, 5) })
@@ -835,21 +840,31 @@ class ScreenshotsRoboTest {
         }
         compose.waitForIdle()
         compose.onNodeWithTag("ref_235").assertDoesNotExist()
-        compose.onNodeWithTag("ref_234", useUnmergedTree = true).performClick()
+        compose.onNodeWithTag("ref_231", useUnmergedTree = true).performClick()
         compose.waitForIdle()
         save("display_trip_card", compose.onRoot().captureToImage().asAndroidBitmap())
         compose.onNodeWithTag("ref_235").assertIsDisplayed()
-        compose.onNodeWithText("0700000001", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Pick-up 07:36").assertIsDisplayed()
+        compose.onNodeWithText("Phone number:").assertIsDisplayed()
+        compose.onNodeWithText("0700000001").assertIsDisplayed()
+        compose.onNodeWithText("Rullstol").assertIsDisplayed()
+        compose.onNodeWithText("Hämtas/Lämnas inne").assertIsDisplayed()
         compose.onNodeWithTag("ref_235").performClick()
         compose.waitForIdle()
         compose.onNodeWithTag("ref_235").assertDoesNotExist()
+        // "Därefter"'s own figure opens its card.
+        compose.onAllNodesWithTag("ref_234", useUnmergedTree = true).onFirst().performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("Drop-off 08:00").assertIsDisplayed()
+        compose.onNodeWithTag("ref_235").performClick()
+        compose.waitForIdle()
         assertTrue("nothing said: $said", said.isEmpty())
     }
 
-    /** A trip without a YouDrive card (a screenshot, a stop typed by hand) has no card sign. */
+    /** A trip without a YouDrive card (a screenshot, a stop typed by hand) has no figure of its own. */
     @Test
     @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
-    fun passengerDisplayHasNoCardSignWithoutACard() {
+    fun passengerDisplayHasNoFigureWithoutACard() {
         compose.setContent {
             NastaTheme(Appearance.DAY) {
                 PassengerDisplayScreen(tabletSnapshot, status = "Galaxy S20", connected = true, onSpeak = {}, onExit = {}, time = { LocalTime.of(8, 11, 5) })
