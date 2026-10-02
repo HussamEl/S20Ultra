@@ -45,21 +45,30 @@ object Places {
         if (at < 0) return null
         val care = tokens[at].trimEnd(',', '.')
         val before = tokens.getOrNull(at - 1)?.trimEnd(',', '.')
-        val named = before?.takeIf { b ->
+        val named = before?.takeIf { b -> !isEntrance(b) }?.takeIf { b ->
             isLocality(b) || (b.endsWith("s") && isLocality(b.dropLast(1))) ||
                 (b.first().isUpperCase() && b.all { it.isLetter() || it == '-' } && TREATMENT_WORDS.none { TextNorm.fold(b).contains(it) })
         }
         return listOfNotNull(named, care).joinToString(" ")
     }
 
-    /** The entrance written with the place ("huvudentrén", "entré 3"), lower case, or null. */
-    fun entrance(place: String?): String? {
-        val tokens = place?.trim()?.split(' ')?.filter { it.isNotEmpty() } ?: return null
-        val at = tokens.indexOfFirst { t -> ENTRANCE_WORDS.any { TextNorm.fold(t).trimEnd(',', '.').endsWith(it) } }
-        if (at < 0) return null
-        val number = tokens.getOrNull(at + 1)?.trimEnd(',', '.')?.takeIf { it.all(Char::isDigit) }
-        return listOfNotNull(tokens[at].trimEnd(',', '.'), number).joinToString(" ").lowercase(TextNorm.SWEDISH)
+    /**
+     * The entrances written with the place, as written: every word that names an entrance
+     * ("Huvudentrén", "Dialysentrén", "Entré 3", "Ingång B"). An entrance is a door, never a
+     * department, so it goes with the place's name wherever the name is written or said.
+     */
+    fun entrances(place: String?): List<String> {
+        val tokens = place?.trim()?.split(' ')?.filter { it.isNotEmpty() } ?: return emptyList()
+        return tokens.indices.filter { isEntrance(tokens[it]) }.map { i ->
+            val number = tokens.getOrNull(i + 1)?.trimEnd(',', '.')?.takeIf { it.isNotEmpty() && it.length <= 2 && (it.all(Char::isDigit) || it.all(Char::isUpperCase)) }
+            listOfNotNull(tokens[i].trimEnd(',', '.'), number).joinToString(" ")
+        }
     }
+
+    /** The entrances as said ("huvudentrén", "dialysentrén"), lower case, or null. */
+    fun entrance(place: String?): String? = entrances(place).joinToString(", ").lowercase(TextNorm.SWEDISH).ifEmpty { null }
+
+    private fun isEntrance(word: String): Boolean = TextNorm.fold(word).trimEnd(',', '.').let { w -> ENTRANCE_WORDS.any { w.endsWith(it) } }
 
     /**
      * How a place of care is said: "Centralsjukhuset, huvudentrén" (a well-known place by its
@@ -70,9 +79,14 @@ object Places {
         return listOfNotNull(name, entrance(place)).joinToString(", ")
     }
 
-    /** How a place of care is written on the passenger display: the short name of a well-known one. */
-    fun displayName(place: String?, isLocality: (String) -> Boolean): String? =
-        if (publicName(place, isLocality) == null) null else known(place)?.short ?: publicName(place, isLocality)
+    /**
+     * How a place of care is written on the passenger display: a well-known one by its short name,
+     * with its entrances as written ("C-Sjukhuset Dialysentrén").
+     */
+    fun displayName(place: String?, isLocality: (String) -> Boolean): String? {
+        val name = publicName(place, isLocality) ?: return null
+        return (listOf(known(place)?.short ?: name) + entrances(place)).joinToString(" ")
+    }
 
     private fun words(text: String): List<String> = TextNorm.fold(text).split(' ', ',', '.').filter { it.isNotEmpty() }
 

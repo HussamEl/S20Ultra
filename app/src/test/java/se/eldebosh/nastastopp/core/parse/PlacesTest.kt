@@ -34,7 +34,8 @@ class PlacesTest {
 
     @Test
     fun theHospitalIsWrittenShortAndSaidInFull() {
-        assertEquals("C-Sjukhuset", Places.displayName("Centralsjukhuset Huvudentrén", isLocality))
+        assertEquals("C-Sjukhuset Huvudentrén", Places.displayName("Centralsjukhuset Huvudentrén", isLocality))
+        assertEquals("C-Sjukhuset", Places.displayName("Centralsjukhuset Karlstad", isLocality))
         assertEquals("Centralsjukhuset, huvudentrén", Places.spokenName("Centralsjukhuset Huvudentrén", isLocality))
         assertEquals("Karlstad", Places.known("Centralsjukhuset Huvudentrén")?.town)
         assertEquals("Centralsjukhuset, Karlstad", Places.known("CENTRALSJUKHUSET")?.candidate)
@@ -46,6 +47,15 @@ class PlacesTest {
         assertEquals("C-Sjukhuset Karlstad", Places.written("Centralsjukhuset Karlstad"))
         assertEquals("C-Sjukhuset huvudentrén, Karlstad", Places.written("CENTRALSJUKHUSET huvudentrén, Karlstad"))
         assertEquals("Storgatan 14, Karlstad", Places.written("Storgatan 14, Karlstad"))
+    }
+
+    /** An entrance is a door, not a department: written and said with the place, as written. */
+    @Test
+    fun everyEntranceGoesWithThePlace() {
+        assertEquals("C-Sjukhuset Dialysentrén", Places.displayName("Centralsjukhuset Dialysentrén", isLocality))
+        assertEquals("Centralsjukhuset, dialysentrén", Places.spokenName("Centralsjukhuset Dialysentrén", isLocality))
+        assertEquals("C-Sjukhuset Dialysentrén", Places.displayName("Dialysentrén Centralsjukhuset", isLocality))
+        assertEquals("Arvika Sjukhus Entré 3", Places.displayName("Arvika Sjukhus Entré 3", isLocality))
     }
 
     @Test

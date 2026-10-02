@@ -331,7 +331,7 @@ class RouteControllerRoboTest {
         assertEquals("Nästa stopp: Strandvägen 3, Kil. Därefter: Centralsjukhuset, huvudentrén.", tts.lastSpokenText)
         val display = c.display.value
         assertEquals("Strandvägen 3", display.current?.title)
-        assertEquals(listOf("C-Sjukhuset", "Provby Vårdcentral"), display.upcoming.map { it.title })
+        assertEquals(listOf("C-Sjukhuset Huvudentrén", "Provby Vårdcentral"), display.upcoming.map { it.title })
         assertEquals("Centralsjukhuset, huvudentrén", display.upcoming.first().said)
         // Shown and sent: never the home's name (only its YouDrive card, which the driver opens, has it).
         val shown = (listOfNotNull(display.current) + display.earlier + display.upcoming).flatMap { listOfNotNull(it.title, it.subtitle, it.said, it.place) }

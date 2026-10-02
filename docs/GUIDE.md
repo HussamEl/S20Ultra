@@ -220,7 +220,7 @@
 | `nav/MapsEta.kt` | قراءة الدقائق المتبقية والمسافة من نصوص إشعار Google Maps (سويدي، إنجليزي، عربي، أو وقت الوصول)، و`DisplayEta`. الأرقام فقط. |
 | `youdrive/TripWatch.kt` | مقارنة قراءات YouDrive. |
 | `youdrive/YouDriveCards.kt` | قراءة بطاقات YouDrive واحدة واحدة، مع المكان المكتوب قبل الشارع. |
-| `core/parse/Places.kt` | الأماكن المسمّاة في العنوان: مكان الرعاية (مشفى، مركز صحي، رعاية أسنان) يُعرض للركاب ويُقال باسمه فقط (`publicName`، بلا قسم أو علاج)؛ أي مكان آخر (دار رعاية، سكن قصير…) لا يُعرض ولا يُقال أبداً. `KNOWN`: Centralsjukhuset يُكتب «C-Sjukhuset» ويُقال «Centralsjukhuset, huvudentrén, Karlstad». `written`: حيث كُتب «Centralsjukhuset» على أي شاشة يُكتب «C-Sjukhuset» (لا في نص بطاقة الرحلة). |
+| `core/parse/Places.kt` | الأماكن المسمّاة في العنوان: مكان الرعاية (مشفى، مركز صحي، رعاية أسنان) يُعرض للركاب ويُقال باسمه فقط (`publicName`، بلا قسم أو علاج)؛ أي مكان آخر (دار رعاية، سكن قصير…) لا يُعرض ولا يُقال أبداً. `KNOWN`: Centralsjukhuset يُكتب «C-Sjukhuset» ويُقال «Centralsjukhuset, …, Karlstad». `entrances`: كل كلمة مدخل (تنتهي بـ entrén/entré أو ingång، مع رقم أو حرف بعدها إن وُجد) باب لا قسم، فتُكتب مع اسم المكان كما هي («C-Sjukhuset Dialysentrén»، «C-Sjukhuset Huvudentrén») وتُنطق بعده («Centralsjukhuset, dialysentrén, Karlstad»). `written`: حيث كُتب «Centralsjukhuset» على أي شاشة يُكتب «C-Sjukhuset» (لا في نص بطاقة الرحلة). |
 | `route/PlaceMemory.kt` | المدينة التي أضافها السائق لمكان بلا رقم بيت، تأتي معه المرة القادمة. |
 | `youdrive/AutoSignIn.kt` | متى يُضغط Login تلقائياً، و`SignInScript`. |
 | `youdrive/BrowserIdentity.kt` | هوية كروم للصفحة. |
