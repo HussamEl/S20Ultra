@@ -13,6 +13,8 @@ package se.eldebosh.nastastopp.core.parse
  * @property time scheduled time of the trip as shown in the screenshot ("12:48"), or null.
  * @property kind pick-up / drop-off / depot, from the list's label next to the trip, or null.
  * @property name the passenger's first and last name from the line above the address, or null.
+ * @property place the named place written with the address on a YouDrive card ("Kils
+ *   Vårdcentral", "Centralsjukhuset Huvudentrén"), or null; see [Places].
  */
 data class ExtractedStop(
     val displayText: String,
@@ -26,6 +28,7 @@ data class ExtractedStop(
     val name: String? = null,
     /** YouDrive's card says the trip is done ("Performed"). */
     val youDriveDone: Boolean = false,
+    val place: String? = null,
 )
 
 /** Which detection rule accepted the line. */

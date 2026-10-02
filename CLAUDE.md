@@ -14,6 +14,8 @@ An Android app for a Swedish shared-ride driver:
 
 ## Hard rules (never break)
 - Images are never copied or stored. Keep only addresses, times, the trip kind (the list's Pick-up / Drop-off / Pull-out label) and the passenger's **first + last name**: no middle names, phone numbers or other text.
+- An address may begin with the place YouDrive writes with it (`Stop.place`: a hospital, a health centre, a care home). The driver's screens show it. The passengers see and hear **only a place of care's own name** (`core/parse/Places`: hospital, health centre, dental care; never a department, ward or treatment), never a home's (care home, short-term housing). Centralsjukhuset is written "Sjukhuset C" and said "Centralsjukhuset, huvudentrén, Karlstad".
+- **A town is never guessed.** A place written without a town or postal code is looked for in Värmland and taken only when every answer is in one town (`GeoLogic.inOneTown`); a few well-known places know their town (`Places.KNOWN`). Otherwise the stop says "town unknown" and the driver adds it; `PlaceMemory` keeps that town for the place (only places without a house number, never a home's address or a name).
 - The first + last name is for the driver's own screens (review, route, the phone's floating panel). The passenger display gets **only the next stop's last name** (`DisplayItem.lastName`, shown under its address and said only when tapped there); never a first name or another trip's name. A name is never in an announcement, a notification or "Previous trips", and never logged (`namesStayOnTheDriversScreens` guards this).
 - The floating panel on the tablet (switch 206 there, off by default) shows only what the tablet's passenger display receives: no name, and no street bar or speed (they stay on the phone). The tablet sends back only the button pressed (`LinkMessage.Command`: Next, Back, Repeat).
 - Never log addresses or OCR text in release (use `util/DebugLog`). `allowBackup=false`.
@@ -43,6 +45,7 @@ An Android app for a Swedish shared-ride driver:
   - On the driver's tap, the panel says the current street + area (street bar) or the next stop's street + number (part 13).
   - The current street's name is also said by itself each time it changes (`geo/StreetCaller`). It is queued after any announcement. The panel's speaker (part 4) or Settings 137 switch it off.
   - **A passenger's name is never in an announcement.** A surname before the street is dropped (`RouteController.streetOf`). The passenger display says the next stop's last name only when it is tapped.
+  - A place of care is said by its name first ("Provby Vårdcentral, Strandvägen 3, Karlstad"); a care home's name is never said, only its street.
   - The passenger display may show street + number (setting 114).
   - On the passenger display there is no speaker button: a tap on the next stop's address says the announcement, a tap on a coming trip says "Klockan 8 och 05 ska vi till street number, area" (a trip done: "Klockan 7 och 30: street number, area"), and a tap on the clock says the time. On the tablet the map sign and a long press on a trip show the way on the display's own full-screen map; the display never opens Google Maps.
 - Nothing may appear on its own. Every dialog, toast, Maps launch or sound follows a driver action. The only exceptions are:

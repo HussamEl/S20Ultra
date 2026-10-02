@@ -28,6 +28,8 @@ data class DisplayItem(
     val lng: Double? = null,
     /** The passenger's last name, on the next stop only: shown under its address and said when tapped. */
     val lastName: String? = null,
+    /** How [title] is said when it differs from what is written: a place of care's full name ("Centralsjukhuset, huvudentrén" for "Sjukhuset C"). */
+    val said: String? = null,
 ) {
     /**
      * The same trip whatever its done marks or name: it keeps its place on the display when marked,

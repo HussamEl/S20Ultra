@@ -376,7 +376,7 @@ private fun CurrentCard(current: Stop, area: String, status: String) {
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    current.displayText,
+                    current.shownAddress,
                     style = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Content),
                     color = AppTheme.colors.onTrip,
                     modifier = Modifier.ref(72),
@@ -424,7 +424,7 @@ private fun UpcomingRow(index: Int, stop: Stop, area: String) {
             }
             Text("$index. $area", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.onTrip)
             Text(
-                stop.displayText,
+                stop.shownAddress,
                 style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Content),
                 color = AppTheme.colors.onTripMuted,
             )

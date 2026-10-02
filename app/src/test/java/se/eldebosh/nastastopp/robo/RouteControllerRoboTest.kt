@@ -308,6 +308,58 @@ class RouteControllerRoboTest {
         assertNull(graph.controller.route.value)
     }
 
+    /**
+     * A place of care is shown on the passenger display by its own name and said in full: the
+     * hospital written short ("Sjukhuset C") and said with its entrance and town. A care home's
+     * name is never shown or said, only its street (invented places, except the hospital).
+     */
+    @Test
+    fun placesAreShownAndSaidByTheirPublicNameOnly() {
+        val tts = readyTts()
+        val cards = listOf(
+            "08:00\nPick-up\nFrida Uppdiktad\nProvby Äldreboende Strandvägen 3, 66530 Kil\nRS\nCompensation 1 KR",
+            "08:30\nDrop-off\nFrida Uppdiktad\nCentralsjukhuset huvudentrén,\nRS\nCompensation 1 KR",
+            "09:00\nDrop-off\nErik Påhittad\nProvby Vårdcentral Skolgatan 5, 66530 Kil\nRS\nCompensation 1 KR",
+        )
+        val c = graph.controller
+        assertEquals(3, c.importTrips(YouDriveCards.toAdd(YouDriveCards.parse(cards, graph.extractor))))
+        idleUntil { c.route.value!!.stops.none { it.geoStatus == GeoStatus.PENDING } }
+        // The driver's screens show the place with the address.
+        assertEquals("Provby Äldreboende · Strandvägen 3, 665 30 Kil", c.route.value!!.stops.first().shownAddress)
+        assertTrue(c.start())
+        idle()
+        assertEquals("Nästa stopp: Strandvägen 3, Kil. Därefter: Centralsjukhuset, huvudentrén.", tts.lastSpokenText)
+        val display = c.display.value
+        assertEquals("Strandvägen 3", display.current?.title)
+        assertEquals(listOf("Sjukhuset C", "Provby Vårdcentral"), display.upcoming.map { it.title })
+        assertEquals("Centralsjukhuset, huvudentrén", display.upcoming.first().said)
+        assertFalse("passenger display", display.toString().contains("Äldreboende"))
+        c.next()
+        idle()
+        assertEquals("Nästa stopp: Centralsjukhuset, huvudentrén, Karlstad. Därefter: Provby Vårdcentral, Skolgatan 5, Kil.", tts.lastSpokenText)
+        c.end()
+    }
+
+    /** The town the driver gives a place written without one comes with it the next time. */
+    @Test
+    fun theTownGivenToAPlaceIsRemembered() {
+        val card = listOf("10:37\nDrop-off\nCecilia Maria Exempel\nSjukhuset huvudentrén,\nHLI\nCompensation 1 KR")
+        val c = graph.controller
+        assertEquals(1, c.importTrips(YouDriveCards.toAdd(YouDriveCards.parse(card, graph.extractor))))
+        val stop = c.route.value!!.stops.single()
+        assertTrue(stop.townUnknown)
+        assertNull(stop.parsedTown)
+        assertTrue(c.editText(stop.id, "Sjukhuset Huvudentrén, Karlstad", stop.time))
+        c.clear()
+        idle()
+        assertEquals(1, c.importTrips(YouDriveCards.toAdd(YouDriveCards.parse(card, graph.extractor))))
+        val again = c.route.value!!.stops.single()
+        assertEquals("Karlstad", again.parsedTown)
+        assertEquals("Sjukhuset Huvudentrén, Karlstad", again.candidates.first())
+        assertEquals("Sjukhuset Huvudentrén", again.place)
+        c.clear()
+    }
+
     @Test
     fun routeDataExpiresAfter12Hours() {
         val repo = RouteRepository(app)

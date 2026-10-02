@@ -70,4 +70,19 @@ class GeoLogicTest {
         assertEquals("Storgatan 14", GeoLogic.fullSpokenName("Storgatan 14", GeoLogic.NEXT_ADDRESS, GeoLogic.NEXT_ADDRESS))
         assertEquals(GeoLogic.NEXT_ADDRESS, GeoLogic.fullSpokenName("", null, null))
     }
+
+    private fun at(lat: Double, lng: Double, town: String?) = GeoResult(lat, lng, null, null, town, null, null)
+
+    /** A place written without a town is taken only when it is in one town in Värmland: never a guess. */
+    @Test
+    fun aPlaceWithoutATownMustBeInOneTown() {
+        val karlstad = at(59.38, 13.50, "Karlstad")
+        assertEquals(karlstad, GeoLogic.inOneTown(listOf(karlstad, at(59.39, 13.51, "Karlstad"))))
+        assertEquals(null, GeoLogic.inOneTown(listOf(karlstad, at(59.57, 13.21, "Kil"))))
+        // Outside Värmland it does not count.
+        assertEquals(karlstad, GeoLogic.inOneTown(listOf(karlstad, at(56.03, 14.15, "Kristianstad"))))
+        assertEquals(null, GeoLogic.inOneTown(listOf(at(56.03, 14.15, "Kristianstad"))))
+        assertEquals(null, GeoLogic.inOneTown(listOf(at(59.38, 13.50, null))))
+        assertEquals(null, GeoLogic.inOneTown(emptyList()))
+    }
 }

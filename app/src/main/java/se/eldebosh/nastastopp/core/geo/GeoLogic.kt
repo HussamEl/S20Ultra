@@ -33,7 +33,23 @@ object GeoLogic {
     const val SWEDEN_LAT_MAX = 69.1
     const val SWEDEN_LNG_MAX = 24.2
 
+    /** Värmland's bounding box, for a place written without a town. */
+    const val VARMLAND_LAT_MIN = 58.8
+    const val VARMLAND_LNG_MIN = 11.5
+    const val VARMLAND_LAT_MAX = 61.7
+    const val VARMLAND_LNG_MAX = 14.7
+
     const val NEXT_ADDRESS = "nästa adress"
+
+    /**
+     * For a place written without a town or postal code: the answer only when every result in
+     * Värmland is in one and the same town; otherwise null, as the town would be a guess.
+     */
+    fun inOneTown(results: List<GeoResult>): GeoResult? {
+        val inside = results.filter { it.lat in VARMLAND_LAT_MIN..VARMLAND_LAT_MAX && it.lng in VARMLAND_LNG_MIN..VARMLAND_LNG_MAX }
+        val towns = inside.map { TextNorm.fold(it.locality ?: it.subLocality ?: return null) }.distinct()
+        return if (towns.size == 1) inside.first() else null
+    }
 
     /**
      * Prefer a result whose postal code matches [parsedPostal]; else whose locality matches

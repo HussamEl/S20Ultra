@@ -1143,7 +1143,7 @@ private fun Stage(
             // The trip at the top, for the focused time.
             val inMiddle = pageItem(pager.currentPage)
             // A trip still coming says where the car is going; a trip done, its time and place.
-            val sayTrip = { item: DisplayItem, coming: Boolean -> onSay(Announcements.at(item.time, listOfNotNull(item.title, item.subtitle).joinToString(", "), coming)) }
+            val sayTrip = { item: DisplayItem, coming: Boolean -> onSay(Announcements.at(item.time, listOfNotNull(item.said ?: item.title, item.subtitle).joinToString(", "), coming)) }
             // The announcement: first the next stop, then, when its name comes, the "Därefter" trip
             // the way a tapped trip is shown.
             LaunchedEffect(cue) {

@@ -83,7 +83,7 @@
 4. **القائمة**: `RouteController.addExtracted` ← `Stop` في `RouteData`.
    - رحلة **Pull-out** ليست محطة: تُحفظ في `RouteData.depot` (نقطة الانطلاق، بطاقة رمادية)، ولا تُرسل إلى الخرائط ولا يُعلَن عنها.
    - عنوانان متتاليان متطابقان يُدمجان، إلا إذا اختلف نوعهما.
-   - ثم يبدأ تحديد المواقع في الخلفية (`Geocoding.locate`، عبر `Geocoder` النظام، مهلة 15 ثانية لكل عنوان).
+   - ثم يبدأ تحديد المواقع في الخلفية (`Geocoding.locate`، عبر `Geocoder` النظام، مهلة 15 ثانية لكل عنوان). عنوان بلا مدينة ولا رمز بريدي يُبحث عنه في Värmland وحدها، ويُقبل فقط في مدينة واحدة (`GeoLogic.inOneTown`).
 5. **المراجعة** في `ReviewScreen`: نقل، حذف (مع تراجع)، تعديل، إضافة يدوية، ترتيب حسب الوقت.
 6. **البدء** بـ `RouteController.start()`: إعلان أول محطتين، وفتح الخرائط بأول 10 محطات (`MapsLauncher` + `core/route/MapsUrlBuilder`)، وتشغيل `StreetService` إن سمح السائق بالموقع.
 7. **أثناء القيادة**:
@@ -155,6 +155,8 @@
   - **بطاقة بطاقة**: السكربت يبدأ من كلمة النوع الظاهرة ("Pick-up"…) ويصعد إلى أكبر عنصر لا يحوي كلمة نوع أخرى. ثم `YouDriveCards.parse` يقرأ كل بطاقة وحدها:
     - **الوقت** = الأول في البطاقة (المجدول)، لأن YouDrive يرتّب به. الثاني (المحجوز أو آخر موعد) يُحفظ في `WatchedTrip.booked` للمقارنة، لأنه لا يتغيّر عند إعادة الجدولة.
     - **العنوان** = أول سطر يقبله `AddressExtractor`، وإلا (مكان بلا رقم) السطر بعد اسم الراكب.
+    - **المكان** (`ExtractedStop.place` ← `Stop.place`): الكلمات قبل الشارع («Provby Vårdcentral Strandvägen 3» ← «Provby Vårdcentral»)، أو المكان كله إن لم يكن له رقم («Centralsjukhuset Huvudentrén»). في البطاقة الاسمُ في سطره، فهذه الكلمات ليست اسم الراكب أبداً. شاشات السائق تعرضه قبل العنوان (`Stop.shownAddress`: «المكان · الشارع»).
+    - **لا مدينة بالتخمين**: المكان الذي بلا مدينة ولا رمز بريدي لا يأخذ مدينة بقية الرحلات. `Places.KNOWN` تعرف بعض الأماكن المشهورة (Centralsjukhuset ← Karlstad، فيُسأل عنه «Centralsjukhuset, Karlstad» أولاً). وإلا يبحث `Geocoding.locate` في Värmland وحدها، ويقبل الجواب فقط إن كانت كل نتائجه في مدينة واحدة (`GeoLogic.inOneTown`)؛ وإلا تبقى المحطة «المدينة غير معروفة» (`Stop.townUnknown`، `stop_town_unknown` في المراجعة) حتى يضيف السائق المدينة بالتعديل. `PlaceMemory` (`StoredPlaceMemory`، تفضيلات خاصة بالتطبيق) يتذكر المدينة التي أضافها السائق لمكان بلا رقم بيت، فيأتي بها المرة القادمة (`RouteController.remembered`)؛ لا يحفظ عنوان بيت ولا اسماً.
     - **الاسم** = السطر فوق العنوان (الأول والأخير فقط).
     - **منتهية** (Performed / Departed): تُضاف مع «Add all trips» معلَّمة (`ExtractedStop.youDriveDone` ← `Stop.youDriveDone`)، وتبقى في المسار حتى يمرّ بها Next. `syncTrips` يطابق أيضاً `completed`: الرحلة المنتهية هنا لا تُضاف ثانية، وتُحدَّث علامة YouDrive عليها فقط. `DoneMarks` (في `Components.kt`، المرجع 202): نقطة خضراء = YouDrive، زرقاء = هنا.
   - بلا بطاقات يُقرأ النص كله كما في لقطات الشاشة.
@@ -211,13 +213,15 @@
 | `route/Announcements.kt` | نصوص الإعلانات السويدية والإنجليزية. |
 | `route/MapsUrlBuilder.kt` | رابط اتجاهات خرائط Google، 10 محطات على الأكثر. |
 | `link/LinkProtocol.kt`، `LinkTargets.kt` | رسائل JSON سطراً سطراً بين الجوال والتابلت، وترتيب الأجهزة المقترنة. |
-| `display/DisplaySnapshot.kt` | ما تعرضه شاشة الركاب: `DisplayItem(time, title, subtitle)`، و`weather` و`eta`. |
+| `display/DisplaySnapshot.kt` | ما تعرضه شاشة الركاب: `DisplayItem(time, title, subtitle)`، و`weather` و`eta`. `title` شارع ورقم، أو اسم مكان الرعاية القصير («Sjukhuset C»)، و`said` كيف يُقال حين يختلف («Centralsjukhuset, huvudentrén»). `place` (وجهة خريطة التابلت) يبدأ من الشارع، لا اسم دار رعاية قبله. |
 | `display/TimeStatus.kt` | حالة وقت المحطة التالية: ON_TIME / SOON / DUE / LATE / VERY_LATE من الدقائق المتبقية (للون نقطتي الساعة في شاشة الركاب ولكبسولة الزر العائم)، و`countdown` («7:42»، «+3:10»). |
 | `weather/SmhiForecast.kt` | رابط SMHI لمكان ثابت (Karlstad)، وقراءة أقرب ساعة (`air_temperature`، `symbol_code`)، و`DisplayWeather` بحالته السويدية ونوع رسمه. |
 | `nav/RoutesApi.kt` | طلب Routes API من Google (من السيارة إلى المحطة التالية، نقطتها أو عنوانها)، وقراءة الجواب (`RouteLine`: الدقائق والمسافة والخط)، وفك خط Google المرمَّز، و`isKey`. |
 | `nav/MapsEta.kt` | قراءة الدقائق المتبقية والمسافة من نصوص إشعار Google Maps (سويدي، إنجليزي، عربي، أو وقت الوصول)، و`DisplayEta`. الأرقام فقط. |
 | `youdrive/TripWatch.kt` | مقارنة قراءات YouDrive. |
-| `youdrive/YouDriveCards.kt` | قراءة بطاقات YouDrive واحدة واحدة. |
+| `youdrive/YouDriveCards.kt` | قراءة بطاقات YouDrive واحدة واحدة، مع المكان المكتوب قبل الشارع. |
+| `core/parse/Places.kt` | الأماكن المسمّاة في العنوان: مكان الرعاية (مشفى، مركز صحي، رعاية أسنان) يُعرض للركاب ويُقال باسمه فقط (`publicName`، بلا قسم أو علاج)؛ أي مكان آخر (دار رعاية، سكن قصير…) لا يُعرض ولا يُقال أبداً. `KNOWN`: Centralsjukhuset يُكتب «Sjukhuset C» ويُقال «Centralsjukhuset, huvudentrén, Karlstad». |
+| `route/PlaceMemory.kt` | المدينة التي أضافها السائق لمكان بلا رقم بيت، تأتي معه المرة القادمة. |
 | `youdrive/AutoSignIn.kt` | متى يُضغط Login تلقائياً، و`SignInScript`. |
 | `youdrive/BrowserIdentity.kt` | هوية كروم للصفحة. |
 

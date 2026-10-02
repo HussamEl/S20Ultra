@@ -50,6 +50,7 @@
     <string name="menu_retry">إعادة تحديد الموقع</string>
     <string name="stop_located">تم تحديد الموقع</string>
     <string name="stop_not_located">لم يُحدَّد الموقع — التقدم يدوي فقط</string>
+    <string name="stop_town_unknown">المدينة غير معروفة — اضغط المحطة وأضف المدينة (يتذكر البرنامج هذا المكان)</string>
     <string name="stop_locating">جارٍ تحديد الموقع…</string>
     <string name="spoken_label">يُعلَن: %1$s</string>
     <string name="dialog_edit_title">تعديل العنوان</string>

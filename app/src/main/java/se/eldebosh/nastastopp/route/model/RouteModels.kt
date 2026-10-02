@@ -1,7 +1,9 @@
 package se.eldebosh.nastastopp.route.model
 
 import kotlinx.serialization.Serializable
+import se.eldebosh.nastastopp.core.parse.TextNorm
 import se.eldebosh.nastastopp.core.parse.TripKind
+import se.eldebosh.nastastopp.core.youdrive.TripWatch
 
 @Serializable
 enum class GeoStatus { PENDING, LOCATED, NOT_LOCATED }
@@ -46,8 +48,38 @@ data class Stop(
      * app means being in [RouteData.completed].
      */
     val youDriveDone: Boolean = false,
+    /**
+     * The named place YouDrive writes with the address ("Kils Vårdcentral", "Centralsjukhuset
+     * Huvudentrén"), or null. Only a place of care's own name ever reaches the passengers
+     * ([se.eldebosh.nastastopp.core.parse.Places]).
+     */
+    val place: String? = null,
 ) {
     val isLocated: Boolean get() = geoStatus == GeoStatus.LOCATED && geo != null
+
+    /**
+     * The address as the driver's screens show it: the place, then the street address
+     * ("Provby Vårdcentral · Strandvägen 3, 652 25 Karlstad"); a place without a street as written.
+     */
+    val shownAddress: String
+        get() {
+            val place = place ?: return displayText
+            return if (TextNorm.fold(streetText).contains(TextNorm.fold(place))) streetText else "$place · $streetText"
+        }
+
+    /**
+     * The fullest address that starts at the street ("Strandvägen 3, 665 30 Kil"): without a
+     * place or surname written before it; a place without a street as written.
+     */
+    val streetText: String
+        get() {
+            val core = TripWatch.streetAddress(candidates, displayText).substringBefore(',').trim()
+            return candidates.filter { it.startsWith(core) }.maxByOrNull { it.length } ?: displayText
+        }
+
+    /** Written without a town, postal code or house number ("Sjukhuset Huvudentrén"): the town is not known. */
+    val townUnknown: Boolean
+        get() = parsedTown == null && parsedPostalCode == null && displayText.none { it.isDigit() } && geo?.locality == null
 
     /** Text handed to Google Maps: the geocoder's formatted address when located, else the cleaned text. */
     val navigationText: String

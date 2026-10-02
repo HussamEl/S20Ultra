@@ -28,6 +28,7 @@ import se.eldebosh.nastastopp.core.geo.StreetInfo
 import se.eldebosh.nastastopp.core.parse.AddressExtractor
 import se.eldebosh.nastastopp.core.parse.ExtractedStop
 import se.eldebosh.nastastopp.core.parse.Localities
+import se.eldebosh.nastastopp.core.parse.Places
 import se.eldebosh.nastastopp.core.parse.TextNorm
 import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.core.parse.TripTimes
@@ -62,6 +63,7 @@ class RouteController(
     private val localities: Localities,
     private val extractor: AddressExtractor,
     private val history: TripHistory,
+    private val places: PlaceMemory = PlaceMemory.None,
 ) {
     private val _route = MutableStateFlow(repo.load())
     val route: StateFlow<RouteData?> = _route.asStateFlow()
@@ -114,12 +116,43 @@ class RouteController(
      */
     fun streetOf(stop: Stop): String = DisplayItem.streetPart(TripWatch.streetAddress(stop.candidates, stop.displayText))
 
-    /** The next stop in full (street and number, district, town), for the announcement. */
-    fun fullSpokenName(stop: Stop): String = GeoLogic.fullSpokenName(
-        street = streetOf(stop),
-        district = spokenName(stop, AnnouncementDetail.DISTRICT),
-        town = spokenName(stop, AnnouncementDetail.TOWN_ONLY),
-    )
+    /**
+     * The next stop in full, for the announcement: its street and number, district and town. A
+     * place of care is said by its name first ("Provby Vårdcentral, Strandvägen 3, Karlstad"); a
+     * well-known one by its spoken name and town only ("Centralsjukhuset, huvudentrén, Karlstad").
+     */
+    fun fullSpokenName(stop: Stop): String {
+        val known = Places.known(stop.place)?.takeIf { Places.publicName(stop.place, localities::contains) != null }
+        return GeoLogic.fullSpokenName(
+            street = saidStreet(stop),
+            district = if (known != null) null else spokenName(stop, AnnouncementDetail.DISTRICT),
+            town = known?.town ?: spokenName(stop, AnnouncementDetail.TOWN_ONLY),
+        )
+    }
+
+    /**
+     * What is said (and shown on the passenger display) for a stop's street: a place of care's name
+     * with the street and number, if any; the street and number; for another named place (a care
+     * home) without a number, only the street the geocoder found, never the place's name.
+     */
+    private fun saidStreet(stop: Stop): String {
+        val street = streetOf(stop)
+        val numbered = street.any { it.isDigit() }
+        val care = Places.spokenName(stop.place, localities::contains)
+        return when {
+            care != null -> listOfNotNull(care, street.takeIf { numbered }).joinToString(", ")
+            stop.place != null && !numbered -> stop.geo?.thoroughfare.orEmpty()
+            else -> street
+        }
+    }
+
+    /** The stop's title on the passenger display: a place of care's short name, or its street and number. */
+    private fun displayTitle(stop: Stop): String {
+        Places.displayName(stop.place, localities::contains)?.let { return it }
+        val street = streetOf(stop)
+        if (stop.place != null && street.none { it.isDigit() }) return stop.geo?.thoroughfare ?: spokenName(stop)
+        return street
+    }
 
     private fun spokenName(stop: Stop, detail: AnnouncementDetail): String = GeoLogic.spokenName(
         subLocality = stop.geo?.subLocality,
@@ -131,10 +164,10 @@ class RouteController(
         isKnownLocality = localities::contains,
     )
 
-    /** The stop after the next one: its street and number, then its district (or town). */
+    /** The stop after the next one: its street and number (or place of care), then its district (or town). */
     fun thenSpokenName(stop: Stop): String = GeoLogic.fullSpokenName(
-        street = streetOf(stop),
-        district = spokenName(stop, AnnouncementDetail.DISTRICT),
+        street = saidStreet(stop),
+        district = if (Places.known(stop.place) != null && Places.publicName(stop.place, localities::contains) != null) null else spokenName(stop, AnnouncementDetail.DISTRICT),
         town = null,
     )
 
@@ -163,12 +196,15 @@ class RouteController(
             remaining = r.stops,
             item = { s ->
                 // The street address with the house number (setting 114), the area under it; and
-                // where the tablet's map routes to.
+                // where the tablet's map routes to (the street, never a home's name written before it).
                 val at = s.geo?.takeIf { s.isLocated }
+                val routeTo = at?.addressLine?.takeIf { it.isNotBlank() } ?: s.streetText
                 if (full) {
-                    DisplayItem(time = s.time, title = DisplayItem.streetPart(s.displayText), subtitle = spokenName(s), doneInYouDrive = s.youDriveDone, kind = s.kind, place = s.navigationText, lat = at?.lat, lng = at?.lng)
+                    // A place of care by its short name, said in full when tapped.
+                    val said = Places.spokenName(s.place, localities::contains)
+                    DisplayItem(time = s.time, title = displayTitle(s), subtitle = spokenName(s), doneInYouDrive = s.youDriveDone, kind = s.kind, place = routeTo, lat = at?.lat, lng = at?.lng, said = said)
                 } else {
-                    DisplayItem(time = s.time, title = spokenName(s), doneInYouDrive = s.youDriveDone, kind = s.kind, place = s.navigationText, lat = at?.lat, lng = at?.lng)
+                    DisplayItem(time = s.time, title = spokenName(s), doneInYouDrive = s.youDriveDone, kind = s.kind, place = routeTo, lat = at?.lat, lng = at?.lng)
                 }
             },
             announcement = if (r.active && r.stops.isNotEmpty()) announcementFor(r.stops) else null,
@@ -197,7 +233,8 @@ class RouteController(
         var base = _route.value ?: newRoute()
         var nextId = base.nextId
         val added = ArrayList<Stop>()
-        for (e in extracted) {
+        for (found in extracted) {
+            val e = remembered(found)
             if (e.kind == TripKind.PULL_OUT) {
                 base = base.copy(depot = e.toStop(nextId++))
                 continue
@@ -230,10 +267,12 @@ class RouteController(
             return true
         }
         val e = extractor.fromManualText(text) ?: return false
+        // A place written without a town, given one by the driver: next time it comes with it.
+        if (current.townUnknown && (e.parsedTown != null || e.parsedPostalCode != null)) places.remember(current.place ?: current.displayText, text)
         update { r ->
             r.copy(
                 stops = r.stops.map {
-                    if (it.id == id) e.toStop(id).copy(sourceOrder = it.sourceOrder, time = time, kind = it.kind, name = it.name) else it
+                    if (it.id == id) e.toStop(id).copy(sourceOrder = it.sourceOrder, time = time, kind = it.kind, name = it.name, place = it.place) else it
                 },
             )
         }
@@ -321,7 +360,8 @@ class RouteController(
         beginEdit()
         var added = 0
         var updated = 0
-        for (e in trips) {
+        for (found in trips) {
+            val e = remembered(found)
             val base = _route.value ?: newRoute()
             if (e.kind == TripKind.PULL_OUT) {
                 // The day's start point: shown above the trips, never navigated to.
@@ -371,7 +411,7 @@ class RouteController(
     private fun refreshed(base: RouteData, matches: List<Stop>, e: ExtractedStop): List<Stop> {
         val current = base.stops.firstOrNull()?.takeIf { base.active }
         val keep = matches.firstOrNull { it.id == current?.id } ?: matches.first()
-        var fresh = keep.copy(time = e.time ?: keep.time, kind = e.kind ?: keep.kind, name = e.name ?: keep.name, youDriveDone = e.youDriveDone)
+        var fresh = keep.copy(time = e.time ?: keep.time, kind = e.kind ?: keep.kind, name = e.name ?: keep.name, youDriveDone = e.youDriveDone, place = e.place ?: keep.place)
         if (!keep.isLocated && keep.displayText != e.displayText) {
             fresh = fresh.copy(
                 displayText = e.displayText,
@@ -387,6 +427,19 @@ class RouteController(
         val list = base.stops.filterNot { it.id in copies }.map { if (it.id == keep.id) fresh else it }
         if (fresh.time == keep.time || keep.id == current?.id) return list
         return insertByTime(list.filterNot { it.id == fresh.id }, fresh, base.active)
+    }
+
+    /** [e] with the town the driver once gave its place ([PlaceMemory]), when it has none. */
+    private fun remembered(e: ExtractedStop): ExtractedStop {
+        if (e.parsedTown != null || e.parsedPostalCode != null || !PlaceMemory.isPlace(e.displayText)) return e
+        val given = places.recall(e.place ?: e.displayText)?.let { extractor.fromManualText(it) } ?: return e
+        if (given.parsedTown == null && given.parsedPostalCode == null) return e
+        return e.copy(
+            candidates = (given.candidates + e.candidates).distinct(),
+            parsedTown = given.parsedTown,
+            parsedPostalCode = given.parsedPostalCode,
+            parsedTownKnown = given.parsedTownKnown,
+        )
     }
 
     /** [stop] inserted before the first later trip (after the current trip of an active route). */
@@ -696,9 +749,10 @@ class RouteController(
         kind = kind,
         name = name,
         youDriveDone = youDriveDone,
+        place = place,
     )
 
-    private fun Stop.toExtracted() = ExtractedStop(displayText, candidates, parsedPostalCode, parsedTown, sourceOrder, parsedTownKnown, time, kind, name, youDriveDone)
+    private fun Stop.toExtracted() = ExtractedStop(displayText, candidates, parsedPostalCode, parsedTown, sourceOrder, parsedTownKnown, time, kind, name, youDriveDone, place)
 
     companion object {
         /** Two readings of one YouDrive trip are at most this many minutes apart (see [sameTrip]). */

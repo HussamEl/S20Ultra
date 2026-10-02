@@ -294,7 +294,7 @@ private fun SwipeableStopRow(
                             }
                         }
                         Text(
-                            stop.displayText,
+                            stop.shownAddress,
                             style = MaterialTheme.typography.titleSmall.copy(textDirection = TextDirection.Content),
                             color = AppTheme.colors.onTrip,
                             modifier = Modifier.ref(47),
@@ -306,7 +306,12 @@ private fun SwipeableStopRow(
                             modifier = Modifier.ref(48),
                         )
                         if (stop.geoStatus == GeoStatus.NOT_LOCATED) {
-                            Text(stringResource(R.string.stop_not_located), style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.danger)
+                            // A place written without a town: the driver adds it (tap to edit), never a guess.
+                            Text(
+                                stringResource(if (stop.townUnknown) R.string.stop_town_unknown else R.string.stop_not_located),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = AppTheme.colors.danger,
+                            )
                         }
                     }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {

@@ -51,9 +51,41 @@ class YouDriveCardsTest {
     fun aPlaceWithoutAStreetNumberIsNotLost() {
         val hospital = trips().last()
         assertEquals("Sjukhuset Huvudentrén", hospital.stop?.displayText)
-        // The list's town is tried first, so the right hospital is found.
-        assertEquals("Sjukhuset Huvudentrén, Karlstad", hospital.stop?.candidates?.first())
-        assertEquals("Karlstad", hospital.stop?.parsedTown)
+        assertEquals("Sjukhuset Huvudentrén", hospital.stop?.place)
+    }
+
+    /** A place without its town is never given the town of the list's other trips (they were all in Karlstad). */
+    @Test
+    fun aPlaceWithoutATownGetsNoGuessedTown() {
+        val hospital = trips().last().stop!!
+        assertEquals("Sjukhuset Huvudentrén", hospital.candidates.first())
+        assertNull(hospital.parsedTown)
+        assertNull(hospital.parsedPostalCode)
+    }
+
+    /** The hospital written without its town, on a day in Kil: asked for in Karlstad, its own town. */
+    @Test
+    fun theWellKnownHospitalIsFoundInItsOwnTown() {
+        val day = listOf(
+            "12:30\nPick-up\nErik Kalle Påhittad\nStrandvägen 3, 66530 Kil\nRS\nCompensation 1 KR",
+            "12:40\nDrop-off\nErik Kalle Påhittad\nSkolgatan 5, 66530 Kil\nRS\nCompensation 1 KR",
+            "13:33\nPick-up\nPerformed\nFrida Uppdiktad\nCentralsjukhuset huvudentrén,\nHLI, RU1\nCompensation 1 KR",
+        )
+        val hospital = YouDriveCards.parse(day, extractor).last().stop!!
+        assertEquals("Centralsjukhuset Huvudentrén", hospital.place)
+        assertEquals("Centralsjukhuset, Karlstad", hospital.candidates.first())
+        assertEquals("Karlstad", hospital.parsedTown)
+        assertEquals("Frida Uppdiktad", hospital.name)
+    }
+
+    /** The place written before the street is kept beside the address; the street is what is navigated to. */
+    @Test
+    fun thePlaceBeforeTheStreetIsKept() {
+        val card = "11:00\nDrop-off\nFrida Uppdiktad\nProvby Vårdcentral Strandvägen 3, 65225 Karlstad\nRS\nCompensation 1 KR"
+        val stop = YouDriveCards.parse(listOf(card), extractor).single().stop!!
+        assertEquals("Provby Vårdcentral", stop.place)
+        assertTrue(stop.candidates.contains("Strandvägen 3, 652 25 Karlstad"))
+        assertEquals("Karlstad", stop.parsedTown)
     }
 
     @Test

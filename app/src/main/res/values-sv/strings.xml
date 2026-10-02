@@ -49,6 +49,7 @@
     <string name="menu_retry">Sök platsen igen</string>
     <string name="stop_located">Hittad på kartan</string>
     <string name="stop_not_located">Ej hittad – endast manuell växling</string>
+    <string name="stop_town_unknown">Okänd ort – tryck på stoppet och lägg till orten (appen minns platsen)</string>
     <string name="stop_locating">Söker…</string>
     <string name="spoken_label">Utrop: %1$s</string>
     <string name="dialog_edit_title">Redigera adress</string>

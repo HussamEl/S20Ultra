@@ -49,6 +49,7 @@
     <string name="menu_retry">Locate again</string>
     <string name="stop_located">Located</string>
     <string name="stop_not_located">Not located – manual advance only</string>
+    <string name="stop_town_unknown">Town unknown – tap the stop and add it (the app remembers this place)</string>
     <string name="stop_locating">Locating…</string>
     <string name="spoken_label">Announced: %1$s</string>
     <string name="dialog_edit_title">Edit address</string>

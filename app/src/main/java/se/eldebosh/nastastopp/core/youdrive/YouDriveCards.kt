@@ -2,6 +2,7 @@ package se.eldebosh.nastastopp.core.youdrive
 
 import se.eldebosh.nastastopp.core.parse.AddressExtractor
 import se.eldebosh.nastastopp.core.parse.ExtractedStop
+import se.eldebosh.nastastopp.core.parse.Places
 import se.eldebosh.nastastopp.core.parse.TextNorm
 import se.eldebosh.nastastopp.core.parse.TripKinds
 import se.eldebosh.nastastopp.core.parse.TripTimes
@@ -19,10 +20,8 @@ import se.eldebosh.nastastopp.core.parse.TripTimes
 object YouDriveCards {
 
     /** Trips of the cards in page order; cards without a kind or an address are skipped. */
-    fun parse(cards: List<String>, extractor: AddressExtractor): List<WatchedTrip> {
-        val trips = cards.mapIndexedNotNull { i, card -> parseCard(card, i, extractor) }
-        return withListTown(trips)
-    }
+    fun parse(cards: List<String>, extractor: AddressExtractor): List<WatchedTrip> =
+        cards.mapIndexedNotNull { i, card -> parseCard(card, i, extractor) }
 
     /** One card, or null without a kind label or an address. */
     fun parseCard(card: String, order: Int, extractor: AddressExtractor): WatchedTrip? {
@@ -33,12 +32,18 @@ object YouDriveCards {
         var stop: ExtractedStop? = if (at >= 0) extractor.extract(listOf(lines[at])).firstOrNull() else null
         if (stop == null) {
             // A place without a street number ("Sjukhuset huvudentrén,"): the line after
-            // the passenger's name.
+            // the passenger's name. It has no town: the geocoder finds it in one town only, or the
+            // driver adds the town ([Places.known] knows a few).
             val nameAt = lines.indexOfFirst { extractor.personName(it, strict = false) != null }
             val place = lines.getOrNull(nameAt + 1)?.takeIf { nameAt >= 0 && isPlace(it) } ?: return null
             at = nameAt + 1
-            stop = extractor.fromManualText(place.trim().trimEnd(',', '.', ' ')) ?: return null
+            stop = extractor.fromManualText(place.trim().trimEnd(',', '.', ' '))?.let { it.copy(place = it.displayText) } ?: return null
+        } else {
+            // The place written before the street ("Provby Vårdcentral Strandvägen 3"): the card's
+            // name is on its own line, so this is never the passenger's name.
+            stop = stop.copy(place = placeBeforeStreet(stop))
         }
+        stop = withKnownTown(stop)
         // The times sit in the left column, before the name and address (a time in the notes
         // below does not count). The scheduled time comes first (YouDrive orders the route by
         // it); a second time is the booked one, which does not move when the schedule is re-planned.
@@ -50,20 +55,22 @@ object YouDriveCards {
         return WatchedTrip(trip.time, TripWatch.streetAddress(trip), trip, booked = times.getOrNull(1), done = done)
     }
 
+    /** The words before the street ("Provby Vårdcentral" in "Provby Vårdcentral Strandvägen 3, 652 25 Karlstad"), or null. */
+    private fun placeBeforeStreet(stop: ExtractedStop): String? {
+        val street = TripWatch.streetAddress(stop).substringBefore(',').trim()
+        val full = stop.candidates.first().substringBefore(',').trim()
+        if (street.isEmpty() || !full.endsWith(street)) return null
+        return full.removeSuffix(street).trim().takeIf { TextNorm.letterCount(it) >= 3 }
+    }
+
     /**
-     * A place without a town ("Sjukhuset huvudentrén") gets the list's most common town as
-     * its first geocoder candidate, so the right hospital is found.
+     * A well-known place written without a town ("Centralsjukhuset huvudentrén,") is asked for in
+     * its own town. Another one keeps no town: it is never given the town of the list's other trips.
      */
-    private fun withListTown(trips: List<WatchedTrip>): List<WatchedTrip> {
-        val towns = trips.mapNotNull { it.stop?.takeIf { s -> s.parsedTown != null } }
-        val common = towns.groupingBy { it.parsedTown!! }.eachCount().maxByOrNull { it.value }?.key ?: return trips
-        val known = towns.first { it.parsedTown == common }.parsedTownKnown
-        return trips.map { t ->
-            val s = t.stop ?: return@map t
-            if (s.parsedTown != null || s.parsedPostalCode != null) return@map t
-            val withTown = s.candidates.map { "$it, $common" } + s.candidates
-            t.copy(stop = s.copy(candidates = withTown.distinct(), parsedTown = common, parsedTownKnown = known))
-        }
+    private fun withKnownTown(stop: ExtractedStop): ExtractedStop {
+        if (stop.parsedTown != null || stop.parsedPostalCode != null) return stop
+        val known = Places.known(stop.place) ?: return stop
+        return stop.copy(candidates = (listOf(known.candidate) + stop.candidates).distinct(), parsedTown = known.town, parsedTownKnown = true)
     }
 
     /** A line that can name a place: letters, no digits, not a label, time or fee. */
