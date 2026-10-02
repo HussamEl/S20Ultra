@@ -20,8 +20,11 @@ object Places {
     }
 
     val KNOWN = listOf(
-        Known(word = "centralsjukhuset", short = "Sjukhuset C", spoken = "Centralsjukhuset", town = "Karlstad"),
+        Known(word = "centralsjukhuset", short = "C-Sjukhuset", spoken = "Centralsjukhuset", town = "Karlstad"),
     )
+
+    /** [text] as it is written on the screens: a well-known place by its short name ("Centralsjukhuset Karlstad" → "C-Sjukhuset Karlstad"). */
+    fun written(text: String): String = KNOWN.fold(text) { t, k -> t.replace(Regex("(?i)\\b${k.word}\\b"), k.short) }
 
     /** The well-known place named in [place], or null. */
     fun known(place: String?): Known? {

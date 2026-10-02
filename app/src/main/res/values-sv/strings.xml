@@ -140,6 +140,7 @@
     <string name="display_repeat">Upprepa</string>
     <string name="display_say_time">Säg tiden</string>
     <string name="display_say_name">Säg namnet</string>
+    <string name="display_show_name">Visa resenärens namn</string>
     <string name="display_say_trip">Säg resan</string>
     <string name="display_home">Till nästa stopp</string>
     <string name="done_in_youdrive">Klar i YouDrive</string>

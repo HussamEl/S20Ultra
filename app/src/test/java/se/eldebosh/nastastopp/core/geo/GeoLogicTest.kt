@@ -69,6 +69,11 @@ class GeoLogicTest {
         assertEquals("Björkvägen 7, Hammarö", GeoLogic.fullSpokenName("Björkvägen 7 Lgh 1102", "Hammarö", "Hammarö"))
         assertEquals("Storgatan 14", GeoLogic.fullSpokenName("Storgatan 14", GeoLogic.NEXT_ADDRESS, GeoLogic.NEXT_ADDRESS))
         assertEquals(GeoLogic.NEXT_ADDRESS, GeoLogic.fullSpokenName("", null, null))
+        // A town already said in the place's own name is not said again.
+        assertEquals("Centralsjukhuset Karlstad", GeoLogic.fullSpokenName("Centralsjukhuset Karlstad", "Karlstad", "Karlstad"))
+        assertEquals("Centralsjukhuset, huvudentrén, Karlstad", GeoLogic.fullSpokenName("Centralsjukhuset, huvudentrén", null, "Karlstad"))
+        // Only whole words count: "Karlstadsvägen" is not "Karlstad".
+        assertEquals("Karlstadsvägen 3, Karlstad", GeoLogic.fullSpokenName("Karlstadsvägen 3", "Karlstad", "Karlstad"))
     }
 
     private fun at(lat: Double, lng: Double, town: String?) = GeoResult(lat, lng, null, null, town, null, null)

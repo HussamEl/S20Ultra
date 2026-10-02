@@ -7,6 +7,8 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.shrinkHorizontally
 import android.view.ViewGroup
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlin.math.sin
@@ -23,6 +25,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.isSpecified
+import se.eldebosh.nastastopp.core.geo.GeoLogic
 import se.eldebosh.nastastopp.core.nav.MapWay
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.input.pointer.pointerInput
@@ -1094,13 +1097,15 @@ private fun WeatherGlyph(kind: WeatherKind, color: Color, modifier: Modifier = M
     }
 }
 
-/** A person, simply: a head over shoulders, in [color]. */
+/** A person, simply and lightly: an outlined head over outlined shoulders, in [color]. */
 @Composable
 private fun PersonGlyph(color: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
         val w = size.width
-        drawCircle(color, radius = w * 0.22f, center = Offset(w / 2f, w * 0.3f))
-        drawRoundRect(color, topLeft = Offset(w * 0.14f, w * 0.6f), size = Size(w * 0.72f, w * 0.4f), cornerRadius = CornerRadius(w * 0.3f, w * 0.3f))
+        val line = Stroke(width = w * 0.09f, cap = StrokeCap.Round)
+        drawCircle(color, radius = w * 0.19f, center = Offset(w / 2f, w * 0.3f), style = line)
+        // The shoulders: the top half of an oval standing on the bottom.
+        drawArc(color, startAngle = 180f, sweepAngle = 180f, useCenter = false, topLeft = Offset(w * 0.16f, w * 0.62f), size = Size(w * 0.68f, w * 0.6f), style = line)
     }
 }
 
@@ -1196,7 +1201,8 @@ private fun Stage(
             // The trip at the top, for the focused time.
             val inMiddle = pageItem(pager.currentPage)
             // A trip still coming says where the car is going; a trip done, its time and place.
-            val sayTrip = { item: DisplayItem, coming: Boolean -> onSay(Announcements.at(item.time, listOfNotNull(item.said ?: item.title, item.subtitle).joinToString(", "), coming)) }
+            // Each name once ("Centralsjukhuset, huvudentrén, Karlstad", never "… Karlstad, Karlstad").
+            val sayTrip = { item: DisplayItem, coming: Boolean -> onSay(Announcements.at(item.time, GeoLogic.fullSpokenName(item.said ?: item.title, item.subtitle, null), coming)) }
             // The announcement: first the next stop, then, when its name comes, the "Därefter" trip
             // the way a tapped trip is shown.
             LaunchedEffect(cue) {
@@ -1733,34 +1739,56 @@ private fun StopHero(
                         modifier = Modifier.ref(92).entering(area, shine),
                     )
                 }
-                // The passenger getting on or off here (the next stop only): the last name; a tap
-                // says it and shows it large. It steps aside while the stop is focused.
+                // The passenger getting on or off here (the next stop only), hidden behind a small
+                // outlined figure: a tap on it shows the last name beside it for a while, a tap on
+                // the name says it and shows it large. It steps aside while the stop is focused.
                 val name = current.lastName
                 if (name != null && onName != null) {
                     val nameShown by animateFloatAsState(if (focused) 0f else 1f, tween(CLOCK_FADE_MS), label = "name")
                     val nameSp = if (landscape) NAME_LINE_SP else NAME_LINE_SP_NARROW
+                    var open by remember(current.trip) { mutableStateOf(false) }
+                    LaunchedEffect(open) {
+                        if (!open) return@LaunchedEffect
+                        delay(NAME_OPEN_MS)
+                        open = false
+                    }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
-                            .ref(231)
                             .padding(top = 4.dp)
-                            .graphicsLayer { alpha = nameShown }
-                            .clip(RoundedCornerShape(14.dp))
-                            .clickable(enabled = !focused, onClickLabel = stringResource(R.string.display_say_name), role = Role.Button, onClick = onName)
-                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                            .graphicsLayer { alpha = nameShown },
                     ) {
-                        PersonGlyph(AppTheme.colors.highlight, Modifier.size(with(LocalDensity.current) { (nameSp * 0.8f).toDp() }))
-                        Spacer(Modifier.width(10.dp))
-                        Text(
-                            name,
-                            fontFamily = DisplayFont,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = nameSp,
-                            color = AppTheme.colors.highlight,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            style = TextStyle(textDirection = TextDirection.Content),
-                        )
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .ref(231, centered = true)
+                                .size(TouchTarget)
+                                .clip(CircleShape)
+                                .clickable(enabled = !focused, onClickLabel = stringResource(R.string.display_show_name), role = Role.Button) { open = !open },
+                        ) {
+                            PersonGlyph(AppTheme.colors.highlight, Modifier.size(with(LocalDensity.current) { (nameSp * PERSON_SIZE).toDp() }))
+                        }
+                        AnimatedVisibility(
+                            open,
+                            enter = fadeIn(tween(NAME_IN_MS)) + expandHorizontally(tween(NAME_IN_MS, easing = FastOutSlowInEasing), expandFrom = Alignment.Start),
+                            exit = fadeOut(tween(NAME_OUT_MS)) + shrinkHorizontally(tween(NAME_OUT_MS), shrinkTowards = Alignment.Start),
+                        ) {
+                            Text(
+                                name,
+                                fontFamily = DisplayFont,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = nameSp,
+                                color = AppTheme.colors.highlight,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                style = TextStyle(textDirection = TextDirection.Content),
+                                modifier = Modifier
+                                    .ref(236)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .clickable(enabled = !focused, onClickLabel = stringResource(R.string.display_say_name), role = Role.Button, onClick = onName)
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                            )
+                        }
                     }
                 }
             }
@@ -2684,6 +2712,12 @@ private val INFO_SP_WIDE = 220.sp
  * The next stop's passenger's last name: on its line under the address (tablet, phone), and as
  * large as fits (up to these sizes, within this share of the width) when tapped.
  */
+/** The figure for the passenger's name: this share of the name's size; the name stays this long once shown, in and out. */
+private const val PERSON_SIZE = 0.4f
+private const val NAME_OPEN_MS = 15_000L
+private const val NAME_IN_MS = 280
+private const val NAME_OUT_MS = 200
+
 private val NAME_LINE_SP = 40.sp
 private val NAME_LINE_SP_NARROW = 28.sp
 private val NAME_SP_WIDE = 260.sp

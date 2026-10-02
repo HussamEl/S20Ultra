@@ -122,7 +122,7 @@ class RouteController(
      * well-known one by its spoken name and town only ("Centralsjukhuset, huvudentrén, Karlstad").
      */
     fun fullSpokenName(stop: Stop): String {
-        val known = Places.known(stop.place)?.takeIf { Places.publicName(stop.place, localities::contains) != null }
+        val known = Places.known(placeOf(stop))?.takeIf { Places.publicName(placeOf(stop), localities::contains) != null }
         return GeoLogic.fullSpokenName(
             street = saidStreet(stop),
             district = if (known != null) null else spokenName(stop, AnnouncementDetail.DISTRICT),
@@ -138,7 +138,7 @@ class RouteController(
     private fun saidStreet(stop: Stop): String {
         val street = streetOf(stop)
         val numbered = street.any { it.isDigit() }
-        val care = Places.spokenName(stop.place, localities::contains)
+        val care = Places.spokenName(placeOf(stop), localities::contains)
         return when {
             care != null -> listOfNotNull(care, street.takeIf { numbered }).joinToString(", ")
             stop.place != null && !numbered -> stop.geo?.thoroughfare.orEmpty()
@@ -146,12 +146,15 @@ class RouteController(
         }
     }
 
+    /** The stop's named place: as YouDrive wrote it, or a well-known place written as the address ("Centralsjukhuset Karlstad"). */
+    private fun placeOf(stop: Stop): String? = stop.place ?: stop.displayText.takeIf { Places.known(it) != null }
+
     /** The stop's title on the passenger display: a place of care's short name, or its street and number. */
     private fun displayTitle(stop: Stop): String {
-        Places.displayName(stop.place, localities::contains)?.let { return it }
+        Places.displayName(placeOf(stop), localities::contains)?.let { return it }
         val street = streetOf(stop)
         if (stop.place != null && street.none { it.isDigit() }) return stop.geo?.thoroughfare ?: spokenName(stop)
-        return street
+        return Places.written(street)
     }
 
     private fun spokenName(stop: Stop, detail: AnnouncementDetail): String = GeoLogic.spokenName(
@@ -167,7 +170,7 @@ class RouteController(
     /** The stop after the next one: its street and number (or place of care), then its district (or town). */
     fun thenSpokenName(stop: Stop): String = GeoLogic.fullSpokenName(
         street = saidStreet(stop),
-        district = if (Places.known(stop.place) != null && Places.publicName(stop.place, localities::contains) != null) null else spokenName(stop, AnnouncementDetail.DISTRICT),
+        district = if (Places.known(placeOf(stop)) != null && Places.publicName(placeOf(stop), localities::contains) != null) null else spokenName(stop, AnnouncementDetail.DISTRICT),
         town = null,
     )
 
@@ -201,7 +204,7 @@ class RouteController(
                 val routeTo = at?.addressLine?.takeIf { it.isNotBlank() } ?: s.streetText
                 if (full) {
                     // A place of care by its short name, said in full when tapped.
-                    val said = Places.spokenName(s.place, localities::contains)
+                    val said = Places.spokenName(placeOf(s), localities::contains)
                     DisplayItem(time = s.time, title = displayTitle(s), subtitle = spokenName(s), doneInYouDrive = s.youDriveDone, kind = s.kind, place = routeTo, lat = at?.lat, lng = at?.lng, said = said, card = s.card)
                 } else {
                     DisplayItem(time = s.time, title = spokenName(s), doneInYouDrive = s.youDriveDone, kind = s.kind, place = routeTo, lat = at?.lat, lng = at?.lng, card = s.card)

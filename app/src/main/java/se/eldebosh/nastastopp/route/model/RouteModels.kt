@@ -1,6 +1,7 @@
 package se.eldebosh.nastastopp.route.model
 
 import kotlinx.serialization.Serializable
+import se.eldebosh.nastastopp.core.parse.Places
 import se.eldebosh.nastastopp.core.parse.TextNorm
 import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.core.youdrive.TripWatch
@@ -69,8 +70,8 @@ data class Stop(
      */
     val shownAddress: String
         get() {
-            val place = place ?: return displayText
-            return if (TextNorm.fold(streetText).contains(TextNorm.fold(place))) streetText else "$place · $streetText"
+            val place = place ?: return Places.written(displayText)
+            return Places.written(if (TextNorm.fold(streetText).contains(TextNorm.fold(place))) streetText else "$place · $streetText")
         }
 
     /**

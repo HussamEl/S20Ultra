@@ -28,7 +28,7 @@ data class DisplayItem(
     val lng: Double? = null,
     /** The passenger's last name, on the next stop only: shown under its address and said when tapped. */
     val lastName: String? = null,
-    /** How [title] is said when it differs from what is written: a place of care's full name ("Centralsjukhuset, huvudentrén" for "Sjukhuset C"). */
+    /** How [title] is said when it differs from what is written: a place of care's full name ("Centralsjukhuset, huvudentrén" for "C-Sjukhuset"). */
     val said: String? = null,
     /** Everything on the trip's YouDrive card, as written: shown only when the driver opens it (234), never said. */
     val card: String? = null,

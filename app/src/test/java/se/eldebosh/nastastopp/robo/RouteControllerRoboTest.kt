@@ -310,7 +310,7 @@ class RouteControllerRoboTest {
 
     /**
      * A place of care is shown on the passenger display by its own name and said in full: the
-     * hospital written short ("Sjukhuset C") and said with its entrance and town. A care home's
+     * hospital written short ("C-Sjukhuset") and said with its entrance and town. A care home's
      * name is never shown or said, only its street (invented places, except the hospital).
      */
     @Test
@@ -331,7 +331,7 @@ class RouteControllerRoboTest {
         assertEquals("Nästa stopp: Strandvägen 3, Kil. Därefter: Centralsjukhuset, huvudentrén.", tts.lastSpokenText)
         val display = c.display.value
         assertEquals("Strandvägen 3", display.current?.title)
-        assertEquals(listOf("Sjukhuset C", "Provby Vårdcentral"), display.upcoming.map { it.title })
+        assertEquals(listOf("C-Sjukhuset", "Provby Vårdcentral"), display.upcoming.map { it.title })
         assertEquals("Centralsjukhuset, huvudentrén", display.upcoming.first().said)
         // Shown and sent: never the home's name (only its YouDrive card, which the driver opens, has it).
         val shown = (listOfNotNull(display.current) + display.earlier + display.upcoming).flatMap { listOfNotNull(it.title, it.subtitle, it.said, it.place) }
@@ -372,6 +372,22 @@ class RouteControllerRoboTest {
         @Suppress("DEPRECATION")
         val extras = notification.extras.keySet().map { notification.extras.get(it)?.toString().orEmpty() }
         assertFalse("notification", extras.any { it.contains("0700000006") || it.contains("1234") })
+        c.end()
+    }
+
+    /** The hospital typed with its town is said once with it, never "Karlstad, Karlstad", and written short. */
+    @Test
+    fun theHospitalsTownIsSaidOnce() {
+        val tts = readyTts()
+        val c = graph.controller
+        assertTrue(c.addManual("Centralsjukhuset Karlstad", "13:33"))
+        assertTrue(c.addManual("Storgatan 14, 65224 Karlstad", "14:00"))
+        idleUntil { c.route.value!!.stops.none { it.geoStatus == GeoStatus.PENDING } }
+        assertTrue(c.start())
+        idle()
+        assertEquals("Nästa stopp: Centralsjukhuset, Karlstad. Därefter: Storgatan 14, Karlstad.", tts.lastSpokenText)
+        assertEquals("C-Sjukhuset", c.display.value.current?.title)
+        assertEquals("C-Sjukhuset Karlstad", c.route.value!!.stops.first().shownAddress)
         c.end()
     }
 

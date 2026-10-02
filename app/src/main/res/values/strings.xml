@@ -141,6 +141,7 @@
     <string name="display_repeat">إعادة الصوت</string>
     <string name="display_say_time">قل الوقت</string>
     <string name="display_say_name">انطق الاسم</string>
+    <string name="display_show_name">إظهار اسم الراكب</string>
     <string name="display_say_trip">انطق هذه الرحلة</string>
     <string name="display_home">العودة إلى المحطة التالية</string>
     <string name="done_in_youdrive">منتهية في YouDrive</string>

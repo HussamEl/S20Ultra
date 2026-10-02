@@ -1,5 +1,6 @@
 package se.eldebosh.nastastopp.overlay
 
+import se.eldebosh.nastastopp.core.parse.Places
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import se.eldebosh.nastastopp.core.link.LinkMessage
@@ -62,7 +63,7 @@ class RoutePanelSource(private val controller: RouteController, override val str
         val current = r.stops.firstOrNull() ?: return null
         return PanelTrip(
             time = current.time,
-            street = controller.streetOf(current),
+            street = Places.written(controller.streetOf(current)),
             // The town only, without the postal code.
             town = current.displayText.substringAfter(',', "").replace(POSTAL_CODE, "").trim(' ', ',').ifEmpty { null },
             name = current.name,

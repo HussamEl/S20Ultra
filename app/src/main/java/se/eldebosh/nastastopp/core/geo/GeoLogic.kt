@@ -73,17 +73,28 @@ object GeoLogic {
 
     /**
      * The next stop said in full: "Storgatan 14, Herrhagen, Karlstad". The street and
-     * number, then the district and the town, each once (compared without case or å ä ö). An
-     * apartment number ("lgh 1402") is left out, and so is the placeholder for an unknown place.
+     * number, then the district and the town, each said once: a district or town already said
+     * in what comes before it ("Centralsjukhuset Karlstad", then "Karlstad") is left out (compared
+     * word by word, without case or å ä ö). An apartment number ("lgh 1402") is left out, and so
+     * is the placeholder for an unknown place.
      */
     fun fullSpokenName(street: String, district: String?, town: String?): String {
         val parts = mutableListOf<String>()
         for (part in listOf(street.replace(APARTMENT, "").trim().trimEnd(','), district, town)) {
             val p = part?.trim()?.takeIf { it.isNotEmpty() && it != NEXT_ADDRESS } ?: continue
-            if (parts.none { TextNorm.fold(it) == TextNorm.fold(p) }) parts += p
+            if (!saidIn(parts, p)) parts += p
         }
         return parts.joinToString(", ").ifEmpty { NEXT_ADDRESS }
     }
+
+    /** [name]'s words all come, in order, in one of [parts] already. */
+    private fun saidIn(parts: List<String>, name: String): Boolean {
+        val words = words(name)
+        if (words.isEmpty()) return true
+        return parts.any { part -> words(part).windowed(words.size).any { it == words } }
+    }
+
+    private fun words(text: String): List<String> = TextNorm.fold(text).split(' ', ',', '-', '.').filter { it.isNotEmpty() }
 
     private val APARTMENT = Regex("""(?i)\s*\b(lgh|lägenhet)\.?\s*\S+""")
 

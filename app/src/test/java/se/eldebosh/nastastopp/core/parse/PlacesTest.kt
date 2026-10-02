@@ -34,10 +34,18 @@ class PlacesTest {
 
     @Test
     fun theHospitalIsWrittenShortAndSaidInFull() {
-        assertEquals("Sjukhuset C", Places.displayName("Centralsjukhuset Huvudentrén", isLocality))
+        assertEquals("C-Sjukhuset", Places.displayName("Centralsjukhuset Huvudentrén", isLocality))
         assertEquals("Centralsjukhuset, huvudentrén", Places.spokenName("Centralsjukhuset Huvudentrén", isLocality))
         assertEquals("Karlstad", Places.known("Centralsjukhuset Huvudentrén")?.town)
         assertEquals("Centralsjukhuset, Karlstad", Places.known("CENTRALSJUKHUSET")?.candidate)
+    }
+
+    /** Wherever it is written, the hospital is written short. */
+    @Test
+    fun theHospitalIsWrittenShortEverywhere() {
+        assertEquals("C-Sjukhuset Karlstad", Places.written("Centralsjukhuset Karlstad"))
+        assertEquals("C-Sjukhuset huvudentrén, Karlstad", Places.written("CENTRALSJUKHUSET huvudentrén, Karlstad"))
+        assertEquals("Storgatan 14, Karlstad", Places.written("Storgatan 14, Karlstad"))
     }
 
     @Test

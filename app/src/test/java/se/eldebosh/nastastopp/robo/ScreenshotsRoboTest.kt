@@ -798,9 +798,17 @@ class ScreenshotsRoboTest {
         }
         compose.waitForIdle()
         save("display_name", compose.onRoot().captureToImage().asAndroidBitmap())
+        // Only the figure: the name shows after a tap on it.
         compose.onNodeWithTag("ref_231").assertIsDisplayed()
+        compose.onNodeWithText("Testsson").assertDoesNotExist()
         compose.mainClock.autoAdvance = false
         compose.onNodeWithTag("ref_231").performClick()
+        compose.mainClock.advanceTimeBy(600)
+        save("display_name_shown", compose.onRoot().captureToImage().asAndroidBitmap())
+        compose.onNodeWithTag("ref_236").assertIsDisplayed()
+        assertTrue("nothing said yet: $said", said.isEmpty())
+        // A tap on the name says it and shows it large.
+        compose.onNodeWithTag("ref_236").performClick()
         compose.mainClock.advanceTimeBy(1_500)
         save("display_name_large", compose.onRoot().captureToImage().asAndroidBitmap())
         compose.onNodeWithTag("ref_232").assertIsDisplayed()
