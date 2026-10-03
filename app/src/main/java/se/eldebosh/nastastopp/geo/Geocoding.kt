@@ -31,52 +31,48 @@ class Geocoding(context: Context) {
     val isAvailable: Boolean get() = Geocoder.isPresent()
 
     /**
-     * Tries [candidates] in order. A result matching the parsed postal code (or town) wins at once;
-     * otherwise the first non-empty answer is used.
+     * Tries [candidates] in order. A result matching the written postal code or town wins
+     * ([GeoLogic.choose]); an answer in another place is never used, and the next candidate is
+     * tried. Without a postal code or town the stop is looked for in Värmland only, and taken
+     * only when it is in one town ([GeoLogic.inOneTown]): a town is never guessed.
      */
     suspend fun locate(candidates: List<String>, parsedPostal: String?, parsedTown: String?): LocateResult? {
         if (!isAvailable) return null
-        var fallback: LocateResult? = null
+        val unplaced = parsedPostal == null && parsedTown == null
         for (candidate in candidates.take(MAX_CANDIDATES)) {
-            val results = lookup(candidate) ?: return fallback // geocoder failed (e.g. offline)
+            val results = lookup(candidate, unplaced) ?: return null // geocoder failed (e.g. offline)
             if (results.isEmpty()) continue
-            val chosen = GeoLogic.choose(results, parsedPostal, parsedTown) ?: continue
-            val matches = matches(chosen, parsedPostal, parsedTown)
-            if (matches) return LocateResult(chosen, candidate)
-            if (fallback == null) fallback = LocateResult(chosen, candidate)
-            if (parsedPostal == null && parsedTown == null) return fallback
+            if (unplaced) {
+                val one = GeoLogic.inOneTown(results) ?: continue
+                return LocateResult(one, candidate)
+            }
+            GeoLogic.choose(results, parsedPostal, parsedTown)?.let { return LocateResult(it, candidate) }
         }
-        return fallback
+        return null
     }
 
-    private fun matches(r: GeoResult, postal: String?, town: String?): Boolean {
-        val p = postal?.filter { it.isDigit() }
-        if (!p.isNullOrEmpty()) return r.postalCode?.filter { it.isDigit() } == p
-        if (!town.isNullOrBlank()) {
-            val t = TextNorm.fold(town)
-            return listOfNotNull(r.locality, r.subLocality).any { TextNorm.fold(it) == t }
-        }
-        return true
-    }
-
-    /** Returns results (possibly empty), or null if the geocoder is unavailable / failed. */
-    private suspend fun lookup(query: String): List<GeoResult>? {
-        cache[query]?.let { return it }
-        val addresses = withTimeoutOrNull(TIMEOUT_MS) { rawLookup(query) } ?: return null
+    /** Returns results (possibly empty), or null if the geocoder is unavailable / failed; in Värmland when [varmland]. */
+    private suspend fun lookup(query: String, varmland: Boolean = false): List<GeoResult>? {
+        val key = if (varmland) "$query|V" else query
+        cache[key]?.let { return it }
+        val addresses = withTimeoutOrNull(TIMEOUT_MS) { rawLookup(query, varmland) } ?: return null
         val results = addresses.mapNotNull { it.toResult() }
-        cache[query] = results
+        cache[key] = results
         return results
     }
 
-    private suspend fun rawLookup(query: String): List<Address>? {
+    private suspend fun rawLookup(query: String, varmland: Boolean): List<Address>? {
         val geocoder = Geocoder(appContext, locale)
+        val box = if (varmland) {
+            doubleArrayOf(GeoLogic.VARMLAND_LAT_MIN, GeoLogic.VARMLAND_LNG_MIN, GeoLogic.VARMLAND_LAT_MAX, GeoLogic.VARMLAND_LNG_MAX)
+        } else {
+            doubleArrayOf(GeoLogic.SWEDEN_LAT_MIN, GeoLogic.SWEDEN_LNG_MIN, GeoLogic.SWEDEN_LAT_MAX, GeoLogic.SWEDEN_LNG_MAX)
+        }
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             suspendCancellableCoroutine { cont ->
                 try {
                     geocoder.getFromLocationName(
-                        query, MAX_RESULTS,
-                        GeoLogic.SWEDEN_LAT_MIN, GeoLogic.SWEDEN_LNG_MIN,
-                        GeoLogic.SWEDEN_LAT_MAX, GeoLogic.SWEDEN_LNG_MAX,
+                        query, MAX_RESULTS, box[0], box[1], box[2], box[3],
                         object : Geocoder.GeocodeListener {
                             override fun onGeocode(addresses: MutableList<Address>) {
                                 if (cont.isActive) cont.resume(addresses)
@@ -97,11 +93,7 @@ class Geocoding(context: Context) {
             withContext(Dispatchers.IO) {
                 try {
                     @Suppress("DEPRECATION")
-                    geocoder.getFromLocationName(
-                        query, MAX_RESULTS,
-                        GeoLogic.SWEDEN_LAT_MIN, GeoLogic.SWEDEN_LNG_MIN,
-                        GeoLogic.SWEDEN_LAT_MAX, GeoLogic.SWEDEN_LNG_MAX,
-                    ) ?: emptyList()
+                    geocoder.getFromLocationName(query, MAX_RESULTS, box[0], box[1], box[2], box[3]) ?: emptyList()
                 } catch (e: Exception) {
                     DebugLog.w(e) { "geocoder threw" }
                     null

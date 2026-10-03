@@ -8,7 +8,7 @@ import android.os.LocaleList
 import java.util.Locale
 
 /**
- * In-app UI language (English by default since 1.4.0; Arabic RTL and Swedish available)
+ * In-app UI language (English by default; Arabic RTL and Swedish available)
  * regardless of the phone's language.
  * Android 13+: per-app language via LocaleManager (covers activities, services, notifications).
  * In addition (and on Android 10–12) the Application and Activity base contexts are wrapped with

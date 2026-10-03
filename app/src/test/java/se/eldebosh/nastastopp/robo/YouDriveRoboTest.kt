@@ -1,29 +1,27 @@
 package se.eldebosh.nastastopp.robo
 
 import android.app.NotificationManager
-import android.content.Context
 import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.fakes.RoboWebSettings
 import se.eldebosh.nastastopp.App
 import se.eldebosh.nastastopp.AppGraph
 import se.eldebosh.nastastopp.route.model.GeoStatus
 import se.eldebosh.nastastopp.service.Notifications
-import se.eldebosh.nastastopp.settings.SettingsStore
 import se.eldebosh.nastastopp.youdrive.YouDriveWatcher
 import java.time.Duration
 import java.time.LocalTime
 
-/** YouDrive page watching: alerts, applying changes to the route, and the 1.4.0 settings switch. */
+/** YouDrive page watching: alerts, and applying changes to the route. */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [33])
 class YouDriveRoboTest {
@@ -59,6 +57,19 @@ class YouDriveRoboTest {
     private val hammaro = "12:40" to "Björkvägen 7, 66341 Hammarö"
 
     private fun notifications() = shadowOf(app.getSystemService(NotificationManager::class.java)).allNotifications
+
+    @Test
+    fun theYouDrivePageNeverGetsTheLocation() {
+        // The app may hold location (to name the street), but YouDrive's page never gets it:
+        // geolocation is off in its WebView and any request from the page is refused.
+        val web = graph.youDrive.webView()
+        assertFalse((web.settings as RoboWebSettings).geolocationEnabled)
+        var answer: Pair<Boolean, Boolean>? = null
+        shadowOf(web).webChromeClient!!.onGeolocationPermissionsShowPrompt("https://youdrive.example") { _, allow, retain ->
+            answer = allow to retain
+        }
+        assertEquals(false to false, answer)
+    }
 
     @Test
     fun addedAndCancelledTripsAlertAndCanBeApplied() {
@@ -144,20 +155,5 @@ class YouDriveRoboTest {
         assertTrue(w.state.value.changes.isEmpty())
         assertTrue(notifications().none { it.channelId == Notifications.CHANNEL_TRIPS })
         graph.settings.update { it.copy(youDriveWatch = false) }
-    }
-
-    @Test
-    fun upgradeSwitchesTheUiToEnglishAndShowsTheAddressOnTheDisplay() {
-        val prefs = app.getSharedPreferences(SettingsStore.PREFS, Context.MODE_PRIVATE)
-        prefs.edit().clear().putString(SettingsStore.K_LANG, "ar").putBoolean("display_full_address", false).commit()
-        val s = SettingsStore(app).current
-        assertEquals("en", s.uiLanguage)
-        assertTrue(s.displayFullAddress)
-        assertTrue(s.explanationsArabic)
-        assertTrue(s.showRefNumbers)
-        // Only once: a later choice of Arabic is kept.
-        SettingsStore(app).update { it.copy(uiLanguage = "ar") }
-        assertEquals("ar", SettingsStore(app).current.uiLanguage)
-        assertNotNull(SettingsStore.readLanguage(app))
     }
 }

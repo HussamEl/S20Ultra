@@ -1,5 +1,7 @@
 package se.eldebosh.nastastopp.ui.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -9,41 +11,52 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.flow.Flow
 import se.eldebosh.nastastopp.R
+import se.eldebosh.nastastopp.core.display.DisplaySnapshot
+import se.eldebosh.nastastopp.core.link.LinkMessage
+import se.eldebosh.nastastopp.core.nav.RoutesApi
+import se.eldebosh.nastastopp.core.route.Announcement
+import se.eldebosh.nastastopp.link.DisplayLinkClient
+import se.eldebosh.nastastopp.link.PairedDevice
+import se.eldebosh.nastastopp.settings.AppSettings
+import se.eldebosh.nastastopp.settings.WindowPlaces
+import se.eldebosh.nastastopp.ui.AppButton
 import se.eldebosh.nastastopp.ui.AppCard
 import se.eldebosh.nastastopp.ui.HelpDot
 import se.eldebosh.nastastopp.ui.IconBadge
 import se.eldebosh.nastastopp.ui.ListRow
-import se.eldebosh.nastastopp.ui.ref
-import se.eldebosh.nastastopp.ui.refCorner
-import se.eldebosh.nastastopp.core.display.DisplaySnapshot
-import se.eldebosh.nastastopp.link.DisplayLinkClient
-import se.eldebosh.nastastopp.link.PairedDevice
-import se.eldebosh.nastastopp.settings.AppSettings
-import se.eldebosh.nastastopp.ui.AppButton
 import se.eldebosh.nastastopp.ui.SectionTitle
 import se.eldebosh.nastastopp.ui.TopBar
-import se.eldebosh.nastastopp.ui.theme.Brand
-import se.eldebosh.nastastopp.ui.theme.Hairline
+import se.eldebosh.nastastopp.ui.ref
+import se.eldebosh.nastastopp.ui.refCorner
+import se.eldebosh.nastastopp.ui.theme.AppTheme
+import se.eldebosh.nastastopp.weather.WeatherWidgets
 
 /**
  * This device is a passenger display: first choose the driver's (paired) device, then show the
@@ -63,9 +76,46 @@ fun DisplayRoleScreen(
     /** A paired device's address, or null for automatic search. */
     onChoose: (String?) -> Unit,
     onSpeak: () -> Unit,
+    /** Says what a tap on the display's clock or a card asks for, on this device. */
+    onSay: (Announcement) -> Unit,
     onToggleSpeaks: (Boolean) -> Unit,
     onSwitchToController: () -> Unit,
+    /** The phone's floating panel on this tablet (asks for the overlay permission when missing). */
+    onTogglePanel: (Boolean) -> Unit = {},
+    panelAllowed: Boolean = true,
+    onAllowPanel: () -> Unit = {},
+    onToggleLook: () -> Unit = {},
+    /** Sends the order the driver set on the display's map to the phone (the trips' numbers). */
+    onOrder: ((List<Long>) -> Unit)? = null,
+    /** The weather app's widget on the display (207): its name (null: SMHI's weather), the choices, the choice. */
+    widgetLabel: String? = null,
+    widgetChoices: () -> List<WeatherWidgets.Choice> = { emptyList() },
+    onChooseWidget: (WeatherWidgets.Choice?) -> Unit = {},
+    weatherWidget: (@Composable (Modifier) -> Unit)? = null,
+    /** The Google map on the display (208): the driver's key (null removes it), whether Google refused it, the map. */
+    onSaveMapsKey: (String?) -> Unit = {},
+    mapRefused: Boolean = false,
+    routeMap: RouteMap? = null,
+    /** The tablet knows where it is (its own GPS), for the map. */
+    mapLive: Boolean = false,
+    /** The map is asked for: the tablet's location permission, if not given yet. */
+    onWantPosition: (() -> Unit)? = null,
+    /** Google's own apps at a stop's point, from the driver's map: Google Earth's 3D view (242), Google Maps' street photos (244). */
+    onEarth: ((Double, Double) -> Unit)? = null,
+    onStreetPhotos: ((Double, Double) -> Unit)? = null,
+    /** Where the driver last left the display's trip card and list of trips, and how big. */
+    places: WindowPlaces? = null,
     availabilityStatus: DisplayLinkClient.Status = DisplayLinkClient.Status.IDLE,
+    /** Goes up by one with each announcement from the driver's phone. */
+    spoken: Int = 0,
+    /** Each part of an announcement once this tablet's voice has said it (null while it does not speak). */
+    voice: Flow<Int>? = null,
+    /** The controls the driver used on the phone's floating panel, and what this display's map shows, for it. */
+    remote: Flow<LinkMessage.Remote>? = null,
+    onMapView: ((LinkMessage.MapView) -> Unit)? = null,
+    /** The car moved in the last two minutes, and how much it shakes now (the display's motion sign). */
+    awake: Boolean = true,
+    motion: (() -> Float)? = null,
 ) {
     var showSetup by remember { mutableStateOf(false) }
     val blocked = !bluetoothReady || paired.isEmpty() ||
@@ -78,20 +128,36 @@ fun DisplayRoleScreen(
         val connected = link.status == DisplayLinkClient.Status.CONNECTED
         PassengerDisplayScreen(
             snapshot = snapshot,
-            status = when {
-                connected -> stringResource(R.string.display_connected, link.deviceName.orEmpty())
-                link.deviceName != null -> stringResource(R.string.display_connecting, link.deviceName)
-                else -> stringResource(R.string.display_searching)
-            },
+            // The phone's name, short (the dot beside it says whether it is connected).
+            status = link.deviceName?.take(NAME_CHARS) ?: stringResource(R.string.display_searching),
             connected = connected,
             onSpeak = onSpeak,
+            onSay = onSay,
             onExit = { showSetup = true },
+            spoken = spoken,
+            voice = voice,
             detail = if (!connected) link.lastError?.let { stringResource(R.string.display_last_error, it) } else null,
+            weatherWidget = weatherWidget,
+            routeMap = routeMap,
+            mapLive = mapLive,
+            onWantPosition = onWantPosition,
+            onEarth = onEarth,
+            onStreetPhotos = onStreetPhotos,
+            places = places,
+            dark = settings.displayDark,
+            onToggleLook = onToggleLook,
+            onOrder = onOrder,
+            remote = remote,
+            onMapView = onMapView,
+            awake = awake,
+            motion = motion,
         )
         return
     }
+    var choosingWidget by remember { mutableStateOf(false) }
+    var editingKey by remember { mutableStateOf(false) }
 
-    Column(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         TopBar(
             stringResource(R.string.role_display),
             onBack = if (!blocked) ({ showSetup = false }) else null,
@@ -140,11 +206,126 @@ fun DisplayRoleScreen(
                     onClick = { onToggleSpeaks(!settings.displaySpeaks) },
                     trailing = { Switch(checked = settings.displaySpeaks, onCheckedChange = onToggleSpeaks, modifier = Modifier.refCorner(198)) },
                 )
+                // On but not allowed to show over other apps: it says so, and a tap asks for it.
+                val panelBlocked = settings.tabletPanel && !panelAllowed
+                ListRow(
+                    title = stringResource(R.string.tablet_panel),
+                    subtitle = if (panelBlocked) stringResource(R.string.tablet_panel_needs_permission) else null,
+                    help = R.string.help_tablet_panel,
+                    onClick = { if (panelBlocked) onAllowPanel() else onTogglePanel(!settings.tabletPanel) },
+                    trailing = { Switch(checked = settings.tabletPanel, onCheckedChange = onTogglePanel, modifier = Modifier.refCorner(206)) },
+                )
+                ListRow(
+                    title = stringResource(R.string.weather_widget),
+                    subtitle = widgetLabel ?: stringResource(R.string.weather_widget_none),
+                    help = R.string.help_weather_widget,
+                    ref = 207,
+                    onClick = { choosingWidget = true },
+                )
+                ListRow(
+                    title = stringResource(R.string.maps_key),
+                    subtitle = stringResource(
+                        when {
+                            settings.mapsKey == null -> R.string.maps_key_none
+                            mapRefused -> R.string.maps_key_refused
+                            else -> R.string.maps_key_set
+                        },
+                    ),
+                    subtitleColor = if (mapRefused && settings.mapsKey != null) AppTheme.colors.danger else null,
+                    help = R.string.help_maps_key,
+                    ref = 208,
+                    onClick = { editingKey = true },
+                )
             }
             Spacer(Modifier.size(8.dp))
             AppButton(stringResource(R.string.switch_to_controller), onSwitchToController, Modifier.ref(199).fillMaxWidth(), icon = R.drawable.ic_navigation, primary = false)
             Spacer(Modifier.size(24.dp))
         }
+    }
+
+    if (choosingWidget) {
+        val choices = remember { widgetChoices() }
+        AlertDialog(
+            onDismissRequest = { choosingWidget = false },
+            title = { Text(stringResource(R.string.weather_widget_pick)) },
+            text = {
+                LazyColumn(Modifier.heightIn(max = 440.dp)) {
+                    item {
+                        ChoiceRow(stringResource(R.string.weather_widget_none), null, 212) {
+                            choosingWidget = false
+                            onChooseWidget(null)
+                        }
+                    }
+                    items(choices) { c ->
+                        ChoiceRow(c.label, c.app, 213) {
+                            choosingWidget = false
+                            onChooseWidget(c)
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { choosingWidget = false }, modifier = Modifier.ref(218)) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+
+    if (editingKey) {
+        var text by remember { mutableStateOf(settings.mapsKey.orEmpty()) }
+        val valid = RoutesApi.isKey(text)
+        AlertDialog(
+            onDismissRequest = { editingKey = false },
+            title = { Text(stringResource(R.string.maps_key)) },
+            text = {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it.trim() },
+                    label = { Text(stringResource(R.string.maps_key_label)) },
+                    singleLine = true,
+                    isError = text.isNotEmpty() && !valid,
+                    keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Ascii),
+                    modifier = Modifier.ref(214).fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        editingKey = false
+                        onSaveMapsKey(text)
+                    },
+                    enabled = valid,
+                    modifier = Modifier.ref(215),
+                ) { Text(stringResource(R.string.save)) }
+            },
+            dismissButton = {
+                Row {
+                    if (settings.mapsKey != null) {
+                        TextButton(
+                            onClick = {
+                                editingKey = false
+                                onSaveMapsKey(null)
+                            },
+                            modifier = Modifier.ref(216),
+                        ) { Text(stringResource(R.string.delete)) }
+                    }
+                    TextButton(onClick = { editingKey = false }, modifier = Modifier.ref(217)) { Text(stringResource(R.string.cancel)) }
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun ChoiceRow(title: String, subtitle: String?, ref: Int, onClick: () -> Unit) {
+    Column(
+        Modifier
+            .ref(ref)
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 10.dp),
+    ) {
+        Text(title, style = MaterialTheme.typography.bodyLarge)
+        if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.textMuted)
     }
 }
 
@@ -158,12 +339,15 @@ private fun DeviceRow(name: String, selected: Boolean, ref: Int, onClick: () -> 
             .heightIn(min = 56.dp)
             .clip(MaterialTheme.shapes.large)
             .background(if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer)
-            .border(1.dp, if (selected) Brand else Hairline, MaterialTheme.shapes.large)
+            .border(1.dp, if (selected) AppTheme.colors.info else AppTheme.colors.cardBorder, MaterialTheme.shapes.large)
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
-        IconBadge(R.drawable.ic_bluetooth, if (selected) Brand else MaterialTheme.colorScheme.onSurfaceVariant)
+        IconBadge(R.drawable.ic_bluetooth, if (selected) AppTheme.colors.info else MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.width(12.dp))
         Text(name, style = MaterialTheme.typography.bodyLarge)
     }
 }
+
+/** The phone's name on the passenger display's top line: its first letters are enough. */
+private const val NAME_CHARS = 10

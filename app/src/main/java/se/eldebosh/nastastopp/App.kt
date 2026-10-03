@@ -6,24 +6,38 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import se.eldebosh.nastastopp.weather.WeatherSource
+import se.eldebosh.nastastopp.weather.WeatherWidgets
+import se.eldebosh.nastastopp.nav.MapsNavigation
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.MutableStateFlow
 import se.eldebosh.nastastopp.core.parse.AddressExtractor
 import se.eldebosh.nastastopp.core.parse.Localities
 import se.eldebosh.nastastopp.geo.CurrentStreet
 import se.eldebosh.nastastopp.geo.Geocoding
+import se.eldebosh.nastastopp.geo.StreetCaller
+import se.eldebosh.nastastopp.geo.StreetMapStore
 import se.eldebosh.nastastopp.importer.ScreenshotImporter
 import se.eldebosh.nastastopp.link.DisplayLinkClient
 import se.eldebosh.nastastopp.link.DisplayLinkServer
 import se.eldebosh.nastastopp.maps.MapsLauncher
 import se.eldebosh.nastastopp.ocr.OcrEngine
+import se.eldebosh.nastastopp.overlay.LinkPanelSource
 import se.eldebosh.nastastopp.overlay.OverlayManager
+import se.eldebosh.nastastopp.overlay.RoutePanelSource
+import se.eldebosh.nastastopp.settings.DeviceRole
 import se.eldebosh.nastastopp.route.RouteController
 import se.eldebosh.nastastopp.route.RouteRepository
+import se.eldebosh.nastastopp.route.StoredEntrances
+import se.eldebosh.nastastopp.route.StoredPlaceMemory
 import se.eldebosh.nastastopp.route.TripHistory
 import se.eldebosh.nastastopp.service.Notifications
 import se.eldebosh.nastastopp.service.RouteNotifier
 import se.eldebosh.nastastopp.settings.SettingsStore
 import se.eldebosh.nastastopp.tts.Announcer
 import se.eldebosh.nastastopp.util.LocaleHelper
+import se.eldebosh.nastastopp.youdrive.YouDriveLogin
 import se.eldebosh.nastastopp.youdrive.YouDriveWatcher
 
 /** Manual dependency graph (no DI framework). Created once per process. */
@@ -37,16 +51,33 @@ class AppGraph(app: Application) {
     val repository = RouteRepository(app)
     val geocoding = Geocoding(app)
     val history = TripHistory(app, settings, scope)
-    val controller = RouteController(app, scope, repository, settings, geocoding, announcer, maps, localities, extractor, history)
+    val controller = RouteController(app, scope, repository, settings, geocoding, announcer, maps, localities, extractor, history, StoredPlaceMemory(app), StoredEntrances(app))
     val notifier = RouteNotifier(app, controller, settings, scope)
 
     /** The street the vehicle is on now (floating button and route screen). */
-    val street = CurrentStreet(scope, geocoding::reverse)
-    val overlay = OverlayManager(app, controller, settings, street, scope)
+    val street = CurrentStreet(scope, lookup = geocoding::reverse)
+
+    /** The offline street map (downloaded in Settings), for exact street names. */
+    val streetMap = StreetMapStore(app, street, scope)
+
+    /** Says the street's name when it changes (the driver can switch it off). */
+    val streetCaller = StreetCaller(street, controller, scope)
     val importer = ScreenshotImporter(OcrEngine(app), extractor)
 
     /** Controller: Bluetooth server for passenger displays (runs only when enabled). */
     val displayServer = DisplayLinkServer(app, controller, settings, scope)
+
+    /** The phone's floating panel over Maps (its own route, street and speed; drives the linked display). */
+    val overlay = OverlayManager(app, RoutePanelSource(controller, street, announcer, displayServer, scope), settings, scope) { it.role != DeviceRole.DISPLAY }
+
+    /** Passenger displays shown on this phone itself (the screen counts itself while open). */
+    val localDisplays = MutableStateFlow(0)
+
+    /** The area's weather, fetched only while a passenger display shows a route. */
+    val weather = WeatherSource(scope)
+
+    /** Display role: a weather app's widget on this tablet's display (207). */
+    val weatherWidgets by lazy { WeatherWidgets(app) }
 
     /** Display role: Bluetooth client towards the driver's device. */
     val displayClient by lazy {
@@ -60,14 +91,34 @@ class AppGraph(app: Application) {
         }
     }
 
+    /**
+     * Display role: the phone's floating panel on this tablet, over the passenger display (Settings
+     * on the tablet: 206). Its Next, Back and Repeat go to the phone.
+     */
+    val tabletPanel = OverlayManager(app, LinkPanelSource(displayClient, announcer), settings, scope, bubbleScale = 2f, swellLastMinute = true) {
+        it.role == DeviceRole.DISPLAY && it.tabletPanel
+    }
+
     /** The driver's YouDrive page, watched for added / cancelled trips (alerts as notifications). */
-    val youDrive = YouDriveWatcher(app, settings, extractor) { changes ->
+    /** The YouDrive login, only if the driver saved it on this phone (encrypted). */
+    val youDriveLogin = YouDriveLogin(app)
+
+    val youDrive = YouDriveWatcher(app, settings, extractor, youDriveLogin) { changes ->
         Notifications.postTripChanges(app, changes.map { it.id to it.change })
     }
 
     init {
         // The current street is only kept while a route is active.
         scope.launch { controller.route.collect { if (it?.active != true) street.reset() } }
+        // The weather is asked for only while a passenger display (here or on a tablet) shows a route.
+        scope.launch {
+            combine(controller.route, displayServer.state, localDisplays) { r, link, local ->
+                r?.active == true && (link.status == DisplayLinkServer.Status.CONNECTED || local > 0)
+            }.distinctUntilChanged().collect { weather.want(it) }
+        }
+        scope.launch {
+            combine(weather.weather, MapsNavigation.eta) { w, eta -> w to eta }.collect { (w, eta) -> controller.setDisplayExtras(w, eta) }
+        }
     }
 }
 
@@ -83,12 +134,9 @@ class App : Application() {
         super.onCreate()
         instance = this
         graph = AppGraph(this)
-        // Keep the stored UI language in sync with a per-app language chosen in system settings
-        // (except right after the 1.4.0 switch to English, which replaces the old system choice).
-        if (!SettingsStore.languageMigrated) {
-            LocaleHelper.systemPerAppLanguage(this)?.let { sys ->
-                if (sys != graph.settings.current.uiLanguage) graph.settings.update { it.copy(uiLanguage = sys) }
-            }
+        // Keep the stored UI language in sync with a per-app language chosen in system settings.
+        LocaleHelper.systemPerAppLanguage(this)?.let { sys ->
+            if (sys != graph.settings.current.uiLanguage) graph.settings.update { it.copy(uiLanguage = sys) }
         }
         LocaleHelper.applyAppLocale(this, graph.settings.current.uiLanguage)
         Notifications.createChannels(this)

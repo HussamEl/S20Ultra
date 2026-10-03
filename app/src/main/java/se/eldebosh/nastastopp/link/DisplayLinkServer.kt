@@ -16,9 +16,11 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import se.eldebosh.nastastopp.core.link.LinkMessage
 import se.eldebosh.nastastopp.core.link.LinkProtocol
 import se.eldebosh.nastastopp.core.link.LinkSession
+import se.eldebosh.nastastopp.geo.CurrentStreet
 import se.eldebosh.nastastopp.route.RouteController
 import se.eldebosh.nastastopp.settings.DeviceRole
 import se.eldebosh.nastastopp.settings.SettingsStore
@@ -30,7 +32,8 @@ import java.util.concurrent.ConcurrentHashMap
  * Controller side of the passenger display link: Bluetooth RFCOMM servers (no internet) on the
  * secure channel and on a fallback channel. Only devices paired with this one are served. Every
  * connected display gets the current [se.eldebosh.nastastopp.core.display.DisplaySnapshot] on
- * connect and on each change, plus the announcements as they are spoken.
+ * connect and on each change, plus the announcements as they are spoken. A display's floating
+ * panel may send back Next, Back and Repeat.
  */
 class DisplayLinkServer(
     private val context: Context,
@@ -56,6 +59,19 @@ class DisplayLinkServer(
     private val acceptJobs = mutableListOf<Job>()
     private val serverSockets = ConcurrentHashMap.newKeySet<BluetoothServerSocket>()
     private val sockets = ConcurrentHashMap<BluetoothSocket, String>()
+    private val sessions = ConcurrentHashMap.newKeySet<LinkSession>()
+
+    private val _mapView = MutableStateFlow<LinkMessage.MapView?>(null)
+
+    /** What a connected passenger display's map shows (null without one, or before it says). */
+    val mapView: StateFlow<LinkMessage.MapView?> = _mapView.asStateFlow()
+
+    /** A control used on this phone's floating panel, sent to the connected passenger displays. */
+    fun remote(message: LinkMessage.Remote) {
+        val to = sessions.toList()
+        if (to.isEmpty()) return
+        scope.launch(Dispatchers.IO) { to.forEach { s -> runCatching { s.send(message) } } }
+    }
 
     private val enabled: Boolean
         get() = settings.current.role == DeviceRole.CONTROLLER && settings.current.displayLinkEnabled
@@ -149,9 +165,23 @@ class DisplayLinkServer(
         } catch (_: SecurityException) {
             "?"
         }
-        sockets[socket] = name
-        publishClients()
         val session = LinkSession(socket.inputStream, socket.outputStream)
+        // The tablet says first what it is: a passenger display of this protocol, within [HELLO_MS].
+        // Until then nothing is sent to it; anything else ends the link.
+        val giveUp = scope.launch(Dispatchers.IO) {
+            delay(HELLO_MS)
+            runCatching { socket.close() }
+        }
+        val hello = runCatching { session.receive() }.getOrNull()
+        giveUp.cancel()
+        if (!LinkProtocol.isDisplayHello(hello)) {
+            session.close()
+            runCatching { socket.close() }
+            return
+        }
+        sockets[socket] = name
+        sessions.add(session)
+        publishClients()
         val done = CompletableDeferred<Unit>()
         fun io(block: suspend () -> Unit): Job = scope.launch(Dispatchers.IO) {
             try {
@@ -174,8 +204,14 @@ class DisplayLinkServer(
                 }
             },
             io {
-                @Suppress("ControlFlowWithEmptyBody")
-                while (session.receive() != null) {
+                while (true) {
+                    val message = session.receive() ?: break
+                    when (message) {
+                        is LinkMessage.Command -> scope.launch(Dispatchers.Main) { carryOut(message.action) }
+                        is LinkMessage.Order -> scope.launch(Dispatchers.Main) { controller.reorder(message.ids) }
+                        is LinkMessage.MapView -> _mapView.value = message
+                        else -> Unit
+                    }
                 }
             },
         )
@@ -183,8 +219,19 @@ class DisplayLinkServer(
         jobs.forEach { it.cancel() }
         runCatching { socket.close() }
         session.close()
+        sessions.remove(session)
         sockets.remove(socket)
+        if (sessions.isEmpty()) _mapView.value = null
         publishClients()
+    }
+
+    /** Next, Back or Repeat pressed on a tablet's floating panel: as if pressed on the phone's. */
+    private fun carryOut(action: LinkMessage.Command.Action) {
+        when (action) {
+            LinkMessage.Command.Action.NEXT -> controller.next()
+            LinkMessage.Command.Action.BACK -> controller.back()
+            LinkMessage.Command.Action.REPEAT -> controller.repeat()
+        }
     }
 
     private fun publishClients() {
@@ -197,5 +244,8 @@ class DisplayLinkServer(
 
     companion object {
         private const val PING_MS = 10_000L
+
+        /** A tablet that has not said it is a passenger display after this long is let go. */
+        private const val HELLO_MS = 10_000L
     }
 }

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    YouDrive (regionvarmland.se) chains to "Telia Root CA v2", which Android 13 and older do not
+    ship. That public root (Mozilla root store; serial 01675F27D6FE7AE3E4ACBE095B059E, SHA-256
+    24:2B:69:74:2F:CB:1E:5B:2A:BF:98:89:8B:94:57:21:87:54:4E:5B:4D:99:11:78:65:73:62:1F:6A:74:B8:2C)
+    is added as an extra trust anchor for these domains only. Certificates are still fully
+    verified; untrusted ones are still refused. Everything else uses the system defaults.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">regionvarmland.se</domain>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="@raw/telia_root_ca_v2" />
+        </trust-anchors>
+    </domain-config>
+</network-security-config>

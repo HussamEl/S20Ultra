@@ -56,7 +56,7 @@ class DisplayFeaturesRoboTest {
     }
 
     @Test
-    fun completedTripsStayWithTheirTimesAndDisplayShowsOnePreviousAndThreeUpcoming() {
+    fun completedTripsStayWithTheirTimesAndDisplayShowsTheDoneAndUpcomingTrips() {
         addFive()
         val c = app.graph.controller
         c.start()
@@ -65,12 +65,12 @@ class DisplayFeaturesRoboTest {
         assertTrue(d.active)
         assertNull(d.previous)
         assertEquals("12:30", d.current?.time)
-        // Street address with the house number (default since 1.4.0), the area under it.
+        // Street address with the house number (the default), the area under it.
         assertEquals("Storgatan 14", d.current?.title)
         assertEquals("Karlstad", d.current?.subtitle)
-        assertEquals(listOf("Järnvägsgatan 3B", "Björkvägen 7", "Kungsgatan 5"), d.upcoming.map { it.title })
-        assertEquals(listOf("Storfors", "Hammarö", "Kil"), d.upcoming.map { it.subtitle })
-        assertEquals("Nästa stopp: Karlstad. Därefter: Storfors.", d.announcementSv)
+        assertEquals(listOf("Järnvägsgatan 3B", "Björkvägen 7", "Kungsgatan 5", "Lindvägen 9"), d.upcoming.map { it.title })
+        assertEquals(listOf("Storfors", "Hammarö", "Kil"), d.upcoming.take(3).map { it.subtitle })
+        assertEquals("Nästa stopp: Storgatan 14, Karlstad. Klockan 12 och 30 minuter. Därefter: Järnvägsgatan 3B, Storfors. Klockan 12 och 45 minuter.", d.announcementSv)
 
         c.next()
         idle()
@@ -79,6 +79,8 @@ class DisplayFeaturesRoboTest {
         d = c.display.value
         assertEquals("Storgatan 14", d.previous?.title)
         assertEquals("12:30", d.previous?.time)
+        assertTrue("done here", d.previous!!.doneHere)
+        assertEquals(listOf("Storgatan 14"), d.earlier.map { it.title })
         assertEquals("Järnvägsgatan 3B", d.current?.title)
         assertEquals(listOf("Björkvägen 7", "Kungsgatan 5", "Lindvägen 9"), d.upcoming.map { it.title })
 
@@ -102,9 +104,9 @@ class DisplayFeaturesRoboTest {
         idle()
         assertEquals(
             listOf(
-                "Nästa stopp: Karlstad. Därefter: Storfors.",
-                "Nästa stopp: Storfors. Därefter: Hammarö.",
-                "Nästa stopp: Storfors. Därefter: Hammarö.",
+                "Nästa stopp: Storgatan 14, Karlstad. Klockan 12 och 30 minuter. Därefter: Järnvägsgatan 3B, Storfors. Klockan 12 och 45 minuter.",
+                "Nästa stopp: Järnvägsgatan 3B, Storfors. Klockan 12 och 45 minuter. Därefter: Björkvägen 7, Hammarö. Klockan 13 och 5 minuter.",
+                "Nästa stopp: Järnvägsgatan 3B, Storfors. Klockan 12 och 45 minuter. Därefter: Björkvägen 7, Hammarö. Klockan 13 och 5 minuter.",
             ),
             got.map { it.swedish },
         )

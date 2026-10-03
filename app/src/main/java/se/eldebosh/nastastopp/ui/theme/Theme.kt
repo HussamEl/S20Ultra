@@ -1,80 +1,97 @@
 package se.eldebosh.nastastopp.ui.theme
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import se.eldebosh.nastastopp.R
+import se.eldebosh.nastastopp.settings.Appearance
 
 /*
- * Visual identity "Night transit" (release 1.0): a calm dark blue-grey base that is easy on the
- * eyes at night, one sky-blue brand colour for actions, warm amber for trip times, and green /
- * red only for status. Cards are soft surfaces with a hairline border; buttons are compact (48 dp).
+ * The design system, in three layers:
+ *   1. Palette.kt    raw colours, named by what they are (YouDrive green, taxi yellow, sky blue …);
+ *   2. AppColors.kt  colour roles for day and night ("a pick-up's card", "the next action");
+ *   3. AppEffects.kt shadows, press feedback and colour fades.
+ * This file puts them together: NastaTheme picks day or night, provides the roles and effects
+ * (AppTheme.colors / AppTheme.effects) and maps the roles onto Material 3, so Material's own
+ * components (switches, dialogs, menus) follow too.
  */
 
-/** Brand colour: actions, selected items, the app name. */
-val Brand = Color(0xFF6EA8FF)
+internal val LocalAppColors = staticCompositionLocalOf { DayColors }
+internal val LocalAppEffects = staticCompositionLocalOf { DayEffects }
 
-/** Trip times (read at a glance). */
-val TimeColor = Color(0xFFFFC56B)
+/** The design system's entry point for screens and components. */
+object AppTheme {
+    /** The colour roles of the current look (day or night). */
+    val colors: AppColors
+        @Composable @ReadOnlyComposable
+        get() = LocalAppColors.current
 
-/** Status: located / on time / done. */
-val Located = Color(0xFF4ADE80)
+    /** Shadows, press feedback and colour fades of the current look. */
+    val effects: AppEffects
+        @Composable @ReadOnlyComposable
+        get() = LocalAppEffects.current
 
-/** Status: not found / late / problem. */
-val NotLocated = Color(0xFFF87171)
+    /** True when [appearance] means night ([systemDark] = the phone's dark mode, for AUTOMATIC). */
+    fun isNight(appearance: Appearance, systemDark: Boolean): Boolean = when (appearance) {
+        Appearance.DAY -> false
+        Appearance.NIGHT -> true
+        Appearance.AUTOMATIC -> systemDark
+    }
 
-/** Status: soon. */
-val Warning = Color(0xFFFBBF24)
+    /** The colour roles for [appearance], also outside Compose (the floating panel is made of Views). */
+    fun colorsFor(appearance: Appearance, systemDark: Boolean): AppColors =
+        if (isNight(appearance, systemDark)) NightColors else DayColors
 
-/** Hairline borders of cards. */
-val Hairline = Color(0xFF243044)
-
-private val NightColors = darkColorScheme(
-    primary = Brand,
-    onPrimary = Color(0xFF06142B),
-    primaryContainer = Color(0xFF16305A),
-    onPrimaryContainer = Color(0xFFD6E6FF),
-    secondary = Color(0xFF5BE0C2),
-    onSecondary = Color(0xFF00261F),
-    secondaryContainer = Color(0xFF0F3A33),
-    onSecondaryContainer = Color(0xFFC9FBF1),
-    tertiary = TimeColor,
-    onTertiary = Color(0xFF2B1A00),
-    background = Color(0xFF0B0F17),
-    onBackground = Color(0xFFEEF2F8),
-    surface = Color(0xFF0B0F17),
-    onSurface = Color(0xFFEEF2F8),
-    surfaceVariant = Color(0xFF1A2231),
-    onSurfaceVariant = Color(0xFF9AA6BA),
-    surfaceContainerLowest = Color(0xFF080B11),
-    surfaceContainerLow = Color(0xFF0F1520),
-    surfaceContainer = Color(0xFF131A26),
-    surfaceContainerHigh = Color(0xFF1A2231),
-    surfaceContainerHighest = Color(0xFF222B3D),
-    surfaceBright = Color(0xFF2A3447),
-    inverseSurface = Color(0xFFEEF2F8),
-    inverseOnSurface = Color(0xFF131A26),
-    outline = Color(0xFF3A475E),
-    outlineVariant = Hairline,
-    error = Color(0xFFFF7A7A),
-    onError = Color(0xFF2D0607),
-    errorContainer = Color(0xFF4A1417),
-    onErrorContainer = Color(0xFFFFDAD8),
-    scrim = Color(0xFF000000),
-)
+    /** The effects for [appearance], also outside Compose (the floating panel). */
+    fun effectsFor(appearance: Appearance, systemDark: Boolean): AppEffects =
+        if (isNight(appearance, systemDark)) NightEffects else DayEffects
+}
 
 private fun style(size: Int, line: Int, weight: FontWeight = FontWeight.Normal, spacing: Float = 0f) =
     TextStyle(fontSize = size.sp, lineHeight = line.sp, fontWeight = weight, letterSpacing = spacing.sp)
 
-/** A compact, modern type scale (smaller than the first driving design, at the driver's request). */
-private val NightTypography = Typography(
+/**
+ * The passenger display's typeface: Barlow Semi Condensed (SIL Open Font License, see
+ * assets/licenses), in the style of road and transit signs. Narrow letters let long Swedish
+ * street names ("Hantverkaregatan 6") stay large on one line.
+ */
+val DisplayFont = FontFamily(
+    Font(R.font.barlow_semi_condensed_light, FontWeight.Light),
+    Font(R.font.barlow_semi_condensed_medium, FontWeight.Medium),
+    Font(R.font.barlow_semi_condensed_semibold, FontWeight.SemiBold),
+    Font(R.font.barlow_semi_condensed_bold, FontWeight.Bold),
+)
+
+/**
+ * The passenger display's digits (the clock, trip times, degrees, minutes): Atkinson Hyperlegible
+ * Next (SIL Open Font License, see assets/licenses), drawn for low vision, so 1, 7 and 0 never look
+ * alike from a seat. Its digits are proportional unless "tnum" is asked for.
+ */
+val DigitFont = FontFamily(
+    Font(R.font.atkinson_hyperlegible_next_light, FontWeight.Light),
+    Font(R.font.atkinson_hyperlegible_next_medium, FontWeight.Medium),
+    Font(R.font.atkinson_hyperlegible_next_semibold, FontWeight.SemiBold),
+    Font(R.font.atkinson_hyperlegible_next_bold, FontWeight.Bold),
+)
+
+/** A compact, modern type scale. */
+private val AppTypography = Typography(
     displaySmall = style(34, 40, FontWeight.Bold, -0.5f),
     headlineLarge = style(30, 36, FontWeight.Bold, -0.3f),
     headlineMedium = style(26, 32, FontWeight.Bold, -0.2f),
@@ -90,7 +107,7 @@ private val NightTypography = Typography(
     labelSmall = style(11, 14, FontWeight.Medium, 0.4f),
 )
 
-private val NightShapes = Shapes(
+private val AppShapes = Shapes(
     extraSmall = RoundedCornerShape(8.dp),
     small = RoundedCornerShape(10.dp),
     medium = RoundedCornerShape(14.dp),
@@ -98,7 +115,70 @@ private val NightShapes = Shapes(
     extraLarge = RoundedCornerShape(28.dp),
 )
 
+/**
+ * The passenger display's own look, whatever the app's: [DisplayColors] on black ([dark], for
+ * Swedish winter darkness and for a screen that stays on for hours), or the light day colours.
+ * Dialogs opened from it follow too.
+ */
 @Composable
-fun NastaTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = NightColors, typography = NightTypography, shapes = NightShapes, content = content)
+fun DisplayTheme(dark: Boolean, content: @Composable () -> Unit) {
+    val colors = displayColors(dark)
+    CompositionLocalProvider(LocalAppColors provides colors, LocalAppEffects provides if (dark) NightEffects else DayEffects) {
+        MaterialTheme(colorScheme = colors.toMaterial(), typography = AppTypography, shapes = AppShapes, content = content)
+    }
+}
+
+/** The passenger display's colours: black ([DisplayColors]) or light ([DayColors]). */
+fun displayColors(dark: Boolean): AppColors = if (dark) DisplayColors else DayColors
+
+/** Material 3's colour scheme from the roles: sky blue for selection, yellow as secondary. */
+private fun AppColors.toMaterial(): ColorScheme {
+    val scheme = if (isDark) darkColorScheme() else lightColorScheme()
+    return scheme.copy(
+        primary = info,
+        onPrimary = onInfo,
+        primaryContainer = infoSoft,
+        onPrimaryContainer = text,
+        inversePrimary = accent,
+        secondary = accent,
+        onSecondary = onAccent,
+        secondaryContainer = accentSoft,
+        onSecondaryContainer = text,
+        tertiary = pickUp,
+        onTertiary = onTrip,
+        tertiaryContainer = pickUp,
+        onTertiaryContainer = onTrip,
+        background = background,
+        onBackground = text,
+        surface = background,
+        onSurface = text,
+        surfaceVariant = tonal,
+        onSurfaceVariant = textMuted,
+        surfaceTint = Color.Transparent,
+        inverseSurface = text,
+        inverseOnSurface = background,
+        error = danger,
+        onError = onStatus,
+        errorContainer = dangerSoft,
+        onErrorContainer = onDangerSoft,
+        outline = outline,
+        outlineVariant = cardBorder,
+        scrim = Color.Black,
+        surfaceBright = card,
+        surfaceDim = tonalHigh,
+        surfaceContainerLowest = card,
+        surfaceContainerLow = card,
+        surfaceContainer = card,
+        surfaceContainerHigh = tonal,
+        surfaceContainerHighest = tonalHigh,
+    )
+}
+
+@Composable
+fun NastaTheme(appearance: Appearance = Appearance.DAY, content: @Composable () -> Unit) {
+    val night = AppTheme.isNight(appearance, isSystemInDarkTheme())
+    val colors = if (night) NightColors else DayColors
+    CompositionLocalProvider(LocalAppColors provides colors, LocalAppEffects provides if (night) NightEffects else DayEffects) {
+        MaterialTheme(colorScheme = colors.toMaterial(), typography = AppTypography, shapes = AppShapes, content = content)
+    }
 }

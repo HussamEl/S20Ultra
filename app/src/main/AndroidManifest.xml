@@ -3,17 +3,21 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <!--
-        Network: only for the driver's YouDrive page (1.4.0, the driver's decision). The app's own
-        code sends nothing anywhere; ML Kit's usage reporting is switched off below.
+        Network: only for the driver's YouDrive page and the offline street map's download (on the
+        driver's tap). Nothing else is sent anywhere; ML Kit's usage reporting is switched off below.
     -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
 
-    <!-- No location at all (1.4.5, the driver's decision): only Google Maps uses the location. -->
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" tools:node="remove" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" tools:node="remove" />
+    <!--
+        Location only to name the street the vehicle is on and its speed: asked at
+        "Start route", used while a route is active, never stored, logged or sent, and never given
+        to the YouDrive page (its WebView has geolocation off). Never in the background.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" tools:node="remove" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" tools:node="remove" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -26,9 +30,12 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
 
-    <!-- Package visibility (Android 11+): Google Maps and TTS engines. -->
+    <!-- Package visibility (Android 11+): Google Maps, TTS engines and the widgets a weather app offers. -->
     <queries>
         <package android:name="com.google.android.apps.maps" />
+        <intent>
+            <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+        </intent>
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>
@@ -42,6 +49,7 @@
         android:allowBackup="false"
         android:fullBackupContent="@xml/backup_rules"
         android:dataExtractionRules="@xml/data_extraction_rules"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -80,6 +88,12 @@
             android:label="@string/youdrive_title"
             android:windowSoftInputMode="adjustResize" />
 
+        <!-- The street the vehicle is on, while a route is active (see StreetService). -->
+        <service
+            android:name=".service.StreetService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
         <!-- Quick Settings tile: show / hide the floating button (only the system can bind it). -->
         <service
             android:name=".overlay.OverlayTileService"
@@ -93,6 +107,18 @@
         </service>
 
         <!-- Keeps the YouDrive page watched while Maps is in front (trip added / cancelled alerts). -->
+        <!-- Reads Google Maps' remaining travel time from its navigation notification, only with the
+             access the driver gives in Settings (203); only the system can bind it. -->
+        <service
+            android:name=".nav.MapsNavigationListener"
+            android:exported="true"
+            android:label="@string/maps_time_label"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
         <service
             android:name=".youdrive.YouDriveService"
             android:exported="false"
@@ -104,7 +130,7 @@
 
         <!--
             Privacy: ML Kit's usage reporting (Google datatransport) gets no upload backend, so no
-            reports are sent even though the app now has internet access for YouDrive.
+            reports are sent although the app has internet access.
         -->
         <service
             android:name="com.google.android.datatransport.runtime.backends.TransportBackendDiscovery"

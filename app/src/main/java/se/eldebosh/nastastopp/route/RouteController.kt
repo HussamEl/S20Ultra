@@ -1,6 +1,7 @@
 package se.eldebosh.nastastopp.route
 
 import android.content.Context
+import androidx.annotation.VisibleForTesting
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -13,47 +14,40 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import se.eldebosh.nastastopp.core.nav.OrderPlanner
 import se.eldebosh.nastastopp.core.display.DisplayItem
 import se.eldebosh.nastastopp.core.display.DisplaySnapshot
+import se.eldebosh.nastastopp.core.nav.DisplayEta
+import se.eldebosh.nastastopp.core.weather.DisplayWeather
+import se.eldebosh.nastastopp.core.geo.AnnouncementDetail
 import se.eldebosh.nastastopp.core.geo.GeoLogic
 import se.eldebosh.nastastopp.core.geo.StreetInfo
 import se.eldebosh.nastastopp.core.parse.AddressExtractor
 import se.eldebosh.nastastopp.core.parse.ExtractedStop
 import se.eldebosh.nastastopp.core.parse.Localities
+import se.eldebosh.nastastopp.core.parse.Places
 import se.eldebosh.nastastopp.core.parse.TextNorm
+import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.core.parse.TripTimes
 import se.eldebosh.nastastopp.core.route.Announcement
 import se.eldebosh.nastastopp.core.route.Announcements
-import se.eldebosh.nastastopp.core.route.ArrivalConfig
-import se.eldebosh.nastastopp.core.route.ArrivalDetector
-import se.eldebosh.nastastopp.core.route.DetectorEvent
-import se.eldebosh.nastastopp.core.route.DetectorPhase
-import se.eldebosh.nastastopp.core.route.Fix
 import se.eldebosh.nastastopp.core.route.MapsUrlBuilder
 import se.eldebosh.nastastopp.geo.Geocoding
 import se.eldebosh.nastastopp.geo.LocateResult
 import se.eldebosh.nastastopp.maps.MapsLauncher
+import se.eldebosh.nastastopp.core.youdrive.TripWatch
 import se.eldebosh.nastastopp.route.model.GeoPoint
 import se.eldebosh.nastastopp.route.model.GeoStatus
 import se.eldebosh.nastastopp.route.model.RouteData
 import se.eldebosh.nastastopp.route.model.Stop
+import se.eldebosh.nastastopp.service.StreetService
 import se.eldebosh.nastastopp.settings.SettingsStore
 import se.eldebosh.nastastopp.tts.Announcer
-
-/** Live tracking info for the UI. */
-data class TrackingState(
-    val phase: DetectorPhase = DetectorPhase.IDLE,
-    val distanceM: Double? = null,
-    /** False when the current stop is not located or shares its place with a neighbour. */
-    val autoEnabled: Boolean = false,
-    /** Wall-clock time the vehicle arrived at the current stop (waiting timer), or null. */
-    val arrivedAtMs: Long? = null,
-)
+import kotlin.math.abs
 
 /**
  * Single source of truth for the route (draft and active). All calls on the main thread.
@@ -70,36 +64,38 @@ class RouteController(
     private val localities: Localities,
     private val extractor: AddressExtractor,
     private val history: TripHistory,
+    private val places: PlaceMemory = PlaceMemory.None,
+    private val entrances: Entrances = Entrances.None(),
 ) {
     private val _route = MutableStateFlow(repo.load())
     val route: StateFlow<RouteData?> = _route.asStateFlow()
-
-    private val _tracking = MutableStateFlow(TrackingState())
-    val tracking: StateFlow<TrackingState> = _tracking.asStateFlow()
 
     /** Every announcement this controller speaks (forwarded to connected passenger displays). */
     private val _announcements = MutableSharedFlow<Announcement>(extraBufferCapacity = 8)
     val announcements: SharedFlow<Announcement> = _announcements.asSharedFlow()
 
-    /** What the passenger display shows (locally and on a connected tablet). */
-    val display: StateFlow<DisplaySnapshot> = combine(_route, settings.state) { r, _ -> buildDisplay(r) }
-        .stateIn(scope, SharingStarted.Eagerly, buildDisplay(_route.value))
+    /** The area's weather and Google Maps' travel time, for the passenger display. */
+    private val extras = MutableStateFlow(DisplayExtras())
 
-    private val detector = ArrivalDetector(ArrivalConfig.forRadius(settings.current.arrivalRadiusM))
-    private var detectorKey: String? = null
+    /** What the passenger display shows (locally and on a connected tablet). */
+    val display: StateFlow<DisplaySnapshot> = combine(_route, settings.state, extras, entrances.all) { r, _, x, _ -> buildDisplay(r, x) }
+        .stateIn(scope, SharingStarted.Eagerly, buildDisplay(_route.value, extras.value))
+
+    /** The driver's entrances by address ([Stop.entranceKey]). */
+    val savedEntrances: StateFlow<Map<String, Entrance>> get() = entrances.all
+
+    /** Shows [weather] and Google Maps' remaining travel time ([eta]) on the passenger display. */
+    fun setDisplayExtras(weather: DisplayWeather?, eta: DisplayEta?) {
+        extras.value = DisplayExtras(weather, eta)
+    }
+
     private val persistDispatcher = Dispatchers.IO.limitedParallelism(1)
     private var geocodeJob: Job? = null
-    private var editBaseline: List<Long>? = null
-    private var arrivedAtMs: Long? = null
+    /** The stops of an active route as the review screen opened, each with where Maps goes for it. */
+    private var editBaseline: List<Pair<Long, String>>? = null
 
     init {
         _route.value?.let { repo.scheduleExpiry(it.createdAtMs) }
-        scope.launch {
-            settings.state.map { it.arrivalRadiusM }.distinctUntilChanged().collect {
-                detector.config = ArrivalConfig.forRadius(it)
-            }
-        }
-        syncDetector()
         ensureGeocoding()
     }
 
@@ -119,24 +115,122 @@ class RouteController(
 
     val isActive: Boolean get() = _route.value?.active == true
 
-    fun announcementFor(stops: List<Stop>): Announcement =
-        Announcements.forRemaining(stops.take(2).map { spokenName(it) }, settings.current.englishRepeat)
+    /**
+     * A stop's street and number as said aloud and shown beside its time on the panel
+     * ("Storgatan 14"). A surname that some lists put before the street ("Andersson Storgatan 14")
+     * is left out, so a name is never spoken.
+     */
+    fun streetOf(stop: Stop): String = DisplayItem.streetPart(TripWatch.streetAddress(stop.candidates, stop.displayText))
 
-    private fun buildDisplay(r: RouteData?): DisplaySnapshot {
+    /**
+     * The next stop in full, for the announcement: its street and number, district and town. A
+     * place of care is said by its name first ("Provby Vårdcentral, Strandvägen 3, Karlstad"); a
+     * well-known one by its spoken name and town only ("Centralsjukhuset, huvudentrén, Karlstad").
+     */
+    fun fullSpokenName(stop: Stop): String {
+        val known = Places.known(placeOf(stop))?.takeIf { Places.publicName(placeOf(stop), localities::contains) != null }
+        return GeoLogic.fullSpokenName(
+            street = saidStreet(stop),
+            district = if (known != null) null else spokenName(stop, AnnouncementDetail.DISTRICT),
+            town = known?.town ?: spokenName(stop, AnnouncementDetail.TOWN_ONLY),
+        )
+    }
+
+    /**
+     * What is said (and shown on the passenger display) for a stop's street: a place of care's name
+     * with the street and number, if any; the street and number; for another named place (a care
+     * home) without a number, only the street the geocoder found, never the place's name.
+     */
+    private fun saidStreet(stop: Stop): String {
+        val street = streetOf(stop)
+        val numbered = street.any { it.isDigit() }
+        val care = Places.spokenName(placeOf(stop), localities::contains)
+        return when {
+            care != null -> listOfNotNull(care, street.takeIf { numbered }).joinToString(", ")
+            stop.place != null && !numbered -> stop.geo?.thoroughfare.orEmpty()
+            else -> street
+        }
+    }
+
+    /** The stop's named place: as YouDrive wrote it, or a well-known place written as the address ("Centralsjukhuset Karlstad"). */
+    private fun placeOf(stop: Stop): String? = stop.place ?: stop.displayText.takeIf { Places.known(it) != null }
+
+    /** The stop's title on the passenger display: a place of care's short name, or its street and number. */
+    private fun displayTitle(stop: Stop): String {
+        Places.displayName(placeOf(stop), localities::contains)?.let { return it }
+        val street = streetOf(stop)
+        if (stop.place != null && street.none { it.isDigit() }) return stop.geo?.thoroughfare ?: spokenName(stop)
+        return Places.written(street)
+    }
+
+    private fun spokenName(stop: Stop, detail: AnnouncementDetail): String = GeoLogic.spokenName(
+        subLocality = stop.geo?.subLocality,
+        locality = stop.geo?.locality,
+        parsedTown = stop.parsedTown,
+        parsedTownKnown = stop.parsedTownKnown,
+        detail = detail,
+        thoroughfare = stop.geo?.thoroughfare,
+        isKnownLocality = localities::contains,
+    )
+
+    /** The stop after the next one: its street and number (or place of care), then its district (or town). */
+    fun thenSpokenName(stop: Stop): String = GeoLogic.fullSpokenName(
+        street = saidStreet(stop),
+        district = if (Places.known(placeOf(stop)) != null && Places.publicName(placeOf(stop), localities::contains) != null) null else spokenName(stop, AnnouncementDetail.DISTRICT),
+        town = null,
+    )
+
+    /** A passenger's last name ("Anna Testsson" → "Testsson"): the next stop's, for the passenger display. */
+    private fun riderKey(name: String?): String? = name?.trim()?.lowercase(TextNorm.SWEDISH)?.takeIf { it.isNotEmpty() }
+
+    private fun lastNameOf(name: String?): String? = name?.trim()?.substringAfterLast(' ')?.takeIf { it.isNotBlank() }
+
+    /**
+     * "Nästa stopp: …. Klockan …. Därefter: …. Klockan …." With the full announcement (the
+     * default) the next stop is said with its street and number, district and town, and the one
+     * after it with its street and number and district. Otherwise both by district or town only.
+     * Each with its trip's time after it.
+     */
+    fun announcementFor(stops: List<Stop>): Announcement {
+        val first = stops.firstOrNull() ?: return Announcements.finished(settings.current.englishRepeat)
+        val full = settings.current.detail == AnnouncementDetail.FULL
+        val next = if (full) fullSpokenName(first) else spokenName(first)
+        val after = stops.getOrNull(1)
+        val then = after?.let { if (full) thenSpokenName(it) else spokenName(it) }
+        return Announcements.nextStops(next, then, settings.current.englishRepeat, first.time, after?.time)
+    }
+
+    private fun buildDisplay(r: RouteData?, x: DisplayExtras): DisplaySnapshot {
         if (r == null) return DisplaySnapshot()
         val full = settings.current.displayFullAddress
+        // One number per passenger, the same on their pick-up and drop-off; never the name.
+        val riders = (r.completed + r.stops).mapNotNull { riderKey(it.name) }.distinct().withIndex().associate { (i, key) -> key to i + 1 }
         return DisplaySnapshot.build(
             active = r.active,
             completed = r.completed,
             remaining = r.stops,
             item = { s ->
-                // The street address with the house number (the driver's choice), the area under it.
-                if (full) DisplayItem(time = s.time, title = DisplayItem.streetPart(s.displayText), subtitle = spokenName(s))
-                else DisplayItem(time = s.time, title = spokenName(s))
+                // The street address with the house number (setting 114), the area under it; and
+                // where the tablet's map routes to (the street, never a home's name written before it).
+                val at = s.geo?.takeIf { s.isLocated }
+                val routeTo = at?.addressLine?.takeIf { it.isNotBlank() } ?: s.streetText
+                // The tablet's map goes to the driver's entrance when he set one, else to the address's point.
+                val point = entranceOf(s)?.takeIf { it.hasPoint }?.let { it.lat!! to it.lng!! } ?: at?.let { it.lat to it.lng }
+                if (full) {
+                    // A place of care by its short name, said in full when tapped.
+                    val said = Places.spokenName(placeOf(s), localities::contains)
+                    DisplayItem(time = s.time, title = displayTitle(s), subtitle = spokenName(s), doneInYouDrive = s.youDriveDone, kind = s.kind, place = routeTo, lat = point?.first, lng = point?.second, said = said, card = s.card, id = s.id, rider = riders[riderKey(s.name)])
+                } else {
+                    DisplayItem(time = s.time, title = spokenName(s), doneInYouDrive = s.youDriveDone, kind = s.kind, place = routeTo, lat = point?.first, lng = point?.second, card = s.card, id = s.id, rider = riders[riderKey(s.name)])
+                }
             },
             announcement = if (r.active && r.stops.isNotEmpty()) announcementFor(r.stops) else null,
-        )
+            // Only the last name, of the trips still to come: under their pins on the tablet's map.
+            lastName = { s -> lastNameOf(s.name) },
+        ).let { if (it.active) it.copy(weather = x.weather, eta = x.eta) else it }
     }
+
+    private data class DisplayExtras(val weather: DisplayWeather? = null, val eta: DisplayEta? = null)
 
     /** Speaks on this device and tells connected displays. */
     private fun speak(announcement: Announcement) {
@@ -147,15 +241,23 @@ class RouteController(
     // ------------------------------------------------------------------------------------------
     // Editing (review screen)
 
-    /** Appends extracted stops (merging a duplicate of the current last stop). Returns count added. */
+    /**
+     * Appends extracted stops (merging a duplicate of the current last stop). A "Pull-out" becomes
+     * the route's start point instead of a stop. Returns how many stops were added.
+     */
     fun addExtracted(extracted: List<ExtractedStop>): Int {
         if (extracted.isEmpty()) return 0
-        val base = _route.value ?: newRoute()
+        var base = _route.value ?: newRoute()
         var nextId = base.nextId
         val added = ArrayList<Stop>()
-        for (e in extracted) {
+        for (found in extracted) {
+            val e = remembered(found)
+            if (e.kind == TripKind.PULL_OUT) {
+                base = base.copy(depot = e.toStop(nextId++))
+                continue
+            }
             val prev = added.lastOrNull() ?: base.stops.lastOrNull()
-            if (prev != null && extractor.isSameAddress(prev.toExtracted(), e)) continue
+            if (prev != null && extractor.isSameTrip(prev.toExtracted(), e)) continue
             added += e.toStop(nextId++)
         }
         set(base.copy(stops = base.stops + added, nextId = nextId))
@@ -182,10 +284,12 @@ class RouteController(
             return true
         }
         val e = extractor.fromManualText(text) ?: return false
+        // A place written without a town, given one by the driver: next time it comes with it.
+        if (current.townUnknown && (e.parsedTown != null || e.parsedPostalCode != null)) places.remember(current.place ?: current.displayText, text)
         update { r ->
             r.copy(
                 stops = r.stops.map {
-                    if (it.id == id) e.toStop(id).copy(sourceOrder = it.sourceOrder, time = time) else it
+                    if (it.id == id) e.toStop(id).copy(sourceOrder = it.sourceOrder, time = time, kind = it.kind, name = it.name, place = it.place, card = it.card) else it
                 },
             )
         }
@@ -210,7 +314,107 @@ class RouteController(
         }
     }
 
+    /**
+     * The driver's order for the trips [ids], set on the tablet's map: they take the places they
+     * hold now, in this order, and every other trip keeps its place. On an active route the next
+     * stops are said again when the next stop or the one after changed, and Maps opens again when
+     * its first ten stops changed (each follows the driver's tap on the tablet).
+     */
+    fun reorder(ids: List<Long>) {
+        val r = _route.value ?: return
+        if (ids.toSet().size != ids.size) return
+        val places = r.stops.indices.filter { r.stops[it].id in ids }
+        if (places.size != ids.size) return
+        val byId = r.stops.associateBy { it.id }
+        val stops = r.stops.toMutableList()
+        places.forEachIndexed { k, at -> stops[at] = byId.getValue(ids[k]) }
+        if (stops == r.stops) return
+        // The tablet never sends one, and the phone never takes one: a passenger dropped off before
+        // they are picked up.
+        if (!OrderPlanner.allowed(stops.indices.toList(), plannerTrips(stops))) return
+        set(r.copy(stops = stops))
+        if (!r.active) return
+        val before = r.stops.map { it.id }
+        val now = stops.map { it.id }
+        if (now.take(2) != before.take(2)) speak(announcementFor(stops))
+        if (now.take(MapsUrlBuilder.MAX_STOPS_PER_LAUNCH) != before.take(MapsUrlBuilder.MAX_STOPS_PER_LAUNCH)) openMaps(fromBackground = true)
+    }
+
     fun delete(id: Long) = update { r -> r.copy(stops = r.stops.filterNot { it.id == id }) }
+
+    /** [stops] for [OrderPlanner]: pick-up or drop-off, and a number for each passenger (never a name). */
+    private fun plannerTrips(stops: List<Stop>): List<OrderPlanner.Trip> {
+        val riders = stops.mapNotNull { riderKey(it.name) }.distinct()
+        return stops.map { s ->
+            OrderPlanner.Trip(
+                booked = null,
+                pickUp = when (s.kind) {
+                    TripKind.PICK_UP -> true
+                    TripKind.DROP_OFF -> false
+                    else -> null
+                },
+                rider = riderKey(s.name)?.let { riders.indexOf(it) },
+            )
+        }
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // The driver's entrances and Google Maps for one stop
+
+    /** The driver's entrance for [stop]'s address, or null. */
+    fun entranceOf(stop: Stop): Entrance? = entrances.all.value[stop.entranceKey]
+
+    /**
+     * Sets the driver's entrance for [stop]'s address ([point] and [note]; both empty removes it).
+     * It never replaces the address's own point: that stays on the stop.
+     */
+    fun setEntrance(stop: Stop, point: Pair<Double, Double>?, note: String?) {
+        val key = stop.entranceKey
+        val text = note?.trim()?.takeIf { it.isNotEmpty() }
+        if (point == null && text == null) {
+            entrances.remove(key)
+            return
+        }
+        val now = System.currentTimeMillis()
+        val before = entrances.all.value[key]
+        entrances.set(
+            key,
+            Entrance(
+                address = stop.streetText,
+                lat = point?.first,
+                lng = point?.second,
+                note = text,
+                savedAtMs = before?.savedAtMs ?: now,
+                updatedAtMs = now,
+            ),
+        )
+    }
+
+    /** Deletes every entrance the driver saved. */
+    fun clearEntrances() = entrances.clear()
+
+    /**
+     * What Google Maps is given for [stop] in a batch: the driver's entrance as a point when he set
+     * one; else the address, which Google Maps leads to its own way in.
+     */
+    fun mapsDestination(stop: Stop): String =
+        entranceOf(stop)?.takeIf { it.hasPoint }?.let { MapsUrlBuilder.point(it.lat!!, it.lng!!) } ?: stop.navigationText
+
+    /** The point of [stop] for Google Maps: the driver's entrance, else the address's point; null when neither is known. */
+    fun pointOf(stop: Stop): Pair<Double, Double>? =
+        entranceOf(stop)?.takeIf { it.hasPoint }?.let { it.lat!! to it.lng!! } ?: stop.geo?.takeIf { stop.isLocated }?.let { it.lat to it.lng }
+
+    /** Google Maps navigates to [stop] alone, by its point when known (never a search for its name), else its address. */
+    fun navigateTo(stop: Stop) {
+        val to = pointOf(stop)?.let { (lat, lng) -> MapsUrlBuilder.point(lat, lng) } ?: stop.navigationText
+        maps.open(MapsUrlBuilder.navigateUrl(to))
+    }
+
+    /** Google's street photos at [stop]'s point (nothing when it has none). */
+    fun streetViewAt(stop: Stop) {
+        val (lat, lng) = pointOf(stop) ?: return
+        maps.open(MapsUrlBuilder.streetViewUrl(lat, lng))
+    }
 
     /** Drops every stop above [id] (e.g. already completed trips in the screenshot). */
     fun deleteAllAbove(id: Long) = update { r ->
@@ -227,11 +431,27 @@ class RouteController(
     // ------------------------------------------------------------------------------------------
     // YouDrive (trips added / cancelled on the dispatch page)
 
-    /** True if [e] (time + address) is already one of the remaining trips. */
+    /** True if [e] is already one of the remaining trips (see [sameTrip]), or the start point. */
     fun hasTrip(e: ExtractedStop): Boolean = findTrip(e) != null
 
-    private fun findTrip(e: ExtractedStop): Stop? =
-        _route.value?.stops?.firstOrNull { it.time == e.time && extractor.isSameAddress(it.toExtracted(), e) }
+    private fun findTrip(e: ExtractedStop): Stop? {
+        val r = _route.value ?: return null
+        if (e.kind == TripKind.PULL_OUT) return r.depot?.takeIf { extractor.isSameAddress(it.toExtracted(), e) }
+        return r.stops.firstOrNull { sameTrip(it, e) }
+    }
+
+    /**
+     * [stop] is the same YouDrive trip as [e]: the same address, the same kind and passenger when
+     * both are known, and times at most [SAME_TRIP_MIN] minutes apart. The tolerance lets a trip
+     * re-planned by YouDrive (or read from a screenshot with its booked time) still count as the
+     * same trip, so it is refreshed instead of added twice.
+     */
+    private fun sameTrip(stop: Stop, e: ExtractedStop): Boolean {
+        if (stop.kind != null && e.kind != null && stop.kind != e.kind) return false
+        if (stop.name != null && e.name != null && !stop.name.equals(e.name, ignoreCase = true)) return false
+        if (stop.time != null && e.time != null && abs(TripTimes.minutes(stop.time) - TripTimes.minutes(e.time)) > SAME_TRIP_MIN) return false
+        return extractor.isSameAddress(stop.toExtracted(), e)
+    }
 
     /**
      * Adds a trip from YouDrive in time order among the remaining trips (the current trip of an
@@ -240,42 +460,128 @@ class RouteController(
      */
     fun insertTrip(e: ExtractedStop): Boolean = importTrips(listOf(e)) == 1
 
+    /** Adds / refreshes every YouDrive trip ([syncTrips]); returns how many were added. */
+    fun importTrips(trips: List<ExtractedStop>): Int = syncTrips(trips).added
+
+    /** What a sync with YouDrive did: trips [added], and trips already in the list [updated]. */
+    data class SyncResult(val added: Int, val updated: Int)
+
     /**
-     * Adds every YouDrive trip that is not in the list yet, each in time order. Announces and
-     * re-launches Maps at most once. Returns how many were added.
+     * Brings the list in line with YouDrive ("Add all trips"). A trip that is not in the list yet
+     * is added in time order. A trip that is ([sameTrip]) takes over YouDrive's time, kind and
+     * name, and other copies of it are removed. Stops YouDrive
+     * does not know (added by hand or from a screenshot) stay. Announces and re-launches Maps at
+     * most once.
      */
-    fun importTrips(trips: List<ExtractedStop>): Int {
+    fun syncTrips(trips: List<ExtractedStop>): SyncResult {
         beginEdit()
         var added = 0
-        for (e in trips) {
-            if (hasTrip(e)) continue
+        var updated = 0
+        for (found in trips) {
+            val e = remembered(found)
             val base = _route.value ?: newRoute()
-            val list = base.stops.toMutableList()
-            val first = if (base.active) minOf(1, list.size) else 0
-            val t = TripTimes.minutes(e.time)
-            var index = list.size
-            if (e.time != null) {
-                for (i in first until list.size) {
-                    if (TripTimes.minutes(list[i].time) > t) {
-                        index = i
-                        break
+            if (e.kind == TripKind.PULL_OUT) {
+                // The day's start point: shown above the trips, never navigated to.
+                val old = base.depot
+                if (old != null && extractor.isSameAddress(old.toExtracted(), e)) {
+                    if (old.time != e.time || old.displayText != e.displayText) {
+                        set(base.copy(depot = e.toStop(old.id)))
+                        updated++
                     }
+                } else {
+                    set(base.copy(depot = e.toStop(base.nextId), nextId = base.nextId + 1))
+                    added++
+                }
+                continue
+            }
+            val matches = base.stops.filter { sameTrip(it, e) }
+            val finished = if (matches.isEmpty()) base.completed.firstOrNull { sameTrip(it, e) } else null
+            if (finished != null) {
+                // Already done here: it stays done; only YouDrive's own mark is kept up to date.
+                if (finished.youDriveDone != e.youDriveDone) {
+                    set(base.copy(completed = base.completed.map { if (it.id == finished.id) it.copy(youDriveDone = e.youDriveDone) else it }))
+                    updated++
+                }
+                continue
+            }
+            if (matches.isEmpty()) {
+                set(base.copy(stops = insertByTime(base.stops, e.toStop(base.nextId), base.active), nextId = base.nextId + 1))
+                added++
+                continue
+            }
+            val refreshed = refreshed(base, matches, e)
+            if (refreshed != base.stops) {
+                set(base.copy(stops = refreshed))
+                updated++
+            }
+        }
+        if (added + updated > 0) ensureGeocoding()
+        finishEdit()
+        return SyncResult(added, updated)
+    }
+
+    /**
+     * The list with [matches] (copies of YouDrive trip [e]) made one up-to-date trip: YouDrive's
+     * time, kind and name (and text, while the stop is not located yet). The current trip of an
+     * active route stays first; a trip whose time moved goes back to its place in time order.
+     */
+    private fun refreshed(base: RouteData, matches: List<Stop>, e: ExtractedStop): List<Stop> {
+        val current = base.stops.firstOrNull()?.takeIf { base.active }
+        val keep = matches.firstOrNull { it.id == current?.id } ?: matches.first()
+        var fresh = keep.copy(time = e.time ?: keep.time, kind = e.kind ?: keep.kind, name = e.name ?: keep.name, youDriveDone = e.youDriveDone, place = e.place ?: keep.place, card = e.card ?: keep.card)
+        if (!keep.isLocated && keep.displayText != e.displayText) {
+            fresh = fresh.copy(
+                displayText = e.displayText,
+                candidates = e.candidates,
+                parsedPostalCode = e.parsedPostalCode,
+                parsedTown = e.parsedTown,
+                parsedTownKnown = e.parsedTownKnown,
+                geoStatus = GeoStatus.PENDING,
+                geo = null,
+            )
+        }
+        val copies = matches.map { it.id }.toSet() - keep.id
+        val list = base.stops.filterNot { it.id in copies }.map { if (it.id == keep.id) fresh else it }
+        if (fresh.time == keep.time || keep.id == current?.id) return list
+        return insertByTime(list.filterNot { it.id == fresh.id }, fresh, base.active)
+    }
+
+    /** [e] with the town the driver once gave its place ([PlaceMemory]), when it has none. */
+    private fun remembered(e: ExtractedStop): ExtractedStop {
+        if (e.parsedTown != null || e.parsedPostalCode != null || !PlaceMemory.isPlace(e.displayText)) return e
+        val given = places.recall(e.place ?: e.displayText)?.let { extractor.fromManualText(it) } ?: return e
+        if (given.parsedTown == null && given.parsedPostalCode == null) return e
+        return e.copy(
+            candidates = (given.candidates + e.candidates).distinct(),
+            parsedTown = given.parsedTown,
+            parsedPostalCode = given.parsedPostalCode,
+            parsedTownKnown = given.parsedTownKnown,
+        )
+    }
+
+    /** [stop] inserted before the first later trip (after the current trip of an active route). */
+    private fun insertByTime(list: List<Stop>, stop: Stop, active: Boolean): List<Stop> {
+        val out = list.toMutableList()
+        val first = if (active) minOf(1, out.size) else 0
+        var index = out.size
+        if (stop.time != null) {
+            val t = TripTimes.minutes(stop.time)
+            for (i in first until out.size) {
+                if (TripTimes.minutes(out[i].time) > t) {
+                    index = i
+                    break
                 }
             }
-            list.add(index, e.toStop(base.nextId))
-            set(base.copy(stops = list, nextId = base.nextId + 1))
-            added++
         }
-        if (added > 0) ensureGeocoding()
-        finishEdit()
-        return added
+        out.add(index, stop)
+        return out
     }
 
     /** Removes a trip YouDrive reported as cancelled. Returns false if it is not in the list. */
     fun removeTrip(e: ExtractedStop): Boolean {
         val stop = findTrip(e) ?: return false
         beginEdit()
-        update { r -> r.copy(stops = r.stops.filterNot { it.id == stop.id }) }
+        update { r -> r.copy(stops = r.stops.filterNot { it.id == stop.id }, depot = r.depot?.takeUnless { it.id == stop.id }) }
         finishEdit()
         return true
     }
@@ -285,12 +591,13 @@ class RouteController(
 
     /** Called when the review screen is opened for an active route. */
     fun beginEdit() {
-        editBaseline = _route.value?.takeIf { it.active }?.stops?.map { it.id }
+        editBaseline = _route.value?.takeIf { it.active }?.stops?.map { it.id to mapsDestination(it) }
     }
 
     /**
-     * Called when leaving the review screen of an active route: re-announces if the next stop
-     * changed and re-launches Maps if the first 10 stops changed.
+     * Called when leaving the review screen of an active route: re-announces if the next stop or
+     * the one after it changed and re-launches Maps if the first 10 stops changed: another stop,
+     * another order, or the same stop with its address or the driver's entrance changed.
      */
     fun finishEdit() {
         val baseline = editBaseline ?: return
@@ -301,7 +608,7 @@ class RouteController(
             end()
             return
         }
-        val now = r.stops.map { it.id }
+        val now = r.stops.map { it.id to mapsDestination(it) }
         val batchChanged = now.take(MapsUrlBuilder.MAX_STOPS_PER_LAUNCH) != baseline.take(MapsUrlBuilder.MAX_STOPS_PER_LAUNCH)
         if (now.firstOrNull() != baseline.firstOrNull() || now.getOrNull(1) != baseline.getOrNull(1)) {
             speak(announcementFor(r.stops))
@@ -312,19 +619,28 @@ class RouteController(
     // ------------------------------------------------------------------------------------------
     // Route
 
-    /** "Starta rutt": announce immediately, open Maps with the first batch, start tracking. */
+    /** "Starta rutt": announce immediately, open Maps with the first batch, find the street. */
     fun start(): Boolean {
         val r = _route.value ?: return false
         if (r.stops.isEmpty()) return false
         val batch = r.stops.take(MapsUrlBuilder.MAX_STOPS_PER_LAUNCH)
         set(r.copy(active = true, batchStartStopId = batch.first().id, batchEndStopId = batch.last().id))
         speak(announcementFor(r.stops))
-        maps.launch(batch.map { it.navigationText })
+        maps.launch(batch.map(::mapsDestination))
+        ensureStreetService()
         return true
     }
 
-    /** Marks the current stop done, advances and announces. Automatic or manual ("Nästa"). */
-    fun next(auto: Boolean = false) {
+    /**
+     * Starts naming the street while a route is active, if the driver allowed location (call while
+     * the app is in the foreground). Its positions only name the street: they never move the route on.
+     */
+    fun ensureStreetService() {
+        if (isActive) StreetService.start(context)
+    }
+
+    /** Marks the current stop done, advances and announces ("Nästa": always the driver's tap). */
+    fun next() {
         val r = _route.value ?: return
         if (!r.active) return
         val done = r.stops.firstOrNull()
@@ -347,12 +663,12 @@ class RouteController(
         )
         speak(announcementFor(remaining))
         if (relaunch) {
-            maps.launch(remaining.take(MapsUrlBuilder.MAX_STOPS_PER_LAUNCH).map { it.navigationText }, fromBackground = true)
+            maps.launch(remaining.take(MapsUrlBuilder.MAX_STOPS_PER_LAUNCH).map(::mapsDestination), fromBackground = true)
         }
     }
 
     /**
-     * "Back": undoes the last "Nästa" (manual or automatic). The previous trip becomes the current
+     * "Back": undoes the last "Nästa". The previous trip becomes the current
      * one again, its history entry is removed and the announcement is repeated. If Google Maps was
      * launched starting at the current trip (end of a batch, or "Open Maps"), it is launched again
      * from the restored trip so the navigation includes it. Returns false if there is no trip to
@@ -375,18 +691,39 @@ class RouteController(
             ),
         )
         speak(announcementFor(stops))
-        if (relaunch) maps.launch(batch.map { it.navigationText }, fromBackground = true)
+        if (relaunch) maps.launch(batch.map(::mapsDestination), fromBackground = true)
         return true
     }
 
     /**
-     * Speaks the street the vehicle is on now. Only on the driver's request (speaker button):
-     * automatic announcements never contain street names, and this is not sent to passenger
-     * displays. Returns false when no street is known yet.
+     * Speaks the street the vehicle is on now and its area, when the driver taps the street. Not
+     * sent to passenger displays. Returns false when no street is known yet.
      */
     fun speakStreet(info: StreetInfo?): Boolean {
         val text = info?.spoken ?: return false
         announcer.speak(Announcement(text, null))
+        return true
+    }
+
+    /**
+     * Says the next stop's street and number ("Storgatan 14") when the driver taps them on the
+     * floating panel. Never the passenger's name, and not sent to passenger displays. Returns
+     * false without a route.
+     */
+    fun speakStopStreet(): Boolean {
+        val stop = _route.value?.takeIf { it.active }?.stops?.firstOrNull() ?: return false
+        announcer.speak(Announcement(streetOf(stop), null))
+        return true
+    }
+
+    /**
+     * Says the street the vehicle has just turned into (the panel's speaker button or Settings 137
+     * turn it off). Queued after any announcement, only during a
+     * route, and not sent to passenger displays.
+     */
+    fun sayStreetChange(street: String): Boolean {
+        if (!isActive || !settings.current.sayStreetChanges) return false
+        announcer.speak(Announcement(street, null), interrupt = false)
         return true
     }
 
@@ -398,12 +735,12 @@ class RouteController(
     }
 
     /** "Öppna Maps": re-launches navigation with the remaining stops (max 10). */
-    fun openMaps() {
+    fun openMaps(fromBackground: Boolean = false) {
         val r = _route.value ?: return
         if (r.stops.isEmpty()) return
         val batch = r.stops.take(MapsUrlBuilder.MAX_STOPS_PER_LAUNCH)
         if (r.active) set(r.copy(batchStartStopId = batch.first().id, batchEndStopId = batch.last().id))
-        maps.launch(batch.map { it.navigationText })
+        maps.launch(batch.map(::mapsDestination), fromBackground)
     }
 
     /**
@@ -431,6 +768,7 @@ class RouteController(
         geocodeJob = null
         editBaseline = null
         set(null)
+        StreetService.stop(context)
         maps.cancelOpenMapsNotification()
     }
 
@@ -441,15 +779,6 @@ class RouteController(
             return
         }
         if (repo.isExpired(r)) endInternal()
-    }
-
-    fun onLocation(fix: Fix) {
-        val r = _route.value ?: return
-        if (!r.active) return
-        val event = detector.onFix(fix)
-        if (event == DetectorEvent.Arrived) arrivedAtMs = System.currentTimeMillis()
-        publishTracking()
-        if (event == DetectorEvent.Departed) next(auto = true)
     }
 
     // ------------------------------------------------------------------------------------------
@@ -472,41 +801,11 @@ class RouteController(
         scope.launch(persistDispatcher) {
             if (value == null) repo.clear() else repo.save(value)
         }
-        syncDetector()
     }
 
-    /** Points the arrival detector at the current stop when automatic detection is allowed. */
-    private fun syncDetector() {
-        val r = _route.value
-        val current = r?.takeIf { it.active }?.stops?.firstOrNull()
-        val auto = current != null && current.isLocated &&
-            !samePlace(current, r.stops.getOrNull(1)) && !samePlace(r.previousStop, current)
-        val geo = current?.geo
-        val key = if (auto && geo != null) "${current.id}:${geo.lat}:${geo.lng}" else null
-        if (key != detectorKey) {
-            detectorKey = key
-            arrivedAtMs = null
-            if (key != null && geo != null) detector.setTarget(geo.lat, geo.lng) else detector.setTarget(null, null)
-        }
-        publishTracking()
-    }
-
-    private fun publishTracking() {
-        val arrived = detector.phase == DetectorPhase.ARRIVED
-        if (!arrived) arrivedAtMs = null
-        _tracking.value = TrackingState(detector.phase, detector.lastDistanceM, detectorKey != null, arrivedAtMs.takeIf { arrived })
-    }
-
-    /** Two stops at the same place (≤ 30 m, or the same address text) — advance only manually. */
-    fun samePlace(a: Stop?, b: Stop?): Boolean {
-        if (a == null || b == null) return false
-        val ga = a.geo
-        val gb = b.geo
-        if (a.isLocated && b.isLocated && ga != null && gb != null) {
-            return GeoLogic.distanceMeters(ga.lat, ga.lng, gb.lat, gb.lng) <= SAME_PLACE_M
-        }
-        return TextNorm.key(a.navigationText) == TextNorm.key(b.navigationText)
-    }
+    /** Waits until every queued save / delete of the route file is done (tests only). */
+    @VisibleForTesting
+    internal fun awaitPersisted() = runBlocking(persistDispatcher) {}
 
     private fun ensureGeocoding() {
         if (geocodeJob?.isActive == true) return
@@ -565,11 +864,17 @@ class RouteController(
         parsedTownKnown = parsedTownKnown,
         sourceOrder = sourceOrder,
         time = time,
+        kind = kind,
+        name = name,
+        youDriveDone = youDriveDone,
+        place = place,
+        card = card,
     )
 
-    private fun Stop.toExtracted() = ExtractedStop(displayText, candidates, parsedPostalCode, parsedTown, sourceOrder, parsedTownKnown, time)
+    private fun Stop.toExtracted() = ExtractedStop(displayText, candidates, parsedPostalCode, parsedTown, sourceOrder, parsedTownKnown, time, kind, name, youDriveDone, place, card)
 
     companion object {
-        const val SAME_PLACE_M = 30.0
+        /** Two readings of one YouDrive trip are at most this many minutes apart (see [sameTrip]). */
+        const val SAME_TRIP_MIN = 45
     }
 }

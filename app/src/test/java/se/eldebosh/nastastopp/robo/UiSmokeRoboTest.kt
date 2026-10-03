@@ -1,5 +1,6 @@
 package se.eldebosh.nastastopp.robo
 
+import android.content.Context
 import android.os.Looper
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
@@ -8,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.performClick
@@ -18,6 +20,7 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -30,6 +33,8 @@ import se.eldebosh.nastastopp.App
 import se.eldebosh.nastastopp.BuildConfig
 import se.eldebosh.nastastopp.MainActivity
 import se.eldebosh.nastastopp.R
+import se.eldebosh.nastastopp.core.geo.AnnouncementDetail
+import se.eldebosh.nastastopp.settings.SettingsStore
 
 /**
  * Smoke-tests the Compose screens in the Arabic UI on Android 13 (like the S20 Ultra).
@@ -79,15 +84,29 @@ class UiSmokeRoboTest {
         }
 
     @Test
+    fun freshSettingsUseTheDefaults() {
+        app.getSharedPreferences(SettingsStore.PREFS, Context.MODE_PRIVATE).edit().clear().commit()
+        val s = SettingsStore(app).current
+        assertEquals("en", s.uiLanguage)
+        assertTrue(s.explanationsArabic)
+        assertFalse("reference numbers are hidden until switched on", s.showRefNumbers)
+        assertEquals(AnnouncementDetail.FULL, s.detail)
+        assertTrue(s.sayStreetChanges)
+        assertTrue(s.displayFullAddress)
+        assertFalse(s.youDriveAutoSignIn)
+        assertFalse(s.youDriveWatch)
+    }
+
+    @Test
     fun onboardingThenHomeSettingsAndHelp() {
         app.graph.settings.update { it.copy(onboardingDone = false) }
         launch().use {
             waitText(s(R.string.onb_welcome_title))
-            // English is the default UI language since 1.4.0 (explanations stay Arabic while setting up).
+            // English is the default UI language (explanations stay Arabic while setting up).
             assertEquals("en", app.graph.settings.current.uiLanguage)
             assertTrue(app.graph.settings.current.explanationsArabic)
             compose.onNodeWithText(s(R.string.role_controller)).performScrollTo().performClick()
-            // No location step (the app never asks for location). Skip through the permission steps.
+            // No location step (location is asked at "Start route"). Skip through the permission steps.
             repeat(3) {
                 compose.onNode(hasText(s(R.string.skip)).or(hasText(s(R.string.next_step)))).performScrollTo().performClick()
             }
@@ -97,15 +116,19 @@ class UiSmokeRoboTest {
             compose.onNodeWithText(s(R.string.home_import)).assertExists()
             assertTrue(app.graph.settings.current.onboardingDone)
 
+            // Stable ids for device tests: numbered controls carry the test tag "ref_<n>".
+            compose.onNodeWithTag("ref_23").assertExists()
+            compose.onNodeWithTag("ref_31").assertExists()
             compose.onNodeWithContentDescription(s(R.string.home_settings)).performClick()
-            compose.onNodeWithText(s(R.string.settings_version, BuildConfig.VERSION_NAME, BuildConfig.BUILD_DATE))
+            compose.onNodeWithText(s(R.string.settings_version, "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})", BuildConfig.BUILD_DATE))
                 .performScrollTo().assertExists()
             compose.onNodeWithText(s(R.string.detail_district)).assertExists()
             compose.onNodeWithText(s(R.string.settings_explain_arabic)).assertExists()
+            val refsShown = app.graph.settings.current.showRefNumbers
             compose.onNodeWithText(s(R.string.settings_ref_numbers)).performScrollTo().performClick()
-            assertEquals(false, app.graph.settings.current.showRefNumbers)
+            assertEquals(!refsShown, app.graph.settings.current.showRefNumbers)
             compose.onNodeWithText(s(R.string.settings_ref_numbers)).performClick()
-            assertEquals(true, app.graph.settings.current.showRefNumbers)
+            assertEquals(refsShown, app.graph.settings.current.showRefNumbers)
             compose.onNodeWithContentDescription(s(R.string.back)).performClick()
             compose.onNodeWithContentDescription(s(R.string.home_help)).performClick()
             compose.onNodeWithText(s(R.string.help_battery_title)).assertExists()
@@ -135,6 +158,20 @@ class UiSmokeRoboTest {
             compose.onNodeWithText(s(R.string.save)).performClick()
             assertEquals("Kungsgatan 5, 652 24 Karlstad", app.graph.controller.route.value!!.stops[1].displayText)
             settleGeocoding()
+            // The driver's entrance: a point as Google Maps writes it and a note, kept apart from the
+            // address; the row then says so (an invented point).
+            compose.onNodeWithText("Kungsgatan 5, 652 24 Karlstad").performClick()
+            compose.onNodeWithTag("ref_256").performTextReplacement("59°22'48.0\"N 13°30'00.0\"E")
+            compose.onNodeWithTag("ref_257").performTextReplacement("Från gården")
+            compose.onNodeWithText("59.380000, 13.500000").assertExists()
+            compose.onNodeWithText(s(R.string.save)).performClick()
+            val edited = app.graph.controller.route.value!!.stops[1]
+            val entrance = app.graph.controller.entranceOf(edited)!!
+            assertEquals(59.38, entrance.lat!!, 0.000_001)
+            assertEquals(13.5, entrance.lng!!, 0.000_001)
+            assertEquals("Från gården", entrance.note)
+            compose.onNodeWithText(s(R.string.entrance_saved) + " · Från gården").assertExists()
+            app.graph.controller.clearEntrances()
             // Add manually.
             compose.onNodeWithText(s(R.string.review_add_manual)).performClick()
             compose.onNodeWithText(s(R.string.dialog_add_title)).assertExists()
@@ -189,7 +226,7 @@ class UiSmokeRoboTest {
         settleGeocoding()
         app.graph.controller.start()
         shadowOf(Looper.getMainLooper()).idle()
-        launch().use {
+        launch().use { scenario ->
             waitText(s(R.string.btn_next))
             compose.onNodeWithText("Karlstad").assertExists()
             compose.onNodeWithText(s(R.string.active_counts, 0, 2)).assertExists()
@@ -202,8 +239,11 @@ class UiSmokeRoboTest {
             // Passenger display on the phone itself.
             compose.onNodeWithContentDescription(s(R.string.open_display)).performClick()
             compose.onNodeWithText("Storfors").assertExists()
-            compose.onNodeWithContentDescription(s(R.string.display_repeat)).assertExists()
-            compose.onNodeWithContentDescription(s(R.string.display_exit)).performClick()
+            // A tap on the address says the announcement again (no speaker button).
+            compose.onNodeWithText("Storfors").performClick()
+            // The display on the phone has no exit of its own: the system's Back closes it.
+            scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+            compose.waitForIdle()
             compose.onNodeWithText(s(R.string.btn_next)).assertExists()
             // "Back" undoes the last "Next".
             compose.onNodeWithText(s(R.string.overlay_back)).performClick()
@@ -245,7 +285,7 @@ class UiSmokeRoboTest {
             waitText(s(R.string.btn_next))
             // Manual mode: no street bar, a clear hint to tap Next.
             compose.onNodeWithText(s(R.string.street_label)).assertDoesNotExist()
-            compose.onNodeWithText(s(R.string.status_no_location)).assertExists()
+            compose.onNodeWithText(s(R.string.status_tap_next)).assertExists()
             // 30 min ahead (29 if a minute boundary passed meanwhile).
             val shown = listOf(30, 29).any { m -> compose.onAllNodesWithText(s(R.string.time_in_min, m.toString())).fetchSemanticsNodes().isNotEmpty() }
             assertTrue("time status shown", shown)
