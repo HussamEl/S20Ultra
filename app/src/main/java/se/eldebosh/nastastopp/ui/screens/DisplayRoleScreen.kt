@@ -44,6 +44,7 @@ import se.eldebosh.nastastopp.core.route.Announcement
 import se.eldebosh.nastastopp.link.DisplayLinkClient
 import se.eldebosh.nastastopp.link.PairedDevice
 import se.eldebosh.nastastopp.settings.AppSettings
+import se.eldebosh.nastastopp.settings.WindowPlaces
 import se.eldebosh.nastastopp.ui.AppButton
 import se.eldebosh.nastastopp.ui.AppCard
 import se.eldebosh.nastastopp.ui.HelpDot
@@ -100,6 +101,8 @@ fun DisplayRoleScreen(
     /** Google's own apps at a stop's point, from the driver's map: Google Earth's 3D view (242), Google Maps' street photos (244). */
     onEarth: ((Double, Double) -> Unit)? = null,
     onStreetPhotos: ((Double, Double) -> Unit)? = null,
+    /** Where the driver last left the display's trip card and list of trips, and how big. */
+    places: WindowPlaces? = null,
     availabilityStatus: DisplayLinkClient.Status = DisplayLinkClient.Status.IDLE,
     /** Goes up by one with each announcement from the driver's phone. */
     spoken: Int = 0,
@@ -129,6 +132,7 @@ fun DisplayRoleScreen(
             onWantPosition = onWantPosition,
             onEarth = onEarth,
             onStreetPhotos = onStreetPhotos,
+            places = places,
             dark = settings.displayDark,
             onToggleLook = onToggleLook,
             onOrder = onOrder,

@@ -42,6 +42,9 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.findRootCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -162,6 +165,10 @@ internal fun plannerTrips(trips: List<DisplayItem>): List<OrderPlanner.Trip> = t
  * the travel times between them all and puts the best order up ([OrderPlanner]); "Undo" (249) goes
  * back; "Use" (250) sends the order to the phone ([onOrder]). An order with a passenger's drop-off
  * before their pick-up cannot be used.
+ *
+ * The list is a window ([FloatingWindow], [place]): its bar moves it (265), − and + size it (266,
+ * 267), and two fingers on it do both; it opens where the driver last left it. The map keeps the way
+ * clear of it ([RouteMap.listAt]).
  */
 @Composable
 internal fun WayList(
@@ -177,6 +184,7 @@ internal fun WayList(
     onOrder: ((List<Long>) -> Unit)?,
     onAdd: (() -> Unit)?,
     onUse: () -> Unit,
+    place: WindowState,
     modifier: Modifier = Modifier,
 ) {
     val key = RouteMap.keyOf(shown.map { it.mapStop })
@@ -215,130 +223,157 @@ internal fun WayList(
     }
     val keys = rowKeys(shown)
     AnimatedVisibility(visible, modifier, enter = fadeIn(tween(LIST_IN_MS)), exit = fadeOut(tween(LIST_OUT_MS))) {
-        Column(
-            Modifier
-                .padding(LIST_EDGE)
-                .width(LIST_WIDTH)
-                .clip(RoundedCornerShape(LIST_CORNER))
-                .background(AppTheme.colors.card.copy(alpha = LIST_GROUND))
-                .padding(LIST_PAD),
-        ) {
-            Column(Modifier.ref(251)) {
-                WayHeader(map, line, at, changed, base)
-                val words = adviceText(edit.advice, map.suggesting) ?: if (!allowed) stringResource(R.string.display_way_pickup_first) else null
-                if (words != null) {
-                    Text(
-                        words,
-                        fontFamily = DisplayFont,
-                        fontSize = LIST_SMALL_SP,
-                        color = if (!allowed) AppTheme.colors.danger else AppTheme.colors.textMuted,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                if (note != null) {
-                    Text(
-                        note,
-                        fontFamily = DisplayFont,
-                        fontSize = LIST_SMALL_SP,
-                        color = AppTheme.colors.textMuted,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.ref(233),
-                    )
-                }
-            }
-            Spacer(Modifier.height(LIST_GAP))
-            // The legs add up from the vehicle, each with the stop before it.
-            val arrivals = IntArray(shown.size) { -1 }
-            var t = 0
-            shown.indices.forEach { i ->
-                val leg = line?.legs?.getOrNull(i)?.seconds ?: return@forEach
-                t += leg
-                if (fromNext) arrivals[i] = t
-                t += OrderPlanner.DWELL_SECONDS
-            }
-            LazyColumn(
-                state = list,
-                verticalArrangement = Arrangement.spacedBy(ROW_GAP),
-                modifier = Modifier.fillMaxWidth().heightIn(max = LIST_MAX_HEIGHT),
-            ) {
-                itemsIndexed(shown, key = { i, _ -> keys[i] }) { i, item ->
-                    val dragged = reorder.draggingKey == keys[i]
-                    val picked = edit.picked?.sameTrip(item) == true
-                    TripRow(
-                        item,
-                        letter = LETTERS[i],
-                        looked = i == at,
-                        picked = picked,
-                        clash = i in clashing,
-                        legSeconds = line?.legs?.getOrNull(i)?.seconds,
-                        arrival = arrivals[i].takeIf { it >= 0 }?.let { now().plusSeconds(it.toLong()) },
-                        onClick = {
-                            onUse()
-                            edit.picked = if (picked) null else item
-                            if (!picked) map.lookAt(i)
-                        },
-                        onEarlier = if (picked && i > 0) ({ onUse(); edit.move(shown, i, i - 1) }) else null,
-                        onLater = if (picked && i < shown.lastIndex) ({ onUse(); edit.move(shown, i, i + 1) }) else null,
-                        handle = Modifier.pointerInput(keys[i]) {
-                            detectDragGestures(
-                                onDragStart = {
-                                    onUse()
-                                    edit.dragging = true
-                                    reorder.start(keys[i])
-                                },
-                                onDragEnd = {
-                                    reorder.end()
-                                    edit.dragging = false
-                                },
-                                onDragCancel = {
-                                    reorder.end()
-                                    edit.dragging = false
-                                },
-                                onDrag = { change, amount ->
-                                    change.consume()
-                                    reorder.drag(amount.y)
-                                },
-                            )
-                        },
-                        modifier = Modifier
-                            .zIndex(if (dragged) 1f else 0f)
-                            .graphicsLayer { translationY = if (dragged) reorder.offset else 0f },
-                    )
-                }
-            }
-            Spacer(Modifier.height(LIST_GAP))
-            Row(horizontalArrangement = Arrangement.spacedBy(BUTTON_GAP), verticalAlignment = Alignment.CenterVertically) {
-                ListButton(stringResource(R.string.display_way_add_short), 260, enabled = onAdd != null, description = stringResource(R.string.display_way_add)) {
-                    onUse()
-                    onAdd?.invoke()
-                }
-                ListButton(
-                    stringResource(if (map.suggesting) R.string.display_way_asking else R.string.display_way_suggest),
-                    248,
-                    enabled = map.located && !map.suggesting && shown.size > 1,
-                ) {
-                    onUse()
-                    // Lateness counts only from the next stop: a way that starts later skips the trips before it.
-                    map.suggest(shown.map { it.mapStop }, if (fromNext) trips else trips.map { it.copy(booked = null) }, now().toSecondOfDay())
-                }
-            }
-            if (changed) {
-                Spacer(Modifier.height(BUTTON_GAP))
-                Row(horizontalArrangement = Arrangement.spacedBy(BUTTON_GAP), verticalAlignment = Alignment.CenterVertically) {
-                    ListButton(stringResource(R.string.display_way_undo), 249) {
-                        onUse()
-                        edit.preview = null
-                        edit.picked = null
-                        edit.advice = null
+        FloatingWindow(place, onTouch = onUse) {
+            Column(
+                Modifier
+                    .padding(LIST_EDGE)
+                    .width(LIST_WIDTH)
+                    .clip(RoundedCornerShape(LIST_CORNER))
+                    .background(AppTheme.colors.card.copy(alpha = LIST_GROUND))
+                    .onGloballyPositioned { c ->
+                        val whole = c.findRootCoordinates().size.width.toFloat()
+                        val bounds = c.boundsInRoot()
+                        if (whole > 0f) map.listAt(bounds.left / whole, bounds.right / whole)
                     }
-                    val ids = shown.mapNotNull { it.id }.takeIf { it.size == shown.size }
-                    if (onOrder != null && ids != null) {
-                        ListButton(stringResource(R.string.display_way_apply), 250, strong = true, enabled = allowed && edit.sent != ids) {
+                    .padding(LIST_PAD),
+            ) {
+                // The window's bar: a finger on it moves the list; − and + size it.
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    val move = stringResource(R.string.window_move)
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(BAR_HEIGHT)
+                            .ref(265, centered = true)
+                            .clip(RoundedCornerShape(BAR_HEIGHT / 2))
+                            .background(AppTheme.colors.tonal)
+                            .movesWindow(place)
+                            .semantics { contentDescription = move },
+                    ) {
+                        Icon(painterResource(R.drawable.ic_drag), contentDescription = null, tint = AppTheme.colors.textMuted, modifier = Modifier.size(HANDLE_ICON))
+                    }
+                    WindowZoom(place, smaller = 266, larger = 267, tint = AppTheme.colors.text, ground = AppTheme.colors.tonal, size = BAR_HEIGHT)
+                }
+                Spacer(Modifier.height(LIST_GAP))
+                Column(Modifier.ref(251)) {
+                    WayHeader(map, line, at, changed, base)
+                    val words = adviceText(edit.advice, map.suggesting) ?: if (!allowed) stringResource(R.string.display_way_pickup_first) else null
+                    if (words != null) {
+                        Text(
+                            words,
+                            fontFamily = DisplayFont,
+                            fontSize = LIST_SMALL_SP,
+                            color = if (!allowed) AppTheme.colors.danger else AppTheme.colors.textMuted,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    if (note != null) {
+                        Text(
+                            note,
+                            fontFamily = DisplayFont,
+                            fontSize = LIST_SMALL_SP,
+                            color = AppTheme.colors.textMuted,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.ref(233),
+                        )
+                    }
+                }
+                Spacer(Modifier.height(LIST_GAP))
+                // The legs add up from the vehicle, each with the stop before it.
+                val arrivals = IntArray(shown.size) { -1 }
+                var t = 0
+                shown.indices.forEach { i ->
+                    val leg = line?.legs?.getOrNull(i)?.seconds ?: return@forEach
+                    t += leg
+                    if (fromNext) arrivals[i] = t
+                    t += OrderPlanner.DWELL_SECONDS
+                }
+                LazyColumn(
+                    state = list,
+                    verticalArrangement = Arrangement.spacedBy(ROW_GAP),
+                    // Last to be measured: on a small screen or a large window, the trips scroll and the buttons stay.
+                    modifier = Modifier.weight(1f, fill = false).fillMaxWidth().heightIn(max = LIST_MAX_HEIGHT),
+                ) {
+                    itemsIndexed(shown, key = { i, _ -> keys[i] }) { i, item ->
+                        val dragged = reorder.draggingKey == keys[i]
+                        val picked = edit.picked?.sameTrip(item) == true
+                        TripRow(
+                            item,
+                            letter = LETTERS[i],
+                            looked = i == at,
+                            picked = picked,
+                            clash = i in clashing,
+                            legSeconds = line?.legs?.getOrNull(i)?.seconds,
+                            arrival = arrivals[i].takeIf { it >= 0 }?.let { now().plusSeconds(it.toLong()) },
+                            onClick = {
+                                onUse()
+                                edit.picked = if (picked) null else item
+                                if (!picked) map.lookAt(i)
+                            },
+                            onEarlier = if (picked && i > 0) ({ onUse(); edit.move(shown, i, i - 1) }) else null,
+                            onLater = if (picked && i < shown.lastIndex) ({ onUse(); edit.move(shown, i, i + 1) }) else null,
+                            handle = Modifier.pointerInput(keys[i]) {
+                                detectDragGestures(
+                                    onDragStart = {
+                                        onUse()
+                                        edit.dragging = true
+                                        reorder.start(keys[i])
+                                    },
+                                    onDragEnd = {
+                                        reorder.end()
+                                        edit.dragging = false
+                                    },
+                                    onDragCancel = {
+                                        reorder.end()
+                                        edit.dragging = false
+                                    },
+                                    onDrag = { change, amount ->
+                                        change.consume()
+                                        reorder.drag(amount.y)
+                                    },
+                                )
+                            },
+                            modifier = Modifier
+                                .zIndex(if (dragged) 1f else 0f)
+                                .graphicsLayer { translationY = if (dragged) reorder.offset else 0f },
+                        )
+                    }
+                }
+                Spacer(Modifier.height(LIST_GAP))
+                Row(horizontalArrangement = Arrangement.spacedBy(BUTTON_GAP), verticalAlignment = Alignment.CenterVertically) {
+                    ListButton(stringResource(R.string.display_way_add_short), 260, enabled = onAdd != null, description = stringResource(R.string.display_way_add)) {
+                        onUse()
+                        onAdd?.invoke()
+                    }
+                    ListButton(
+                        stringResource(if (map.suggesting) R.string.display_way_asking else R.string.display_way_suggest),
+                        248,
+                        enabled = map.located && !map.suggesting && shown.size > 1,
+                    ) {
+                        onUse()
+                        // Lateness counts only from the next stop: a way that starts later skips the trips before it.
+                        map.suggest(shown.map { it.mapStop }, if (fromNext) trips else trips.map { it.copy(booked = null) }, now().toSecondOfDay())
+                    }
+                }
+                if (changed) {
+                    Spacer(Modifier.height(BUTTON_GAP))
+                    Row(horizontalArrangement = Arrangement.spacedBy(BUTTON_GAP), verticalAlignment = Alignment.CenterVertically) {
+                        ListButton(stringResource(R.string.display_way_undo), 249) {
                             onUse()
-                            edit.sent = ids
-                            onOrder(ids)
+                            edit.preview = null
+                            edit.picked = null
+                            edit.advice = null
+                        }
+                        val ids = shown.mapNotNull { it.id }.takeIf { it.size == shown.size }
+                        if (onOrder != null && ids != null) {
+                            ListButton(stringResource(R.string.display_way_apply), 250, strong = true, enabled = allowed && edit.sent != ids) {
+                                onUse()
+                                edit.sent = ids
+                                onOrder(ids)
+                            }
                         }
                     }
                 }
@@ -622,3 +657,4 @@ private val BUTTON_HEIGHT = 36.dp
 private val BUTTON_GAP = 6.dp
 private val BUTTON_CORNER = 10.dp
 private val BUTTON_SP = 14.sp
+private val BAR_HEIGHT = 28.dp

@@ -65,7 +65,7 @@ data class AppSettings(
 )
 
 /** Small settings store on SharedPreferences (no addresses are ever stored here). */
-class SettingsStore(context: Context) {
+class SettingsStore(context: Context) : WindowPlaces {
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     private val _state = MutableStateFlow(read())
     val state: StateFlow<AppSettings> = _state.asStateFlow()
@@ -107,6 +107,21 @@ class SettingsStore(context: Context) {
     }
 
     fun setOverlayPosition(x: Int, y: Int) = prefs.edit { putInt(K_OX, x); putInt(K_OY, y) }
+
+    override fun place(name: String): WindowPlace? {
+        if (!prefs.contains(K_WINDOW + name + "_x")) return null
+        return WindowPlace(
+            prefs.getFloat(K_WINDOW + name + "_x", 0.5f),
+            prefs.getFloat(K_WINDOW + name + "_y", 0.5f),
+            prefs.getFloat(K_WINDOW + name + "_scale", 1f),
+        )
+    }
+
+    override fun keep(name: String, place: WindowPlace) = prefs.edit {
+        putFloat(K_WINDOW + name + "_x", place.x)
+        putFloat(K_WINDOW + name + "_y", place.y)
+        putFloat(K_WINDOW + name + "_scale", place.scale)
+    }
 
     private fun read() = AppSettings(
         uiLanguage = prefs.getString(K_LANG, DEFAULT_LANGUAGE) ?: DEFAULT_LANGUAGE,
@@ -156,6 +171,7 @@ class SettingsStore(context: Context) {
         private const val K_HISTORY_HOURS = "history_retention_hours"
         private const val K_OX = "overlay_x"
         private const val K_OY = "overlay_y"
+        private const val K_WINDOW = "window_"
         private const val K_EXPLAIN_AR = "explanations_arabic"
         private const val K_REF_NUMBERS = "show_ref_numbers"
         private const val K_YD_WATCH = "youdrive_watch"

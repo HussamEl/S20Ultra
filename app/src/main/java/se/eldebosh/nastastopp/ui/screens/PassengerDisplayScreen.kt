@@ -27,7 +27,10 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.isSpecified
 import se.eldebosh.nastastopp.core.geo.GeoLogic
+import se.eldebosh.nastastopp.core.youdrive.CardNotes
 import se.eldebosh.nastastopp.core.youdrive.TripCardText
+import se.eldebosh.nastastopp.settings.WindowPlace
+import se.eldebosh.nastastopp.settings.WindowPlaces
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -260,8 +263,13 @@ fun PassengerDisplayScreen(
     onOrder: ((List<Long>) -> Unit)? = null,
     onEarth: ((Double, Double) -> Unit)? = null,
     onStreetPhotos: ((Double, Double) -> Unit)? = null,
+    places: WindowPlaces? = null,
 ) {
     KeepScreenOnFullscreen()
+    // The trip card and the driver's list of trips open where he last left them, as big.
+    val windows = places ?: remember { WindowPlaces.InMemory() }
+    val cardPlace = remember(windows) { WindowState(CARD_WINDOW, windows, WindowPlace(0.5f, 0.5f)) }
+    val listPlace = remember(windows) { WindowState(LIST_WINDOW, windows, WindowPlace(0f, 0.5f)) }
     var tapped by remember { mutableIntStateOf(0) }
     val cue = spoken + tapped
     // Taps on a card or an address: said on this device, and the time keeps still meanwhile.
@@ -646,7 +654,8 @@ fun PassengerDisplayScreen(
                 onOrder = onOrder,
                 onAdd = if (DisplaySnapshot.canAdd(ahead, wayAt, added)) ({ added++ }) else null,
                 onUse = { moments.touched() },
-                modifier = Modifier.align(Alignment.CenterStart).zIndex(MAP_OVER_Z),
+                place = listPlace,
+                modifier = Modifier.fillMaxSize().zIndex(MAP_OVER_Z),
             )
         }
         // While the time, the weather or the travel time fills the screen, a tap anywhere brings the
@@ -667,7 +676,7 @@ fun PassengerDisplayScreen(
             enter = fadeIn(tween(CARD_IN_MS)) + scaleIn(tween(CARD_IN_MS, easing = FastOutSlowInEasing), initialScale = 0.94f),
             exit = fadeOut(tween(CARD_OUT_MS)),
         ) {
-            lastCard?.let { TripCard(it, landscape, onClose = { openCard = null }) }
+            lastCard?.let { TripCard(it, landscape, cardPlace, onClose = { openCard = null }) }
         }
     }
     }
@@ -2592,103 +2601,159 @@ private fun Modifier.breathe(rest: Float, scale: () -> Float): Modifier = layout
  * ([TripCardText]), small (about a quarter of the screen) and drawn to be read at a glance: a band
  * in the trip's colour (green pick-up, light drop-off) with its kind and time and its status; the
  * passenger's name beside a figure, the two times beside a clock; then each field with its own
- * sign (the address, phone, seats and mobility aids as chips, fare, compensation, eligibility),
- * and the instructions in a box of their own. Over everything, for the driver, until a tap; a long
- * card scrolls. Never said. Numbers in [DigitFont], words in [DisplayFont].
+ * sign (the address, the phone numbers large in the highlight colour, one under the other, seats
+ * and mobility aids as chips, fare, compensation, eligibility), and the instructions in a box of
+ * their own, a line for each ([CardNotes]). Over everything, for the driver, until a tap beside it
+ * or its ×; a long card scrolls. It is a window ([place]): its band moves it (261), − and + size it
+ * (262, 263), two fingers do both, and it opens where and as big as the driver last left it. Never
+ * said. Numbers in [DigitFont], words in [DisplayFont].
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun TripCard(item: DisplayItem, landscape: Boolean, onClose: () -> Unit) {
+private fun TripCard(item: DisplayItem, landscape: Boolean, place: WindowState, onClose: () -> Unit) {
     val card = remember(item.card) { TripCardText.of(item.card.orEmpty()) }
     val colors = AppTheme.colors
     val size = if (landscape) CARD_SP else CARD_SP_NARROW
     val words = TextStyle(fontFamily = DisplayFont, color = colors.text, fontSize = size, lineHeight = 1.3.em, textDirection = TextDirection.Content)
     val shape = RoundedCornerShape(CARD_CORNER)
-    BoxWithConstraints(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier
-            .fillMaxSize()
-            .background(colors.background.copy(alpha = CARD_SCRIM))
-            .pointerInput(Unit) { detectTapGestures { onClose() } }
-            .ref(235),
-    ) {
-        Column(
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        // Beside the card: a tap closes it.
+        Box(
             Modifier
-                .width(maxWidth * if (landscape) CARD_WIDTH else CARD_WIDTH_NARROW)
-                .heightIn(max = maxHeight * CARD_HEIGHT)
-                .shadow(CARD_SHADOW, shape)
-                .clip(shape)
-                .background(colors.card)
-                .border(1.dp, colors.cardBorder, shape),
-        ) {
-            // The band: the trip's kind and time on its own colour, and its status.
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(colors.trip(item.kind ?: card.kind?.let { TripKinds.labelIn(it) }))
-                    .padding(horizontal = CARD_PAD, vertical = 8.dp),
-            ) {
-                Text(
-                    withDigitFont(card.title ?: item.time.orEmpty()),
-                    style = words.copy(color = colors.onTrip, fontWeight = FontWeight.Bold, fontSize = size * CARD_TITLE),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-                card.status?.let {
-                    Text(
-                        it,
-                        style = words.copy(color = colors.onStatus, fontWeight = FontWeight.SemiBold, fontSize = size * CARD_SMALL),
-                        modifier = Modifier.padding(start = 8.dp).clip(RoundedCornerShape(50)).background(colors.success).padding(horizontal = 8.dp, vertical = 2.dp),
-                    )
-                }
-                Icon(
-                    painterResource(R.drawable.ic_close),
-                    contentDescription = null,
-                    tint = colors.onTripMuted,
-                    modifier = Modifier.padding(start = 8.dp).size(with(LocalDensity.current) { size.toDp() }),
-                )
-            }
+                .fillMaxSize()
+                .background(colors.background.copy(alpha = CARD_SCRIM))
+                .pointerInput(Unit) { detectTapGestures { onClose() } },
+        )
+        val width = maxWidth * if (landscape) CARD_WIDTH else CARD_WIDTH_NARROW
+        val height = maxHeight * CARD_HEIGHT
+        FloatingWindow(place) {
             Column(
-                Modifier.verticalScroll(rememberScrollState()).padding(horizontal = CARD_PAD, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(CARD_GAP),
+                Modifier
+                    .ref(235)
+                    .width(width)
+                    .heightIn(max = height)
+                    .shadow(CARD_SHADOW, shape)
+                    .clip(shape)
+                    .background(colors.card)
+                    .border(1.dp, colors.cardBorder, shape)
+                    // A tap on the card is the driver reading it: it stays.
+                    .pointerInput(Unit) { detectTapGestures { } },
             ) {
-                card.name?.let { name ->
-                    CardLine(R.drawable.ic_person, size) {
-                        Text(name, style = words.copy(fontWeight = FontWeight.SemiBold, fontSize = size * CARD_NAME))
+                // The band: the trip's kind and time on its own colour, and its status. A finger on it
+                // moves the card.
+                val move = stringResource(R.string.window_move)
+                val band = colors.trip(item.kind ?: card.kind?.let { TripKinds.labelIn(it) })
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .refCorner(261)
+                        .fillMaxWidth()
+                        .background(band)
+                        .movesWindow(place)
+                        .semantics { contentDescription = move }
+                        .padding(start = CARD_PAD, end = 6.dp, top = 6.dp, bottom = 6.dp),
+                ) {
+                    Text(
+                        withDigitFont(card.title ?: item.time.orEmpty()),
+                        style = words.copy(color = colors.onTrip, fontWeight = FontWeight.Bold, fontSize = size * CARD_TITLE),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    card.status?.let {
+                        Text(
+                            it,
+                            style = words.copy(color = colors.onStatus, fontWeight = FontWeight.SemiBold, fontSize = size * CARD_SMALL),
+                            modifier = Modifier.padding(start = 8.dp).clip(RoundedCornerShape(50)).background(colors.success).padding(horizontal = 8.dp, vertical = 2.dp),
+                        )
+                    }
+                    val button = with(LocalDensity.current) { (size * CARD_BUTTON).toDp() }
+                    Spacer(Modifier.width(4.dp))
+                    WindowZoom(place, smaller = 262, larger = 263, tint = colors.onTrip, ground = colors.onTrip.copy(alpha = CARD_BUTTON_GROUND), size = button)
+                    val close = stringResource(R.string.display_card_close)
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .refCorner(264)
+                            .padding(start = 4.dp)
+                            .size(button)
+                            .clip(CircleShape)
+                            .background(colors.onTrip.copy(alpha = CARD_BUTTON_GROUND))
+                            .clickable(onClickLabel = close, role = Role.Button, onClick = onClose)
+                            .semantics { contentDescription = close },
+                    ) {
+                        Icon(painterResource(R.drawable.ic_close), contentDescription = null, tint = colors.onTrip, modifier = Modifier.size(button * 0.6f))
                     }
                 }
-                if (card.estimated != null || card.negotiated != null) {
-                    CardLine(R.drawable.ic_schedule, size) {
-                        Column {
-                            card.estimated?.let { Text(withDigitFont("Estimated time $it"), style = words) }
-                            card.negotiated?.let { Text(withDigitFont("Client's negotiated time: $it"), style = words.copy(color = colors.textMuted)) }
+                Column(
+                    Modifier.verticalScroll(rememberScrollState()).padding(horizontal = CARD_PAD, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(CARD_GAP),
+                ) {
+                    card.name?.let { name ->
+                        CardLine(R.drawable.ic_person, size) {
+                            Text(name, style = words.copy(fontWeight = FontWeight.SemiBold, fontSize = size * CARD_NAME))
                         }
                     }
-                }
-                for (row in card.rows) {
-                    when (row.label) {
-                        TripCardText.INSTRUCTIONS -> CardNote(row.value, words)
-                        TripCardText.SPACE, TripCardText.AIDS -> CardLine(cardIcon(row.label), size, row.label) {
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                row.value.split(", ").forEach { chip ->
-                                    Text(
-                                        withDigitFont(chip),
-                                        style = words.copy(fontWeight = FontWeight.SemiBold, fontSize = size * CARD_SMALL),
-                                        modifier = Modifier.clip(RoundedCornerShape(50)).background(colors.tonalHigh).padding(horizontal = 8.dp, vertical = 2.dp),
-                                    )
-                                }
+                    if (card.estimated != null || card.negotiated != null) {
+                        CardLine(R.drawable.ic_schedule, size) {
+                            Column {
+                                card.estimated?.let { Text(withDigitFont("Estimated time $it"), style = words) }
+                                card.negotiated?.let { Text(withDigitFont("Client's negotiated time: $it"), style = words.copy(color = colors.textMuted)) }
                             }
                         }
-                        else -> CardLine(cardIcon(row.label), size, row.label) {
-                            Text(withDigitFont(row.value), style = words)
+                    }
+                    // The phone numbers under one sign, each on a line of its own.
+                    val phones = card.rows.filter { it.label == TripCardText.PHONE }
+                    var phonesShown = false
+                    for (row in card.rows) {
+                        when (row.label) {
+                            TripCardText.PHONE -> if (!phonesShown) {
+                                phonesShown = true
+                                CardLine(R.drawable.ic_phone, size, row.label) {
+                                    phones.forEach { PhoneLine(it.value, null, words) }
+                                }
+                            }
+                            TripCardText.INSTRUCTIONS -> CardNote(row.value, words)
+                            TripCardText.SPACE, TripCardText.AIDS -> CardLine(cardIcon(row.label), size, row.label) {
+                                FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    row.value.split(", ").forEach { chip ->
+                                        Text(
+                                            withDigitFont(chip),
+                                            style = words.copy(fontWeight = FontWeight.SemiBold, fontSize = size * CARD_SMALL),
+                                            modifier = Modifier.clip(RoundedCornerShape(50)).background(colors.tonalHigh).padding(horizontal = 8.dp, vertical = 2.dp),
+                                        )
+                                    }
+                                }
+                            }
+                            else -> CardLine(cardIcon(row.label), size, row.label) {
+                                Text(withDigitFont(row.value), style = words)
+                            }
                         }
                     }
                 }
             }
         }
     }
+}
+
+/**
+ * A phone number on a line of its own, from the line's start: large, bold and in the highlight
+ * colour, to be found at a glance while driving; whose it is ([label], as the card writes it) after it.
+ */
+@Composable
+private fun PhoneLine(number: String, label: String?, words: TextStyle) {
+    Text(
+        buildAnnotatedString {
+            withStyle(SpanStyle(fontFamily = DigitFont, fontWeight = FontWeight.Bold, fontSize = words.fontSize * CARD_PHONE, color = AppTheme.colors.highlight)) {
+                append(number)
+            }
+            if (label != null) {
+                append("  ")
+                withStyle(SpanStyle(color = AppTheme.colors.textMuted)) { append(label) }
+            }
+        },
+        style = words,
+    )
 }
 
 /** One field of a trip's card: its sign, its name small above it ([label], YouDrive's), and [content]. */
@@ -2711,25 +2776,41 @@ private fun CardLine(icon: Int, size: TextUnit, label: String? = null, content: 
     }
 }
 
-/** The card's instructions, in a box of their own marked in yellow: what the driver must not miss at the door. */
+/**
+ * The card's instructions, marked in yellow: what the driver must not miss at the door. Each thing
+ * the dispatcher wrote is a tile of its own ([CardNotes]), so they never run together, however many
+ * there are; a phone number starts its tile, large ([PhoneLine]).
+ */
 @Composable
 private fun CardNote(text: String, words: TextStyle) {
-    val stripe = AppTheme.colors.accent
-    Row(
-        verticalAlignment = Alignment.Top,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(AppTheme.colors.tonalHigh)
-            .drawWithContent {
-                drawContent()
-                drawRect(stripe, size = Size(NOTE_STRIPE.toPx(), size.height))
+    val lines = remember(text) { CardNotes.of(text) }
+    val colors = AppTheme.colors
+    val stripe = colors.accent
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(NOTE_GAP)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            val small = words.fontSize * CARD_LABEL
+            Icon(painterResource(R.drawable.ic_info), contentDescription = null, tint = colors.accent, modifier = Modifier.size(with(LocalDensity.current) { (small * 1.3f).toDp() }))
+            Spacer(Modifier.width(4.dp))
+            Text(TripCardText.INSTRUCTIONS, fontFamily = DisplayFont, fontSize = small, color = colors.textMuted, maxLines = 1)
+        }
+        for (line in lines) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(NOTE_CORNER))
+                    .background(colors.tonalHigh)
+                    .drawWithContent {
+                        drawContent()
+                        drawRect(stripe, size = Size(NOTE_STRIPE.toPx(), size.height))
+                    }
+                    .padding(start = NOTE_STRIPE + 8.dp, top = 4.dp, end = 8.dp, bottom = 4.dp),
+            ) {
+                when (line) {
+                    is CardNotes.Line.Phone -> PhoneLine(line.number, line.label, words)
+                    is CardNotes.Line.Words -> Text(withDigitFont(line.text), style = words)
+                }
             }
-            .padding(start = NOTE_STRIPE + 8.dp, top = 8.dp, end = 8.dp, bottom = 8.dp),
-    ) {
-        Icon(painterResource(R.drawable.ic_info), contentDescription = null, tint = AppTheme.colors.accent, modifier = Modifier.size(with(LocalDensity.current) { words.fontSize.toDp() }))
-        Spacer(Modifier.width(6.dp))
-        Text(withDigitFont(text), style = words)
+        }
     }
 }
 
@@ -3048,6 +3129,19 @@ private const val CARD_SMALL = 0.85f
 private const val CARD_LABEL = 0.75f
 private const val CARD_SIGN = 1.9f
 private val NOTE_STRIPE = 3.dp
+private val NOTE_GAP = 4.dp
+private val NOTE_CORNER = 8.dp
+
+/** A phone number on the card: this much larger than its words. */
+private const val CARD_PHONE = 1.3f
+
+/** The card's −, + and ×: this much of the words' size, on a light round ground. */
+private const val CARD_BUTTON = 1.9f
+private const val CARD_BUTTON_GROUND = 0.18f
+
+/** The windows the driver moves and sizes, by the name their place is kept under. */
+private const val CARD_WINDOW = "trip_card"
+private const val LIST_WINDOW = "way_list"
 
 /** A figure's touch room beside a small trip (the bottom line, the strip). */
 private val SMALL_TOUCH = 36.dp

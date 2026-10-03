@@ -153,6 +153,9 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
     /** The display's look given after the page was made ([setLook]), given again when it has loaded. */
     private var look: String? = null
 
+    /** Where the driver's list of trips is over the held map ([listAt]), given again when the page has loaded. */
+    private var room: String? = null
+
 
     // JavaScript runs Google's map; the page is the app's own and nothing else can be loaded.
     // onRenderProcessGone is implemented below; lint does not see it in an object expression.
@@ -180,6 +183,7 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
 
             override fun onPageFinished(view: WebView, url: String?) {
                 look?.let { view.evaluateJavascript(it, null) }
+                room?.let { view.evaluateJavascript(it, null) }
                 stage?.let { view.evaluateJavascript(it, null) }
             }
 
@@ -228,6 +232,21 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
         js(stage!!)
         main.removeCallbacks(hide)
         main.postDelayed(hide, ms + HIDE_AFTER_MS)
+    }
+
+    /**
+     * The driver's list of trips covers [left] to [right] (shares of the map's width): the way
+     * keeps clear of it, on the side it is nearer to.
+     */
+    fun listAt(left: Float, right: Float) {
+        val next = if (left + right < 1f) {
+            String.format(Locale.ROOT, "room(%.2f,0)", right.coerceIn(0f, 1f))
+        } else {
+            String.format(Locale.ROOT, "room(0,%.2f)", (1f - left).coerceIn(0f, 1f))
+        }
+        if (next == room) return
+        room = next
+        js(next)
     }
 
     /** The held map closer ([step] 1) or farther (-1). */

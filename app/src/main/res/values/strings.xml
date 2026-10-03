@@ -199,6 +199,10 @@
     <string name="display_way_add">أضف الرحلة التالية إلى الطريق</string>
     <string name="display_way_add_short">+ رحلة</string>
     <string name="display_way_drag">اسحب لتغيير مكان الرحلة</string>
+    <string name="window_smaller">أصغر</string>
+    <string name="window_larger">أكبر</string>
+    <string name="window_move">اسحب لنقل النافذة</string>
+    <string name="display_card_close">أغلق بطاقة الرحلة</string>
     <string name="display_show_card">إظهار بطاقة الرحلة</string>
     <string name="display_weather">عرض الطقس</string>
     <string name="display_look_light">شاشة فاتحة</string>

@@ -238,14 +238,17 @@
   }
 
   // The way keeps to the clear middle: with room for the minutes and distance at the bottom, or,
-  // on the driver's own map, for his list of trips at the left and his buttons at the right.
+  // on the driver's own map, for his list of trips (where he put it) and his buttons at the right.
   function clear() {
     var d = map.getDiv(), w = d.offsetWidth, h = d.offsetHeight;
-    if (held) return { top: Math.round(h * 0.1), bottom: Math.round(h * 0.1), left: Math.round(Math.max(w * 0.16, LIST_ROOM)), right: Math.round(w * 0.12) };
+    if (held) return { top: Math.round(h * 0.1), bottom: Math.round(h * 0.1), left: Math.round(w * Math.max(0.16, listRoom.left)), right: Math.round(w * Math.max(0.12, listRoom.right)) };
     return { top: Math.round(h * 0.2), bottom: Math.round(h * 0.34), left: Math.round(w * 0.16), right: Math.round(w * 0.16) };
   }
-  // The driver's list of trips at the left of his map (its width and margins).
-  var LIST_ROOM = 380;
+  // How much of the map's width the driver's list of trips covers from its left or its right.
+  var listRoom = { left: 0.3, right: 0 };
+  function room(left, right) {
+    listRoom = { left: left, right: right };
+  }
 
   // --- The driver's own map ---------------------------------------------------------------
 

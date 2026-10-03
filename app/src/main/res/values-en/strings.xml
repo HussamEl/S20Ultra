@@ -198,6 +198,10 @@
     <string name="display_way_add">Add the next trip to the way</string>
     <string name="display_way_add_short">+ Trip</string>
     <string name="display_way_drag">Drag to move the trip</string>
+    <string name="window_smaller">Smaller</string>
+    <string name="window_larger">Larger</string>
+    <string name="window_move">Drag to move the window</string>
+    <string name="display_card_close">Close the trip card</string>
     <string name="display_show_card">Show the trip\'s card</string>
     <string name="display_weather">Show the weather</string>
     <string name="display_look_light">Light display</string>

@@ -332,6 +332,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 onExit = { vm.back() },
                                 dark = settings.displayDark,
                                 onToggleLook = { graph.settings.update { it.copy(displayDark = !it.displayDark) } },
+                                places = graph.settings,
                             )
                             // The passengers look at this screen: the driver's floating panel stays away.
                             DisposableEffect(Unit) {
@@ -437,6 +438,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 onToggleSpeaks = { v -> graph.settings.update { it.copy(displaySpeaks = v) } },
                                 onToggleLook = { graph.settings.update { it.copy(displayDark = !it.displayDark) } },
                                 onOrder = { ids -> client.order(ids) },
+                                places = graph.settings,
                                 panelAllowed = remember(resumeTick) { graph.tabletPanel.canShow },
                                 onAllowPanel = { SystemIntents.openOverlaySettings(context) },
                                 onTogglePanel = { v ->

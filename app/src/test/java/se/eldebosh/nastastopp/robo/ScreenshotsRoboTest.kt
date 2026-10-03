@@ -68,6 +68,9 @@ import org.junit.Rule
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import se.eldebosh.nastastopp.ui.screens.RouteMap
+import se.eldebosh.nastastopp.settings.WindowPlaces
+import androidx.compose.ui.test.pinch
+import androidx.compose.ui.test.performScrollTo
 import org.junit.Test
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -845,14 +848,16 @@ class ScreenshotsRoboTest {
 
     /**
      * The person figure under the next stop opens its whole YouDrive card, laid out as YouDrive's
-     * details window, over everything until a tap; nothing of it is said. A coming trip with a card
-     * has its own figure; the top line has no card sign.
+     * details window, over everything until its × or a tap beside it; nothing of it is said. Its
+     * instructions are a line for each thing written, each phone number on its own. A coming trip
+     * with a card has its own figure; the top line has no card sign.
      */
     @Test
     @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
     fun passengerDisplayShowsTheTripCardOnTap() {
         val said = mutableListOf<String>()
-        val card = "07:36\nPick-up\nAnna Maria Testsson\nVÄSTRA TORGGATAN 12, 65224 KARLSTAD\n0700000001\nHLI, RU1\nClient fee 0 KR\nCompensation 84.92 KR\nFTJ\nportkod 1234"
+        val card = "07:36\nPick-up\nAnna Maria Testsson\nVÄSTRA TORGGATAN 12, 65224 KARLSTAD\n0700000001\nHLI, RU1\nClient fee 0 KR\nCompensation 84.92 KR\nFTJ\n" +
+            "portkod 1234 / Personalen hjälper till 0700000004 alt 0700000005/ / Son 0700000006"
         val then = "08:00\nDrop-off\nAnna Maria Testsson\nHamngatan 7, 66330 Skoghall\nRU1\nCompensation 12.00 KR\nFTJ"
         val snapshot = tabletSnapshot.copy(
             current = tabletSnapshot.current!!.copy(card = card),
@@ -874,16 +879,85 @@ class ScreenshotsRoboTest {
         compose.onNodeWithText("0700000001").assertIsDisplayed()
         compose.onNodeWithText("Rullstol 1").assertIsDisplayed()
         compose.onNodeWithText("Hämtas/Lämnas inne").assertIsDisplayed()
+        // The instructions, further down the card: a line for each thing written, each number on its own.
+        for (line in listOf("portkod 1234", "Personalen hjälper till", "0700000004", "0700000005  alt", "0700000006  Son")) {
+            compose.onNodeWithText(line).performScrollTo().assertIsDisplayed()
+        }
+        save("display_trip_card_notes", compose.onRoot().captureToImage().asAndroidBitmap())
+        // A tap on the card leaves it; its × closes it.
         compose.onNodeWithTag("ref_235").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithTag("ref_235").assertIsDisplayed()
+        compose.onNodeWithTag("ref_264").performClick()
         compose.waitForIdle()
         compose.onNodeWithTag("ref_235").assertDoesNotExist()
         // "Därefter"'s own figure opens its card.
         compose.onAllNodesWithTag("ref_234", useUnmergedTree = true).onFirst().performClick()
         compose.waitForIdle()
         compose.onNodeWithText("Drop-off 08:00").assertIsDisplayed()
-        compose.onNodeWithTag("ref_235").performClick()
+        // A tap beside the card closes it.
+        compose.onRoot().performTouchInput { click(Offset(10f, 10f)) }
         compose.waitForIdle()
+        compose.onNodeWithTag("ref_235").assertDoesNotExist()
         assertTrue("nothing said: $said", said.isEmpty())
+    }
+
+    /**
+     * The trip card is a window: its band moves it, + and − size it, two fingers pinch it; it stays
+     * on the screen, and opens again where and as big as the driver left it.
+     */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun theTripCardMovesAndKeepsItsPlace() {
+        val places = WindowPlaces.InMemory()
+        val card = "07:36\nPick-up\nAnna Testsson\nStorgatan 14, 65224 Karlstad\n0700000001\nSP1\nCompensation 1 KR\nFTJ\nportkod 1234"
+        val snapshot = tabletSnapshot.copy(current = tabletSnapshot.current!!.copy(card = card))
+        compose.setContent {
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(snapshot, status = "Galaxy S20", connected = true, onSpeak = {}, onExit = {}, time = { LocalTime.of(8, 11, 5) }, places = places)
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("ref_231", useUnmergedTree = true).performClick()
+        compose.waitForIdle()
+        val first = compose.onNodeWithTag("ref_235").fetchSemanticsNode().boundsInRoot
+        // Its middle at the screen's middle at first.
+        assertEquals(700f, first.center.x, 2f)
+        compose.onNodeWithTag("ref_263").performClick()
+        compose.waitForIdle()
+        assertEquals(1.2f, places.place("trip_card")!!.scale, 0.001f)
+        val bigger = compose.onNodeWithTag("ref_235").fetchSemanticsNode().boundsInRoot
+        assertEquals(first.width * 1.2f, bigger.width, 2f)
+        // Its band, 300 px to the left; then far up: it stops at the screen's top.
+        compose.onNodeWithTag("ref_261").performTouchInput {
+            down(center)
+            repeat(10) { moveBy(Offset(-30f, 0f)) }
+            up()
+        }
+        compose.onNodeWithTag("ref_261").performTouchInput {
+            down(center)
+            repeat(20) { moveBy(Offset(0f, -60f)) }
+            up()
+        }
+        compose.waitForIdle()
+        val moved = compose.onNodeWithTag("ref_235").fetchSemanticsNode().boundsInRoot
+        assertTrue("moved left: $moved", moved.center.x < bigger.center.x - 250f)
+        assertTrue("inside the screen: $moved", moved.top >= 0f)
+        // Two fingers drawn together: smaller.
+        compose.onNodeWithTag("ref_235").performTouchInput {
+            pinch(center + Offset(-120f, 0f), center + Offset(-40f, 0f), center + Offset(120f, 0f), center + Offset(40f, 0f))
+        }
+        compose.waitForIdle()
+        assertTrue("pinched smaller: ${places.place("trip_card")}", places.place("trip_card")!!.scale < 1.2f)
+        val kept = compose.onNodeWithTag("ref_235").fetchSemanticsNode().boundsInRoot
+        compose.onNodeWithTag("ref_264").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithTag("ref_231", useUnmergedTree = true).performClick()
+        compose.waitForIdle()
+        val again = compose.onNodeWithTag("ref_235").fetchSemanticsNode().boundsInRoot
+        assertEquals(kept.left, again.left, 2f)
+        assertEquals(kept.top, again.top, 2f)
+        assertEquals(kept.width, again.width, 2f)
     }
 
     /** A trip without a YouDrive card (a screenshot, a stop typed by hand) has no figure of its own. */
@@ -966,6 +1040,7 @@ class ScreenshotsRoboTest {
     @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
     fun theDriverSetsTheOrderOnHisMap() {
         val sent = mutableListOf<List<Long>>()
+        val places = WindowPlaces.InMemory()
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         compose.setContent {
             val scope = rememberCoroutineScope()
@@ -980,6 +1055,7 @@ class ScreenshotsRoboTest {
                     time = { LocalTime.of(7, 20, 42) },
                     routeMap = map,
                     onOrder = { sent += it },
+                    places = places,
                 )
             }
         }
@@ -990,6 +1066,10 @@ class ScreenshotsRoboTest {
         // A, B, C: the next stop and the two after it.
         compose.onAllNodesWithTag("ref_245").assertCountEquals(3)
         compose.onNodeWithTag("ref_250").assertDoesNotExist()
+        // The list is a window too: + makes it bigger.
+        compose.onNodeWithTag("ref_267").performClick()
+        compose.mainClock.advanceTimeBy(500)
+        assertEquals(1.2f, places.place("way_list")!!.scale, 0.001f)
         compose.onNodeWithContentDescription("C: Storgatan 14").performClick()
         compose.mainClock.advanceTimeBy(500)
         // Storgatan 14 one place earlier: before Hamngatan 7.
@@ -1015,7 +1095,7 @@ class ScreenshotsRoboTest {
         compose.mainClock.autoAdvance = true
     }
 
-    /** On his map the driver drags a trip by its handle to another place in the list; Use sends that order. */
+    /** On his map the driver drags a trip by its handle to another place in the list; Use sends that order. The list's bar moves it. */
     @Test
     @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
     fun theDriverDragsATripInTheList() {
@@ -1052,6 +1132,19 @@ class ScreenshotsRoboTest {
         compose.onNodeWithTag("ref_249").assertIsDisplayed()
         compose.onNodeWithTag("ref_250").performClick()
         assertEquals(listOf(listOf(13L, 11L, 12L)), sent)
+        // The list's bar moves the list, here to the right.
+        val before = compose.onNodeWithTag("ref_265").fetchSemanticsNode().boundsInRoot
+        compose.onNodeWithTag("ref_265").performTouchInput {
+            down(center)
+            repeat(20) {
+                advanceEventTime(50)
+                moveBy(Offset(20f, 0f))
+            }
+            up()
+        }
+        compose.mainClock.advanceTimeBy(500)
+        val after = compose.onNodeWithTag("ref_265").fetchSemanticsNode().boundsInRoot
+        assertTrue("moved right: $before → $after", after.left > before.left + 300f)
         compose.mainClock.autoAdvance = true
     }
 

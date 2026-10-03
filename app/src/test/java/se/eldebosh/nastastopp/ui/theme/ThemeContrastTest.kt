@@ -37,6 +37,8 @@ class ThemeContrastTest {
         // The first card's time on the card's tint while it is said: large bold text.
         check(look, "passenger highlight on a lit card", c.highlight, c.infoSoft, 3.0)
         check(look, "\"DÄREFTER\" on its chip", c.text, c.tonalHigh, 4.5)
+        // A phone number in a trip card's instructions: large bold text.
+        check(look, "phone number in the instructions", c.highlight, c.tonalHigh, 3.0)
         // The big time and the clock's colon, which tells how the next stop's time stands: very large.
         c.showHues.forEach { check(look, "big time", it, c.background, 3.0) }
         check(look, "colon of a trip on time", c.success, c.background, 3.0)

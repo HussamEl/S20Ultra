@@ -198,6 +198,10 @@
     <string name="display_way_add">Lägg till nästa resa på vägen</string>
     <string name="display_way_add_short">+ Resa</string>
     <string name="display_way_drag">Dra för att flytta resan</string>
+    <string name="window_smaller">Mindre</string>
+    <string name="window_larger">Större</string>
+    <string name="window_move">Dra för att flytta fönstret</string>
+    <string name="display_card_close">Stäng resans kort</string>
     <string name="display_show_card">Visa resans kort</string>
     <string name="display_weather">Visa vädret</string>
     <string name="display_look_light">Ljus skärm</string>
