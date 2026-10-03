@@ -8,8 +8,8 @@
 
   One page, one map for the display's whole life: what changes is only what it shows. Google bills
   each map made, not what is done with it. It is the minute's moment, only looked at, and the
-  driver's own (hold), opened by his tap and moved by his touch and the app's buttons (zoom, toCar,
-  toStop, whole). Google's 3D view and street photos are not made here: the app opens Google's own
+  driver's own (hold), opened by his tap and moved by his touch and the app's buttons (satellite,
+  toCar, toStop, whole). Google's 3D view and street photos are not made here: the app opens Google's own
   apps for them, which costs the driver's key nothing.
 -->
 <html>
@@ -22,26 +22,41 @@
   #stage { position: fixed; left: 0; top: 0; right: 0; bottom: 0; opacity: 0; transform: scale(0.06); will-change: transform, opacity; }
   #map { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: var(--ground); pointer-events: none; }
   body.held #map { pointer-events: auto; }
-  /* Held, more of the map is seen: only the bottom keeps its full fade, under the minutes. */
-  body.held .top, body.held .left, body.held .right { opacity: 0.45; }
-  .fade { position: absolute; pointer-events: none; }
-  .top { left: 0; right: 0; top: 0; height: 18%; }
-  .bottom { left: 0; right: 0; bottom: 0; height: 34%; }
-  .left { top: 0; bottom: 0; left: 0; width: 14%; }
-  .right { top: 0; bottom: 0; right: 0; width: 14%; }
+  /* The map fills the screen to its edges; only the minute's map fades at the bottom, under its minutes. */
+  .fade { position: absolute; pointer-events: none; transition: opacity 300ms; }
+  .bottom { left: 0; right: 0; bottom: 0; height: 30%; }
+  body.held .bottom { opacity: 0; }
   .dot { position: absolute; transform: translate(-50%, -50%); border-radius: 50%; box-sizing: border-box; }
   .car { width: 26px; height: 26px; background: #1A73E8; border: 5px solid #FFFFFF;
          box-shadow: 0 0 0 10px rgba(26, 115, 232, 0.22), 0 2px 8px rgba(0, 0, 0, 0.35); }
-  .pin { position: absolute; transform: translate(-50%, -50%); line-height: 0; }
-  /* The trip's time under its pin, framed in the stop's colour. */
-  .pin .time { position: absolute; left: 50%; top: 100%; transform: translate(-50%, 2px); background: #FFFFFF; color: #202124;
-               font: 700 15px sans-serif; line-height: 1; padding: 3px 6px; border-radius: 7px; border: 2px solid; white-space: nowrap; }
+  /*
+    A stop: a small dot on its point; above it, on a short tail, its letter and its trip's time in
+    the stop's colour (--c, with --on written on it); under it, its address and its passenger's
+    last name, written the way the map writes its own names (with a halo).
+  */
+  .pin { position: absolute; width: 0; height: 0; }
+  .pin .spot { position: absolute; left: -6px; top: -6px; width: 12px; height: 12px; border-radius: 50%; box-sizing: border-box;
+               background: var(--c); border: 2.5px solid var(--edge); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35); }
+  .pin .tag { position: absolute; left: 0; bottom: 8px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; }
+  .pin .pill { display: flex; align-items: center; gap: 6px; padding: 3px 11px 3px 3px; border-radius: 999px; white-space: nowrap;
+               background: var(--c); color: var(--on); border: 2px solid var(--edge); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+               font: 700 17px sans-serif; line-height: 1; font-variant-numeric: tabular-nums; }
+  .pin .letter { width: 23px; height: 23px; border-radius: 50%; background: var(--on); color: var(--c);
+                 display: flex; align-items: center; justify-content: center; font: 800 15px sans-serif; }
+  .pin .tail { width: 0; height: 0; margin-top: -1px; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid var(--tail); }
+  .pin.focus .pill { font-size: 22px; padding: 4px 14px 4px 4px; box-shadow: 0 0 0 4px #EA4335, 0 3px 10px rgba(0, 0, 0, 0.45); }
+  .pin.focus .letter { width: 30px; height: 30px; font-size: 19px; }
+  .pin.focus .spot { left: -8px; top: -8px; width: 16px; height: 16px; box-shadow: 0 0 0 3px #EA4335; }
+  .pin .label { position: absolute; left: 0; top: 9px; transform: translateX(-50%); text-align: center; white-space: nowrap; line-height: 1.15;
+                font: 600 13px sans-serif; color: var(--ink); text-shadow: 0 0 3px var(--halo), 0 0 3px var(--halo), 0 0 2px var(--halo); }
+  .pin.focus .label { font-size: 15px; top: 12px; }
+  .pin .who { font-weight: 700; color: var(--name); }
 </style>
 </head>
 <body>
 <div id="stage">
   <div id="map"></div>
-  <div class="fade top"></div><div class="fade bottom"></div><div class="fade left"></div><div class="fade right"></div>
+  <div class="fade bottom"></div>
 </div>
 <script>
   var NIGHT = __NIGHT__;
@@ -50,13 +65,21 @@
   var FROM = 0.06;
   // Without the map's pictures this long after it is shown, the app is told.
   var TILES_WAIT_MS = 12000;
-  var map = null, carDot = null, Dot = null, lines2d = [], pins2d = [];
+  var map = null, carDot = null, Dot = null, lines2d = [], pins2d = [], borders = [];
   // The way: its stops in turn (points, or null until known), the one looked at, each leg's line.
   var car = null, stops = [], focusAt = 0, legs = [], shown = false, tiles = false;
-  // Each stop's own colour and its trip's time (from the app; the colour also marks the way on from it).
-  var colors = [], times = [];
+  // Each stop's own colour, by day and by night, its trip's time, its address and its passenger's
+  // last name (from the app, for its pin; the colour also marks the way on from it).
+  var colors = [], nightColors = [], times = [], labels = [], names = [];
   // The way from the car to the first stop.
-  var CAR_WAY = '#5F6368';
+  function carWay() { return NIGHT ? '#9AA0A6' : '#5F6368'; }
+  // Legs that share a street are drawn thinner and this many pixels apart, side by side.
+  var APART_PX = 4;
+  // The borders of the counties, the municipalities and the towns' districts (SCB, CC0; drawn here,
+  // never asked of Google): flat [lat, lng, lat, lng…] lines.
+  var BORDERS = __BORDERS__;
+  // The districts' borders only this close (they would only clutter a whole county).
+  var DISTRICTS_FROM_ZOOM = 12;
   var LETTERS = 'ABCDEFGHIJK';
   var stage = document.getElementById('stage');
   // The driver's own map (hold): the same map, under his touch.
@@ -70,16 +93,13 @@
   window.addEventListener('unhandledrejection', function (e) { problem('page', e.reason && e.reason.message || e.reason); });
   window.gm_authFailure = function () { Android.onAuthFailure(); };
 
-  // The map's edges melt into the screen's ground, from solid at the edge to clear inside.
+  // The minute's map melts into the screen's ground at the bottom, under the minutes.
   function paintFades() {
     var n = parseInt(GROUND.slice(1), 16), rgb = [(n >> 16) & 255, (n >> 8) & 255, n & 255].join(',');
     function fade(to) {
       return 'linear-gradient(' + to + ', rgba(' + rgb + ',1) 0%, rgba(' + rgb + ',0.82) 30%, rgba(' + rgb + ',0.38) 60%, rgba(' + rgb + ',0.1) 85%, rgba(' + rgb + ',0) 100%)';
     }
-    document.querySelector('.top').style.background = fade('to bottom');
     document.querySelector('.bottom').style.background = fade('to top');
-    document.querySelector('.left').style.background = fade('to right');
-    document.querySelector('.right').style.background = fade('to left');
   }
   paintFades();
 
@@ -92,6 +112,7 @@
     if (!map) return;
     try {
       map.setOptions({ styles: NIGHT ? dark : quiet, backgroundColor: GROUND });
+      drawBorders();
       draw(false);
     } catch (e) {}
   }
@@ -143,6 +164,15 @@
     Dot.prototype.onRemove = function () { this.div.remove(); };
     Dot.prototype.place = function (at) { this.at = at; this.draw(); };
     carDot = new Dot('dot car'); carDot.setMap(map);
+    // Closer or farther: the districts' borders come or go, and legs side by side stay as far apart.
+    var lastZoom = map.getZoom();
+    map.addListener('zoom_changed', function () {
+      var z = map.getZoom();
+      if (z === lastZoom) return;
+      lastZoom = z;
+      try { showDistricts(); drawLines(); } catch (e) {}
+    });
+    drawBorders();
     draw(true);
     Android.onReady();
     if (shown) waitForTiles();
@@ -184,8 +214,12 @@
     stops = (w.stops || []).map(function (p) { return p ? { lat: p[0], lng: p[1] } : null; });
     focusAt = Math.max(0, Math.min(stops.length - 1, w.focus || 0));
     legs = (w.legs || []).map(function (leg) { return leg.map(function (p) { return { lat: p[0], lng: p[1] }; }); });
-    colors = (w.colors || []).map(function (c) { return /^#[0-9A-Fa-f]{6}$/.test(c) ? c : '#1A73E8'; });
+    function hex(c) { return /^#[0-9A-Fa-f]{6}$/.test(c) ? c : '#1A73E8'; }
+    colors = (w.colors || []).map(hex);
+    nightColors = (w.nightColors || []).map(hex);
     times = (w.times || []).map(function (t) { return t ? String(t).replace(/[^0-9:]/g, '').slice(0, 5) : ''; });
+    labels = (w.labels || []).map(function (t) { return t ? String(t).slice(0, 60) : ''; });
+    names = (w.names || []).map(function (t) { return t ? String(t).slice(0, 40) : ''; });
     if (map) draw(!held);
   }
 
@@ -205,41 +239,138 @@
     return leg && leg.length ? leg[leg.length - 1] : null;
   }
 
-  function colorOf(i) { return colors[i] || '#1A73E8'; }
+  // Lighter colours by night, which stand out on the dark map; darker ones by day.
+  function colorOf(i) { return (NIGHT ? nightColors[i] || colors[i] : colors[i]) || '#1A73E8'; }
 
-  // A stop's letter on a round pin in its own colour, its trip's time under it; the one looked at
-  // larger, in a red ring.
+  function esc(t) {
+    return String(t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
+  }
+
+  // A stop: its letter and its trip's time together in its own colour, on a tail down to its point;
+  // its address and its passenger's last name under the point. The one looked at larger, in a red ring.
   function pinHtml(i) {
-    var focus = i === focusAt, size = focus ? 62 : 40, half = size / 2, r = focus ? half - 7 : half - 3;
-    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '">' +
-      (focus ? '<circle cx="' + half + '" cy="' + half + '" r="' + (half - 2.5) + '" fill="none" stroke="#EA4335" stroke-width="5"/>' : '') +
-      '<circle cx="' + half + '" cy="' + half + '" r="' + r + '" fill="' + colorOf(i) + '" stroke="#FFFFFF" stroke-width="4"/>' +
-      '<text x="' + half + '" y="' + half + '" dy="0.36em" text-anchor="middle" font-family="sans-serif" font-weight="700" font-size="' + (focus ? 26 : 19) + '" fill="#FFFFFF">' +
-      LETTERS.charAt(i) + '</text></svg>';
-    return svg + (times[i] ? '<div class="time" style="border-color:' + colorOf(i) + '">' + times[i] + '</div>' : '');
+    var label = (labels[i] ? '<div>' + esc(labels[i]) + '</div>' : '') + (names[i] ? '<div class="who">' + esc(names[i]) + '</div>' : '');
+    return '<div class="spot"></div>' +
+      '<div class="tag"><div class="pill"><span class="letter">' + LETTERS.charAt(i) + '</span>' + (times[i] ? '<span>' + esc(times[i]) + '</span>' : '') + '</div>' +
+      '<div class="tail"></div></div>' +
+      (label ? '<div class="label">' + label + '</div>' : '');
+  }
+
+  function pinStyle(pin, i) {
+    var s = pin.div.style, c = colorOf(i);
+    s.setProperty('--c', c);
+    s.setProperty('--on', NIGHT ? '#111418' : '#FFFFFF');
+    s.setProperty('--edge', NIGHT ? '#111418' : '#FFFFFF');
+    s.setProperty('--tail', NIGHT ? c : '#FFFFFF');
+    s.setProperty('--ink', NIGHT ? '#E8EAED' : '#202124');
+    s.setProperty('--halo', NIGHT ? 'rgba(17, 20, 24, 0.95)' : 'rgba(255, 255, 255, 0.95)');
+    s.setProperty('--name', c);
   }
 
   // Each leg in the colour of the stop it leaves (the first, the car's): full up to the stop looked
-  // at, lighter after it.
-  function legStyle(i) {
-    var color = i === 0 ? CAR_WAY : colorOf(i - 1);
+  // at, lighter after it; thinner where it shares a street with another leg.
+  function legStyle(i, beside) {
+    var color = i === 0 ? carWay() : colorOf(i - 1);
+    if (beside) return i <= focusAt ? { color: color, opacity: 1, weight: 5 } : { color: color, opacity: 0.6, weight: 4 };
     return i <= focusAt ? { color: color, opacity: 1, weight: 8 } : { color: color, opacity: 0.5, weight: 6 };
   }
 
-  function draw(refit) {
+  // Which legs share a street with another one: each leg's line is followed every ~20 m and the
+  // ~50 m squares it passes are counted; three squares in common make two legs neighbours. Each
+  // such leg gets a place across the street ([-1.5 … 1.5] for four), so they lie side by side.
+  function besides() {
+    var cells = legs.map(function (leg) {
+      var seen = {};
+      for (var k = 1; k < leg.length; k++) {
+        var a = leg[k - 1], b = leg[k];
+        var n = Math.max(1, Math.ceil(Math.hypot((b.lat - a.lat) * 111000, (b.lng - a.lng) * 56000) / 20));
+        for (var j = 0; j <= n; j++) {
+          var lat = a.lat + (b.lat - a.lat) * j / n, lng = a.lng + (b.lng - a.lng) * j / n;
+          seen[Math.round(lat * 2200) + ':' + Math.round(lng * 1100)] = true;
+        }
+      }
+      return seen;
+    });
+    var shared = legs.map(function () { return false; });
+    for (var i = 0; i < legs.length; i++) {
+      for (var j = i + 1; j < legs.length; j++) {
+        var common = 0;
+        for (var c in cells[i]) if (cells[j][c] && ++common >= 3) break;
+        if (common >= 3) shared[i] = shared[j] = true;
+      }
+    }
+    var count = shared.filter(Boolean).length, slot = 0;
+    return shared.map(function (s) { return s ? slot++ - (count - 1) / 2 : null; });
+  }
+
+  // The line moved [px] pixels aside, at the map's zoom: to the right of a leg going north or
+  // east overall, to the left of one going south or west, so two legs along the same street in
+  // opposite directions still lie side by side.
+  function shifted(leg, px) {
+    if (!px || leg.length < 2) return leg;
+    var lat0 = leg[0].lat * Math.PI / 180;
+    var kx = 111320 * Math.cos(lat0), ky = 110540;
+    var first = leg[0], last = leg[leg.length - 1];
+    var north = (last.lat - first.lat) * ky, east = (last.lng - first.lng) * kx;
+    if (Math.abs(north) >= Math.abs(east) ? north < 0 : east < 0) px = -px;
+    var m = px * 156543.03392 * Math.cos(lat0) / Math.pow(2, map.getZoom());
+    return leg.map(function (p, k) {
+      var a = leg[Math.max(0, k - 1)], b = leg[Math.min(leg.length - 1, k + 1)];
+      var dx = (b.lng - a.lng) * kx, dy = (b.lat - a.lat) * ky, d = Math.hypot(dx, dy);
+      if (!d) return p;
+      // The right-hand normal of the way's direction here.
+      return { lat: p.lat - (dx / d) * m / ky, lng: p.lng + (dy / d) * m / kx };
+    });
+  }
+
+  var places = [];
+  function drawLines() {
     lines2d.forEach(function (l) { l.setMap(null); });
     lines2d = [];
     legs.forEach(function (leg, i) {
-      var st = legStyle(i);
-      if (i <= focusAt) lines2d.push(new google.maps.Polyline({ map: map, path: leg, strokeColor: NIGHT ? '#0B3D91' : '#FFFFFF', strokeWeight: st.weight + 5, strokeOpacity: 1, clickable: false }));
-      lines2d.push(new google.maps.Polyline({ map: map, path: leg, strokeColor: st.color, strokeWeight: st.weight, strokeOpacity: st.opacity, clickable: false }));
+      var beside = places[i] !== null && places[i] !== undefined;
+      var st = legStyle(i, beside), path = beside ? shifted(leg, places[i] * APART_PX) : leg;
+      if (i <= focusAt) lines2d.push(new google.maps.Polyline({ map: map, path: path, strokeColor: NIGHT ? '#111418' : '#FFFFFF', strokeWeight: st.weight + (beside ? 3 : 5), strokeOpacity: 1, clickable: false, zIndex: 2 + 2 * i }));
+      lines2d.push(new google.maps.Polyline({ map: map, path: path, strokeColor: st.color, strokeWeight: st.weight, strokeOpacity: st.opacity, clickable: false, zIndex: 3 + 2 * i }));
     });
+  }
+
+  // The borders: thin dashes, the county's a little stronger than a municipality's, a district's
+  // the faintest; under the way.
+  function drawBorders() {
+    borders.forEach(function (b) { b.line.setMap(null); });
+    borders = [];
+    if (!BORDERS) return;
+    var ink = NIGHT ? '#B8C0CC' : '#5F6368';
+    [['county', 0.75, 1.3, 9], ['town', 0.6, 1.1, 8], ['district', 0.45, 1, 7]].forEach(function (k) {
+      (BORDERS[k[0]] || []).forEach(function (flat) {
+        var path = [];
+        for (var j = 0; j + 1 < flat.length; j += 2) path.push({ lat: flat[j], lng: flat[j + 1] });
+        var line = new google.maps.Polyline({
+          map: map, path: path, clickable: false, zIndex: 1, strokeOpacity: 0,
+          icons: [{ icon: { path: 'M 0,-1 0,1', strokeColor: ink, strokeOpacity: k[1], strokeWeight: k[2], scale: 2 }, offset: '0', repeat: k[3] + 'px' }]
+        });
+        borders.push({ line: line, district: k[0] === 'district' });
+      });
+    });
+    showDistricts();
+  }
+
+  function showDistricts() {
+    var near = map.getZoom() >= DISTRICTS_FROM_ZOOM;
+    borders.forEach(function (b) { if (b.district) b.line.setVisible(near); });
+  }
+
+  function draw(refit) {
+    places = besides();
+    drawLines();
     pins2d.forEach(function (d) { d.setMap(null); });
     pins2d = [];
     stops.forEach(function (p, i) {
       var at = p || (legs[i] && legs[i].length ? legs[i][legs[i].length - 1] : null);
       if (!at) return;
-      var pin = new Dot('pin', pinHtml(i));
+      var pin = new Dot(i === focusAt ? 'pin focus' : 'pin', pinHtml(i));
+      pinStyle(pin, i);
       pin.at = at;
       pin.setMap(map);
       pins2d.push(pin);
@@ -256,10 +387,10 @@
   }
 
   // The way keeps to the clear middle: with room for the minutes and distance at the bottom, or,
-  // on the driver's own map, for his list of trips (where he put it) and his buttons at the right.
+  // on the driver's own map, for his list of trips (where he put it) and his buttons at the left.
   function clear() {
     var d = map.getDiv(), w = d.offsetWidth, h = d.offsetHeight;
-    if (held) return { top: Math.round(h * 0.1), bottom: Math.round(h * 0.1), left: Math.round(w * Math.max(0.16, listRoom.left)), right: Math.round(w * Math.max(0.12, listRoom.right)) };
+    if (held) return { top: Math.round(h * 0.1), bottom: Math.round(h * 0.1), left: Math.round(w * Math.max(0.1, listRoom.left)), right: Math.round(w * Math.max(0.08, listRoom.right)) };
     return { top: Math.round(h * 0.2), bottom: Math.round(h * 0.34), left: Math.round(w * 0.16), right: Math.round(w * 0.16) };
   }
   // How much of the map's width the driver's list of trips covers from its left or its right.
@@ -277,14 +408,15 @@
     if (map) map.setOptions({ gestureHandling: on ? 'greedy' : 'none' });
   }
 
-  // The app's buttons: closer (1) or farther (-1); to the car; to the stop; the whole way. A map
+  // The app's buttons: the satellite picture; to the car; to the stop; the whole way. A map
   // that cannot move (Google refused it) stays as it is.
   function button(f) {
     return function () { try { f.apply(null, arguments); } catch (e) {} };
   }
 
-  var zoom = button(function (step) {
-    if (map) map.setZoom(map.getZoom() + step);
+  // Google's satellite picture with the roads' names, or the map: the same map.
+  var satellite = button(function (on) {
+    if (map) map.setMapTypeId(on ? 'hybrid' : 'roadmap');
   });
 
   var toCar = button(function () {

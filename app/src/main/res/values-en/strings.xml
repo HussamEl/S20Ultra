@@ -176,8 +176,9 @@
     <string name="help_maps_key">The map uses your own Google key. In Google Cloud: create an API key, enable "Maps JavaScript API" and "Routes API", and restrict the key to those two APIs and the website https://nastastopp.app/* . Google bills each map made and each way asked beyond its free monthly use, and that free use is not promised to cover yours: set a budget and alerts in Google Cloud and watch your use there. The app makes one map per display and asks for the way again only when it changes; the 3D view and street photos open Google\'s own apps. The map takes the car\'s position from this tablet\'s own GPS (location while the display is open, never in the background; asked the first time the map sign is tapped). That position and the stops of the way (up to seven, never a name) go to Google for the way; nothing is stored or logged.</string>
     <string name="display_show_way">Show the way on the map</string>
     <string name="display_map_close">Close the map</string>
-    <string name="display_map_closer">Zoom in</string>
-    <string name="display_map_farther">Zoom out</string>
+    <string name="display_battery">Battery %1$d%%</string>
+    <string name="display_map_satellite">Satellite view</string>
+    <string name="display_map_plain">Map view</string>
     <string name="display_map_car">The car\'s position</string>
     <string name="display_map_stop">The stop\'s building</string>
     <string name="display_map_whole">The whole way</string>

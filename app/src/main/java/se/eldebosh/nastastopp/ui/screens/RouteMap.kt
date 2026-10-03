@@ -35,6 +35,7 @@ import java.net.HttpURLConnection
 import java.net.URI
 import androidx.compose.ui.graphics.toArgb
 import java.util.Locale
+import se.eldebosh.nastastopp.ui.theme.DayColors
 import se.eldebosh.nastastopp.ui.theme.DisplayColors
 
 /**
@@ -48,7 +49,7 @@ import se.eldebosh.nastastopp.ui.theme.DisplayColors
  *
  * One map for the display's whole life (Google counts each map made, not what it shows): only
  * looked at, touches never reach it. Opened by the driver ([reveal] held), it is his, moved by his
- * fingers and buttons ([zoom], [toCar], [toStop], [whole]). Google's 3D view and street photos are
+ * fingers and buttons ([showSatellite], [toCar], [toStop], [whole]). Google's 3D view and street photos are
  * Google's own apps, opened by the display ([se.eldebosh.nastastopp.maps.MapsLauncher.openEarth]),
  * never made here. Every way goes from the vehicle through a few stops in turn, lettered on the map
  * ([focus]); the driver can try another order and ask for the best one ([suggest]).
@@ -196,6 +197,7 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
                 look?.let { view.evaluateJavascript(it, null) }
                 room?.let { view.evaluateJavascript(it, null) }
                 stage?.let { view.evaluateJavascript(it, null) }
+                if (satellite) view.evaluateJavascript("satellite(true)", null)
             }
 
             override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
@@ -221,6 +223,8 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
             .replace("__KEY__", key)
             .replace("__NIGHT__", night.toString())
             .replace("__GROUND__", ground)
+            // The borders are the app's own (SCB's, drawn on the page): nothing is asked for them.
+            .replace("__BORDERS__", runCatching { context.assets.open(BORDERS).bufferedReader().use { it.readText() } }.getOrDefault("null"))
         loadDataWithBaseURL(BASE, page, "text/html", "utf-8", null)
     }
 
@@ -260,8 +264,15 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
         js(next)
     }
 
-    /** The held map closer ([step] 1) or farther (-1). */
-    fun zoom(step: Int) = js("zoom($step)")
+    /** Google's satellite picture (with the roads' names) instead of the map, on the driver's tap (270). */
+    var satellite by mutableStateOf(false)
+        private set
+
+    /** The satellite picture ([on]) or the map: the same map, never a new one. */
+    fun showSatellite(on: Boolean) {
+        satellite = on
+        js("satellite($on)")
+    }
 
     /** The held map to the car. */
     fun toCar() = js("toCar()")
@@ -426,11 +437,14 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
             // No legs in the answer: the whole way as one, up to the stop looked at.
             else -> "[" + line.path.joinToString(",", "[", "]") { (lat, lng) -> String.format(Locale.ROOT, "[%.5f,%.5f]", lat, lng) } + "]"
         }
-        // Each stop's own colour (and the way on from it) and its trip's time under its pin.
-        val colors = way.stops.indices.joinToString(",", "[", "]") { "\"" + STOP_COLORS[it % STOP_COLORS.size] + "\"" }
+        // Each stop's own colour by day and by night (and the way on from it), and on its pin its
+        // trip's time, its address and its passenger's last name (on the page only).
+        fun colorsOf(list: List<String>) = way.stops.indices.joinToString(",", "[", "]") { "\"" + list[it % list.size] + "\"" }
+        fun texts(of: (MapWay.Stop) -> String?) = way.stops.joinToString(",", "[", "]") { s -> of(s)?.let(::jsonString) ?: "null" }
         val times = way.stops.joinToString(",", "[", "]") { s -> s.time?.filter { it.isDigit() || it == ':' }?.let { "\"$it\"" } ?: "null" }
         return "{\"stops\":" + stops.joinToString(",", "[", "]") + ",\"focus\":" + way.at + ",\"legs\":" + paths +
-            ",\"colors\":" + colors + ",\"times\":" + times + "}"
+            ",\"colors\":" + colorsOf(STOP_COLORS) + ",\"nightColors\":" + colorsOf(NIGHT_STOP_COLORS) + ",\"times\":" + times +
+            ",\"labels\":" + texts { it.label } + ",\"names\":" + texts { it.name } + "}"
     }
 
     fun destroy() {
@@ -573,7 +587,25 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
         /** The stops of a way in their order, as one name. */
         fun keyOf(stops: List<MapWay.Stop>): String = stops.joinToString("|") { it.key }
 
-        /** The stops' own colours (AppColors.wayStops, the same in both looks), for the page. */
-        private val STOP_COLORS = DisplayColors.wayStops.map { String.format(Locale.ROOT, "#%06X", it.toArgb() and 0xFFFFFF) }
+        /** The stops' own colours (AppColors.wayStops), by day and by night, for the page. */
+        private val STOP_COLORS = DayColors.wayStops.map { String.format(Locale.ROOT, "#%06X", it.toArgb() and 0xFFFFFF) }
+        private val NIGHT_STOP_COLORS = DisplayColors.wayStops.map { String.format(Locale.ROOT, "#%06X", it.toArgb() and 0xFFFFFF) }
+
+        /** The borders the page draws (tools/make-boundaries.py). */
+        private const val BORDERS = "boundaries.json"
+
+        /** [text] as a JSON string, safe inside the page's script. */
+        fun jsonString(text: String): String = buildString {
+            append('"')
+            text.forEach { c ->
+                when {
+                    c == '"' -> append("\\\"")
+                    c == '\\' -> append("\\\\")
+                    c == '<' || c == '>' || c == '&' || c == '\u2028' || c == '\u2029' || c < ' ' -> append(String.format(Locale.ROOT, "\\u%04x", c.code))
+                    else -> append(c)
+                }
+            }
+            append('"')
+        }
     }
 }

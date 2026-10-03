@@ -60,6 +60,7 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.filterToOne
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasAnyDescendant
@@ -629,10 +630,9 @@ class ScreenshotsRoboTest {
         }
         save("display_paged", compose.onRoot().captureToImage().asAndroidBitmap())
         // The stop after "Därefter", large at the top (and small on the bottom line) with its time
-        // under it; beside the clock the next stop's time stays.
+        // over it.
         compose.onAllNodesWithText("Storgatan 14").assertCountEquals(2)
-        compose.onNodeWithTag("ref_230", useUnmergedTree = true).assert(hasAnyDescendant(hasText("25")))
-        compose.onNodeWithTag("ref_90", useUnmergedTree = true).assert(hasAnyDescendant(hasText("36")))
+        compose.onAllNodesWithTag("ref_230", useUnmergedTree = true).filterToOne(hasText("08:25")).assertIsDisplayed()
         compose.onNodeWithText("Västra Torggatan 12").assertDoesNotExist()
         compose.onNodeWithTag("ref_200").performClick()
         compose.mainClock.advanceTimeBy(3_000)
@@ -773,7 +773,8 @@ class ScreenshotsRoboTest {
             }
         }
         compose.waitForIdle()
-        compose.onNodeWithTag("ref_90", useUnmergedTree = true).assert(hasAnyDescendant(hasText("36")))
+        // The next stop's time, over its address.
+        compose.onAllNodesWithTag("ref_230", useUnmergedTree = true).filterToOne(hasText("07:36")).assertIsDisplayed()
         compose.mainClock.autoAdvance = false
         compose.onNodeWithTag("ref_219").performClick()
         compose.mainClock.advanceTimeBy(1_500)
@@ -783,7 +784,7 @@ class ScreenshotsRoboTest {
         compose.onNodeWithTag("ref_233", useUnmergedTree = true).assert(hasText("Kartan laddas…"))
         // The driver's buttons. The 3D view (242) and the street photos (244) are Google's own apps,
         // opened at the stop's point; the map's page makes neither.
-        for (ref in listOf(237, 238, 239, 240, 241, 242, 243, 244)) compose.onNodeWithTag("ref_$ref").assertIsDisplayed()
+        for (ref in listOf(270, 239, 240, 241, 242, 243, 244)) compose.onNodeWithTag("ref_$ref").assertIsDisplayed()
         compose.onNodeWithTag("ref_242").performClick()
         compose.onNodeWithTag("ref_244").performClick()
         assertEquals(listOf("earth 59.381234,13.501234", "street 59.381234,13.501234"), google)
@@ -794,8 +795,10 @@ class ScreenshotsRoboTest {
         assertEquals("earth 59.391234,13.491234", google.last())
         compose.onNodeWithContentDescription("B: Hamngatan 7").performClick()
         compose.mainClock.advanceTimeBy(500)
-        compose.onNodeWithTag("ref_237").performClick()
-        assertEquals("zoom(1)", shadowOf(map!!.view).lastEvaluatedJavascript)
+        // The satellite picture: the same map, its other look; no + or − (the fingers zoom).
+        compose.onNodeWithTag("ref_270").performClick()
+        assertEquals("satellite(true)", shadowOf(map!!.view).lastEvaluatedJavascript)
+        compose.onNodeWithTag("ref_237").assertDoesNotExist()
         compose.onNodeWithTag("ref_239").performClick()
         assertEquals("toCar()", shadowOf(map!!.view).lastEvaluatedJavascript)
         // A tap on the map is the map's own: it stays.
@@ -886,11 +889,13 @@ class ScreenshotsRoboTest {
         compose.onNodeWithTag("ref_235").assertIsDisplayed()
         compose.onNodeWithText("Pick-up 07:36").assertIsDisplayed()
         compose.onNodeWithText("Phone number").assertIsDisplayed()
-        compose.onNodeWithText("0700000001").assertIsDisplayed()
+        // The phone number in groups of 3, 4 and 3.
+        compose.onNodeWithText("070\u00A00000\u00A0001").assertIsDisplayed()
         compose.onNodeWithText("Rullstol 1").assertIsDisplayed()
         compose.onNodeWithText("Hämtas/Lämnas inne").assertIsDisplayed()
         // The instructions, further down the card: a line for each thing written, each number on its own.
-        for (line in listOf("portkod 1234", "Personalen hjälper till", "0700000004", "0700000005  alt", "0700000006  Son")) {
+        val gap = "\u00A0"
+        for (line in listOf("portkod 1234", "Personalen hjälper till", "070${gap}0000${gap}004", "070${gap}0000${gap}005  alt", "070${gap}0000${gap}006  Son")) {
             compose.onNodeWithText(line).performScrollTo().assertIsDisplayed()
         }
         save("display_trip_card_notes", compose.onRoot().captureToImage().asAndroidBitmap())
@@ -933,7 +938,7 @@ class ScreenshotsRoboTest {
         val first = compose.onNodeWithTag("ref_235").fetchSemanticsNode().boundsInRoot
         // Its middle at the screen's middle at first.
         assertEquals(700f, first.center.x, 2f)
-        // Its right edge, 100 px further right: bigger, its left edge where it was.
+        // Its right edge, 100 px further right: wider, as tall, its left edge where it was.
         compose.onNodeWithTag("ref_262").performTouchInput {
             down(Offset(width - 6f, height / 2f))
             repeat(10) {
@@ -943,11 +948,27 @@ class ScreenshotsRoboTest {
             up()
         }
         compose.waitForIdle()
-        val scale = places.place("trip_card")!!.scale
-        assertTrue("bigger: $scale", scale > 1.1f)
+        val wide = places.place("trip_card")!!.width
+        assertTrue("wider: $wide", wide > 0f)
+        assertEquals("as tall", 0f, places.place("trip_card")!!.height)
         val bigger = compose.onNodeWithTag("ref_235").fetchSemanticsNode().boundsInRoot
-        assertEquals(first.width * scale, bigger.width, 3f)
+        assertEquals(first.width + 100f, bigger.width, 4f)
+        assertEquals(first.height, bigger.height, 3f)
         assertEquals(first.left, bigger.left, 3f)
+        // Its bottom edge, 60 px up: lower, as wide.
+        compose.onNodeWithTag("ref_262").performTouchInput {
+            down(Offset(width / 2f, height - 6f))
+            repeat(6) {
+                advanceEventTime(50)
+                moveBy(Offset(0f, -10f))
+            }
+            up()
+        }
+        compose.waitForIdle()
+        val lower = compose.onNodeWithTag("ref_235").fetchSemanticsNode().boundsInRoot
+        assertEquals(bigger.height - 60f, lower.height, 4f)
+        assertEquals(bigger.width, lower.width, 3f)
+        assertEquals(bigger.top, lower.top, 3f)
         // Its band, 300 px to the left; then far up: it stops at the screen's top.
         compose.onNodeWithTag("ref_261").performTouchInput {
             down(center)
@@ -968,7 +989,7 @@ class ScreenshotsRoboTest {
             pinch(center + Offset(-120f, 0f), center + Offset(-40f, 0f), center + Offset(120f, 0f), center + Offset(40f, 0f))
         }
         compose.waitForIdle()
-        assertTrue("pinched smaller: ${places.place("trip_card")}", places.place("trip_card")!!.scale < scale)
+        assertTrue("pinched smaller: ${places.place("trip_card")}", places.place("trip_card")!!.width < wide)
         val kept = compose.onNodeWithTag("ref_235").fetchSemanticsNode().boundsInRoot
         compose.onNodeWithTag("ref_264").performClick()
         compose.waitForIdle()
@@ -1086,7 +1107,7 @@ class ScreenshotsRoboTest {
         // A, B, C: the next stop and the two after it.
         compose.onAllNodesWithTag("ref_245").assertCountEquals(3)
         compose.onNodeWithTag("ref_250").assertDoesNotExist()
-        // The list is a window too: its corner makes it bigger.
+        // The list is a window too: its corner makes it wider and taller.
         compose.onNodeWithTag("ref_266").performTouchInput {
             down(Offset(width - 6f, height - 6f))
             repeat(10) {
@@ -1096,7 +1117,7 @@ class ScreenshotsRoboTest {
             up()
         }
         compose.mainClock.advanceTimeBy(500)
-        assertTrue("bigger: ${places.place("way_list")}", places.place("way_list")!!.scale > 1.05f)
+        assertTrue("bigger: ${places.place("way_list")}", places.place("way_list")!!.let { it.width > 0f && it.height > 0f })
         // Nothing before the next stop to add.
         compose.onNodeWithTag("ref_269").assertIsNotEnabled()
         compose.onNodeWithContentDescription("C: Storgatan 14").performClick()
@@ -1167,20 +1188,20 @@ class ScreenshotsRoboTest {
         compose.onNodeWithTag("ref_249").assertIsDisplayed()
         compose.onNodeWithTag("ref_250").performClick()
         assertEquals(listOf(listOf(13L, 11L, 12L)), sent)
-        // The list's bar moves the list, here to the right, and the list keeps its new place. (With
+        // The list's bar moves the list, here to the left, and the list keeps its new place. (With
         // the test's clock held, some of the moves are merged away: the distance is not exact.)
         val before = compose.onNodeWithTag("ref_265").fetchSemanticsNode().boundsInRoot
         compose.onNodeWithTag("ref_265").performTouchInput {
             down(center)
             repeat(20) {
                 advanceEventTime(50)
-                moveBy(Offset(20f, 0f))
+                moveBy(Offset(-20f, 0f))
             }
             up()
         }
         compose.mainClock.advanceTimeBy(500)
         val after = compose.onNodeWithTag("ref_265").fetchSemanticsNode().boundsInRoot
-        assertTrue("moved right: $before → $after", after.left > before.left + 150f)
+        assertTrue("moved left: $before → $after", after.left < before.left - 150f)
         // Kept: the list's middle (its bar starts 28 px into the 356 px window) as a share of the screen.
         assertEquals((after.left - 28f + 178f) / 1400f, places.place("way_list")!!.x, 0.01f)
         compose.mainClock.autoAdvance = true
@@ -1214,7 +1235,7 @@ class ScreenshotsRoboTest {
             }
         }
         compose.waitForIdle()
-        compose.onNodeWithTag("ref_224").assertExists()
+        compose.onNodeWithTag("ref_88").assertExists()
         compose.onNodeWithTag("ref_223").performClick()
         compose.waitForIdle()
         assertEquals(false, dark)

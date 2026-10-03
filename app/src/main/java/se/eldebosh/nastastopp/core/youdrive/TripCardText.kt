@@ -130,6 +130,39 @@ data class TripCardText(
             return listOf(meaning, code.substring(letters.length)).filter { it.isNotEmpty() }.joinToString(" ")
         }
 
+        /**
+         * A phone number as the card shows it: its digits in groups of 3, 4 and 3 ("0738669883" →
+         * "073 8669 883"), a longer one 3, 4 and then threes, apart by a small space that never
+         * breaks the line. A Swedish number written with +46 is shown as dialled in Sweden
+         * ("+46 70 000 00 01" → "070 0000 001"); another country's keeps its +. Not a phone number:
+         * as written.
+         */
+        fun spacedPhone(number: String): String {
+            val trimmed = number.trim()
+            if (!PHONE_ONLY.matches(trimmed)) return trimmed
+            val all = trimmed.filter { it.isDigit() }
+            val swedish = trimmed.startsWith("+") && all.startsWith("46")
+            val digits = if (swedish) "0" + all.removePrefix("46") else all
+            if (digits.length < 7) return trimmed
+            val groups = ArrayList<String>()
+            var i = 0
+            for (size in listOf(3, 4)) {
+                groups += digits.substring(i, i + size)
+                i += size
+            }
+            while (i < digits.length) {
+                val rest = digits.length - i
+                // Never a single digit at the end: the last two groups share what is left.
+                val size = if (rest == 4) 2 else minOf(3, rest)
+                groups += digits.substring(i, i + size)
+                i += size
+            }
+            return (if (trimmed.startsWith("+") && !swedish) "+" else "") + groups.joinToString(PHONE_GAP)
+        }
+
+        /** The small space between a phone number's groups (a no-break space). */
+        const val PHONE_GAP = "\u00A0"
+
         private fun spaceType(code: String): String? = written(code, SPACE_CODES)
 
         private fun aid(code: String): String? = written(code, AID_CODES)

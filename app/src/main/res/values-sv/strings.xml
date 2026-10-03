@@ -176,8 +176,9 @@
     <string name="help_maps_key">Kartan använder din egen Google-nyckel. I Google Cloud: skapa en API-nyckel, aktivera "Maps JavaScript API" och "Routes API" och begränsa nyckeln till de två API:erna och webbplatsen https://nastastopp.app/* . Google tar betalt för varje karta som skapas och varje väg som efterfrågas utöver den fria månadsanvändningen, och det är inte lovat att den räcker för din: sätt en budget och varningar i Google Cloud och följ din användning där. Appen skapar en karta per skärm och frågar efter vägen igen bara när den ändras; 3D-vyn och gatubilderna öppnar Googles egna appar. Kartan tar bilens position från surfplattans egen GPS (plats medan skärmen är öppen, aldrig i bakgrunden; frågas första gången kartknappen trycks). Den positionen och vägens stopp (högst sju, aldrig ett namn) går till Google för vägen; inget sparas eller loggas.</string>
     <string name="display_show_way">Visa vägen på kartan</string>
     <string name="display_map_close">Stäng kartan</string>
-    <string name="display_map_closer">Zooma in</string>
-    <string name="display_map_farther">Zooma ut</string>
+    <string name="display_battery">Batteri %1$d %%</string>
+    <string name="display_map_satellite">Satellitbild</string>
+    <string name="display_map_plain">Kartvy</string>
     <string name="display_map_car">Bilens position</string>
     <string name="display_map_stop">Stoppets byggnad</string>
     <string name="display_map_whole">Hela vägen</string>

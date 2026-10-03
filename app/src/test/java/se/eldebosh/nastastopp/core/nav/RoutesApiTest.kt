@@ -32,11 +32,19 @@ class RoutesApiTest {
         val body = RoutesApi.body(
             59.38,
             13.5,
-            listOf(MapWay.Stop(59.4, 13.52, "Hamngatan 7", id = 3), MapWay.Stop(null, null, "Storgatan 14, Karlstad", id = 4), MapWay.Stop(59.5, 13.6, "Skolgatan 5", id = 5)),
+            listOf(
+                MapWay.Stop(59.4, 13.52, "Hamngatan 7", id = 3, time = "08:05", label = "Hamngatan 7", name = "Testsson"),
+                MapWay.Stop(null, null, "Storgatan 14, Karlstad", id = 4, name = "Provare"),
+                MapWay.Stop(59.5, 13.6, "Skolgatan 5", id = 5),
+            ),
         )!!
         assertTrue(body, body.contains("\"intermediates\":[{\"location\":{\"latLng\":{\"latitude\":59.4,\"longitude\":13.52}}},{\"address\":\"Storgatan 14, Karlstad\"}]"))
         assertTrue(body, body.contains("\"destination\":{\"location\":{\"latLng\":{\"latitude\":59.5,\"longitude\":13.6}}}"))
         assertFalse(body, body.contains("\"id\""))
+        // The pin's time and last name stay on the page.
+        assertFalse(body, body.contains("Testsson") || body.contains("Provare") || body.contains("08:05"))
+        val matrix = RoutesApi.matrixBody(59.38, 13.5, listOf(MapWay.Stop(59.4, 13.52, "Hamngatan 7", name = "Testsson"), MapWay.Stop(59.5, 13.6, "Skolgatan 5", name = "Provare")))!!
+        assertFalse(matrix, matrix.contains("Testsson") || matrix.contains("Provare"))
     }
 
     @Test

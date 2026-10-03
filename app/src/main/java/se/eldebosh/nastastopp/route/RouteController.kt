@@ -223,8 +223,8 @@ class RouteController(
                 }
             },
             announcement = if (r.active && r.stops.isNotEmpty()) announcementFor(r.stops) else null,
-            // Only the next stop's passenger, and only the last name, for the passengers to see.
-            nextName = { s -> lastNameOf(s.name) },
+            // Only the last name, of the trips still to come: under their pins on the tablet's map.
+            lastName = { s -> lastNameOf(s.name) },
         ).let { if (it.active) it.copy(weather = x.weather, eta = x.eta) else it }
     }
 

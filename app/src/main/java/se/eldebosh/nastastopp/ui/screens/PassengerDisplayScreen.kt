@@ -1,87 +1,15 @@
 package se.eldebosh.nastastopp.ui.screens
 
 import android.app.Activity
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withStyle
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.animation.expandHorizontally
-import androidx.compose.animation.shrinkHorizontally
-import android.view.ViewGroup
-import androidx.compose.ui.viewinterop.AndroidView
-import kotlin.math.sin
-import kotlin.math.cos
-import kotlin.math.min
-import se.eldebosh.nastastopp.core.weather.WeatherKind
-import se.eldebosh.nastastopp.core.weather.DisplayWeather
-import se.eldebosh.nastastopp.core.parse.TripKinds
-import se.eldebosh.nastastopp.core.parse.TripTimes
-import se.eldebosh.nastastopp.core.nav.DisplayEta
-import se.eldebosh.nastastopp.core.display.TimeStatus
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.unit.LayoutDirection
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.isSpecified
-import se.eldebosh.nastastopp.core.geo.GeoLogic
-import se.eldebosh.nastastopp.core.youdrive.CardNotes
-import se.eldebosh.nastastopp.core.youdrive.TripCardText
-import se.eldebosh.nastastopp.settings.WindowPlace
-import se.eldebosh.nastastopp.settings.WindowPlaces
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.BlurEffect
-import androidx.compose.ui.graphics.TileMode
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.draw.drawWithContent
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
 import android.os.Build
-import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.foundation.gestures.FlingBehavior
-import androidx.compose.foundation.gestures.snapping.SnapPosition
-import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.runtime.key
-import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.graphics.ColorProducer
-import kotlinx.coroutines.flow.drop
-import kotlinx.coroutines.flow.first
-import kotlin.math.abs
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.scrollable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.layout.positionInRoot
-import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.DpSize
-import androidx.compose.ui.graphics.Color
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.Canvas
-import kotlin.math.roundToInt
-import se.eldebosh.nastastopp.ui.DoneMarks
-import kotlinx.coroutines.coroutineScope
-import androidx.compose.ui.draw.shadow
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.interaction.collectIsDraggedAsState
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.lazy.LazyRow
+import android.view.ViewGroup
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.scaleIn
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.VerticalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
@@ -93,122 +21,201 @@ import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
+import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.FlingBehavior
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.scrollable
+import androidx.compose.foundation.gestures.snapping.SnapPosition
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.VerticalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.TextAutoSize
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.isSpecified
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.BlurEffect
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorProducer
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.layout.boundsInRoot
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.TextUnit
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.layout.layout
-import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.AlignmentLine
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.VerticalAlignmentLine
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import java.time.LocalTime
+import java.util.Locale
+import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.min
+import kotlin.math.roundToInt
+import kotlin.math.sin
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.core.display.DisplayItem
 import se.eldebosh.nastastopp.core.display.DisplaySnapshot
+import se.eldebosh.nastastopp.core.display.TimeStatus
+import se.eldebosh.nastastopp.core.geo.GeoLogic
+import se.eldebosh.nastastopp.core.nav.DisplayEta
+import se.eldebosh.nastastopp.core.parse.TripKinds
+import se.eldebosh.nastastopp.core.parse.TripTimes
 import se.eldebosh.nastastopp.core.route.Announcement
 import se.eldebosh.nastastopp.core.route.Announcements
+import se.eldebosh.nastastopp.core.weather.DisplayWeather
+import se.eldebosh.nastastopp.core.weather.WeatherKind
+import se.eldebosh.nastastopp.core.youdrive.CardNotes
+import se.eldebosh.nastastopp.core.youdrive.TripCardText
+import se.eldebosh.nastastopp.settings.WindowPlace
+import se.eldebosh.nastastopp.settings.WindowPlaces
+import se.eldebosh.nastastopp.ui.DoneMarks
 import se.eldebosh.nastastopp.ui.TouchTarget
 import se.eldebosh.nastastopp.ui.ref
 import se.eldebosh.nastastopp.ui.refCorner
 import se.eldebosh.nastastopp.ui.theme.AppTheme
-import se.eldebosh.nastastopp.ui.theme.DisplayFont
-import androidx.compose.foundation.layout.heightIn
 import se.eldebosh.nastastopp.ui.theme.DigitFont
+import se.eldebosh.nastastopp.ui.theme.DisplayFont
 import se.eldebosh.nastastopp.ui.theme.DisplayTheme
-import java.time.LocalTime
-import java.util.Locale
 
 /**
  * Passenger display: made to be read by the passengers from their seats, while the driver works
@@ -269,7 +276,7 @@ fun PassengerDisplayScreen(
     // The trip card and the driver's list of trips open where he last left them, as big.
     val windows = places ?: remember { WindowPlaces.InMemory() }
     val cardPlace = remember(windows) { WindowState(CARD_WINDOW, windows, WindowPlace(0.5f, 0.5f)) }
-    val listPlace = remember(windows) { WindowState(LIST_WINDOW, windows, WindowPlace(0f, 0.5f)) }
+    val listPlace = remember(windows) { WindowState(LIST_WINDOW, windows, WindowPlace(1f, 0.5f)) }
     var tapped by remember { mutableIntStateOf(0) }
     val cue = spoken + tapped
     // Taps on a card or an address: said on this device, and the time keeps still meanwhile.
@@ -291,8 +298,6 @@ fun PassengerDisplayScreen(
     // Everything but the time (or the weather, or the travel time) steps back while it shows, and
     // is hidden behind a solid ground at its largest.
     val rest = Modifier.stepBack { moments.back }
-    // The bottom line beside the clock goes at once: the clock never grows over another time.
-    val lineRest = Modifier.stepBack { moments.lineBack }
     // How the next stop's time stands, for the clock's colon (none without a route).
     val nextTime = live?.current?.time
     val hasNext = live != null
@@ -420,18 +425,6 @@ fun PassengerDisplayScreen(
     // The trip whose time stands large under its address, kept while it fades away.
     var focusedTrip by remember { mutableStateOf<DisplayItem?>(null) }
     if (focus && tripShown != null) focusedTrip = tripShown
-    // The next stop's time beside the clock springs up as the next stop changes.
-    val pop = remember { Animatable(1f) }
-    val nextKey = live?.current?.trip
-    var poppedFor by remember { mutableStateOf<DisplayItem?>(null) }
-    LaunchedEffect(nextKey) {
-        val before = poppedFor
-        poppedFor = nextKey
-        if (before == null || nextKey == null) return@LaunchedEffect
-        // It grows into its place from smaller: never over the clock or the arrows beside it.
-        pop.snapTo(PAGE_POP)
-        pop.animateTo(1f, spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessLow))
-    }
     // Black (or light, 223); Swedish for the passengers, read left to right whatever the app's language.
     // The arrows' light: one frame loop, while there is a route to show.
     val arrowPhase = remember { mutableFloatStateOf(0f) }
@@ -453,12 +446,12 @@ fun PassengerDisplayScreen(
         val side = if (landscape) 32.dp else 20.dp
         // Room under the clock's digits for its seconds, and the dots under all.
         val bottomPad = with(density) { (minuteSize * (SECONDS_DROP + SECOND_SHARE * DIGIT_HEIGHT)).toDp() } + SECONDS_CLEAR
-        // The line at the bottom (the clock, the arrow and the next stop's time), as laid out.
+        // The clock at the bottom, as laid out (the coming trips follow it).
         var clockLine by remember { mutableStateOf(IntSize.Zero) }
-        var tripRect by remember { mutableStateOf(Rect.Zero) }
+        // How wide a time is, for the focused trip's large time.
+        val timeMeasurer = rememberTextMeasurer()
         // Where the focused trip's address ends, for its large time under it.
         var heroBottom by remember { mutableFloatStateOf(0f) }
-        val arrow = arrowSize(tripSize)
         // The map lies under everything, unseen until its moment, so it loads once and stays ready.
         if (routeMap != null) {
             MapLayer(routeMap, moments, held, from = { if (pinAt.isSpecified) pinAt - screen.topLeft else Offset.Unspecified })
@@ -469,23 +462,15 @@ fun PassengerDisplayScreen(
                 .onGloballyPositioned { screen = it.boundsInRoot() }
                 .padding(start = side, end = side, top = 12.dp, bottom = bottomPad),
         ) {
-            // The top line: Home at the left while the display shows anything but the next stop,
-            // the signs small at the right; the address starts just under it.
+            // The top line, small and quiet: the connection at the left, the signs and the battery
+            // at the right; the address starts just under it.
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                HomeButton(
-                    visible = live != null && (away || focus || browse.open),
-                    onClick = {
-                        browse.open = false
-                        homeCalls++
-                    },
-                )
+                if (status != null) {
+                    ConnectionSign(status, connected, wide = landscape, onExit = onExit, enabled = !focus, modifier = rest.graphicsLayer { alpha = chrome })
+                }
                 Spacer(Modifier.weight(1f))
                 Column(rest.graphicsLayer { alpha = chrome }.padding(start = 16.dp), horizontalAlignment = Alignment.End) {
                     TopLine(
-                        status,
-                        connected,
-                        wide = landscape,
-                        onExit = onExit,
                         // The way to the next stop: the display's map, or Google Maps on its address.
                         onMap = live?.current?.let { next -> showWay?.let { { it(next, true) } } },
                         onMapPlaced = { pinAt = it },
@@ -546,18 +531,30 @@ fun PassengerDisplayScreen(
                 onShown = { next, item, byTap -> shownTrip = Triple(next, item, byTap) },
                 onFocusBottom = { heroBottom = it },
                 lineBack = { moments.lineBack },
+                nowMinutes = { now.value.hour * 60 + now.value.minute },
                 // The passenger's last name, tapped: said here and shown large.
                 onCard = { openCard = it },
                 onName = { name ->
                     onSay(Announcements.passenger(name))
                     moments.playInfo(Moments.Info.NAME)
                 },
+                homeButton = {
+                    // Back to the next stop, while the display shows anything else: small, beating
+                    // gently, at the left of the dots.
+                    HomeButton(
+                        visible = away || focus || browse.open,
+                        onClick = {
+                            browse.open = false
+                            homeCalls++
+                        },
+                    )
+                },
                 modifier = rest.weight(1f).fillMaxWidth(),
             )
         }
-        // The clock in the bottom-left corner and, level with it, the next stop's time, a small
-        // arrow flowing from one to the other. Only their digits count: the line is as tall as
-        // their ink, and the seconds hang under the minutes. A swipe along it brings out the strip
+        // The clock in the bottom-left corner; the coming trips follow it ([Stage]). Only its digits
+        // count: the line is as tall as their ink, and the seconds hang under the minutes. A swipe
+        // along it brings out the strip
         // of all the trips in its place (while the strip is out, the line takes no touches but the
         // swipe that brought it).
         Row(
@@ -592,35 +589,15 @@ fun PassengerDisplayScreen(
                 },
                 modifier = Modifier.graphicsLayer { alpha = line }.ref(88).ink(minuteSize),
             )
-            // The arrow says the time beside the clock is the next stop's.
-            NextArrow(
-                visible = live?.current?.time != null,
-                first = 0,
-                modifier = lineRest.graphicsLayer { alpha = line }.ref(224).padding(horizontal = arrow.height * ARROW_SPACE).size(arrow),
-            )
-            TripTime(
-                live?.current,
-                tripSize,
-                marks = true,
-                modifier = lineRest
-                    .ref(90)
-                    .ink(tripSize)
-                    .onGloballyPositioned { tripRect = it.boundsInRoot() }
-                    .graphicsLayer {
-                        alpha = line
-                        scaleX = pop.value
-                        scaleY = pop.value
-                    },
-            )
         }
         // Focused: the trip's time large under its address, in the middle of the room left down to
         // the screen's bottom, drawn at that size so it stays sharp.
         val big = focusedTrip?.time
-        if (big != null && focusSeen && !tripRect.isEmpty && !screen.isEmpty) {
+        if (big != null && focusSeen && !screen.isEmpty) {
             val floor = screen.bottom - with(density) { SECONDS_CLEAR.toPx() }
             val roomTop = if (heroBottom > screen.top && heroBottom < floor) heroBottom else floor - clockLine.height
             val room = (floor - roomTop).coerceAtLeast(1f)
-            val perSp = tripRect.width / with(density) { tripSize.toPx() }
+            val perSp = timeMeasurer.measure(big, TextStyle(fontFamily = DigitFont, fontWeight = FontWeight.Bold, fontSize = 100.sp)).size.width / with(density) { 100.sp.toPx() }
             val sizePx = minOf(room * FOCUS_FILL / DIGIT_HEIGHT, screen.width * FOCUS_WIDTH / perSp, with(density) { FOCUS_MAX.toPx() })
             val size = with(density) { sizePx.toSp() }
             // Its box reaches above its digits: placed so the digits' middle is the room's.
@@ -1065,8 +1042,9 @@ private fun MapLayer(map: RouteMap, moments: Moments, held: Boolean, from: () ->
 }
 
 /**
- * The driver's buttons on his own map, at the right: closer (237), farther (238), the car (239),
- * the stop looked at (240), the whole way (241); Google's own apps at the stop looked at ([at]):
+ * The driver's buttons on his own map, small at the left: the satellite picture or the map (270),
+ * the car (239), the stop looked at (240), the whole way (241); his fingers zoom. Google's own
+ * apps at the stop looked at ([at]):
  * Google Earth flying to it in 3D (242, [onEarth]) and Google Maps' street photos of it (244,
  * [onStreetPhotos]), which cost the driver's key nothing; and × at the top (243). Each use keeps
  * the map open ([onUse]).
@@ -1088,14 +1066,19 @@ private fun MapControls(
             Column(
                 verticalArrangement = Arrangement.spacedBy(MAP_CONTROLS_GAP),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.align(Alignment.CenterEnd),
+                modifier = Modifier.align(Alignment.CenterStart),
             ) {
                 fun use(action: () -> Unit): () -> Unit = {
                     onUse()
                     action()
                 }
-                MapButton(R.drawable.ic_add, R.string.display_map_closer, 237, onClick = use { map.zoom(1) })
-                MapButton(R.drawable.ic_remove, R.string.display_map_farther, 238, onClick = use { map.zoom(-1) })
+                MapButton(
+                    R.drawable.ic_layers,
+                    if (map.satellite) R.string.display_map_plain else R.string.display_map_satellite,
+                    270,
+                    highlight = map.satellite,
+                    onClick = use { map.showSatellite(!map.satellite) },
+                )
                 Spacer(Modifier.height(MAP_CONTROLS_GAP))
                 MapButton(R.drawable.ic_my_location, R.string.display_map_car, 239, onClick = use { map.toCar() })
                 MapButton(R.drawable.ic_pin, R.string.display_map_stop, 240, onClick = use { map.toStop() })
@@ -1369,6 +1352,8 @@ private fun Stage(
     onCard: (DisplayItem) -> Unit,
     onName: (String) -> Unit,
     lineBack: () -> Float,
+    nowMinutes: () -> Int,
+    homeButton: @Composable () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val arrow = arrowSize(tripSize)
@@ -1396,8 +1381,6 @@ private fun Stage(
             val cardItem = { k: Int -> if (k < home) earlier[k] else upcoming[k - home] }
             val pageOfCard = { k: Int -> if (k < home) k else k + 1 }
             val pageItem = { p: Int -> if (p == home) current else cardItem(cardOf(p, home)) }
-            val then = upcoming.getOrNull(0)
-            val after = upcoming.getOrNull(1)
             val pager = rememberPagerState(initialPage = home) { cardCount + 1 }
             val goHome: suspend () -> Unit = { pager.animateScrollToPage(home) }
             val away = pager.currentPage != home
@@ -1504,14 +1487,12 @@ private fun Stage(
                             focused = focused,
                             // A trip that is said lights up here while it is shown; the rest steps back.
                             dimmed = index != home && spot != NONE && !focused,
-                            // Its time under it while the top is paged or follows the strip (the next
-                            // stop's stands beside the clock); focused, the large one comes instead.
-                            showTime = !focused && (index != home || browse.open || pager.isScrollInProgress),
                             shared = if (index == home) shared else null,
                             onClick = if (index == home) onSpeakNext else { { sayTrip(item, index > home) } },
                             onLongClick = showWay?.let { { it(item, index == home) } },
                             onBottom = if (focused) onFocusBottom else null,
-                            onName = item.lastName?.let { name -> { onName(name) } },
+                            // Only the next stop's name is shown (beside its figure) and said.
+                            onName = if (index == home) item.lastName?.let { name -> { onName(name) } } else null,
                             onCard = item.card?.let { { onCard(item) } },
                             modifier = Modifier.fillMaxSize(),
                         )
@@ -1523,36 +1504,31 @@ private fun Stage(
                         VerticalPager(pager, pages, userScrollEnabled = !browse.open) { page(it) }
                     }
                     ThenLine(besideClock, line) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.graphicsLayer { alpha = thenShown * (1f - lineBack()) }) {
-                            // The light of the arrows flows on from the next stop's time to "Därefter"
-                            // and to the trip after it.
-                            if (then != null) {
-                                NextArrow(visible = true, first = ARROW_COUNT, modifier = Modifier.ref(227).padding(horizontal = arrow.height * ARROW_SPACE).size(arrow))
-                                ThenChip(
-                                    then,
-                                    landscape,
-                                    first = true,
-                                    tapped = spot == home,
-                                    onClick = { showCard(home) },
-                                    onLongClick = showWay?.let { { it(then, false) } },
-                                    onCard = then.card?.let { { onCard(then) } },
-                                    shared = shared,
-                                    modifier = Modifier.ref(94).then(swipe),
-                                )
-                            }
-                            if (after != null) {
-                                NextArrow(visible = true, first = 2 * ARROW_COUNT, modifier = Modifier.ref(228).padding(horizontal = arrow.height * ARROW_SPACE).size(arrow))
-                                ThenChip(
-                                    after,
-                                    landscape,
-                                    first = false,
-                                    tapped = spot == home + 1,
-                                    onClick = { showCard(home + 1) },
-                                    onLongClick = showWay?.let { { it(after, false) } },
-                                    onCard = after.card?.let { { onCard(after) } },
-                                    shared = shared,
-                                    modifier = Modifier.ref(229).then(swipe),
-                                )
+                        BoxWithConstraints(Modifier.graphicsLayer { alpha = thenShown * (1f - lineBack()) }) {
+                            // As many of the coming trips as the line has room for, up to five, each
+                            // as wide; the light of the arrow flows on from the clock to the first.
+                            val room = maxWidth - arrow.width - arrow.height * ARROW_SPACE * 2
+                            val count = minOf(COMING_MOST, upcoming.size, (room / COMING_MIN_WIDTH).toInt().coerceAtLeast(1))
+                            val each = (if (count > 0) room / count else room).coerceAtLeast(0.dp)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (count > 0) {
+                                    NextArrow(visible = true, first = ARROW_COUNT, modifier = Modifier.ref(227).padding(horizontal = arrow.height * ARROW_SPACE).size(arrow))
+                                }
+                                for (k in 0 until count) {
+                                    val trip = upcoming[k]
+                                    ComingTrip(
+                                        trip,
+                                        landscape,
+                                        first = k == 0,
+                                        tapped = spot == home + k,
+                                        status = trip.time?.let { TimeStatus.of(TripTimes.minutesUntil(it, nowMinutes())) },
+                                        onClick = { showCard(home + k) },
+                                        onLongClick = showWay?.let { { it(trip, false) } },
+                                        onCard = trip.card?.let { { onCard(trip) } },
+                                        shared = shared,
+                                        modifier = Modifier.ref(COMING_REFS[k]).width(each).then(swipe),
+                                    )
+                                }
                             }
                         }
                     }
@@ -1577,16 +1553,19 @@ private fun Stage(
                         onCard = onCard,
                     )
                 }
-                // The dots saying which trip the top shows: small, floating at the very bottom.
-                PageDots(
-                    pager.currentPage,
-                    pager.pageCount,
-                    home,
-                    Modifier
-                        .align(Alignment.BottomCenter)
-                        .offset(y = below - DOTS_LOW)
-                        .graphicsLayer { alpha = dotsShown }
-                        .ref(201, centered = true),
+                // The dots saying which trip the top shows: small, floating at the very bottom, and
+                // Home at their left while it is wanted.
+                BesideDots(
+                    Modifier.align(Alignment.BottomCenter).offset(y = below - DOTS_LOW),
+                    dots = {
+                        PageDots(
+                            pager.currentPage,
+                            pager.pageCount,
+                            home,
+                            Modifier.graphicsLayer { alpha = dotsShown }.ref(201, centered = true),
+                        )
+                    },
+                    left = homeButton,
                 )
             }
         }
@@ -1644,15 +1623,16 @@ private class SharedStop(val transition: SharedTransitionScope, val visibility: 
 }
 
 /**
- * The rest of the bottom line, [content] ("Därefter" and the trip after it): right after the
- * clock's line ([besideClock] wide), level with its middle (it is [line] tall).
+ * The rest of the bottom line, [content] (the coming trips, "Därefter" first): right after the
+ * clock's line ([besideClock] wide), in the width left beside it, level with its middle (it is
+ * [line] tall).
  */
 @Composable
 private fun ThenLine(besideClock: Int, line: Dp, content: @Composable () -> Unit) {
     Layout(content, Modifier.fillMaxWidth()) { measurables, constraints ->
         val room = line.roundToPx()
         val width = constraints.maxWidth
-        val p = measurables.firstOrNull()?.measure(constraints.copy(minWidth = 0, minHeight = 0, maxWidth = Constraints.Infinity))
+        val p = measurables.firstOrNull()?.measure(constraints.copy(minWidth = 0, minHeight = 0, maxWidth = (width - besideClock).coerceAtLeast(0)))
         layout(width, room) { p?.place(besideClock, (room - (p.height)) / 2) }
     }
 }
@@ -1726,36 +1706,56 @@ private fun FocusTime(item: DisplayItem, time: String, size: TextUnit, modifier:
 }
 
 /**
- * The time of the trip shown at the top (the next stop's, or one paged to), beside the clock in its
- * style and gently breathing; where the trip was marked done, small at its left ([marks]).
+ * The connection, in the top-left corner, small and quiet (it is for the driver): a dot (green
+ * while the phone is linked) and the phone's name; a tap offers to close the display ([onExit]).
+ * On the driver's own device there is no connection: the system's Back closes the display.
  */
 @Composable
-private fun TripTime(item: DisplayItem?, size: TextUnit, marks: Boolean, modifier: Modifier = Modifier) {
-    val time = item?.time
-    val done = marks && item != null && (item.doneInYouDrive || item.doneHere)
-    if (item == null || (time == null && !done)) return
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier) {
-        if (done) DoneMarks(youDrive = item.doneInYouDrive, here = item.doneHere, size = 8.dp)
-        if (time != null) {
-            if (done) Spacer(Modifier.width(4.dp))
-            TimeFace(time, size)
+private fun ConnectionSign(status: String, connected: Boolean, wide: Boolean, onExit: () -> Unit, enabled: Boolean, modifier: Modifier = Modifier) {
+    // A tap opens a small menu to close the display (there is no × of its own).
+    Box(modifier) {
+        var menu by remember { mutableStateOf(false) }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .ref(87)
+                .heightIn(min = TouchTarget)
+                .clip(RoundedCornerShape(12.dp))
+                .clickable(enabled = enabled, onClickLabel = stringResource(R.string.display_exit), role = Role.Button) { menu = true }
+                .padding(horizontal = 6.dp),
+        ) {
+            Box(Modifier.size(9.dp).background(if (connected) AppTheme.colors.success else AppTheme.colors.danger, CircleShape))
+            Spacer(Modifier.width(6.dp))
+            Text(
+                status,
+                style = MaterialTheme.typography.labelMedium,
+                color = AppTheme.colors.textMuted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = if (wide) STATUS_MAX_WIDTH else STATUS_MAX_NARROW),
+            )
+        }
+        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.display_exit), style = MaterialTheme.typography.bodyLarge) },
+                leadingIcon = { Icon(painterResource(R.drawable.ic_stop), contentDescription = null) },
+                onClick = {
+                    menu = false
+                    onExit()
+                },
+                modifier = Modifier.ref(86).heightIn(min = TouchTarget),
+            )
         }
     }
 }
 
 /**
- * The top line, in the top-right corner, small and quiet (it is for the driver): the connection (a
- * dot and the phone's name; a tap offers to close the display, [onExit]), the map sign ([onMap]:
- * the way to the next stop), the weather sign, which brings the weather up, and the look sign
- * ([onToggleLook]: black or light). Each is only its picture, with no frame. On the driver's own
- * device there is no connection: the system's Back closes the display.
+ * The signs in the top-right corner, small and quiet, each only its picture with no frame: the map
+ * sign ([onMap]: the way to the next stop), the weather sign, which brings the weather up, the look
+ * sign ([onToggleLook]: black or light), and the device's battery ([BatterySign]).
  */
 @Composable
 private fun TopLine(
-    status: String?,
-    connected: Boolean,
-    wide: Boolean,
-    onExit: () -> Unit,
     onMap: (() -> Unit)?,
     onMapPlaced: (Offset) -> Unit,
     weather: DisplayWeather?,
@@ -1766,43 +1766,6 @@ private fun TopLine(
     enabled: Boolean = true,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        if (status != null) {
-            // The connection: a tap opens a small menu to close the display (there is no × of its own).
-            Box {
-                var menu by remember { mutableStateOf(false) }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .ref(87)
-                        .heightIn(min = TouchTarget)
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable(enabled = enabled, onClickLabel = stringResource(R.string.display_exit), role = Role.Button) { menu = true }
-                        .padding(horizontal = 6.dp),
-                ) {
-                    Box(Modifier.size(9.dp).background(if (connected) AppTheme.colors.success else AppTheme.colors.danger, CircleShape))
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        status,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = AppTheme.colors.textMuted,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.widthIn(max = if (wide) STATUS_MAX_WIDTH else STATUS_MAX_NARROW),
-                    )
-                }
-                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.display_exit), style = MaterialTheme.typography.bodyLarge) },
-                        leadingIcon = { Icon(painterResource(R.drawable.ic_stop), contentDescription = null) },
-                        onClick = {
-                            menu = false
-                            onExit()
-                        },
-                        modifier = Modifier.ref(86).heightIn(min = TouchTarget),
-                    )
-                }
-            }
-        }
         if (onMap != null) MapSign(onMap, enabled, onMapPlaced)
         if (hasWeather) WeatherSign(weather, onWeather, enabled)
         if (onToggleLook != null) {
@@ -1812,6 +1775,66 @@ private fun TopLine(
                 Icon(painterResource(if (dark) R.drawable.ic_light_mode else R.drawable.ic_dark_mode), contentDescription = description, tint = AppTheme.colors.textMuted, modifier = Modifier.size(TOP_ICON))
             }
         }
+        BatterySign()
+    }
+}
+
+/**
+ * This device's battery (271): a small battery drawn as full as it is, and its percent; green while
+ * it charges, red when it is low. From the system's sticky battery broadcast: no permission.
+ */
+@Composable
+private fun BatterySign() {
+    val context = LocalContext.current
+    var level by remember { mutableStateOf<Int?>(null) }
+    var charging by remember { mutableStateOf(false) }
+    DisposableEffect(context) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(c: Context?, intent: Intent?) {
+                intent ?: return
+                val raw = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+                val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+                level = if (raw >= 0 && scale > 0) (raw * 100 / scale) else null
+                val plugged = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+                charging = plugged == BatteryManager.BATTERY_STATUS_CHARGING || plugged == BatteryManager.BATTERY_STATUS_FULL
+            }
+        }
+        ContextCompat.registerReceiver(context, receiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED), ContextCompat.RECEIVER_NOT_EXPORTED)?.let { receiver.onReceive(context, it) }
+        onDispose { runCatching { context.unregisterReceiver(receiver) } }
+    }
+    val percent = level ?: return
+    val colors = AppTheme.colors
+    val fill = when {
+        charging -> colors.success
+        percent <= BATTERY_LOW -> colors.danger
+        else -> colors.textMuted
+    }
+    val description = stringResource(R.string.display_battery, percent)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .refCorner(271)
+            .heightIn(min = TouchTarget)
+            .padding(horizontal = 6.dp)
+            .semantics(mergeDescendants = true) { contentDescription = description },
+    ) {
+        Canvas(Modifier.size(BATTERY_WIDTH, BATTERY_HEIGHT)) {
+            val stroke = 1.5.dp.toPx()
+            val cap = size.width * 0.1f
+            val body = Size(size.width - cap, size.height)
+            drawRoundRect(colors.textMuted, size = Size(body.width - stroke, body.height - stroke), topLeft = Offset(stroke / 2, stroke / 2), cornerRadius = CornerRadius(3.dp.toPx()), style = Stroke(stroke))
+            drawRoundRect(colors.textMuted, topLeft = Offset(body.width, size.height * 0.3f), size = Size(cap, size.height * 0.4f), cornerRadius = CornerRadius(1.dp.toPx()))
+            val inset = stroke * 2
+            drawRoundRect(fill, topLeft = Offset(inset, inset), size = Size((body.width - 2 * inset) * percent / 100f, body.height - 2 * inset), cornerRadius = CornerRadius(1.5.dp.toPx()))
+        }
+        Spacer(Modifier.width(4.dp))
+        Text(
+            "$percent%",
+            fontFamily = DigitFont,
+            fontWeight = FontWeight.Medium,
+            fontSize = 15.sp,
+            color = if (charging) colors.success else colors.textMuted,
+        )
     }
 }
 
@@ -1847,9 +1870,10 @@ private fun WeatherSign(weather: DisplayWeather?, onClick: () -> Unit, enabled: 
 private enum class HeroRole { EARLIER, NEXT, LATER }
 
 /**
- * A stop, from the top: the street and number as large as fits in [TITLE_ROOM] of the height (at
- * most two lines, never breaking a word) and the area under it; its time under them while
- * [showTime] (the next stop's stands beside the clock, [TripTime]). The next stop keeps its place in the "Därefter" → next stop transition ([shared]).
+ * A stop, from the top: a line with its passenger's figure, its time and its town and area
+ * ([HeroLine]), then the street and number as large as fits in [TITLE_ROOM] of the height (at most
+ * two lines, never breaking a word). The next stop keeps its place in the "Därefter" → next stop
+ * transition ([shared]).
  * A tap says it ([onClick]). When it is [focused], the address comes into view again
  * ([entering]) and lights up, and [onBottom] learns where it ends (its large time goes under it);
  * while something else is said, it is [dimmed].
@@ -1862,7 +1886,6 @@ private fun StopHero(
     landscape: Boolean,
     focused: Boolean,
     dimmed: Boolean,
-    showTime: Boolean,
     shared: SharedStop?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -1905,6 +1928,11 @@ private fun StopHero(
                     .onGloballyPositioned { bottom = (it.positionInRoot().y + it.size.height).roundToInt().toFloat() },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
+                // Over the address, on one line: the passenger's figure (a tap opens the trip's
+                // YouDrive card, [onCard]; without a card, on the next stop, it shows the last name
+                // beside it for a while, and a tap on the name says it and shows it large), the
+                // trip's time, and its town and area.
+                HeroLine(current, next, landscape, focused, area, shine, onName, onCard)
                 BoxWithConstraints(Modifier.ref(91).heightIn(max = titleRoom).weight(1f, fill = false).fillMaxWidth().entering(title, shine)) {
                     val style = TextStyle(
                         fontFamily = DisplayFont,
@@ -1931,89 +1959,111 @@ private fun StopHero(
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
-                current.subtitle?.let {
-                    Text(
-                        it,
-                        fontFamily = DisplayFont,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = if (landscape) 44.sp else 30.sp,
-                        color = AppTheme.colors.textMuted,
-                        textAlign = TextAlign.Center,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = TextStyle(textDirection = TextDirection.Content),
-                        modifier = Modifier.ref(92).entering(area, shine),
-                    )
-                }
-                // The passenger getting on or off here, behind a small outlined figure: a tap on it
-                // opens the trip's YouDrive card ([onCard]); without a card, on the next stop, it
-                // shows the last name beside it for a while, and a tap on the name says it and shows
-                // it large. It steps aside while the stop is focused.
-                val name = current.lastName?.takeIf { onName != null }
-                if (onCard != null || name != null) {
-                    val nameShown by animateFloatAsState(if (focused) 0f else 1f, tween(CLOCK_FADE_MS), label = "name")
-                    val nameSp = if (landscape) NAME_LINE_SP else NAME_LINE_SP_NARROW
-                    var open by remember(current.trip) { mutableStateOf(false) }
-                    LaunchedEffect(open) {
-                        if (!open) return@LaunchedEffect
-                        delay(NAME_OPEN_MS)
-                        open = false
-                    }
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .padding(top = 4.dp)
-                            .graphicsLayer { alpha = nameShown },
-                    ) {
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier
-                                .ref(if (next) 231 else 234, centered = true)
-                                .size(TouchTarget)
-                                .clip(CircleShape)
-                                .clickable(
-                                    enabled = !focused,
-                                    onClickLabel = stringResource(if (onCard != null) R.string.display_show_card else R.string.display_show_name),
-                                    role = Role.Button,
-                                ) { if (onCard != null) onCard() else open = !open },
-                        ) {
-                            PersonGlyph(AppTheme.colors.highlight, Modifier.size(with(LocalDensity.current) { (nameSp * PERSON_SIZE).toDp() }))
-                        }
-                        if (name != null) AnimatedVisibility(
-                            open,
-                            enter = fadeIn(tween(NAME_IN_MS)) + expandHorizontally(tween(NAME_IN_MS, easing = FastOutSlowInEasing), expandFrom = Alignment.Start),
-                            exit = fadeOut(tween(NAME_OUT_MS)) + shrinkHorizontally(tween(NAME_OUT_MS), shrinkTowards = Alignment.Start),
-                        ) {
-                            Text(
-                                name,
-                                fontFamily = DisplayFont,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = nameSp,
-                                color = AppTheme.colors.highlight,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                style = TextStyle(textDirection = TextDirection.Content),
-                                modifier = Modifier
-                                    .ref(236)
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .clickable(enabled = !focused, onClickLabel = stringResource(R.string.display_say_name), role = Role.Button, onClick = { onName?.invoke() })
-                                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                            )
-                        }
-                    }
-                }
             }
-            // Paged to, or in the strip's middle: its time under it, as large as the room left
-            // allows, drawn at that size so it stays sharp.
-            if (current.time != null) {
-                val timeShown by animateFloatAsState(if (showTime) 1f else 0f, tween(if (showTime) PAGE_TIME_IN_MS else PAGE_TIME_OUT_MS), label = "time")
-                BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    if (timeShown > 0f && maxHeight > PAGE_TIME_MIN_ROOM) {
-                        val size = with(LocalDensity.current) { minOf(maxHeight.toPx() * PAGE_TIME_FILL / DIGIT_HEIGHT, FOCUS_MAX.toPx()).toSp() }
-                        TimeFace(current.time, size, Modifier.ref(230).graphicsLayer { alpha = timeShown }, breathing = false)
-                    }
-                }
+        }
+    }
+}
+
+/**
+ * The line over a stop's address: the passenger's figure (231 on the next stop, 234 on another)
+ * and, on the next stop without a card, its last name for a while (236); the trip's time (230),
+ * larger and in the highlight colour; and its town and area (92). The figure and the name step
+ * aside while the stop is [focused] (its time then stands large under the address).
+ */
+@Composable
+private fun HeroLine(
+    current: DisplayItem,
+    next: Boolean,
+    landscape: Boolean,
+    focused: Boolean,
+    area: Entrance,
+    shine: Color,
+    onName: (() -> Unit)?,
+    onCard: (() -> Unit)?,
+) {
+    val lineSp = if (landscape) HERO_LINE_SP else HERO_LINE_SP_NARROW
+    val name = current.lastName?.takeIf { onName != null }
+    val signShown by animateFloatAsState(if (focused) 0f else 1f, tween(CLOCK_FADE_MS), label = "name")
+    var open by remember(current.trip) { mutableStateOf(false) }
+    LaunchedEffect(open) {
+        if (!open) return@LaunchedEffect
+        delay(NAME_OPEN_MS)
+        open = false
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+        modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp).entering(area, shine),
+    ) {
+        if (onCard != null || name != null) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .ref(if (next) 231 else 234, centered = true)
+                    .graphicsLayer { alpha = signShown }
+                    .size(TouchTarget)
+                    .clip(CircleShape)
+                    .clickable(
+                        enabled = !focused,
+                        onClickLabel = stringResource(if (onCard != null) R.string.display_show_card else R.string.display_show_name),
+                        role = Role.Button,
+                    ) { if (onCard != null) onCard() else open = !open },
+            ) {
+                PersonGlyph(AppTheme.colors.highlight, Modifier.size(with(LocalDensity.current) { (lineSp * PERSON_SIZE * 1.4f).toDp() }))
             }
+            if (name != null) AnimatedVisibility(
+                open,
+                enter = fadeIn(tween(NAME_IN_MS)) + expandHorizontally(tween(NAME_IN_MS, easing = FastOutSlowInEasing), expandFrom = Alignment.Start),
+                exit = fadeOut(tween(NAME_OUT_MS)) + shrinkHorizontally(tween(NAME_OUT_MS), shrinkTowards = Alignment.Start),
+            ) {
+                Text(
+                    name,
+                    fontFamily = DisplayFont,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = lineSp,
+                    color = AppTheme.colors.highlight,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = TextStyle(textDirection = TextDirection.Content),
+                    modifier = Modifier
+                        .ref(236)
+                        .graphicsLayer { alpha = signShown }
+                        .clip(RoundedCornerShape(14.dp))
+                        .clickable(enabled = !focused, onClickLabel = stringResource(R.string.display_say_name), role = Role.Button, onClick = { onName?.invoke() })
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+        }
+        // Where the trip was marked done (in YouDrive, or here), small before its time.
+        if (current.doneInYouDrive || current.doneHere) {
+            DoneMarks(youDrive = current.doneInYouDrive, here = current.doneHere, size = 10.dp)
+            Spacer(Modifier.width(6.dp))
+        }
+        if (current.time != null) {
+            Text(
+                current.time,
+                fontFamily = DigitFont,
+                fontWeight = FontWeight.Bold,
+                fontSize = lineSp * HERO_TIME_SHARE,
+                color = AppTheme.colors.highlight,
+                maxLines = 1,
+                modifier = Modifier.ref(230),
+            )
+        }
+        current.subtitle?.let {
+            Spacer(Modifier.width(14.dp))
+            Text(
+                it,
+                fontFamily = DisplayFont,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = lineSp,
+                color = AppTheme.colors.textMuted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = TextStyle(textDirection = TextDirection.Content),
+                modifier = Modifier.ref(92).weight(1f, fill = false),
+            )
         }
     }
 }
@@ -2101,30 +2151,30 @@ private fun ThenLabel(modifier: Modifier = Modifier, text: String = stringResour
 }
 
 /**
- * A coming trip on the bottom line, small and with no frame: its time and only the start of its
- * street ("Östra To…"). The [first] is "Därefter": the word "DÄREFTER" floats just above it and
- * its time is in the highlight colour; the trip after it is quieter. It swells while the
+ * A coming trip on the bottom line, with no frame: its street and number (cut short where it would
+ * take more room), its time under it, larger and in the highlight colour, and how it stands under
+ * that ([status]: a short bar in the clock colon's colours; the done marks where it was marked
+ * done). The [first] is "Därefter": the word floats just above it. It swells while the
  * announcement says it or after a tap ([tapped]), which says it and shows it at the top
- * ([onClick]); on Next "Därefter" grows into the new next stop, and the trip after it takes its
- * place ([shared]).
+ * ([onClick]); on Next "Därefter" grows into the new next stop ([shared]). A long press asks for
+ * the way to it ([onLongClick]); its figure opens its YouDrive card ([onCard]).
  */
-@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
-private fun ThenChip(
+private fun ComingTrip(
     item: DisplayItem,
     landscape: Boolean,
     first: Boolean,
     tapped: Boolean,
+    status: TimeStatus?,
     onClick: () -> Unit,
     shared: SharedStop,
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
     onCard: (() -> Unit)? = null,
 ) {
-    val size = if (landscape) THEN_SP else THEN_SP_NARROW
+    val size = if (landscape) COMING_SP else COMING_SP_NARROW
     val swell by animateFloatAsState(if (tapped) CARD_TAP_SWELL else 1f, spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessMediumLow), label = "swell")
     val description = stringResource(R.string.display_say_trip)
-    val streetWidth = with(LocalDensity.current) { (size * THEN_STREET_EMS).toDp() }
     with(shared) {
         Column(
             modifier
@@ -2144,19 +2194,10 @@ private fun ThenChip(
                     onLongClick = onLongClick,
                     onClick = onClick,
                 )
-                .padding(horizontal = 4.dp, vertical = 2.dp),
+                .padding(horizontal = 6.dp, vertical = 2.dp),
         ) {
             if (first) ThenLabel(modifier = Modifier.hangAbove().padding(bottom = 1.dp), size = THEN_LABEL_SP)
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.alpha(if (first) 1f else AFTER_ALPHA)) {
-                if (item.time != null) {
-                    Text(item.time, fontFamily = DigitFont, fontWeight = FontWeight.Bold, fontSize = size, color = if (first) AppTheme.colors.highlight else AppTheme.colors.time)
-                    Spacer(Modifier.width(4.dp))
-                }
-                if (item.doneInYouDrive || item.doneHere) {
-                    DoneMarks(youDrive = item.doneInYouDrive, here = item.doneHere, size = 8.dp)
-                    Spacer(Modifier.width(4.dp))
-                }
-                // Only its start, cut short where it would take more room.
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     item.title,
                     fontFamily = DisplayFont,
@@ -2167,10 +2208,29 @@ private fun ThenChip(
                     softWrap = false,
                     overflow = TextOverflow.Ellipsis,
                     style = TextStyle(textDirection = TextDirection.Content),
-                    modifier = Modifier.widthIn(max = streetWidth),
+                    modifier = Modifier.weight(1f, fill = false),
                 )
                 // The passenger's figure: a tap opens the trip's YouDrive card.
                 if (onCard != null) PersonSign(onCard, size, AppTheme.colors.textMuted, box = SMALL_TOUCH)
+            }
+            if (item.time != null) {
+                Text(
+                    item.time,
+                    fontFamily = DigitFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = size * COMING_TIME_SHARE,
+                    color = AppTheme.colors.highlight,
+                    maxLines = 1,
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 3.dp)) {
+                if (status != null) {
+                    Box(Modifier.size(COMING_BAR_WIDTH, COMING_BAR_HEIGHT).clip(CircleShape).background(statusColor(status)))
+                }
+                if (item.doneInYouDrive || item.doneHere) {
+                    Spacer(Modifier.width(6.dp))
+                    DoneMarks(youDrive = item.doneInYouDrive, here = item.doneHere, size = 8.dp)
+                }
             }
         }
     }
@@ -2337,9 +2397,34 @@ private fun PageDots(current: Int, count: Int, home: Int, modifier: Modifier = M
     }
 }
 
+/** [dots] in the middle, and [left] just at their left, level with them. */
+@Composable
+private fun BesideDots(modifier: Modifier, dots: @Composable () -> Unit, left: @Composable () -> Unit) {
+    Layout(
+        content = {
+            Box { dots() }
+            Box { left() }
+        },
+        modifier = modifier,
+    ) { measurables, constraints ->
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val d = measurables[0].measure(loose)
+        val l = measurables[1].measure(loose)
+        val gap = HOME_GAP.roundToPx()
+        val height = maxOf(d.height, l.height)
+        // As wide as the dots on each side of their middle, so they stay in the middle.
+        val half = maxOf(d.width / 2, d.width / 2 + gap + l.width)
+        layout(half * 2, height) {
+            d.place(half - d.width / 2, (height - d.height) / 2)
+            l.place(half - d.width / 2 - gap - l.width, (height - l.height) / 2)
+        }
+    }
+}
+
 /**
  * Back to the next stop, while the display shows anything else (another trip, the strip, a trip
- * said): a small house in a blue circle, gone once it is pressed.
+ * said): a small house in a blue circle, at the left of the dots, beating gently so it is found;
+ * gone once it is pressed.
  */
 @Composable
 private fun HomeButton(visible: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
@@ -2350,18 +2435,31 @@ private fun HomeButton(visible: Boolean, onClick: () -> Unit, modifier: Modifier
         exit = scaleOut(tween(200)) + fadeOut(tween(200)),
     ) {
         val description = stringResource(R.string.display_home)
+        val beat = rememberInfiniteTransition(label = "home")
+        val scale by beat.animateFloat(1f, HOME_BEAT, infiniteRepeatable(tween(HOME_BEAT_MS, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "beat")
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
                 .refCorner(200)
-                .shadow(AppTheme.effects.currentShadow, CircleShape)
-                .size(HOME_SIZE)
+                .size(HOME_TOUCH)
                 .clip(CircleShape)
-                .background(AppTheme.colors.highlight)
                 .clickable(onClickLabel = description, role = Role.Button, onClick = onClick)
                 .semantics { contentDescription = description },
         ) {
-            Icon(painterResource(R.drawable.ic_home), contentDescription = null, tint = AppTheme.colors.onInfo, modifier = Modifier.size(22.dp))
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                    }
+                    .shadow(AppTheme.effects.currentShadow, CircleShape)
+                    .size(HOME_SIZE)
+                    .clip(CircleShape)
+                    .background(AppTheme.colors.highlight),
+            ) {
+                Icon(painterResource(R.drawable.ic_home), contentDescription = null, tint = AppTheme.colors.onInfo, modifier = Modifier.size(HOME_ICON))
+            }
         }
     }
 }
@@ -2757,15 +2855,16 @@ private fun TripCard(item: DisplayItem, landscape: Boolean, place: WindowState, 
 }
 
 /**
- * A phone number on a line of its own, from the line's start: large, bold and in the highlight
- * colour, to be found at a glance while driving; whose it is ([label], as the card writes it) after it.
+ * A phone number on a line of its own, from the line's start: large, in a light weight and the
+ * highlight colour, its digits in groups of 3, 4 and 3 a little apart ([TripCardText.spacedPhone]),
+ * to be read at a glance while driving; whose it is ([label], as the card writes it) after it.
  */
 @Composable
 private fun PhoneLine(number: String, label: String?, words: TextStyle) {
     Text(
         buildAnnotatedString {
-            withStyle(SpanStyle(fontFamily = DigitFont, fontWeight = FontWeight.Bold, fontSize = words.fontSize * CARD_PHONE, color = AppTheme.colors.highlight)) {
-                append(number)
+            withStyle(SpanStyle(fontFamily = DigitFont, fontWeight = FontWeight.Light, fontSize = words.fontSize * CARD_PHONE, color = AppTheme.colors.highlight, letterSpacing = PHONE_SPACING)) {
+                append(TripCardText.spacedPhone(number))
             }
             if (label != null) {
                 append("  ")
@@ -2958,13 +3057,28 @@ private const val TITLE_ROOM = 0.62f
  * The coming trips on the bottom line: their size (tablet, phone), how much of their street shows
  * (in widths of their size), and how faint the one after "Därefter" is.
  */
-private val THEN_SP = 13.sp
-private val THEN_SP_NARROW = 12.sp
+/** The coming trips on the bottom line ([ComingTrip]): at most this many, each at least this wide. */
+private const val COMING_MOST = 5
+private val COMING_MIN_WIDTH = 150.dp
+private val COMING_REFS = listOf(94, 229, 272, 273, 274)
+private val COMING_SP = 18.sp
+private val COMING_SP_NARROW = 14.sp
+private const val COMING_TIME_SHARE = 1.45f
+private val COMING_BAR_WIDTH = 28.dp
+private val COMING_BAR_HEIGHT = 4.dp
 private val THEN_LABEL_SP = 10.sp
-private const val THEN_STREET_EMS = 4.4f
-private const val AFTER_ALPHA = 0.75f
 private const val DONE_CARD_ALPHA = 0.6f
-private val HOME_SIZE = 44.dp
+private val HOME_SIZE = 28.dp
+private val HOME_ICON = 16.dp
+private val HOME_TOUCH = 40.dp
+private val HOME_GAP = 10.dp
+private const val HOME_BEAT = 1.14f
+private const val HOME_BEAT_MS = 700
+
+/** The battery sign: its size, and the percent at which it turns red. */
+private val BATTERY_WIDTH = 24.dp
+private val BATTERY_HEIGHT = 12.dp
+private const val BATTERY_LOW = 15
 
 /**
  * The strip of all the trips: each trip's width (a share of the screen's: tablet, phone), its
@@ -3004,8 +3118,6 @@ private val HERO_TIME_SP_NARROW = 20.sp
 private const val BREATH_SCALE = 1.2f
 private const val BREATH_MS = 2_200
 
-/** The next stop's time beside the clock grows into its place from this share of its size as the next stop changes. */
-private const val PAGE_POP = 0.6f
 private const val ENTER_MS = 450
 
 /** The speech starts a moment after the tap, and a new stop first grows into place. */
@@ -3058,14 +3170,6 @@ private val DOTS_LOW = 8.dp
 /** A digit of the seconds rolls into place in this long. */
 private const val ROLL_MS = 450
 
-/**
- * Paged to, a trip's time comes under its address this fast and goes this fast, filling this
- * share of the room left (in height), where at least this much room is left.
- */
-private const val PAGE_TIME_FILL = 0.6f
-private const val PAGE_TIME_IN_MS = 400
-private const val PAGE_TIME_OUT_MS = 250
-private val PAGE_TIME_MIN_ROOM = 24.dp
 private const val HOUR_SHARE = 0.62f
 private const val SECOND_SHARE = 0.17f
 
@@ -3123,9 +3227,12 @@ private const val MAP_OVER_Z = 2f
 private const val CARD_Z = 3f
 
 /** The driver's map buttons: their size, their icons, the room between them and from the edge. */
-private val MAP_BUTTON = 64.dp
-private val MAP_ICON = 30.dp
-private val MAP_CONTROLS_GAP = 14.dp
+/** A phone number's digits, a little apart from each other. */
+private val PHONE_SPACING = 0.04.em
+
+private val MAP_BUTTON = 48.dp
+private val MAP_ICON = 24.dp
+private val MAP_CONTROLS_GAP = 10.dp
 private val MAP_CONTROLS_EDGE = 20.dp
 
 /**
@@ -3189,8 +3296,10 @@ private const val NAME_OPEN_MS = 15_000L
 private const val NAME_IN_MS = 280
 private const val NAME_OUT_MS = 200
 
-private val NAME_LINE_SP = 40.sp
-private val NAME_LINE_SP_NARROW = 28.sp
+/** The line over a stop's address ([HeroLine]): its words this size, its time this much larger. */
+private val HERO_LINE_SP = 44.sp
+private val HERO_LINE_SP_NARROW = 30.sp
+private const val HERO_TIME_SHARE = 1.15f
 private val NAME_SP_WIDE = 260.sp
 private val NAME_SP_NARROW = 120.sp
 private const val NAME_WIDTH = 0.9f

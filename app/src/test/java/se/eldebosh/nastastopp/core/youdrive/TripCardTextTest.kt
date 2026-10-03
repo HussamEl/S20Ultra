@@ -8,6 +8,19 @@ import se.eldebosh.nastastopp.core.youdrive.TripCardText.Row
 /** A YouDrive card's text laid out as YouDrive's details window shows it (invented data). */
 class TripCardTextTest {
 
+    /** A phone number in groups of 3, 4 and 3, however it was written. */
+    @Test
+    fun aPhoneNumberIsShownInGroups() {
+        val gap = TripCardText.PHONE_GAP
+        assertEquals("070${gap}0000${gap}006", TripCardText.spacedPhone("0700000006"))
+        assertEquals("070${gap}0000${gap}001", TripCardText.spacedPhone("070-000 00 01"))
+        assertEquals("070${gap}0000${gap}001", TripCardText.spacedPhone("+46 70 000 00 01"))
+        assertEquals("+470${gap}0000${gap}000", TripCardText.spacedPhone("+47 00 00 00 00"))
+        assertEquals("054${gap}0000${gap}00", TripCardText.spacedPhone("054-00 00 00"))
+        assertEquals("portkod 1234", TripCardText.spacedPhone("portkod 1234"))
+        assertEquals("12 34", TripCardText.spacedPhone("12 34"))
+    }
+
     @Test
     fun aPickUpReadsLikeYouDrivesDetails() {
         val card = TripCardText.of(

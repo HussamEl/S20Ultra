@@ -27,7 +27,10 @@ data class DisplayItem(
     /** The stop's point when the phone has located it, for the tablet's map. */
     val lat: Double? = null,
     val lng: Double? = null,
-    /** The passenger's last name, on the next stop only: shown under its address and said when tapped. */
+    /**
+     * The passenger's last name, on the trips still to come only: under its pin on the tablet's map,
+     * and, for the next stop, beside its figure and said when tapped.
+     */
     val lastName: String? = null,
     /** How [title] is said when it differs from what is written: a place of care's full name ("Centralsjukhuset, huvudentrén" for "C-Sjukhuset"). */
     val said: String? = null,
@@ -47,8 +50,11 @@ data class DisplayItem(
      */
     val trip: DisplayItem get() = if (doneInYouDrive || doneHere || lastName != null || card != null) copy(doneInYouDrive = false, doneHere = false, lastName = null, card = null) else this
 
-    /** The trip on the tablet's map: its point, or the address the phone navigates to (never a name). */
-    val mapStop: MapWay.Stop get() = MapWay.Stop(lat, lng, place ?: listOfNotNull(title, subtitle).joinToString(", "), id, time)
+    /**
+     * The trip on the tablet's map: its point, or the address the phone navigates to, for Google;
+     * its time, address and last name for its pin only.
+     */
+    val mapStop: MapWay.Stop get() = MapWay.Stop(lat, lng, place ?: listOfNotNull(title, subtitle).joinToString(", "), id, time, title, lastName)
 
     companion object {
         /** "Storgatan 14, 652 24 Karlstad" → "Storgatan 14" (the part before the first comma). */
@@ -61,10 +67,10 @@ data class DisplayItem(
  * second device: up to seven trips done, the next destination and up to seven upcoming trips
  * (time, address and area, the address and point the tablet's map routes to, trip kind, where
  * each was marked done, its number and a number shared by a passenger's pick-up and drop-off),
- * the next stop's passenger's last name, each YouDrive trip's whole card
- * (for the driver, shown only when opened), the current announcement text, the area's weather and
- * Google Maps' remaining travel time. Outside the trip cards, never a first name or another trip's
- * name; never the vehicle's position.
+ * the last name of each coming trip's passenger (for the map's pins), each YouDrive trip's whole
+ * card (for the driver, shown only when opened), the current announcement text, the area's weather
+ * and Google Maps' remaining travel time. Outside the trip cards, never a first name, nor a name of
+ * a trip done; never the vehicle's position.
  */
 @Serializable
 data class DisplaySnapshot(
@@ -131,7 +137,7 @@ data class DisplaySnapshot(
         /**
          * @param completed finished trips, oldest first.
          * @param remaining remaining trips; the first is the next destination.
-         * @param nextName the last name of the next destination's passenger (no other trip's).
+         * @param lastName the last name of a coming trip's passenger (never a trip done's).
          */
         fun <T> build(
             active: Boolean,
@@ -139,7 +145,7 @@ data class DisplaySnapshot(
             remaining: List<T>,
             item: (T) -> DisplayItem,
             announcement: Announcement?,
-            nextName: (T) -> String? = { null },
+            lastName: (T) -> String? = { null },
         ): DisplaySnapshot {
             if (!active || remaining.isEmpty()) return DisplaySnapshot(active = false, completed = completed.size)
             val done = completed.takeLast(EARLIER).map { item(it).copy(doneHere = true) }
@@ -147,8 +153,8 @@ data class DisplaySnapshot(
                 active = true,
                 previous = done.lastOrNull(),
                 earlier = done,
-                current = item(remaining.first()).copy(lastName = nextName(remaining.first())),
-                upcoming = remaining.drop(1).take(UPCOMING).map(item),
+                current = item(remaining.first()).copy(lastName = lastName(remaining.first())),
+                upcoming = remaining.drop(1).take(UPCOMING).map { item(it).copy(lastName = lastName(it)) },
                 remaining = remaining.size,
                 completed = completed.size,
                 announcementSv = announcement?.swedish,

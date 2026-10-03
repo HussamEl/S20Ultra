@@ -113,14 +113,17 @@ class SettingsStore(context: Context) : WindowPlaces {
         return WindowPlace(
             prefs.getFloat(K_WINDOW + name + "_x", 0.5f),
             prefs.getFloat(K_WINDOW + name + "_y", 0.5f),
-            prefs.getFloat(K_WINDOW + name + "_scale", 1f),
+            prefs.getFloat(K_WINDOW + name + "_w", 0f),
+            prefs.getFloat(K_WINDOW + name + "_h", 0f),
         )
     }
 
     override fun keep(name: String, place: WindowPlace) = prefs.edit {
         putFloat(K_WINDOW + name + "_x", place.x)
         putFloat(K_WINDOW + name + "_y", place.y)
-        putFloat(K_WINDOW + name + "_scale", place.scale)
+        putFloat(K_WINDOW + name + "_w", place.width)
+        putFloat(K_WINDOW + name + "_h", place.height)
+        remove(K_WINDOW + name + "_scale")
     }
 
     private fun read() = AppSettings(

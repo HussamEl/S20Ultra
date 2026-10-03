@@ -10,27 +10,20 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -38,8 +31,6 @@ import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.settings.WindowPlace
 import se.eldebosh.nastastopp.settings.WindowPlaces
 import se.eldebosh.nastastopp.ui.refCorner
-import se.eldebosh.nastastopp.ui.theme.AppTheme
-import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
@@ -52,19 +43,22 @@ internal class WindowState(private val name: String, private val places: WindowP
     var place by mutableStateOf(places.place(name) ?: default)
         private set
 
-    // The window's and the screen's sizes at their last layout (the window stays inside the screen),
-    // and how much of the window does not grow with it (its border).
+    // The window's and the screen's sizes at their last layout (the window stays inside the screen).
     private var size = IntSize.Zero
     private var screen = IntSize.Zero
-    private var fixed = 0
 
     /** Where the window's top left goes: its middle at [place], moved in as far as the screen needs. */
-    fun corner(size: IntSize, screen: IntSize, fixed: Int = 0): IntOffset {
+    fun corner(size: IntSize, screen: IntSize): IntOffset {
         this.size = size
         this.screen = screen
-        this.fixed = fixed
         return IntOffset(edge(place.x, size.width, screen.width).roundToInt(), edge(place.y, size.height, screen.height).roundToInt())
     }
+
+    /** The size the driver gave it on a [screen] (0 for a side he left as drawn), never more than the screen. */
+    fun sizeOn(screen: IntSize): IntSize = IntSize(
+        (place.width * screen.width).roundToInt().coerceAtMost(screen.width),
+        (place.height * screen.height).roundToInt().coerceAtMost(screen.height),
+    )
 
     /** Moved by ([dx], [dy]) pixels, never out of the screen. */
     fun moveBy(dx: Float, dy: Float) {
@@ -73,36 +67,40 @@ internal class WindowState(private val name: String, private val places: WindowP
     }
 
     /**
-     * The window's [side] (an edge, or a corner) dragged [by] so many pixels: the window grows or
-     * shrinks with it, between [WindowPlace.SMALLEST] and [WindowPlace.LARGEST], and the opposite
-     * side stays where it is.
+     * The window's [side] (an edge, or a corner) dragged [by] so many pixels: that edge follows the
+     * finger, wider or narrower from a side edge, taller or lower from the top or bottom, both from
+     * a corner; between [WindowPlace.SMALLEST] of the screen and the whole screen. The opposite
+     * side stays where it is. What it holds is laid out again at the new size, never stretched.
      */
     fun resizeBy(side: Side, by: Offset) {
         if (size.width == 0 || size.height == 0 || screen.width == 0 || screen.height == 0) return
         val w = size.width.toFloat()
         val h = size.height.toFloat()
-        // What it holds grows; its border does not. The edge follows the finger.
-        val gx = side.dx * by.x / (w - fixed).coerceAtLeast(1f)
-        val gy = side.dy * by.y / (h - fixed).coerceAtLeast(1f)
-        val scale = (place.scale * (1 + if (abs(gx) >= abs(gy)) gx else gy)).coerceIn(WindowPlace.SMALLEST, WindowPlace.LARGEST)
-        val f = scale / place.scale
-        if (f == 1f) return
-        val newW = (w - fixed) * f + fixed
-        val newH = (h - fixed) * f + fixed
+        val newW = if (side.dx != 0) (w + side.dx * by.x).coerceIn(WindowPlace.SMALLEST * screen.width, screen.width.toFloat()) else w
+        val newH = if (side.dy != 0) (h + side.dy * by.y).coerceIn(WindowPlace.SMALLEST * screen.height, screen.height.toFloat()) else h
+        if (newW == w && newH == h) return
         val left = edge(place.x, size.width, screen.width)
         val top = edge(place.y, size.height, screen.height)
-        val anchorX = left + w * (1 - side.dx) / 2f
-        val anchorY = top + h * (1 - side.dy) / 2f
-        val newLeft = anchorX - (anchorX - left) * newW / w
-        val newTop = anchorY - (anchorY - top) * newH / h
+        // The side opposite the finger keeps its place.
+        val newLeft = if (side.dx < 0) left + w - newW else left
+        val newTop = if (side.dy < 0) top + h - newH else top
         // Until the next layout, the size it will have: a fast drag stays with the finger.
         size = IntSize(newW.roundToInt(), newH.roundToInt())
-        place = WindowPlace((newLeft + newW / 2f) / screen.width, (newTop + newH / 2f) / screen.height, scale)
+        place = WindowPlace(
+            (newLeft + newW / 2f) / screen.width,
+            (newTop + newH / 2f) / screen.height,
+            if (side.dx != 0) newW / screen.width else place.width,
+            if (side.dy != 0) newH / screen.height else place.height,
+        )
     }
 
-    /** [factor] times as big, between [WindowPlace.SMALLEST] and [WindowPlace.LARGEST]; its middle stays. */
+    /** [factor] times as big both ways (two fingers), within the screen; its middle stays. */
     fun zoomBy(factor: Float) {
-        place = place.copy(scale = (place.scale * factor).coerceIn(WindowPlace.SMALLEST, WindowPlace.LARGEST))
+        if (size.width == 0 || size.height == 0 || screen.width == 0 || screen.height == 0 || factor == 1f) return
+        val w = (size.width * factor).coerceIn(WindowPlace.SMALLEST * screen.width, screen.width.toFloat())
+        val h = (size.height * factor).coerceIn(WindowPlace.SMALLEST * screen.height, screen.height.toFloat())
+        size = IntSize(w.roundToInt(), h.roundToInt())
+        place = place.copy(width = w / screen.width, height = h / screen.height)
     }
 
     /** Kept as it is now, to open so next time. */
@@ -130,18 +128,16 @@ internal class Side(val dx: Int, val dy: Int) {
 }
 
 /**
- * [content] as a window over the whole screen, placed and sized by [state]: a finger on its border
- * (any edge or corner, marked at the corners) makes it bigger or smaller ([resizes]), two fingers
- * anywhere on it move it and pinch it, and its bar moves it ([movesWindow]); one finger still
- * scrolls and taps inside it. It is drawn at its size, never stretched: its text stays sharp. Each
- * touch on it is told ([onTouch]); touches beside it go through to what is under it. Its border is
- * numbered [edgeRef].
+ * [content] as a window over the whole screen, placed and sized by [state], like any window: a
+ * finger on its border makes it wider or narrower from a side edge, taller or lower from the top
+ * or bottom edge, and both from a corner ([resizes]); two fingers anywhere on it move it and
+ * pinch it; its bar moves it ([movesWindow]); one finger still scrolls and taps inside it.
+ * [content] fills the size it is given (until the driver sizes it, its own), and is laid out again
+ * at each size: its text keeps its size. Each touch on it is told ([onTouch]); touches beside it
+ * go through to what is under it. Its border is numbered [edgeRef].
  */
 @Composable
 internal fun FloatingWindow(state: WindowState, edgeRef: Int, modifier: Modifier = Modifier, onTouch: () -> Unit = {}, content: @Composable () -> Unit) {
-    val density = LocalDensity.current
-    val scaled = Density(density.density * state.place.scale, density.fontScale)
-    val grip = AppTheme.colors.textMuted.copy(alpha = GRIP_ALPHA)
     val resize = stringResource(R.string.window_resize)
     Layout(
         content = {
@@ -151,17 +147,25 @@ internal fun FloatingWindow(state: WindowState, edgeRef: Int, modifier: Modifier
                     .semantics { contentDescription = resize }
                     .pinches(state, onTouch)
                     .resizes(state)
-                    .drawBehind { corners(grip) }
                     .padding(EDGE),
+                propagateMinConstraints = true,
             ) {
-                CompositionLocalProvider(LocalDensity provides scaled, content = content)
+                content()
             }
         },
         modifier = modifier.fillMaxSize(),
     ) { measurables, constraints ->
         val screen = IntSize(constraints.maxWidth, constraints.maxHeight)
-        val window = measurables.first().measure(Constraints(maxWidth = screen.width, maxHeight = screen.height))
-        val corner = state.corner(IntSize(window.width, window.height), screen, fixed = (EDGE * 2).roundToPx())
+        val given = state.sizeOn(screen)
+        val window = measurables.first().measure(
+            Constraints(
+                minWidth = given.width,
+                maxWidth = if (given.width > 0) given.width else screen.width,
+                minHeight = given.height,
+                maxHeight = if (given.height > 0) given.height else screen.height,
+            ),
+        )
+        val corner = state.corner(IntSize(window.width, window.height), screen)
         layout(screen.width, screen.height) { window.place(corner) }
     }
 }
@@ -178,19 +182,6 @@ private fun Modifier.resizes(state: WindowState): Modifier = pointerInput(state)
             change.consume()
         }
         state.keep()
-    }
-}
-
-/** The four corners marked, where the border is easiest to take. */
-private fun DrawScope.corners(color: Color) {
-    val stroke = GRIP_STROKE.toPx()
-    val long = GRIP_LENGTH.toPx()
-    val inset = (EDGE / 2).toPx()
-    for ((x, sx) in listOf(inset to 1f, size.width - inset to -1f)) {
-        for ((y, sy) in listOf(inset to 1f, size.height - inset to -1f)) {
-            drawLine(color, Offset(x, y), Offset(x + sx * long, y), stroke, StrokeCap.Round)
-            drawLine(color, Offset(x, y), Offset(x, y + sy * long), stroke, StrokeCap.Round)
-        }
     }
 }
 
@@ -222,8 +213,5 @@ internal fun Modifier.movesWindow(state: WindowState): Modifier = pointerInput(s
     }
 }
 
-/** The window's border, where a finger resizes it, and the marks at its corners. */
+/** The window's border, unmarked, where a finger resizes it. */
 private val EDGE = 18.dp
-private val GRIP_STROKE = 3.dp
-private val GRIP_LENGTH = 14.dp
-private const val GRIP_ALPHA = 0.7f

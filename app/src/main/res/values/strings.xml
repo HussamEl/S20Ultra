@@ -177,8 +177,9 @@
     <string name="help_maps_key">الخريطة تستخدم مفتاح Google الخاص بك. في Google Cloud: أنشئ مفتاح API، وفعّل «Maps JavaScript API» و«Routes API»، وقيّد المفتاح بهاتين الخدمتين وبالموقع https://nastastopp.app/* . يحسب Google كل خريطة تُصنع وكل طريق يُطلب بعد الاستخدام المجاني الشهري، ولا يُضمن أن يكفي استخدامك: ضع ميزانية وتنبيهات في Google Cloud وراقب استهلاكك هناك. التطبيق يصنع خريطة واحدة لكل شاشة ويطلب الطريق من جديد فقط حين يتغيّر، وثلاثي الأبعاد وصور الشارع يفتحان تطبيقات Google نفسها. تأخذ الخريطة موقع السيارة من GPS التابلت نفسه (الموقع ما دامت الشاشة مفتوحة، وليس في الخلفية أبداً؛ يُطلب الإذن عند أول ضغطة على زر الخريطة). هذا الموقع ومحطات الطريق (حتى سبع، بلا أي اسم) تذهب إلى Google لرسم الطريق، ولا يُحفظ ولا يُسجَّل شيء.</string>
     <string name="display_show_way">إظهار الطريق على الخريطة</string>
     <string name="display_map_close">إغلاق الخريطة</string>
-    <string name="display_map_closer">تقريب</string>
-    <string name="display_map_farther">تبعيد</string>
+    <string name="display_battery">البطارية %1$d٪</string>
+    <string name="display_map_satellite">صورة القمر الصناعي</string>
+    <string name="display_map_plain">الخريطة</string>
     <string name="display_map_car">موقع السيارة</string>
     <string name="display_map_stop">مبنى المحطة</string>
     <string name="display_map_whole">الطريق كاملاً</string>
