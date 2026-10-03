@@ -52,13 +52,15 @@ An Android app for a Swedish shared-ride driver:
 - Announcements:
   - The next stop is said in full: street + number, then district, then town (setting 136, the default). Settings 106 and 107 shorten it to the district or the town.
   - The stop after it is said with its street + number, then its district.
+  - Each stop is said with its trip's time after it. **A time is never read with a leading zero**: 09:08 is "Klockan 9 och 8 minuter", 09:00 "Klockan 9" (`Announcements.spokenTime`).
+  - A next-stop announcement is said in two parts with silences that fit the passenger display (`Announcements.parts`, `LEAD_MS`, `GAP_MS`): the next stop pops in, is said, fades; then "Därefter" pops in and is said.
   - On the driver's tap, the panel says the current street + area (street bar) or the next stop's street + number (part 13).
   - The current street's name is also said by itself each time it changes (`geo/StreetCaller`). It is queued after any announcement. The panel's speaker (part 4) or Settings 137 switch it off.
   - **A passenger's name is never in an announcement.** A surname before the street is dropped (`RouteController.streetOf`). The passenger display says the next stop's last name only when it is tapped.
   - **Every name is said once.** A district or town already said in what comes before it ("Centralsjukhuset Karlstad", then "Karlstad") is left out (`GeoLogic.fullSpokenName`, word by word). Wherever "Centralsjukhuset" is written on a screen it is written "C-Sjukhuset" (`Places.written`); it is always said in full.
   - A place of care is said by its name first ("Provby Vårdcentral, Strandvägen 3, Karlstad"); a care home's name is never said, only its street.
   - The passenger display may show street + number (setting 114).
-  - On the passenger display there is no speaker button: a tap on the next stop's address says the announcement, a tap on a coming trip says "Klockan 8 och 05 ska vi till street number, area" (a trip done: "Klockan 7 och 30: street number, area"), and a tap on the clock says the time. On the tablet the map sign and a long press on a trip show the way on the display's own full-screen map; the display opens Google's apps only from the driver's 242 and 244 on that map.
+  - On the passenger display there is no speaker button: a tap on the next stop's address says the announcement, a tap on a coming trip says "Klockan 8 och 5 minuter ska vi till street number, area" (a trip done: "Klockan 7 och 30 minuter: street number, area"), and a tap on the clock says the time. On the tablet the map sign and a long press on a trip show the way on the display's own full-screen map; the display opens Google's apps only from the driver's 242 and 244 on that map.
 - The passenger display's moments (the time, the weather, the map) take turns, each 50 s after the one before has gone, and all rest 2 minutes after the car stops moving (`core/display/CarStillness`, `geo/CarMotion`: the tablet's accelerometer and GPS speed; no camera, nothing stored). The motion sign (297) on its top line shows the sensor working; the other signs there hide until a tap or a swipe down (298).
 - Nothing may appear on its own. Every dialog, toast, Maps launch or sound follows a driver action. The only exceptions are:
   - YouDrive trip alerts;

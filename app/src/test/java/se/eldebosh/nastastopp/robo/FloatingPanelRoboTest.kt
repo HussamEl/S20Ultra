@@ -127,7 +127,7 @@ class FloatingPanelRoboTest {
         assertTrue(r.completed.isEmpty())
         assertEquals(listOf("12:30", "12:45", "13:40"), r.stops.map { it.time })
         assertTrue("history entry removed", graph.history.entries.value.isEmpty())
-        assertEquals("Nästa stopp: Storgatan 14, Karlstad. Därefter: Järnvägsgatan 3B, Storfors.", tts.lastSpokenText)
+        assertEquals("Nästa stopp: Storgatan 14, Karlstad. Klockan 12 och 30 minuter. Därefter: Järnvägsgatan 3B, Storfors. Klockan 12 och 45 minuter.", tts.lastAnnouncement)
         assertNull("Maps already has this stop (mid-batch)", shadowOf(app).nextStartedActivity)
         c.end()
     }
@@ -172,7 +172,7 @@ class FloatingPanelRoboTest {
         assertFalse(graph.controller.speakStreet(null))
         assertTrue(graph.controller.speakStreet(StreetInfo("Drottninggatan", "Centrum")))
         idle()
-        assertEquals("Drottninggatan, Centrum", tts.lastSpokenText)
+        assertEquals("Drottninggatan, Centrum", tts.lastAnnouncement)
         assertTrue("not forwarded to passenger displays", sent.isEmpty())
         job.cancel()
         graph.controller.end()
@@ -189,14 +189,14 @@ class FloatingPanelRoboTest {
         assertFalse("no route yet", graph.controller.speakStopStreet())
         graph.controller.start()
         idle()
-        val spokenBefore = tts.lastSpokenText
+        val spokenBefore = tts.lastAnnouncement
         val sent = mutableListOf<String>()
         val job = graph.scope.launch { graph.controller.announcements.collect { sent += it.swedish } }
         showPanel()
         compose.onNodeWithTag("ref_13").performClick()
         idle()
-        assertEquals("Västra Torggatan 12", tts.lastSpokenText) // never the passenger's name
-        assertTrue(spokenBefore != tts.lastSpokenText)
+        assertEquals("Västra Torggatan 12", tts.lastAnnouncement) // never the passenger's name
+        assertTrue(spokenBefore != tts.lastAnnouncement)
         assertTrue("not forwarded to passenger displays", sent.isEmpty())
         job.cancel()
         graph.controller.end()
@@ -218,21 +218,21 @@ class FloatingPanelRoboTest {
 
         street.onFix(fix(0, 0.0))
         idle()
-        assertTrue("one reading is not enough", tts.lastSpokenText!!.startsWith("Nästa stopp"))
+        assertTrue("one reading is not enough", tts.lastAnnouncement!!.startsWith("Nästa stopp"))
         street.onFix(fix(10, 0.0)) // the confirming reading, also when standing still
         idle()
-        assertEquals("Drottninggatan", tts.lastSpokenText)
+        assertEquals("Drottninggatan", tts.lastAnnouncement)
         assertEquals("queued after an announcement, never over it", TextToSpeech.QUEUE_ADD, tts.queueMode)
         graph.controller.repeat()
         street.onFix(fix(20, 100.0)) // the same street again: not said again
         idle()
-        assertTrue(tts.lastSpokenText!!.startsWith("Nästa stopp"))
+        assertTrue(tts.lastAnnouncement!!.startsWith("Nästa stopp"))
         answer = "Kungsgatan"
         street.onFix(fix(40, 200.0))
         idle()
         street.onFix(fix(50, 200.0))
         idle()
-        assertEquals("Kungsgatan", tts.lastSpokenText)
+        assertEquals("Kungsgatan", tts.lastAnnouncement)
 
         graph.settings.update { it.copy(sayStreetChanges = false) }
         graph.controller.repeat()
@@ -241,7 +241,7 @@ class FloatingPanelRoboTest {
         idle()
         street.onFix(fix(70, 300.0))
         idle()
-        assertTrue("switched off", tts.lastSpokenText!!.startsWith("Nästa stopp"))
+        assertTrue("switched off", tts.lastAnnouncement!!.startsWith("Nästa stopp"))
         graph.settings.update { it.copy(sayStreetChanges = true) }
         graph.controller.end()
     }

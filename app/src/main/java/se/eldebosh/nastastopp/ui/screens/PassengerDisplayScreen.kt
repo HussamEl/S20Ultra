@@ -10,15 +10,13 @@ import android.os.Build
 import android.view.ViewGroup
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.AnimatedVisibilityScope
-import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.SharedTransitionLayout
-import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -101,6 +99,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -150,8 +149,10 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.text
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -195,6 +196,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.core.display.DisplayItem
 import se.eldebosh.nastastopp.core.display.DisplaySnapshot
@@ -230,11 +232,10 @@ import se.eldebosh.nastastopp.ui.theme.DisplayTheme
  * like the announcements; the connection line (for the driver) follows the app's language.
  *
  * It moves with the route:
- * - when the driver taps Next, "Därefter" rises from its place and grows into the new next stop
- *   (a shared-bounds transition; Back runs it the other way);
- * - while an announcement is spoken ([spoken] goes up by one each time, and a tap on the next
- *   stop counts too), only the trip said is shown, its address at the top and its time large
- *   under it: first the next stop, then "Därefter" when its name comes;
+ * - when an announcement is spoken ([spoken] goes up by one each time, and a tap on the next stop
+ *   counts too), the screen before goes completely; the next stop pops in alone and is said with
+ *   its time; it stays a moment and fades away; then "Därefter" pops in its place and is said;
+ *   then the whole screen comes back (the voice keeps silent while the screen changes, [voice]);
  * - a tap on "Därefter", the trip after it or a trip in the strip a swipe along the bottom line
  *   brings out says it and shows it the same way for a few seconds;
  * - a tap on the clock says the time;
@@ -284,6 +285,12 @@ fun PassengerDisplayScreen(
     awake: Boolean = true,
     /** How much the car shakes now (0–1), for the motion sign on the top line; null without a sensor. */
     motion: (() -> Float)? = null,
+    /**
+     * Each part of a next-stop announcement once this device's voice has said it
+     * ([se.eldebosh.nastastopp.tts.Announcer.said]); null when this device does not say it (the
+     * display then goes by the text's length).
+     */
+    voice: Flow<Int>? = null,
 ) {
     KeepScreenOnFullscreen()
     // The trip card and the driver's list of trips open where he last left them, as big.
@@ -643,6 +650,8 @@ fun PassengerDisplayScreen(
                 live,
                 landscape,
                 cue,
+                voice = voice,
+                clockSize = minuteSize,
                 line = lineHeight,
                 besideClock = clockLine.width,
                 below = bottomPad,
@@ -1452,12 +1461,13 @@ private fun RouteGlyph(color: Color, modifier: Modifier = Modifier) {
  *
  * The stops keep [line] free at their bottom, for the bottom line; the dots go [below] further down.
  */
-@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun Stage(
     snapshot: DisplaySnapshot,
     landscape: Boolean,
     cue: Int,
+    voice: Flow<Int>?,
+    clockSize: TextUnit,
     line: Dp,
     besideClock: Int,
     below: Dp,
@@ -1479,12 +1489,15 @@ private fun Stage(
     modifier: Modifier = Modifier,
 ) {
     val arrow = arrowSize(tripSize)
-    SharedTransitionLayout(modifier) {
+    val voiceNow by rememberUpdatedState(voice)
+    Box(modifier) {
         AnimatedContent(
             targetState = snapshot,
             contentKey = { it.current?.trip },
+            // The stop being left goes completely before anything of the new one shows; the new
+            // next stop then pops in ([pop]).
             transitionSpec = {
-                (fadeIn(tween(ENTER_MS, delayMillis = 150)) togetherWith fadeOut(tween(250)) + scaleOut(tween(300), targetScale = 0.92f))
+                (fadeIn(tween(1, delayMillis = OUT_MS)) togetherWith fadeOut(tween(OUT_MS)) + scaleOut(tween(OUT_MS), targetScale = 0.92f))
                     .using(SizeTransform(clip = false))
             },
             label = "next stop",
@@ -1492,8 +1505,9 @@ private fun Stage(
             val current = shown.current ?: return@AnimatedContent
             // The stops being left take no part in the strip (it has one state).
             val latest = current.trip == snapshot.current?.trip
-            val shared = SharedStop(this@SharedTransitionLayout, this@AnimatedContent)
             val spotlight = rememberSpotlight()
+            // How far the trip at the top has come into view (0 gone, 1 in place): it pops in and fades away.
+            val pop = remember { Animatable(0f) }
             val earlier = shown.earlier
             val upcoming = shown.upcoming
             // The trips done, then the coming ones ("cards"); card [home] is "Därefter". The pages
@@ -1511,25 +1525,47 @@ private fun Stage(
             // A trip still coming says where the car is going; a trip done, its time and place.
             // Each name once ("Centralsjukhuset, huvudentrén, Karlstad", never "… Karlstad, Karlstad").
             val sayTrip = { item: DisplayItem, coming: Boolean -> onSay(Announcements.at(item.time, GeoLogic.fullSpokenName(item.said ?: item.title, item.subtitle, null), coming)) }
-            // The announcement: first the next stop, then, when its name comes, the "Därefter" trip
-            // the way a tapped trip is shown.
+            // The announcement, in step with the voice: the screen before goes completely; the next
+            // stop pops in, its address and time are said; it stays a moment and fades away; then
+            // "Därefter" pops in its place and is said; then home again. The voice keeps silent
+            // while the screen changes ([Announcements.parts]). On the device that speaks, the
+            // display moves on as each part has been said ([voice]); elsewhere it goes by the
+            // text's length.
             LaunchedEffect(cue) {
                 if (cue == 0) return@LaunchedEffect
-                spotlight.play {
-                    coroutineScope {
-                        launch { goHome() }
-                        delay(SAY_DELAY_MS) // after a change of stop, once the new one has grown into place
+                val parts = Announcements.parts(shown.announcementSv.orEmpty())
+                val awaitPart: suspend (Int, Long) -> Unit = { k, estimate ->
+                    val heard = voiceNow
+                    if (heard == null) {
+                        delay(estimate.coerceAtLeast(0L))
+                    } else {
+                        withTimeoutOrNull(estimate.coerceAtLeast(0L) + VOICE_SLACK_MS) { heard.first { it == k } }
                     }
-                    on = NEXT_STOP
-                    delay(msUntilThen(shown.announcementSv) - SAY_DELAY_MS)
-                    if (upcoming.isNotEmpty()) {
-                        on = home
-                        // Straight to it: its address and time come into view on their own.
-                        pager.scrollToPage(pageOfCard(home))
-                        delay(THEN_SHOWN_MS)
-                    }
-                    goHome()
                 }
+                spotlight.play {
+                    if (pop.value > 0f) pop.animateTo(0f, tween(OUT_MS)) else delay(OUT_MS.toLong())
+                    pager.scrollToPage(home)
+                    on = NEXT_STOP
+                    pop.animateTo(1f, POP_IN)
+                    awaitPart(0, Announcements.LEAD_MS - OUT_MS - POP_MS + msToSayPart(parts[0]))
+                    delay(NEXT_HOLD_MS)
+                    if (upcoming.isNotEmpty() && parts.size > 1) {
+                        pop.animateTo(0f, tween(FADE_MS, easing = LinearEasing))
+                        on = home
+                        pager.scrollToPage(pageOfCard(home))
+                        pop.animateTo(1f, POP_IN)
+                        awaitPart(1, Announcements.GAP_MS - NEXT_HOLD_MS - FADE_MS - POP_MS + msToSayPart(parts[1]))
+                        delay(THEN_HOLD_MS)
+                    }
+                    pop.animateTo(0f, tween(FADE_MS, easing = LinearEasing))
+                    pager.scrollToPage(home)
+                }
+            }
+            // Nothing shown: the trip at the top comes into view (a new stop once the one before has gone).
+            LaunchedEffect(spotlight.playing) {
+                if (spotlight.playing) return@LaunchedEffect
+                if (pop.value == 0f) delay(OUT_MS.toLong())
+                pop.animateTo(1f, POP_IN)
             }
             // A trip the phone's panel shows: paged to here too (home again after a while, as when browsed).
             val showBefore = remember { showCall }
@@ -1589,15 +1625,20 @@ private fun Stage(
             }
             val spot = spotlight.on
             // While something is said or a tapped trip is shown, the screen shows only that trip:
-            // its address at the top and its time large under it.
-            val focus = spot != NONE
+            // its address with its time over it.
+            val focus = spotlight.playing
             LaunchedEffect(inMiddle, focus) { onShown(current.trip, inMiddle, focus) }
-            // Focused, "Därefter" fades out a moment after a tap on it (so it is seen swelling).
-            val thenShown by animateFloatAsState(
-                if (focus || browse.open) 0f else 1f,
-                tween(if (focus || browse.open) STRIP_FADE_MS else STRIP_BACK_MS, delayMillis = if (focus) STRIP_FADE_DELAY_MS else 0),
-                label = "then",
-            )
+            // Focused, the bottom line fades out a moment after a tap on it (so it is seen
+            // swelling); a new stop's comes once the one before has gone.
+            val thenShown = remember { Animatable(0f) }
+            LaunchedEffect(focus, browse.open) {
+                if (focus || browse.open) {
+                    thenShown.animateTo(0f, tween(STRIP_FADE_MS, delayMillis = if (focus) STRIP_FADE_DELAY_MS else 0))
+                } else {
+                    if (thenShown.value == 0f) delay(OUT_MS.toLong())
+                    thenShown.animateTo(1f, tween(STRIP_BACK_MS))
+                }
+            }
             val dotsShown by animateFloatAsState(if (focus) 0f else 1f, tween(if (focus) CLOCK_FADE_MS else CLOCK_BACK_MS), label = "dots")
             // A swipe on "Därefter" or the trip after it brings out the strip like one on the clock.
             val swipe = if (focus) Modifier else Modifier.scrollable(list, Orientation.Horizontal, reverseDirection = true, flingBehavior = snap, interactionSource = browse.drags)
@@ -1617,13 +1658,20 @@ private fun Stage(
                             focused = focused,
                             // A trip that is said lights up here while it is shown; the rest steps back.
                             dimmed = index != home && spot != NONE && !focused,
-                            shared = if (index == home) shared else null,
+                            timeSize = clockSize * HERO_TIME_OF_CLOCK,
                             onClick = if (index == home) onSpeakNext else { { sayTrip(item, index > home) } },
                             onLongClick = showWay?.let { { it(item, index == home) } },
                             // Only the next stop's name is shown (beside its figure) and said.
                             onName = if (index == home) item.lastName?.let { name -> { onName(name) } } else null,
                             onCard = item.card?.let { { onCard(item) } },
-                            modifier = Modifier.fillMaxSize(),
+                            // Popping in and fading away inside its page (the pager's touches stay as they are).
+                            modifier = Modifier.fillMaxSize().graphicsLayer {
+                                val p = pop.value
+                                alpha = p.coerceIn(0f, 1f)
+                                val grown = POP_FROM + (1f - POP_FROM) * p
+                                scaleX = grown
+                                scaleY = grown
+                            },
                         )
                     }
                     val pages = Modifier.weight(1f).fillMaxWidth()
@@ -1633,28 +1681,37 @@ private fun Stage(
                         VerticalPager(pager, pages, userScrollEnabled = !browse.open) { page(it) }
                     }
                     ThenLine(besideClock, line) {
-                        BoxWithConstraints(Modifier.graphicsLayer { alpha = thenShown * (1f - lineBack()) }) {
-                            // As many of the coming trips as the line has room for, up to five, each
-                            // as wide; the light of the arrow flows on from the clock to the first.
+                        BoxWithConstraints(Modifier.graphicsLayer { alpha = thenShown.value * (1f - lineBack()) }) {
+                            // The next stop ("Nästa"), then "Därefter" and the trips after it, as
+                            // many as the line has room for, up to four, each as wide; the light of
+                            // the arrow flows on from the clock to the first.
                             val room = maxWidth - arrow.width - arrow.height * ARROW_SPACE * 2
-                            val count = minOf(COMING_MOST, upcoming.size, (room / COMING_MIN_WIDTH).toInt().coerceAtLeast(1))
-                            val each = (if (count > 0) room / count else room).coerceAtLeast(0.dp)
+                            val count = minOf(COMING_MOST, upcoming.size + 1, (room / COMING_MIN_WIDTH).toInt().coerceAtLeast(1))
+                            val each = room / count
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (count > 0) {
-                                    NextArrow(visible = true, first = ARROW_COUNT, modifier = Modifier.ref(227).padding(horizontal = arrow.height * ARROW_SPACE).size(arrow))
-                                }
-                                for (k in 0 until count) {
+                                NextArrow(visible = true, first = ARROW_COUNT, modifier = Modifier.ref(227).padding(horizontal = arrow.height * ARROW_SPACE).size(arrow))
+                                ComingTrip(
+                                    current,
+                                    landscape,
+                                    label = stringResource(R.string.passenger_next),
+                                    tapped = false,
+                                    status = current.time?.let { TimeStatus.of(TripTimes.minutesUntil(it, nowMinutes())) },
+                                    onClick = onSpeakNext,
+                                    onLongClick = showWay?.let { { it(current, true) } },
+                                    onCard = current.card?.let { { onCard(current) } },
+                                    modifier = Modifier.ref(NEXT_CHIP_REF).width(each).then(swipe),
+                                )
+                                for (k in 0 until count - 1) {
                                     val trip = upcoming[k]
                                     ComingTrip(
                                         trip,
                                         landscape,
-                                        first = k == 0,
+                                        label = if (k == 0) stringResource(R.string.passenger_then) else null,
                                         tapped = spot == home + k,
                                         status = trip.time?.let { TimeStatus.of(TripTimes.minutesUntil(it, nowMinutes())) },
                                         onClick = { showCard(home + k) },
                                         onLongClick = showWay?.let { { it(trip, false) } },
                                         onCard = trip.card?.let { { onCard(trip) } },
-                                        shared = shared,
                                         modifier = Modifier.ref(COMING_REFS[k]).width(each).then(swipe),
                                     )
                                 }
@@ -1712,21 +1769,37 @@ private fun cardOf(page: Int, home: Int) = if (page < home) page else page - 1
 @Stable
 private class Spotlight(private val scope: CoroutineScope) {
     var on by mutableIntStateOf(NONE)
+
+    /** Something is being said or shown: the rest of the screen steps aside meanwhile. */
+    var playing by mutableStateOf(false)
+        private set
     private var job: Job? = null
+    private var runs = 0
 
     fun play(steps: suspend Spotlight.() -> Unit) {
         job?.cancel()
+        val run = ++runs
         on = NONE
+        playing = true
         job = scope.launch {
-            steps()
-            on = NONE
+            try {
+                steps()
+            } finally {
+                // Only the last one played ends the showing (one replaced by another does not).
+                if (run == runs) {
+                    on = NONE
+                    playing = false
+                }
+            }
         }
     }
 
     /** Whatever is being shown goes (Home). */
     fun stop() {
+        runs++
         job?.cancel()
         on = NONE
+        playing = false
     }
 }
 
@@ -1734,21 +1807,6 @@ private class Spotlight(private val scope: CoroutineScope) {
 private fun rememberSpotlight(): Spotlight {
     val scope = rememberCoroutineScope()
     return remember(scope) { Spotlight(scope) }
-}
-
-/** The scopes a stop needs to move between its card and the middle of the screen. */
-@OptIn(ExperimentalSharedTransitionApi::class)
-private class SharedStop(val transition: SharedTransitionScope, val visibility: AnimatedVisibilityScope) {
-    /** The same trip, as a card or as the next stop (done or not), keeps its place in the transition. */
-    @Composable
-    fun Modifier.stop(item: DisplayItem): Modifier = with(transition) {
-        this@stop.sharedBounds(
-            rememberSharedContentState(key = item.trip),
-            animatedVisibilityScope = visibility,
-            boundsTransform = { _, _ -> spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessLow) },
-            resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
-        )
-    }
 }
 
 /**
@@ -2035,14 +2093,16 @@ private fun WeatherSign(weather: DisplayWeather?, onClick: () -> Unit, enabled: 
 private enum class HeroRole { EARLIER, NEXT, LATER }
 
 /**
- * A stop, from the top: a line with its passenger's figure, its time large in the clock's style
- * and its town and area ([HeroLine]), then the street and number as large as fits in [TITLE_ROOM]
- * of the height (at most two lines, never breaking a word); the time takes the room the address
- * leaves. The next stop keeps its place in the "Därefter" → next stop transition ([shared]).
- * A tap says it ([onClick]). When it is [focused], the address comes into view again
- * ([entering]) and lights up; while something else is said, it is [dimmed].
+ * A stop: a line with its passenger's figure, its time in the clock's style a little smaller than
+ * the clock ([timeSize]) and its town and area ([HeroLine]); just under it the street and number,
+ * half as large as would fit in [TITLE_ROOM] of the height (at most two lines, never breaking a
+ * word). Together they stand a little above the middle, well clear of the bottom line. On the
+ * next stop (and on the trip said) the address's words swell one after another, each turning
+ * yellow as it grows ([Wave]); with each the trip's minutes grow too and the time and the address
+ * draw a little together. A tap says it ([onClick]). When it is [focused], the address comes into
+ * view again ([entering]) and lights up; while something else is said, it is [dimmed].
  */
-@OptIn(ExperimentalSharedTransitionApi::class)
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun StopHero(
     current: DisplayItem,
@@ -2050,7 +2110,7 @@ private fun StopHero(
     landscape: Boolean,
     focused: Boolean,
     dimmed: Boolean,
-    shared: SharedStop?,
+    timeSize: TextUnit,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
@@ -2064,10 +2124,13 @@ private fun StopHero(
     val shine = AppTheme.colors.text.copy(alpha = SHINE_ALPHA)
     val shade by animateFloatAsState(if (dimmed) DIM else 1f, tween(DIM_MS), label = "dim")
     val titleColor by animateColorAsState(if (focused) AppTheme.colors.highlight else AppTheme.colors.text, tween(FOCUS_MS / 2), label = "street")
-    val placed = if (shared == null) modifier else with(shared) { modifier.stop(current) }
+    val swellColor = AppTheme.colors.swell
+    val words = remember(current.title) { current.title.split(' ').filter { it.isNotBlank() } }
+    val wave = rememberWave(active = (next || focused) && !dimmed)
+    val drawn = LocalDensity.current
     val description = stringResource(if (next) R.string.display_repeat else R.string.display_say_trip)
     BoxWithConstraints(
-        placed
+        modifier
             .graphicsLayer { alpha = shade }
             .combinedClickable(
                 interactionSource = null,
@@ -2081,60 +2144,135 @@ private fun StopHero(
         contentAlignment = Alignment.TopCenter,
     ) {
         val titleRoom = maxHeight * TITLE_ROOM
-        // The address takes what it needs (at most [TITLE_ROOM] of the height); the trip's time
-        // over it, in the clock's style, takes the room left above it: large over a short
-        // address, smaller over a long one.
+        val style = TextStyle(
+            fontFamily = DisplayFont,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            textDirection = TextDirection.Content,
+            lineHeight = 1.0.em,
+        )
+        // Half the size at which the address would fill its room (two lines at most, the longest
+        // word on one line).
+        val measurer = rememberTextMeasurer()
+        val width = constraints.maxWidth
+        val roomPx = with(drawn) { titleRoom.roundToPx() }
+        val titleSp = remember(current.title, width, roomPx) {
+            val widest = words.maxOfOrNull { measurer.measure(it, style.copy(fontSize = 100.sp)).size.width } ?: 0
+            val most = if (widest <= 0) MAX_TITLE_SP else (100f * width / widest * 0.95f).coerceIn(MIN_TITLE_SP, MAX_TITLE_SP)
+            var fit = MIN_TITLE_SP
+            var size = most
+            while (size >= MIN_TITLE_SP) {
+                val laid = measurer.measure(current.title, style.copy(fontSize = size.sp), maxLines = 2, constraints = Constraints(maxWidth = width))
+                if (!laid.hasVisualOverflow && laid.size.height <= roomPx) {
+                    fit = size
+                    break
+                }
+                size -= 2f
+            }
+            (fit * TITLE_SHARE).coerceAtLeast(MIN_TITLE_SP)
+        }
+        val approach = with(drawn) { HERO_APPROACH.toPx() }
         Layout(
             content = {
-                BoxWithConstraints(Modifier.fillMaxWidth()) {
+                BoxWithConstraints(Modifier.fillMaxWidth().graphicsLayer { translationY = approach * wave.any(words.size) }) {
                     val room = with(LocalDensity.current) { (maxHeight * HERO_TIME_FILL).toSp() }
                     val wide = with(LocalDensity.current) { (maxWidth * HERO_TIME_WIDTH).toSp() }
                     // Over the address, on one line: the passenger's figure (a tap opens the trip's
                     // YouDrive card, [onCard]; without a card, on the next stop, it shows the last
                     // name beside it for a while, and a tap on the name says it and shows it large),
-                    // the trip's time, large, and its town and area.
-                    val size = minOf(room.value, wide.value / timeEms(current.time), HERO_TIME_MAX.value).coerceAtLeast(HERO_TIME_MIN.value).sp
-                    HeroLine(current, next, landscape, focused, size, area, shine, onName, onCard)
+                    // the trip's time, a little smaller than the clock, and its town and area.
+                    val size = minOf(room.value, wide.value / timeEms(current.time), timeSize.value).coerceAtLeast(HERO_TIME_MIN.value).sp
+                    HeroLine(current, next, landscape, focused, size, area, shine, onName, onCard, minutes = { 1f + MINUTES_GROW * wave.any(words.size) })
                 }
-                BoxWithConstraints(Modifier.ref(91).fillMaxWidth().entering(title, shine)) {
-                    val style = TextStyle(
-                        fontFamily = DisplayFont,
-                        fontWeight = FontWeight.Bold,
-                        color = titleColor,
-                        textAlign = TextAlign.Center,
-                        textDirection = TextDirection.Content,
-                        lineHeight = 1.0.em,
-                    )
-                    // Never larger than the size at which the longest word still fits on one line,
-                    // so a street name is not split in the middle ("Järnvägsg-atan").
-                    val measurer = rememberTextMeasurer()
-                    val width = constraints.maxWidth
-                    val maxSp = remember(current.title, width) {
-                        val widest = current.title.split(' ').filter { it.isNotBlank() }
-                            .maxOfOrNull { measurer.measure(it, style.copy(fontSize = 100.sp)).size.width } ?: 0
-                        if (widest <= 0) MAX_TITLE_SP else (100f * width / widest * 0.95f).coerceIn(MIN_TITLE_SP, MAX_TITLE_SP)
+                // The words one by one, each with room around it to swell into (it never covers
+                // another); read as one address.
+                FlowRow(
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier
+                        .ref(91)
+                        .fillMaxWidth()
+                        .graphicsLayer { translationY = -approach * wave.any(words.size) }
+                        .entering(title, shine)
+                        .clearAndSetSemantics { text = AnnotatedString(current.title) },
+                ) {
+                    val gap = with(drawn) { (titleSp.sp * WORD_GAP).toDp() }
+                    words.forEachIndexed { k, word ->
+                        BasicText(
+                            word,
+                            style = style.copy(fontSize = titleSp.sp),
+                            color = { lerp(titleColor, swellColor, wave.of(k, words.size)) },
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier.padding(horizontal = gap).swelling(WORD_GROW) { wave.of(k, words.size) },
+                        )
                     }
-                    BasicText(
-                        text = current.title,
-                        style = style,
-                        maxLines = 2,
-                        autoSize = TextAutoSize.StepBased(minFontSize = MIN_TITLE_SP.sp, maxFontSize = maxSp.sp, stepSize = 2.sp),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
                 }
             },
             modifier = Modifier.fillMaxSize(),
         ) { measurables, constraints ->
-            val width = constraints.maxWidth
-            val loose = Constraints(maxWidth = width)
-            val address = measurables[1].measure(loose.copy(maxHeight = titleRoom.roundToPx()))
-            val gap = HERO_GAP.roundToPx()
-            val room = (constraints.maxHeight - address.height - gap).coerceAtLeast(0)
+            val w = constraints.maxWidth
+            val loose = Constraints(maxWidth = w)
+            val address = measurables[1].measure(loose.copy(maxHeight = constraints.maxHeight))
+            // The time sits close over the address (its digits' blank foot tucked under).
+            val tuck = (timeSize.toPx() * HERO_TIME_TUCK).roundToInt()
+            val room = (constraints.maxHeight - address.height + tuck).coerceAtLeast(0)
             val time = measurables[0].measure(loose.copy(maxHeight = room))
-            layout(width, constraints.maxHeight) {
-                time.place((width - time.width) / 2, 0)
-                address.place((width - address.width) / 2, time.height + gap)
+            val block = time.height - tuck + address.height
+            val top = ((constraints.maxHeight - block) * HERO_RISE).roundToInt().coerceAtLeast(0)
+            layout(w, constraints.maxHeight) {
+                time.place((w - time.width) / 2, top)
+                address.place((w - address.width) / 2, top + time.height - tuck)
             }
+        }
+    }
+}
+
+/**
+ * The words of an address swelling one after another, [WAVE_PULSE_MS] each, then a rest of
+ * [WAVE_REST_MS]; it runs while it is [rememberWave]'s `active`.
+ */
+@Stable
+private class Wave {
+    val ms = mutableLongStateOf(0L)
+    var running by mutableStateOf(false)
+
+    /** How far word [k] of [count] has swollen now: 0 at rest, 1 at its largest. */
+    fun of(k: Int, count: Int): Float {
+        if (!running || count <= 0) return 0f
+        val t = ms.longValue % (count * WAVE_PULSE_MS + WAVE_REST_MS) - k * WAVE_PULSE_MS
+        if (t < 0 || t >= WAVE_PULSE_MS) return 0f
+        return sin(PI * t / WAVE_PULSE_MS).toFloat()
+    }
+
+    /** How far the word swelling now has swollen. */
+    fun any(count: Int): Float = (0 until count).maxOfOrNull { of(it, count) } ?: 0f
+}
+
+@Composable
+private fun rememberWave(active: Boolean): Wave {
+    val wave = remember { Wave() }
+    LaunchedEffect(active) {
+        wave.running = active
+        if (!active) return@LaunchedEffect
+        val start = withInfiniteAnimationFrameMillis { it }
+        while (true) withInfiniteAnimationFrameMillis { wave.ms.longValue = it - start }
+    }
+    return wave
+}
+
+/**
+ * Takes the room of this at its largest ([grow] more each way) and draws it swollen by [amount]
+ * (0–1) of that, around its middle: it never covers what stands beside it.
+ */
+private fun Modifier.swelling(grow: Float, amount: () -> Float): Modifier = layout { measurable, constraints ->
+    val placeable = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
+    val w = (placeable.width * (1f + grow)).roundToInt()
+    val h = (placeable.height * (1f + grow)).roundToInt()
+    layout(w, h) {
+        placeable.placeWithLayer((w - placeable.width) / 2, (h - placeable.height) / 2) {
+            val s = 1f + grow * amount()
+            scaleX = s
+            scaleY = s
         }
     }
 }
@@ -2150,8 +2288,9 @@ private fun timeEms(time: String?): Float {
  * The line over a stop's address: the passenger's figure (231 on the next stop, 234 on another)
  * and, on the next stop without a card, its last name for a while (236); the trip's time (230) in
  * the clock's style ([TimeFace]: the hours smaller, the colon's dots, the minutes large; no
- * seconds) at [timeSize]; and its town and area (92). The figure and the name step aside while
- * the stop is [focused]. The time is only here: never again on the same page.
+ * seconds) at [timeSize], its minutes swelling by [minutes]; and its town and area (92). The
+ * figure and the name step aside while the stop is [focused]. The time is only here: never again
+ * on the same page.
  */
 @Composable
 private fun HeroLine(
@@ -2164,6 +2303,7 @@ private fun HeroLine(
     shine: Color,
     onName: (() -> Unit)?,
     onCard: (() -> Unit)?,
+    minutes: () -> Float = { 1f },
 ) {
     val lineSp = if (landscape) HERO_LINE_SP else HERO_LINE_SP_NARROW
     val name = current.lastName?.takeIf { onName != null }
@@ -2225,7 +2365,7 @@ private fun HeroLine(
             Spacer(Modifier.width(6.dp))
         }
         if (current.time != null) {
-            TimeFace(current.time, timeSize, Modifier.ref(230), breathing = false)
+            TimeFace(current.time, timeSize, Modifier.ref(230), breathing = false, minutes = minutes)
         }
         current.subtitle?.let {
             Spacer(Modifier.width(14.dp))
@@ -2330,20 +2470,19 @@ internal fun ThenLabel(modifier: Modifier = Modifier, text: String = stringResou
  * A coming trip on the bottom line, with no frame: its street and number (cut short where it would
  * take more room), its time under it, larger and in the highlight colour, and how it stands under
  * that ([status]: a short bar in the clock colon's colours; the done marks where it was marked
- * done). The [first] is "Därefter": the word floats just above it. It swells while the
- * announcement says it or after a tap ([tapped]), which says it and shows it at the top
- * ([onClick]); on Next "Därefter" grows into the new next stop ([shared]). A long press asks for
- * the way to it ([onLongClick]); its figure opens its YouDrive card ([onCard]).
+ * done). The next stop and "Därefter" have their word ([label]) floating just above them. It
+ * swells while the announcement says it or after a tap ([tapped]), which says it and shows it at
+ * the top ([onClick]). A long press asks for the way to it ([onLongClick]); its figure opens its
+ * YouDrive card ([onCard]).
  */
 @Composable
 private fun ComingTrip(
     item: DisplayItem,
     landscape: Boolean,
-    first: Boolean,
+    label: String?,
     tapped: Boolean,
     status: TimeStatus?,
     onClick: () -> Unit,
-    shared: SharedStop,
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
     onCard: (() -> Unit)? = null,
@@ -2351,62 +2490,59 @@ private fun ComingTrip(
     val size = if (landscape) COMING_SP else COMING_SP_NARROW
     val swell by animateFloatAsState(if (tapped) CARD_TAP_SWELL else 1f, spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessMediumLow), label = "swell")
     val description = stringResource(R.string.display_say_trip)
-    with(shared) {
-        Column(
-            modifier
-                .graphicsLayer {
-                    scaleX = swell
-                    scaleY = swell
-                    // It grows up from the screen's bottom.
-                    transformOrigin = TransformOrigin(0.5f, 1f)
-                }
-                .stop(item)
-                .combinedClickable(
-                    interactionSource = null,
-                    indication = null,
-                    onClickLabel = description,
-                    role = Role.Button,
-                    onLongClickLabel = if (onLongClick != null) stringResource(R.string.display_show_way) else null,
-                    onLongClick = onLongClick,
-                    onClick = onClick,
-                )
-                .padding(horizontal = 6.dp, vertical = 2.dp),
-        ) {
-            if (first) ThenLabel(modifier = Modifier.hangAbove().padding(bottom = 1.dp), size = THEN_LABEL_SP)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    item.title,
-                    fontFamily = DisplayFont,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = size,
-                    color = AppTheme.colors.text,
-                    maxLines = 1,
-                    softWrap = false,
-                    overflow = TextOverflow.Ellipsis,
-                    style = TextStyle(textDirection = TextDirection.Content),
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-                // The passenger's figure: a tap opens the trip's YouDrive card.
-                if (onCard != null) PersonSign(onCard, size, AppTheme.colors.textMuted, box = SMALL_TOUCH)
+    Column(
+        modifier
+            .graphicsLayer {
+                scaleX = swell
+                scaleY = swell
+                // It grows up from the screen's bottom.
+                transformOrigin = TransformOrigin(0.5f, 1f)
             }
-            if (item.time != null) {
-                Text(
-                    item.time,
-                    fontFamily = DigitFont,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = size * COMING_TIME_SHARE,
-                    color = AppTheme.colors.highlight,
-                    maxLines = 1,
-                )
+            .combinedClickable(
+                interactionSource = null,
+                indication = null,
+                onClickLabel = description,
+                role = Role.Button,
+                onLongClickLabel = if (onLongClick != null) stringResource(R.string.display_show_way) else null,
+                onLongClick = onLongClick,
+                onClick = onClick,
+            )
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+    ) {
+        if (label != null) ThenLabel(modifier = Modifier.hangAbove().padding(bottom = 1.dp), text = label, size = THEN_LABEL_SP)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                item.title,
+                fontFamily = DisplayFont,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = size,
+                color = AppTheme.colors.text,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis,
+                style = TextStyle(textDirection = TextDirection.Content),
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            // The passenger's figure: a tap opens the trip's YouDrive card.
+            if (onCard != null) PersonSign(onCard, size, AppTheme.colors.textMuted, box = SMALL_TOUCH)
+        }
+        if (item.time != null) {
+            Text(
+                item.time,
+                fontFamily = DigitFont,
+                fontWeight = FontWeight.Bold,
+                fontSize = size * COMING_TIME_SHARE,
+                color = AppTheme.colors.highlight,
+                maxLines = 1,
+            )
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 3.dp)) {
+            if (status != null) {
+                Box(Modifier.size(COMING_BAR_WIDTH, COMING_BAR_HEIGHT).clip(CircleShape).background(statusColor(status)))
             }
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 3.dp)) {
-                if (status != null) {
-                    Box(Modifier.size(COMING_BAR_WIDTH, COMING_BAR_HEIGHT).clip(CircleShape).background(statusColor(status)))
-                }
-                if (item.doneInYouDrive || item.doneHere) {
-                    Spacer(Modifier.width(6.dp))
-                    DoneMarks(youDrive = item.doneInYouDrive, here = item.doneHere, size = 8.dp)
-                }
+            if (item.doneInYouDrive || item.doneHere) {
+                Spacer(Modifier.width(6.dp))
+                DoneMarks(youDrive = item.doneInYouDrive, here = item.doneHere, size = 8.dp)
             }
         }
     }
@@ -2836,14 +2972,19 @@ internal fun statusColor(status: TimeStatus): Color = when (status) {
 /**
  * A trip's time ("08:00") in the clock's style: the hours medium and level with the middle of the
  * minutes, the colon in the accent yellow a step apart from both; the digits breathe slowly around
- * the colon unless it is still ([breathing] off).
+ * the colon unless it is still ([breathing] off). The minutes alone can swell ([minutes], drawn
+ * larger from their left side, over nothing).
  */
 @Composable
-internal fun TimeFace(time: String, minuteSize: TextUnit, modifier: Modifier = Modifier, breathing: Boolean = true) {
+internal fun TimeFace(time: String, minuteSize: TextUnit, modifier: Modifier = Modifier, breathing: Boolean = true, minutes: (() -> Float)? = null) {
     val hour = time.substringBefore(':')
     val minute = time.substringAfter(':', "")
-    val breath = rememberInfiniteTransition(label = "breath")
-    val scale by breath.animateFloat(1f / BREATH_SCALE, 1f, infiniteRepeatable(tween(BREATH_MS, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "breath scale")
+    // The breath runs only while it breathes: a still time asks for no frames.
+    val scale = if (breathing) {
+        rememberInfiniteTransition(label = "breath").animateFloat(1f / BREATH_SCALE, 1f, infiniteRepeatable(tween(BREATH_MS, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "breath scale")
+    } else {
+        null
+    }
     // Drawn at its largest and scaled down as one picture: the digits grow and shrink smoothly
     // (text scaled directly jumps between the sizes its glyphs are drawn at).
     val big = minuteSize * BREATH_SCALE
@@ -2859,11 +3000,20 @@ internal fun TimeFace(time: String, minuteSize: TextUnit, modifier: Modifier = M
     val size = if (breathing) big else minuteSize
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = if (breathing) modifier.breathe(rest = 1f / BREATH_SCALE) { scale } else modifier,
+        modifier = if (scale != null) modifier.breathe(rest = 1f / BREATH_SCALE) { scale.value } else modifier,
     ) {
         Text(hour, style = style.copy(fontSize = size * HOUR_SHARE))
         Colon(size * HOUR_SHARE, status = null, second = null)
-        Text(minute, style = style.copy(fontSize = size))
+        Text(
+            minute,
+            style = style.copy(fontSize = size),
+            modifier = if (minutes == null) Modifier else Modifier.graphicsLayer {
+                val s = minutes()
+                scaleX = s
+                scaleY = s
+                transformOrigin = TransformOrigin(0f, 0.5f)
+            },
+        )
     }
 }
 
@@ -3208,20 +3358,40 @@ private fun KeepScreenOnFullscreen() {
     }
 }
 
-/**
- * About when the announcement reaches "Därefter", counted from its start. The display does not
- * hear the voice, so this goes by the text's length at the usual speaking speed.
- */
-private fun msUntilThen(text: String?): Long {
-    val at = text?.indexOf("Därefter")?.takeIf { it > 0 } ?: return SAY_DELAY_MS + THEN_FALLBACK_MS
-    return SAY_DELAY_MS + at * MS_PER_CHAR
-}
+/** About how long a part of an announcement takes to say, by its length at the usual speaking speed. */
+private fun msToSayPart(text: String): Long = text.length.coerceAtLeast(12) * MS_PER_CHAR
 
-/** About how long the whole announcement takes. */
-private fun msToSay(text: String?): Long = SAY_DELAY_MS + (text?.length ?: 0).coerceAtLeast(30) * MS_PER_CHAR
+/** About how long the whole announcement takes, with its silences and the screen's last steps. */
+private fun msToSay(text: String?): Long {
+    if (text == null || !Announcements.isNextStops(text)) return SAY_START_MS + (text?.length ?: 0).coerceAtLeast(30) * MS_PER_CHAR
+    val parts = Announcements.parts(text)
+    return Announcements.LEAD_MS + parts.sumOf { msToSayPart(it) } + (parts.size - 1) * Announcements.GAP_MS + THEN_HOLD_MS + FADE_MS
+}
 
 private const val MIN_TITLE_SP = 32f
 private const val MAX_TITLE_SP = 300f
+
+/** The address is this share of the size that would fill its room. */
+private const val TITLE_SHARE = 0.5f
+
+/** Room between the address's words (in ems), and how much more each word grows as it swells. */
+private const val WORD_GAP = 0.1f
+private const val WORD_GROW = 0.1f
+
+/** The address's words swell one after another, each this long, then rest this long. */
+private const val WAVE_PULSE_MS = 700L
+private const val WAVE_REST_MS = 1_600L
+
+/** With each word, the trip's minutes grow this much more, and the time and the address each come this much nearer. */
+private const val MINUTES_GROW = 0.1f
+private val HERO_APPROACH = 5.dp
+
+/** The trip's time over the address: this share of the clock's minutes, tucked this share of its size down over the address. */
+private const val HERO_TIME_OF_CLOCK = 0.85f
+private const val HERO_TIME_TUCK = 0.1f
+
+/** The time and the address stand this far down the room they leave (0 top, 0.5 middle). */
+private const val HERO_RISE = 0.42f
 
 /**
  * The address takes at most this share of the height under the top line, so its time has room
@@ -3233,10 +3403,11 @@ private const val TITLE_ROOM = 0.62f
  * The coming trips on the bottom line: their size (tablet, phone), how much of their street shows
  * (in widths of their size), and how faint the one after "Därefter" is.
  */
-/** The coming trips on the bottom line ([ComingTrip]): at most this many, each at least this wide. */
-private const val COMING_MOST = 5
+/** The trips on the bottom line ([ComingTrip]): at most this many (the next stop and three after it), each at least this wide. */
+private const val COMING_MOST = 4
 private val COMING_MIN_WIDTH = 150.dp
-private val COMING_REFS = listOf(94, 229, 272, 273, 274)
+private const val NEXT_CHIP_REF = 299
+private val COMING_REFS = listOf(94, 229, 272)
 private val COMING_SP = 18.sp
 private val COMING_SP_NARROW = 14.sp
 private const val COMING_TIME_SHARE = 1.45f
@@ -3287,8 +3458,21 @@ private const val BROWSE_LINGER_MS = 3_000L
 private const val CARD_TAP_SWELL = 1.22f
 private const val SHOW_TRIP_MS = 6_000L
 
-/** When the announcement says "Därefter", its trip is shown at the top this long. */
-private const val THEN_SHOWN_MS = 3_200L
+/**
+ * An announcement on the screen: the screen before goes in [OUT_MS]; a trip pops in over [POP_MS]
+ * (from [POP_FROM] of its size, a touch past it and back) and fades away over [FADE_MS]; the next
+ * stop stays [NEXT_HOLD_MS] after it has been said, "Därefter" [THEN_HOLD_MS]. They fit the
+ * voice's silences ([Announcements.LEAD_MS], [Announcements.GAP_MS]). The voice heard on this
+ * device is waited for at most [VOICE_SLACK_MS] past when it should have finished.
+ */
+private const val OUT_MS = 400
+private const val POP_MS = 550
+private const val FADE_MS = 900
+private const val POP_FROM = 0.8f
+private val POP_IN = tween<Float>(POP_MS, easing = CubicBezierEasing(0.34f, 1.56f, 0.64f, 1f))
+private const val NEXT_HOLD_MS = 700L
+private const val THEN_HOLD_MS = 1_500L
+private const val VOICE_SLACK_MS = 4_000L
 
 /** Focused, the coming trips on the bottom line fade out a moment after the tap (so it is seen swelling), and come back gently. */
 private const val STRIP_FADE_DELAY_MS = 250
@@ -3305,14 +3489,11 @@ private val HERO_TIME_SP_NARROW = 20.sp
 private const val BREATH_SCALE = 1.2f
 private const val BREATH_MS = 2_200
 
-private const val ENTER_MS = 450
-
-/** The speech starts a moment after the tap, and a new stop first grows into place. */
-private const val SAY_DELAY_MS = 700L
+/** Any other announcement starts about this long after the tap. */
+private const val SAY_START_MS = 700L
 
 /** Swedish at the app's speaking speed: about 13 letters a second. */
 private const val MS_PER_CHAR = 75L
-private const val THEN_FALLBACK_MS = 3_000L
 
 /** The spotlight: what is not being said steps back to this. */
 private const val DIM = 0.4f
@@ -3487,14 +3668,12 @@ private const val NAME_OUT_MS = 200
 private val HERO_LINE_SP = 44.sp
 private val HERO_LINE_SP_NARROW = 30.sp
 /**
- * The trip's time over its address, in the clock's style: filling this share of the room left over
- * the address, at most this share of the width, between these sizes (of its minutes).
+ * The trip's time over its address, in the clock's style: at most this share of the room left
+ * over the address and of the width, and at least this size (of its minutes).
  */
 private const val HERO_TIME_FILL = 0.92f
 private const val HERO_TIME_WIDTH = 0.62f
-private val HERO_TIME_MAX = 200.sp
 private val HERO_TIME_MIN = 40.sp
-private val HERO_GAP = 6.dp
 private val NAME_SP_WIDE = 260.sp
 private val NAME_SP_NARROW = 120.sp
 private const val NAME_WIDTH = 0.9f

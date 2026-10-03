@@ -35,6 +35,7 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.filterToOne
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -159,6 +160,9 @@ class ScreenshotsRoboTest {
     private val depot = stop(9, "Depågatan 1, 65340 Karlstad", "06:42", kind = TripKind.PULL_OUT)
 
     private fun spoken(s: Stop) = s.displayText.substringAfterLast(' ')
+
+    /** A stop's address large at the top (not the next stop's small one on the bottom line, 299). */
+    private fun hero(address: String) = compose.onNode(hasText(address) and !hasTestTag("ref_299"))
 
     private fun save(name: String, bitmap: Bitmap) {
         val dir = File("build/screenshots").apply { mkdirs() }
@@ -534,8 +538,9 @@ class ScreenshotsRoboTest {
     }
 
     /**
-     * Next on the phone: the "Därefter" card grows into the new next stop, and the announcement
-     * lights it up. Frames during the move are saved for a look; the end state is checked.
+     * Next on the phone: the stop left goes, the new next stop pops in and is said, fades, and
+     * "Därefter" pops in its place. Frames during the move are saved for a look; the end state is
+     * checked.
      */
     @Test
     @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
@@ -544,14 +549,14 @@ class ScreenshotsRoboTest {
             active = true,
             current = DisplayItem("07:36", "Västra Torggatan 12", "Karlstad"),
             upcoming = listOf(DisplayItem("08:00", "Hamngatan 7", "Skoghall"), DisplayItem("08:25", "Storgatan 14", "Karlstad")),
-            announcementSv = "Nästa stopp: Västra Torggatan 12, Karlstad. Därefter: Hamngatan 7, Skoghall.",
+            announcementSv = "Nästa stopp: Västra Torggatan 12, Karlstad. Klockan 7 och 36 minuter. Därefter: Hamngatan 7, Skoghall. Klockan 8.",
         )
         val next = DisplaySnapshot(
             active = true,
             previous = first.current,
             current = first.upcoming[0],
             upcoming = listOf(first.upcoming[1]),
-            announcementSv = "Nästa stopp: Hamngatan 7, Skoghall. Därefter: Storgatan 14, Karlstad.",
+            announcementSv = "Nästa stopp: Hamngatan 7, Skoghall. Klockan 8. Därefter: Storgatan 14, Karlstad. Klockan 8 och 25 minuter.",
         )
         var snapshot by mutableStateOf(first)
         var spoken by mutableIntStateOf(0)
@@ -564,15 +569,17 @@ class ScreenshotsRoboTest {
         compose.mainClock.autoAdvance = false
         snapshot = next
         spoken++
-        // 150–1700 ms: the card grows into place; 2600: the next stop is said; 5000: its "Därefter".
-        for (ms in listOf(150L, 250L, 300L, 1_000L, 900L, 2_400L)) {
+        // 0–400 ms: the stop left goes; 400–950: the new one pops in; then it is said, stays, fades
+        // (about 4.1–5 s) and "Därefter" pops in its place.
+        for (ms in listOf(200L, 400L, 300L, 1_100L, 2_400L, 800L, 900L)) {
             compose.mainClock.advanceTimeBy(ms)
             save("display_move_${compose.mainClock.currentTime}", compose.onRoot().captureToImage().asAndroidBitmap())
         }
         compose.mainClock.advanceTimeBy(8_000)
         compose.mainClock.autoAdvance = true
         compose.waitForIdle()
-        compose.onNodeWithText("Hamngatan 7").assertExists()
+        hero("Hamngatan 7").assertExists()
+        compose.onNode(hasTestTag("ref_299") and hasText("Hamngatan 7")).assertExists()
         compose.onNodeWithText("Västra Torggatan 12").assertDoesNotExist()
         compose.onNodeWithText("Storgatan 14").assertExists()
     }
@@ -607,7 +614,7 @@ class ScreenshotsRoboTest {
         compose.onNodeWithTag("ref_88").performClick()
         compose.mainClock.advanceTimeBy(1_000)
         compose.mainClock.autoAdvance = true
-        assertEquals(listOf("Klockan 8 ska vi till Hamngatan 7, Skoghall.", "Klockan är 8 och 11."), said)
+        assertEquals(listOf("Klockan 8 ska vi till Hamngatan 7, Skoghall.", "Klockan är 8 och 11 minuter."), said)
     }
 
     /**
@@ -638,13 +645,13 @@ class ScreenshotsRoboTest {
         compose.onNodeWithTag("ref_88").performClick()
         compose.mainClock.advanceTimeBy(2_500)
         save("display_clock_tap", compose.onRoot().captureToImage().asAndroidBitmap())
-        assertEquals(listOf("Klockan är 8 och 11."), said)
+        assertEquals(listOf("Klockan är 8 och 11 minuter."), said)
         // While the time fills the screen a tap anywhere only brings the screen back; after that
         // the address takes taps again.
-        compose.onNodeWithText("Västra Torggatan 12").performClick()
+        hero("Västra Torggatan 12").performClick()
         compose.mainClock.advanceTimeBy(800)
         assertEquals(0, repeats)
-        compose.onNodeWithText("Västra Torggatan 12").performClick()
+        hero("Västra Torggatan 12").performClick()
         compose.mainClock.advanceTimeBy(800)
         assertEquals(1, repeats)
         compose.mainClock.autoAdvance = true
@@ -670,7 +677,7 @@ class ScreenshotsRoboTest {
             save("display_minute_${compose.mainClock.currentTime}", compose.onRoot().captureToImage().asAndroidBitmap())
         }
         compose.mainClock.autoAdvance = true
-        compose.onNodeWithText("Västra Torggatan 12").assertExists()
+        hero("Västra Torggatan 12").assertExists()
     }
 
     /**
@@ -699,11 +706,11 @@ class ScreenshotsRoboTest {
         // over it.
         compose.onAllNodesWithText("Storgatan 14").assertCountEquals(2)
         compose.onAllNodesWithTag("ref_230", useUnmergedTree = true).filterToOne(hasAnyDescendant(hasText("08")) and hasAnyDescendant(hasText("25"))).assertIsDisplayed()
-        compose.onNodeWithText("Västra Torggatan 12").assertDoesNotExist()
+        hero("Västra Torggatan 12").assertDoesNotExist()
         compose.onNodeWithTag("ref_200").performClick()
         compose.mainClock.advanceTimeBy(3_000)
         save("display_paged_home", compose.onRoot().captureToImage().asAndroidBitmap())
-        compose.onNodeWithText("Västra Torggatan 12").assertIsDisplayed()
+        hero("Västra Torggatan 12").assertIsDisplayed()
         compose.onNodeWithTag("ref_200").assertDoesNotExist()
         // The other way: the trips done.
         compose.onRoot().performTouchInput { swipeRight() }
@@ -746,7 +753,7 @@ class ScreenshotsRoboTest {
         compose.onNodeWithTag("ref_200").assertExists()
         compose.mainClock.advanceTimeBy(4_000)
         compose.onAllNodesWithTag("ref_226").assertCountEquals(0)
-        compose.onNodeWithText("Västra Torggatan 12").assertIsDisplayed()
+        hero("Västra Torggatan 12").assertIsDisplayed()
         // Out again from the clock; a tap on a coming trip in the strip says it and shows it.
         compose.onNodeWithTag("ref_88").performTouchInput { swipeLeft() }
         compose.mainClock.advanceTimeBy(1_000)
@@ -755,7 +762,7 @@ class ScreenshotsRoboTest {
         save("display_list_pick", compose.onRoot().captureToImage().asAndroidBitmap())
         compose.onAllNodesWithTag("ref_226").assertCountEquals(0)
         compose.mainClock.autoAdvance = true
-        assertEquals(listOf("Klockan 8 och 50 ska vi till Södra Kyrkogatan 7, Kristinehamn."), said)
+        assertEquals(listOf("Klockan 8 och 50 minuter ska vi till Södra Kyrkogatan 7, Kristinehamn."), said)
     }
 
     /**
@@ -1054,7 +1061,7 @@ class ScreenshotsRoboTest {
         compose.waitForIdle()
         compose.onNodeWithTag("ref_235").assertDoesNotExist()
         // "Därefter"'s own figure opens its card.
-        compose.onAllNodesWithTag("ref_234", useUnmergedTree = true).onFirst().performClick()
+        compose.onNode(hasTestTag("ref_234") and hasAnyAncestor(hasTestTag("ref_94")), useUnmergedTree = true).performClick()
         compose.waitForIdle()
         compose.onNodeWithText("Drop-off 08:00").assertIsDisplayed()
         // A tap beside the card closes it.

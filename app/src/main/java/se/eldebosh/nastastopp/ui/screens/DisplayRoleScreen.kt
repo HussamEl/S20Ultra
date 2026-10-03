@@ -108,6 +108,8 @@ fun DisplayRoleScreen(
     availabilityStatus: DisplayLinkClient.Status = DisplayLinkClient.Status.IDLE,
     /** Goes up by one with each announcement from the driver's phone. */
     spoken: Int = 0,
+    /** Each part of an announcement once this tablet's voice has said it (null while it does not speak). */
+    voice: Flow<Int>? = null,
     /** The controls the driver used on the phone's floating panel, and what this display's map shows, for it. */
     remote: Flow<LinkMessage.Remote>? = null,
     onMapView: ((LinkMessage.MapView) -> Unit)? = null,
@@ -133,6 +135,7 @@ fun DisplayRoleScreen(
             onSay = onSay,
             onExit = { showSetup = true },
             spoken = spoken,
+            voice = voice,
             detail = if (!connected) link.lastError?.let { stringResource(R.string.display_last_error, it) } else null,
             weatherWidget = weatherWidget,
             routeMap = routeMap,

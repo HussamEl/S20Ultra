@@ -330,6 +330,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 spoken = spoken,
                                 onSpeak = { controller.repeat() },
                                 onSay = { graph.announcer.speak(it) },
+                                voice = graph.announcer.said,
                                 onExit = { vm.back() },
                                 dark = settings.displayDark,
                                 onToggleLook = { graph.settings.update { it.copy(displayDark = !it.displayDark) } },
@@ -447,6 +448,8 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 onSpeak = { remote?.announcement?.let { graph.announcer.speak(it) } },
                                 onSay = { graph.announcer.speak(it) },
                                 spoken = spoken,
+                                // This tablet's own voice says the announcements (unless switched off): the display follows it.
+                                voice = if (settings.displaySpeaks) graph.announcer.said else null,
                                 onToggleSpeaks = { v -> graph.settings.update { it.copy(displaySpeaks = v) } },
                                 onToggleLook = { graph.settings.update { it.copy(displayDark = !it.displayDark) } },
                                 onOrder = { ids -> client.order(ids) },

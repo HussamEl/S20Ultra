@@ -70,6 +70,8 @@ data class AppColors(
      * night map; written large on nothing.
      */
     val wayStops: List<Color> = WayStops,
+    /** A word of the next stop's address on the passenger display as it swells: yellow (a dark gold by day). */
+    val swell: Color = Palette.TaxiYellow,
     // Reference numbers.
     val refText: Color,
     val refPill: Color,
@@ -218,6 +220,7 @@ val DayColors = AppColors(
     highlight = Palette.SkyInk,
     showHues = listOf(Palette.Ember700, Palette.Violet700, Palette.Teal700, Palette.Rose700, Palette.Emerald700, Palette.Fuchsia700),
     soon = Palette.Orange600,
+    swell = Palette.Gold,
     refText = Color(0xFF6B7280),
     refPill = Palette.Ink.copy(alpha = 0.9f),
     onRefPill = Color(0xFFF1F2F4),

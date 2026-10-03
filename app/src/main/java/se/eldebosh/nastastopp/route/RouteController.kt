@@ -186,16 +186,18 @@ class RouteController(
     private fun lastNameOf(name: String?): String? = name?.trim()?.substringAfterLast(' ')?.takeIf { it.isNotBlank() }
 
     /**
-     * "Nästa stopp: …. Därefter: …." With the full announcement (the default) the next stop is
-     * said with its street and number, district and town, and the one after it with its street
-     * and number and district. Otherwise both by district or town only.
+     * "Nästa stopp: …. Klockan …. Därefter: …. Klockan …." With the full announcement (the
+     * default) the next stop is said with its street and number, district and town, and the one
+     * after it with its street and number and district. Otherwise both by district or town only.
+     * Each with its trip's time after it.
      */
     fun announcementFor(stops: List<Stop>): Announcement {
         val first = stops.firstOrNull() ?: return Announcements.finished(settings.current.englishRepeat)
         val full = settings.current.detail == AnnouncementDetail.FULL
         val next = if (full) fullSpokenName(first) else spokenName(first)
-        val then = stops.getOrNull(1)?.let { if (full) thenSpokenName(it) else spokenName(it) }
-        return Announcements.forRemaining(listOfNotNull(next, then), settings.current.englishRepeat)
+        val after = stops.getOrNull(1)
+        val then = after?.let { if (full) thenSpokenName(it) else spokenName(it) }
+        return Announcements.nextStops(next, then, settings.current.englishRepeat, first.time, after?.time)
     }
 
     private fun buildDisplay(r: RouteData?, x: DisplayExtras): DisplaySnapshot {

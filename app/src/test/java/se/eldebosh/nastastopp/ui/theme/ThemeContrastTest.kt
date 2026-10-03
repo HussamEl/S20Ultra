@@ -34,6 +34,7 @@ class ThemeContrastTest {
         check(look, "time on card", c.time, c.card, 4.5)
         check(look, "passenger highlight on page", c.highlight, c.background, 4.5)
         check(look, "passenger highlight on card", c.highlight, c.card, 4.5)
+        check(look, "a swelling word on the page", c.swell, c.background, 4.5)
         // The first card's time on the card's tint while it is said: large bold text.
         check(look, "passenger highlight on a lit card", c.highlight, c.infoSoft, 3.0)
         check(look, "\"DÄREFTER\" on its chip", c.text, c.tonalHigh, 4.5)
