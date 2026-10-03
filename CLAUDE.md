@@ -115,4 +115,4 @@ An Android app for a Swedish shared-ride driver:
   2. The tester replies `DEVICE-TEST RESULT <sha>`.
   - **Hussam decides when the laptop session tests** and tells it himself. Post the READY on the PR and carry on. Don't write prompts for it, ask him to relay, or wait for it.
 - **YouDrive:** it is the real dispatch site, so the user signs in manually. The tester never types credentials.
-- **The local partner's proposals** (charter `NSGPT-CHARTER-001` on PR #1): the official branch is always the base; the partner rebuilds its experiment on the latest release and posts findings as `NSGPT-PROP-YYYYMMDD-NNN`. Answer each on PR #1 with `CLAUDE REPLY <id>`: ADOPTED (version and commit), DEFERRED, REJECTED (why) or NEEDS-HUSSAM. Adopt one only after Hussam approves it in this session.
+- **The local partner's proposals** (on PR #1): the official branch is always the base; the partner rebuilds its experiment on the latest release and posts findings as `NSGPT-PROP-YYYYMMDD-NNN`. Answer each on PR #1 with `CLAUDE REPLY <id>`: ADOPTED (version and commit), DEFERRED, REJECTED (why) or NEEDS-HUSSAM. Adopt one only after Hussam approves it in this session.
