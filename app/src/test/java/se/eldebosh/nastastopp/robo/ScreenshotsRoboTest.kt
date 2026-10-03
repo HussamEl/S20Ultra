@@ -38,6 +38,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
 import se.eldebosh.nastastopp.core.nav.DisplayEta
@@ -1011,6 +1012,46 @@ class ScreenshotsRoboTest {
         compose.mainClock.advanceTimeBy(500)
         compose.onNodeWithText("A drop-off before its pick-up: cannot be used").assertIsDisplayed()
         compose.onNodeWithTag("ref_250").assertIsNotEnabled()
+        compose.mainClock.autoAdvance = true
+    }
+
+    /** On his map the driver drags a trip by its handle to another place in the list; Use sends that order. */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun theDriverDragsATripInTheList() {
+        val sent = mutableListOf<List<Long>>()
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        compose.setContent {
+            val scope = rememberCoroutineScope()
+            val map = remember { RouteMap(context, "AIzaTestKeyForTheMapOnly", true, "#000000", scope) }
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(
+                    orderSnapshot,
+                    status = "Galaxy S20",
+                    connected = true,
+                    onSpeak = {},
+                    onExit = {},
+                    time = { LocalTime.of(7, 20, 42) },
+                    routeMap = map,
+                    onOrder = { sent += it },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.mainClock.autoAdvance = false
+        compose.onNodeWithTag("ref_219").performClick()
+        compose.mainClock.advanceTimeBy(1_500)
+        compose.onAllNodesWithTag("ref_245").assertCountEquals(3)
+        // C's handle, two rows up, a few pixels at a time: C before A and B.
+        compose.onAllNodesWithContentDescription("Drag to move the trip")[2].performTouchInput {
+            down(center)
+            repeat(12) { moveBy(Offset(0f, -9f)) }
+            up()
+        }
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.onNodeWithTag("ref_249").assertIsDisplayed()
+        compose.onNodeWithTag("ref_250").performClick()
+        assertEquals(listOf(listOf(13L, 11L, 12L)), sent)
         compose.mainClock.autoAdvance = true
     }
 
