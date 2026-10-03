@@ -191,6 +191,7 @@
     <string name="display_way_apply">Använd ordningen</string>
     <string name="display_way_best_already">Ordningen är redan bäst</string>
     <string name="display_way_suggested">Förslag: %1$d min kortare, %2$d min sen (var %3$d)</string>
+    <string name="display_way_suggested_instead">Förslag i stället: %1$d min sen (ordningen som visas har ingen väg eller kan inte användas)</string>
     <string name="display_way_pickup_first">En lämning före sin hämtning: kan inte användas</string>
     <string name="display_way_trip">%1$s: %2$s</string>
     <string name="display_way_earlier">Tidigare</string>

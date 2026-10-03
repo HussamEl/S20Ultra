@@ -110,8 +110,16 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
     private var askedFor: String? = null
     private var askedAtMs = 0L
 
-    /** When Google last gave no way for the next stops (no network, an error): asked again after [RETRY_MS]. */
+    /**
+     * When Google last gave no way for the next stops (no network, an error): asked again after
+     * [RETRY_MS]; not for the same stops when Google refused the request itself ([refusedFor]: the
+     * key, its rights or the request; asking again would be refused again).
+     */
     private var failedAtMs: Long? = null
+    private var refusedFor: String? = null
+
+    /** The last answer's HTTP code (0: no answer), as it came. */
+    @Volatile private var lastCode: Int? = null
 
     /** Where the vehicle was when the next stops' way was last asked for. */
     private var askedFrom: MapWay? = null
@@ -142,7 +150,7 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
      * The best order for the driver's way ([key]: its stops as asked), as indexes into them, with
      * the way as it was asked ([current]) to compare.
      */
-    data class Suggestion(val key: String, val best: OrderPlanner.Plan, val current: OrderPlanner.Plan)
+    data class Suggestion(val key: String, val best: OrderPlanner.Plan, val current: OrderPlanner.Plan?)
 
     /** The driver holds the map (a held [reveal]): his touches reach it. */
     private var held = false
@@ -293,6 +301,7 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
         val key = keyOf(way.stops)
         val now = SystemClock.elapsedRealtime()
         if (asking?.isActive == true) return
+        if (key == refusedFor) return
         failedAtMs?.let { if (now - it < RETRY_MS) return }
         // The same stops: asked again only after a while and once the car has gone some way, so a
         // car waiting at a stop asks nothing; at once when no way came.
@@ -314,6 +323,7 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
             val line = withContext(Dispatchers.IO) { fetch(way.lat, way.lng, way.stops) }
             if (line == null) {
                 failedAtMs = SystemClock.elapsedRealtime()
+                if (lastCode.let { it != null && it in 400..499 && it != TOO_MANY }) refusedFor = key
                 return@launch
             }
             failedAtMs = null
@@ -387,7 +397,8 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
             val seconds = withContext(Dispatchers.IO) { fetchMatrix(from.lat, from.lng, stops) }
             suggesting = false
             seconds ?: return@launch
-            val current = OrderPlanner.plan(stops.indices.toList(), trips, seconds, now) ?: return@launch
+            // The order shown may have no way (or drop a passenger off first): the best one is still put up.
+            val current = OrderPlanner.plan(stops.indices.toList(), trips, seconds, now)?.takeIf { OrderPlanner.allowed(it.order, trips) }
             val best = OrderPlanner.best(trips, seconds, now) ?: return@launch
             suggestion = Suggestion(keyOf(stops), best, current)
         }
@@ -468,6 +479,7 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
     }.onFailure { answered(0) }.getOrNull()
 
     private fun answered(code: Int?) {
+        lastCode = code
         main.post { routeAnswer = code }
     }
 
@@ -550,6 +562,9 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
 
         /** No way came for the next stops: asked again after this long, whether the car moved or not. */
         private const val RETRY_MS = 30_000L
+
+        /** Google's "too many requests": a wait, not a refusal. */
+        private const val TOO_MANY = 429
         private const val REUSE_M = 1_000.0
 
         /** Ways kept for orders tried again. */

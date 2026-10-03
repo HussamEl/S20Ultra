@@ -6,6 +6,7 @@ import android.content.Context
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -126,6 +127,7 @@ class DisplayLinkClient(
         started = false
         job?.cancel()
         job = null
+        session = null
         closeSocket()
         staleJob?.cancel()
         _snapshot.value = null
@@ -135,7 +137,7 @@ class DisplayLinkClient(
 
     /** Tries the secure channel, then the fallback channel. Returns null if a link was made, else the error. */
     @SuppressLint("MissingPermission") // availability() checked the permission
-    private fun connect(target: LinkCandidate): String? {
+    private suspend fun connect(target: LinkCandidate): String? {
         val device = try {
             Bluetooth.adapter(context)?.getRemoteDevice(target.address)
         } catch (e: Exception) {
@@ -143,6 +145,8 @@ class DisplayLinkClient(
         } ?: return "no adapter"
         var error: String? = null
         for (secure in listOf(true, false)) {
+            // The link was stopped (or another device chosen) while the last try was waiting.
+            if (!currentCoroutineContext().isActive) return STOPPED
             val s = try {
                 if (secure) {
                     device.createRfcommSocketToServiceRecord(LinkProtocol.SERVICE_UUID)
@@ -161,23 +165,37 @@ class DisplayLinkClient(
                 closeSocket()
                 continue
             }
-            runSession(s, target)
-            return null
+            error = runSession(s, target) ?: return null
         }
         return error
     }
 
-    private fun runSession(s: BluetoothSocket, target: LinkCandidate) {
-        staleJob?.cancel()
-        // Another phone: nothing of the last one's trips stays.
-        if (target.address != snapshotFrom) _snapshot.value = null
-        _state.value = State(Status.CONNECTED, target.name)
-        onConnected(target.address)
+    /**
+     * One link with the phone at [target]: this tablet says first that it is a passenger display;
+     * the phone answers that it is a controller of the same protocol, within [HELLO_MS], before the
+     * link counts as made. Null once a link was made and has ended; else why none was.
+     */
+    private suspend fun runSession(s: BluetoothSocket, target: LinkCandidate): String? {
         var watchdog: Job? = null
+        var linked = false
         try {
             val session = LinkSession(s.inputStream, s.outputStream)
-            this.session = session
             session.send(LinkMessage.Hello(LinkProtocol.VERSION, LinkProtocol.ROLE_DISPLAY))
+            val giveUp = scope.launch(Dispatchers.IO) {
+                delay(HELLO_MS)
+                closeSocket()
+            }
+            val hello = runCatching { session.receive() }.getOrNull()
+            giveUp.cancel()
+            if (!currentCoroutineContext().isActive) return STOPPED
+            if (!LinkProtocol.isControllerHello(hello)) return "no Nästa Stopp phone"
+            linked = true
+            staleJob?.cancel()
+            // Another phone: nothing of the last one's trips stays.
+            if (target.address != snapshotFrom) _snapshot.value = null
+            this.session = session
+            _state.value = State(Status.CONNECTED, target.name)
+            onConnected(target.address)
             // The controller pings every 10 s; silence for 30 s means the link is dead.
             lastReceived = System.currentTimeMillis()
             watchdog = scope.launch(Dispatchers.IO) {
@@ -192,6 +210,8 @@ class DisplayLinkClient(
             while (true) {
                 val msg = session.receive() ?: break
                 lastReceived = System.currentTimeMillis()
+                // A message read as the link was stopped is not taken.
+                if (this.session !== session) break
                 when (msg) {
                     is LinkMessage.State -> {
                         _snapshot.value = msg.snapshot
@@ -207,14 +227,17 @@ class DisplayLinkClient(
             session = null
             watchdog?.cancel()
             closeSocket()
-            _state.value = State(Status.CONNECTING, target.name)
-            // A short break keeps the last trips on the display (its dot turns red); a longer one clears them.
-            staleJob?.cancel()
-            staleJob = scope.launch {
-                delay(STALE_MS)
-                _snapshot.value = null
+            if (linked && started) {
+                _state.value = State(Status.CONNECTING, target.name)
+                // A short break keeps the last trips on the display (its dot turns red); a longer one clears them.
+                staleJob?.cancel()
+                staleJob = scope.launch {
+                    delay(STALE_MS)
+                    _snapshot.value = null
+                }
             }
         }
+        return if (linked) null else "no answer"
     }
 
     /** Sends a button pressed on this tablet's floating panel to the driver's phone (while connected). */
@@ -240,6 +263,11 @@ class DisplayLinkClient(
     companion object {
         private const val RETRY_MS = 3_000L
         private const val SILENCE_MS = 30_000L
+
+        private const val STOPPED = "stopped"
+
+        /** A phone that has not said it is a controller after this long is let go. */
+        private const val HELLO_MS = 10_000L
 
         /** The last trips stay this long after the link broke, while it is found again. */
         private const val STALE_MS = 2 * 60_000L

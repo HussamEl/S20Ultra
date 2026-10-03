@@ -191,6 +191,7 @@
     <string name="display_way_apply">Use this order</string>
     <string name="display_way_best_already">This order is already the best</string>
     <string name="display_way_suggested">Suggested: %1$d min shorter, %2$d min late (was %3$d)</string>
+    <string name="display_way_suggested_instead">Suggested instead: %1$d min late (the order shown has no way or cannot be used)</string>
     <string name="display_way_pickup_first">A drop-off before its pick-up: cannot be used</string>
     <string name="display_way_trip">%1$s: %2$s</string>
     <string name="display_way_earlier">Earlier</string>

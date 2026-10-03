@@ -95,7 +95,7 @@ class LinkProtocolTest {
         assertEquals("Nästa stopp: Herrhagen. Därefter: Kil.", (received[2] as LinkMessage.Announce).sv)
     }
 
-    /** The phone sends its trips only to a passenger display of this protocol that says so first. */
+    /** The phone sends its trips only to a passenger display of this protocol that says so first; the phone answers as a controller. */
     @Test
     fun onlyADisplaysHelloOpensTheLink() {
         assertTrue(LinkProtocol.isDisplayHello(LinkMessage.Hello(LinkProtocol.VERSION, LinkProtocol.ROLE_DISPLAY)))
@@ -103,5 +103,9 @@ class LinkProtocolTest {
         assertFalse(LinkProtocol.isDisplayHello(LinkMessage.Hello(LinkProtocol.VERSION + 1, LinkProtocol.ROLE_DISPLAY)))
         assertFalse(LinkProtocol.isDisplayHello(LinkMessage.Ping))
         assertFalse(LinkProtocol.isDisplayHello(null))
+        // And the tablet counts the link as made only when the phone answers as a controller.
+        assertTrue(LinkProtocol.isControllerHello(LinkMessage.Hello(LinkProtocol.VERSION, LinkProtocol.ROLE_CONTROLLER)))
+        assertFalse(LinkProtocol.isControllerHello(LinkMessage.Hello(LinkProtocol.VERSION, LinkProtocol.ROLE_DISPLAY)))
+        assertFalse(LinkProtocol.isControllerHello(LinkMessage.Ping))
     }
 }

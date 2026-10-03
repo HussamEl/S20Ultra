@@ -62,6 +62,10 @@ object LinkProtocol {
     fun isDisplayHello(message: LinkMessage?): Boolean =
         message is LinkMessage.Hello && message.version == VERSION && message.role == ROLE_DISPLAY
 
+    /** The phone answers that it is a controller of this protocol: only then does the tablet count the link as made. */
+    fun isControllerHello(message: LinkMessage?): Boolean =
+        message is LinkMessage.Hello && message.version == VERSION && message.role == ROLE_CONTROLLER
+
     /** Bluetooth RFCOMM service of this app (random, fixed): secure (authenticated) channel. */
     val SERVICE_UUID: UUID = UUID.fromString("7d3f2a91-5c4e-4b8a-9e61-2f0c8d4b6a15")
 

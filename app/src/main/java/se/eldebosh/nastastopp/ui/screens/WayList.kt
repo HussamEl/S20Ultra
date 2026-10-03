@@ -89,8 +89,12 @@ internal class WayEdit {
     var sent by mutableStateOf<List<Long>?>(null)
     var advice by mutableStateOf<Advice?>(null)
 
-    /** The best order is the one shown ([same]), or it saves [savedSeconds] and leaves [lateAfter] minutes late (was [lateBefore]). */
-    data class Advice(val same: Boolean, val savedSeconds: Int = 0, val lateBefore: Int = 0, val lateAfter: Int = 0)
+    /**
+     * The best order is the one shown ([same]), or it saves [savedSeconds] and leaves [lateAfter]
+     * minutes late (was [lateBefore]); [unknownBefore] when the order shown had no way or could
+     * not be used, so there is nothing to compare with.
+     */
+    data class Advice(val same: Boolean, val savedSeconds: Int = 0, val lateBefore: Int = 0, val lateAfter: Int = 0, val unknownBefore: Boolean = false)
 
     fun clear() {
         preview = null
@@ -219,7 +223,12 @@ internal fun WayList(
         } else {
             edit.preview = s.best.order.map { shown[it] }
             edit.picked = null
-            edit.advice = WayEdit.Advice(false, (s.current.seconds - s.best.seconds).coerceAtLeast(0), s.current.lateMinutes, s.best.lateMinutes)
+            val current = s.current
+            edit.advice = if (current == null) {
+                WayEdit.Advice(false, lateAfter = s.best.lateMinutes, unknownBefore = true)
+            } else {
+                WayEdit.Advice(false, (current.seconds - s.best.seconds).coerceAtLeast(0), current.lateMinutes, s.best.lateMinutes)
+            }
         }
     }
     // Dragged by its handle: the trip follows the finger and takes a neighbour's place as it passes it.
@@ -441,6 +450,7 @@ private fun adviceText(advice: WayEdit.Advice?, asking: Boolean): String? = when
     asking -> stringResource(R.string.display_way_asking)
     advice == null -> null
     advice.same -> stringResource(R.string.display_way_best_already)
+    advice.unknownBefore -> stringResource(R.string.display_way_suggested_instead, advice.lateAfter)
     else -> stringResource(R.string.display_way_suggested, (advice.savedSeconds + 30) / 60, advice.lateAfter, advice.lateBefore)
 }
 
