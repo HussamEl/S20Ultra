@@ -60,6 +60,7 @@ import se.eldebosh.nastastopp.core.geo.StreetInfo
 import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.core.parse.TripTimes
 import se.eldebosh.nastastopp.route.model.RouteData
+import se.eldebosh.nastastopp.route.Entrance
 import se.eldebosh.nastastopp.route.model.Stop
 import se.eldebosh.nastastopp.ui.DoneMarks
 import se.eldebosh.nastastopp.ui.AppButton
@@ -97,6 +98,11 @@ fun ActiveRouteScreen(
     onEnd: () -> Unit,
     onOpenDisplay: () -> Unit,
     onToggleOverlay: () -> Unit,
+    /** The driver's entrance for a stop's address, or null. */
+    entranceOf: (Stop) -> Entrance? = { null },
+    /** Google Maps for the current stop alone: navigation to it, and its street photos (null: no point known). */
+    onNavigateStop: (Stop) -> Unit = {},
+    onStreetViewStop: ((Stop) -> Unit)? = null,
 ) {
     // Keep the screen on while this screen is visible.
     val view = LocalView.current
@@ -156,7 +162,15 @@ fun ActiveRouteScreen(
             }
             if (current != null) {
                 item(key = "current-${current.id}") {
-                    CurrentCard(current, spokenName(current), statusText())
+                    val entrance = entranceOf(current)
+                    CurrentCard(
+                        current,
+                        spokenName(current),
+                        statusText(),
+                        entrance = entrance,
+                        onNavigate = { onNavigateStop(current) },
+                        onStreetView = onStreetViewStop?.takeIf { current.isLocated || entrance?.hasPoint == true }?.let { { it(current) } },
+                    )
                 }
             }
             if (route.stops.size > 1) {
@@ -310,7 +324,14 @@ private fun TimeStatusChip(time: String, nowMs: Long) {
  * drop-off) inside a thick border, the time on a yellow pill, the passenger's name beside it.
  */
 @Composable
-private fun CurrentCard(current: Stop, area: String, status: String) {
+private fun CurrentCard(
+    current: Stop,
+    area: String,
+    status: String,
+    entrance: Entrance?,
+    onNavigate: () -> Unit,
+    onStreetView: (() -> Unit)?,
+) {
     val nowMs = rememberNowMs()
     TripSurface(current.kind, Modifier.ref(68).fillMaxWidth(), current = true) {
         Column(Modifier.animateContentSize().padding(16.dp)) {
@@ -381,6 +402,38 @@ private fun CurrentCard(current: Stop, area: String, status: String) {
                     color = AppTheme.colors.onTrip,
                     modifier = Modifier.ref(72),
                 )
+            }
+            // The driver's own stopping point and how to get in, when he set them.
+            if (entrance != null) {
+                Text(
+                    listOfNotNull(stringResource(if (entrance.hasPoint) R.string.entrance_saved else R.string.entrance_note_only), entrance.note)
+                        .joinToString(" · "),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = AppTheme.colors.success,
+                    modifier = Modifier.ref(258).padding(top = 4.dp),
+                )
+            }
+            // Google Maps for this stop alone: navigation to its point (never a search for its name),
+            // and Google's street photos of it.
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+                AppButton(
+                    stringResource(R.string.stop_navigate),
+                    onNavigate,
+                    Modifier.ref(252).weight(1f),
+                    icon = R.drawable.ic_navigation,
+                    primary = false,
+                    minHeight = 40.dp,
+                )
+                if (onStreetView != null) {
+                    AppButton(
+                        stringResource(R.string.stop_street_view),
+                        onStreetView,
+                        Modifier.ref(253).weight(1f),
+                        icon = R.drawable.ic_street,
+                        primary = false,
+                        minHeight = 40.dp,
+                    )
+                }
             }
             Spacer(Modifier.height(8.dp))
             Text(status, style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.onTripMuted, modifier = Modifier.ref(73))

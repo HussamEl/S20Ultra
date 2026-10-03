@@ -181,7 +181,8 @@
     <string name="display_map_car">Bilens position</string>
     <string name="display_map_stop">Stoppets byggnad</string>
     <string name="display_map_whole">Hela vägen</string>
-    <string name="display_map_tour">Flyg till stoppet igen</string>
+    <string name="display_map_tour">3D-karta: flyg till stoppet</string>
+    <string name="display_map_flat">Platt karta</string>
     <string name="display_map_street">Googles gatubilder vid stoppet</string>
     <string name="display_map_back">Tillbaka till kartan</string>
     <string name="display_way_no_street">Inga gatubilder här</string>
@@ -340,4 +341,19 @@
     <string name="street_map_downloading_busy">Hämtar… del %1$d av %2$d · servern är upptagen, väntar</string>
     <string name="street_map_failed">Hämtningen stannade vid del %1$d av %2$d: tryck för att fortsätta</string>
     <string name="street_map_delete">Radera gatukartan</string>
+    <string name="stop_navigate">Navigera hit</string>
+    <string name="stop_street_view">Gatubilder</string>
+    <string name="menu_navigate_here">Navigera hit i Google Maps</string>
+    <string name="menu_street_view">Gatubilder i Google Maps</string>
+    <string name="entrance_saved">Infart sparad</string>
+    <string name="entrance_note_only">Anteckning om infarten</string>
+    <string name="entrance_point_label">Stopplats (koordinater)</string>
+    <string name="entrance_point_hint">Klistra in punkten från Google Maps, eller lämna tomt</string>
+    <string name="entrance_point_invalid">Ingen punkt i Sverige här</string>
+    <string name="entrance_note_label">Hur man kommer in (t.ex. från gården)</string>
+    <string name="settings_entrances">Infarter</string>
+    <string name="help_entrances">Rätt stopplats och en anteckning om infarten för en adress, som du sparat i stoppets redigeringsruta. De finns bara på den här telefonen, utan namn, tills du raderar dem, och navigeringen går dit med koordinater. Adressens egen punkt ändras inte.</string>
+    <string name="entrances_saved">Adresser med sparad infart: %1$d</string>
+    <string name="entrances_delete">Tryck för att radera alla</string>
+    <string name="entrances_delete_confirm">Radera alla sparade infarter och anteckningar (antal: %1$d)?</string>
 </resources>

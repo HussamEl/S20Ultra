@@ -64,6 +64,7 @@ class RouteController(
     private val extractor: AddressExtractor,
     private val history: TripHistory,
     private val places: PlaceMemory = PlaceMemory.None,
+    private val entrances: Entrances = Entrances.None(),
 ) {
     private val _route = MutableStateFlow(repo.load())
     val route: StateFlow<RouteData?> = _route.asStateFlow()
@@ -76,8 +77,11 @@ class RouteController(
     private val extras = MutableStateFlow(DisplayExtras())
 
     /** What the passenger display shows (locally and on a connected tablet). */
-    val display: StateFlow<DisplaySnapshot> = combine(_route, settings.state, extras) { r, _, x -> buildDisplay(r, x) }
+    val display: StateFlow<DisplaySnapshot> = combine(_route, settings.state, extras, entrances.all) { r, _, x, _ -> buildDisplay(r, x) }
         .stateIn(scope, SharingStarted.Eagerly, buildDisplay(_route.value, extras.value))
+
+    /** The driver's entrances by address ([Stop.entranceKey]). */
+    val savedEntrances: StateFlow<Map<String, Entrance>> get() = entrances.all
 
     /** Shows [weather] and Google Maps' remaining travel time ([eta]) on the passenger display. */
     fun setDisplayExtras(weather: DisplayWeather?, eta: DisplayEta?) {
@@ -206,12 +210,14 @@ class RouteController(
                 // where the tablet's map routes to (the street, never a home's name written before it).
                 val at = s.geo?.takeIf { s.isLocated }
                 val routeTo = at?.addressLine?.takeIf { it.isNotBlank() } ?: s.streetText
+                // The tablet's map goes to the driver's entrance when he set one, else to the address's point.
+                val point = entranceOf(s)?.takeIf { it.hasPoint }?.let { it.lat!! to it.lng!! } ?: at?.let { it.lat to it.lng }
                 if (full) {
                     // A place of care by its short name, said in full when tapped.
                     val said = Places.spokenName(placeOf(s), localities::contains)
-                    DisplayItem(time = s.time, title = displayTitle(s), subtitle = spokenName(s), doneInYouDrive = s.youDriveDone, kind = s.kind, place = routeTo, lat = at?.lat, lng = at?.lng, said = said, card = s.card, id = s.id, rider = riders[riderKey(s.name)])
+                    DisplayItem(time = s.time, title = displayTitle(s), subtitle = spokenName(s), doneInYouDrive = s.youDriveDone, kind = s.kind, place = routeTo, lat = point?.first, lng = point?.second, said = said, card = s.card, id = s.id, rider = riders[riderKey(s.name)])
                 } else {
-                    DisplayItem(time = s.time, title = spokenName(s), doneInYouDrive = s.youDriveDone, kind = s.kind, place = routeTo, lat = at?.lat, lng = at?.lng, card = s.card, id = s.id, rider = riders[riderKey(s.name)])
+                    DisplayItem(time = s.time, title = spokenName(s), doneInYouDrive = s.youDriveDone, kind = s.kind, place = routeTo, lat = point?.first, lng = point?.second, card = s.card, id = s.id, rider = riders[riderKey(s.name)])
                 }
             },
             announcement = if (r.active && r.stops.isNotEmpty()) announcementFor(r.stops) else null,
@@ -328,6 +334,64 @@ class RouteController(
     }
 
     fun delete(id: Long) = update { r -> r.copy(stops = r.stops.filterNot { it.id == id }) }
+
+    // ------------------------------------------------------------------------------------------
+    // The driver's entrances and Google Maps for one stop
+
+    /** The driver's entrance for [stop]'s address, or null. */
+    fun entranceOf(stop: Stop): Entrance? = entrances.all.value[stop.entranceKey]
+
+    /**
+     * Sets the driver's entrance for [stop]'s address ([point] and [note]; both empty removes it).
+     * It never replaces the address's own point: that stays on the stop.
+     */
+    fun setEntrance(stop: Stop, point: Pair<Double, Double>?, note: String?) {
+        val key = stop.entranceKey
+        val text = note?.trim()?.takeIf { it.isNotEmpty() }
+        if (point == null && text == null) {
+            entrances.remove(key)
+            return
+        }
+        val now = System.currentTimeMillis()
+        val before = entrances.all.value[key]
+        entrances.set(
+            key,
+            Entrance(
+                address = stop.streetText,
+                lat = point?.first,
+                lng = point?.second,
+                note = text,
+                savedAtMs = before?.savedAtMs ?: now,
+                updatedAtMs = now,
+            ),
+        )
+    }
+
+    /** Deletes every entrance the driver saved. */
+    fun clearEntrances() = entrances.clear()
+
+    /**
+     * What Google Maps is given for [stop] in a batch: the driver's entrance as a point when he set
+     * one; else the address, which Google Maps leads to its own way in.
+     */
+    fun mapsDestination(stop: Stop): String =
+        entranceOf(stop)?.takeIf { it.hasPoint }?.let { MapsUrlBuilder.point(it.lat!!, it.lng!!) } ?: stop.navigationText
+
+    /** The point of [stop] for Google Maps: the driver's entrance, else the address's point; null when neither is known. */
+    fun pointOf(stop: Stop): Pair<Double, Double>? =
+        entranceOf(stop)?.takeIf { it.hasPoint }?.let { it.lat!! to it.lng!! } ?: stop.geo?.takeIf { stop.isLocated }?.let { it.lat to it.lng }
+
+    /** Google Maps navigates to [stop] alone, by its point when known (never a search for its name), else its address. */
+    fun navigateTo(stop: Stop) {
+        val to = pointOf(stop)?.let { (lat, lng) -> MapsUrlBuilder.point(lat, lng) } ?: stop.navigationText
+        maps.open(MapsUrlBuilder.navigateUrl(to))
+    }
+
+    /** Google's street photos at [stop]'s point (nothing when it has none). */
+    fun streetViewAt(stop: Stop) {
+        val (lat, lng) = pointOf(stop) ?: return
+        maps.open(MapsUrlBuilder.streetViewUrl(lat, lng))
+    }
 
     /** Drops every stop above [id] (e.g. already completed trips in the screenshot). */
     fun deleteAllAbove(id: Long) = update { r ->
@@ -538,7 +602,7 @@ class RouteController(
         val batch = r.stops.take(MapsUrlBuilder.MAX_STOPS_PER_LAUNCH)
         set(r.copy(active = true, batchStartStopId = batch.first().id, batchEndStopId = batch.last().id))
         speak(announcementFor(r.stops))
-        maps.launch(batch.map { it.navigationText })
+        maps.launch(batch.map(::mapsDestination))
         ensureStreetService()
         return true
     }
@@ -575,7 +639,7 @@ class RouteController(
         )
         speak(announcementFor(remaining))
         if (relaunch) {
-            maps.launch(remaining.take(MapsUrlBuilder.MAX_STOPS_PER_LAUNCH).map { it.navigationText }, fromBackground = true)
+            maps.launch(remaining.take(MapsUrlBuilder.MAX_STOPS_PER_LAUNCH).map(::mapsDestination), fromBackground = true)
         }
     }
 
@@ -603,7 +667,7 @@ class RouteController(
             ),
         )
         speak(announcementFor(stops))
-        if (relaunch) maps.launch(batch.map { it.navigationText }, fromBackground = true)
+        if (relaunch) maps.launch(batch.map(::mapsDestination), fromBackground = true)
         return true
     }
 
@@ -652,7 +716,7 @@ class RouteController(
         if (r.stops.isEmpty()) return
         val batch = r.stops.take(MapsUrlBuilder.MAX_STOPS_PER_LAUNCH)
         if (r.active) set(r.copy(batchStartStopId = batch.first().id, batchEndStopId = batch.last().id))
-        maps.launch(batch.map { it.navigationText }, fromBackground)
+        maps.launch(batch.map(::mapsDestination), fromBackground)
     }
 
     /**

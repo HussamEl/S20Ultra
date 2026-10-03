@@ -6,22 +6,25 @@
   conceal); nothing else is sent anywhere from here. The map grows and fades here, in the page:
   the app never scales or fades the WebView itself, so the map is drawn the same on every device.
 
-  Two maps:
-  - the way, flat (Google's map), only looked at: the minute's moment;
-  - the driver's own (hold), opened by his tap: Google's 3D map of real buildings, moved by touch
-    and by the app's buttons (zoom, toCar, toStop, whole). It opens with a flight (tour): from
-    above the car up, along to the stop looked at, and down to its building; then Google's own
-    street photos of it (Street View, street) when there are some, else once around it. Where the
-    3D map cannot be drawn, the flat one is held and moved by touch instead.
+  One page, one map for the display's whole life: what changes is only what it shows. Google bills
+  each map, 3D map and street-photo view made, not what is done with them, so each is made once
+  and kept:
+  - the flat map (Google's map): the minute's moment, only looked at; and the driver's own (hold),
+    opened by his tap, moved by his touch and the app's buttons (zoom, toCar, toStop, whole);
+  - Google's 3D map of real buildings, made only when the driver asks for it (tour): a flight from
+    above the car up, along to the stop looked at, and down to its building, once around it;
+  - Google's street photos of the stop (Street View, street), only when he asks for them.
+  Where the 3D map cannot be drawn, it is not offered again.
 -->
 <html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 <style>
-  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: __GROUND__; }
+  :root { --ground: __GROUND__; }
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: var(--ground); }
   #stage { position: fixed; left: 0; top: 0; right: 0; bottom: 0; opacity: 0; transform: scale(0.06); will-change: transform, opacity; }
-  #map, #map3d { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: __GROUND__; }
+  #map, #map3d { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: var(--ground); }
   #map { pointer-events: none; }
   #map3d { display: none; }
   #map3d > * { width: 100%; height: 100%; }
@@ -39,7 +42,7 @@
   .car { width: 26px; height: 26px; background: #1A73E8; border: 5px solid #FFFFFF;
          box-shadow: 0 0 0 10px rgba(26, 115, 232, 0.22), 0 2px 8px rgba(0, 0, 0, 0.35); }
   .pin { position: absolute; transform: translate(-50%, -50%); line-height: 0; }
-  #street { position: absolute; left: 0; top: 0; right: 0; bottom: 0; display: none; background: __GROUND__; }
+  #street { position: absolute; left: 0; top: 0; right: 0; bottom: 0; display: none; background: var(--ground); }
   body.street #street { display: block; }
   body.street #map3d, body.street #map { visibility: hidden; }
 </style>
@@ -63,11 +66,11 @@
   var car = null, stops = [], focusAt = 0, legs = [], shown = false, tiles = false;
   var LETTERS = 'ABCDEFGHIJK';
   var stage = document.getElementById('stage');
-  // The driver's own map (hold): Google's 3D map, made the first time it is wanted and kept.
-  var held = false, stopAt = null;
+  // The driver's own map (hold); Google's 3D map, made the first time he asks for it and kept.
+  var held = false;
   var m3 = null, m3lib = null, m3state = 'none', m3car = null, m3lines = [], m3pins = [];
   // Google's street photos of the stop: the panorama (made once), and whether they show.
-  var pano = null, streetShown = false, STREET_AFTER_MS = 1200;
+  var pano = null, streetShown = false;
   // The flight to the stop: 0 none, 1 over the car, 2 flying, 3 around the building.
   var leg = 0, tourWanted = false, tourHeading = 0;
   // Over the car, at the stop's building, and once around it (metres, degrees, milliseconds).
@@ -85,7 +88,7 @@
   window.gm_authFailure = function () { Android.onAuthFailure(); };
 
   // The map's edges melt into the screen's ground, from solid at the edge to clear inside.
-  (function () {
+  function paintFades() {
     var n = parseInt(GROUND.slice(1), 16), rgb = [(n >> 16) & 255, (n >> 8) & 255, n & 255].join(',');
     function fade(to) {
       return 'linear-gradient(' + to + ', rgba(' + rgb + ',1) 0%, rgba(' + rgb + ',0.82) 30%, rgba(' + rgb + ',0.38) 60%, rgba(' + rgb + ',0.1) 85%, rgba(' + rgb + ',0) 100%)';
@@ -94,7 +97,21 @@
     document.querySelector('.bottom').style.background = fade('to top');
     document.querySelector('.left').style.background = fade('to right');
     document.querySelector('.right').style.background = fade('to left');
-  })();
+  }
+  paintFades();
+
+  // The display's look (black or light) changed: the same map, in the new colours.
+  function setLook(night, ground) {
+    NIGHT = night;
+    GROUND = ground;
+    document.documentElement.style.setProperty('--ground', ground);
+    paintFades();
+    if (!map) return;
+    try {
+      map.setOptions({ styles: NIGHT ? dark : quiet, backgroundColor: GROUND });
+      draw(false);
+    } catch (e) {}
+  }
 
   var quiet = [
     { featureType: 'poi', stylers: [{ visibility: 'off' }] },
@@ -146,7 +163,10 @@
     draw(true);
     Android.onReady();
     if (shown) waitForTiles();
-    if (held) { map.setOptions({ gestureHandling: 'none' }); want3d(); }
+    if (held) {
+      map.setOptions({ gestureHandling: 'greedy' });
+      if (tourWanted) tour();
+    }
   }
 
   // The map grows out of (x, y), fractions of the screen, over ms.
@@ -255,30 +275,38 @@
 
   // --- The driver's own map ---------------------------------------------------------------
 
-  // Opened (true) by the driver's tap, or closed. Opened, the 3D map flies to the stop.
+  // Opened (true) by the driver's tap, or closed. Opened, it is the flat map under his touch;
+  // the 3D map (tour) and the street photos (street) come only when he asks for them.
   function hold(on) {
     held = on;
     document.body.classList.toggle('held', on);
-    if (map) map.setOptions({ gestureHandling: on && m3state === 'failed' ? 'greedy' : 'none' });
+    if (map) map.setOptions({ gestureHandling: on ? 'greedy' : 'none' });
     if (!on) {
-      tourWanted = false;
-      leg = 0;
-      if (m3) m3.stopCameraAnimation();
       street(false);
-      document.body.classList.remove('deep');
-      return;
+      flat();
     }
-    if (m3state === 'failed') return;
-    document.body.classList.add('deep');
-    want3d();
   }
 
-  // The 3D map once Google's script is here (make calls this again when it comes).
-  function want3d() {
-    if (!held || m3state === 'failed') return;
-    if (m3state === 'ready') { tour(); return; }
-    tourWanted = true;
-    if (m3state === 'none' && map) make3d();
+  // Back to the flat map.
+  function flat() {
+    leg = 0;
+    tourWanted = false;
+    if (m3) m3.stopCameraAnimation();
+    if (!document.body.classList.contains('deep')) return;
+    document.body.classList.remove('deep');
+    try { Android.onDeep(false); } catch (e) {}
+  }
+
+  // The 3D map in view; made the first time (Google counts one 3D map load), kept after.
+  function deepen() {
+    if (!held || !map || m3state === 'failed') return false;
+    street(false);
+    if (!document.body.classList.contains('deep')) {
+      document.body.classList.add('deep');
+      try { Android.onDeep(true); } catch (e) {}
+    }
+    if (m3state === 'none') make3d();
+    return m3state === 'ready';
   }
 
   function make3d() {
@@ -314,14 +342,11 @@
     }).catch(function (e) { failed3d(e && e.message || e); });
   }
 
-  // No 3D map here: the flat one is held and moved by touch instead.
+  // No 3D map here: the flat one stays, and the 3D map is not offered again.
   function failed3d(why) {
     if (m3state === 'failed') return;
     m3state = 'failed';
-    tourWanted = false;
-    leg = 0;
-    document.body.classList.remove('deep');
-    if (map && held) map.setOptions({ gestureHandling: 'greedy' });
+    flat();
     problem('3d', why);
     try { Android.on3d(false); } catch (e) {}
   }
@@ -358,11 +383,15 @@
     return { center: { lat: p.lat, lng: p.lng, altitude: 0 }, range: range, tilt: tilt, heading: heading, altitudeMode: 'RELATIVE_TO_GROUND' };
   }
 
-  // The flight: over the car, looking towards the stop; up, along and down to the stop's
-  // building; and once slowly around it. It waits for the stop's point.
+  // The flight, asked for by the driver: over the car, looking towards the stop; up, along and
+  // down to the stop's building; and once slowly around it. It waits for the 3D map and the stop's
+  // point.
   function tour() {
-    if (!m3 || !held) return;
-    street(false);
+    if (!held) return;
+    if (!deepen()) {
+      tourWanted = m3state !== 'failed';
+      return;
+    }
     var s = target();
     if (!s) { tourWanted = true; return; }
     tourWanted = false;
@@ -380,20 +409,12 @@
     m3.flyCameraTo({ endCamera: cam(s, STOP_RANGE, STOP_TILT, tourHeading), durationMillis: Math.min(FLY_MAX_MS, Math.max(FLY_MIN_MS, 2500 + metres * 0.4)) });
   }
 
-  // At the stop's building: Google's street photos of it when there are some, else once around it.
+  // At the stop's building: once slowly around it.
   function landed() {
     if (leg === 2 && held) {
       leg = 3;
       var s = target();
-      if (!s) return;
-      findStreet(s, function (found) {
-        if (leg !== 3 || !held) return;
-        if (found) {
-          setTimeout(function () { if (leg === 3 && held) { leg = 0; showStreet(found, s); } }, STREET_AFTER_MS);
-        } else {
-          m3.flyCameraAround({ camera: cam(s, STOP_RANGE, STOP_TILT, tourHeading), durationMillis: AROUND_MS, repeatCount: 1 });
-        }
-      });
+      if (s) m3.flyCameraAround({ camera: cam(s, STOP_RANGE, STOP_TILT, tourHeading), durationMillis: AROUND_MS, repeatCount: 1 });
     } else if (leg === 3) {
       leg = 0;
     }
@@ -536,7 +557,8 @@
     }
   });
 
-  function deep() { return held && m3 && m3state === 'ready'; }
+  // The 3D map is in view.
+  function deep() { return held && m3state === 'ready' && document.body.classList.contains('deep'); }
 
   // Degrees from north from a to b, and metres between them.
   function bearing(a, b) {

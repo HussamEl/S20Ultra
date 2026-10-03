@@ -57,8 +57,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import se.eldebosh.nastastopp.R
+import se.eldebosh.nastastopp.core.geo.Coordinates
 import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.core.parse.TripTimes
+import se.eldebosh.nastastopp.route.Entrance
 import se.eldebosh.nastastopp.route.model.GeoStatus
 import se.eldebosh.nastastopp.route.model.RouteData
 import se.eldebosh.nastastopp.route.model.Stop
@@ -90,6 +92,12 @@ fun ReviewScreen(
     onAddScreenshots: () -> Unit,
     onStart: () -> Unit,
     onBackToRoute: () -> Unit,
+    /** The driver's entrances by address ([Stop.entranceKey]); [onEntrance] sets or removes one. */
+    entrances: Map<String, Entrance> = emptyMap(),
+    onEntrance: (Stop, Pair<Double, Double>?, String?) -> Unit = { _, _, _ -> },
+    /** Google Maps for one stop: navigation to it, and its street photos. */
+    onNavigate: (Stop) -> Unit = {},
+    onStreetView: (Stop) -> Unit = {},
 ) {
     val stops = route?.stops.orEmpty()
     val active = route?.active == true
@@ -134,16 +142,20 @@ fun ReviewScreen(
                             .zIndex(if (dragging) 1f else 0f)
                             .graphicsLayer { translationY = if (dragging) reorder.offset else 0f },
                     ) {
+                        val entrance = entrances[stop.entranceKey]
                         SwipeableStopRow(
                             index = index,
                             stop = stop,
                             spoken = spokenName(stop),
+                            entrance = entrance,
                             dragging = dragging,
                             reorder = reorder,
                             onClick = { editing = stop },
                             onDelete = { onDelete(stop) },
                             onDeleteAbove = { onDeleteAbove(stop) },
                             onRetry = { onRetry(stop) },
+                            onNavigate = { onNavigate(stop) },
+                            onStreetView = if (stop.isLocated || entrance?.hasPoint == true) ({ onStreetView(stop) }) else null,
                         )
                     }
                 }
@@ -170,12 +182,18 @@ fun ReviewScreen(
     }
 
     editing?.let { stop ->
+        val entrance = entrances[stop.entranceKey]
         AddressDialog(
             title = stringResource(R.string.dialog_edit_title),
             initial = stop.displayText,
             initialTime = stop.time.orEmpty(),
             onDismiss = { editing = null },
             onSave = { text, time -> onEdit(stop, text, time).also { if (it) editing = null } },
+            entrance = EntranceFields(
+                point = entrance?.takeIf { it.hasPoint }?.let { Coordinates.format(it.lat!!, it.lng!!) }.orEmpty(),
+                note = entrance?.note.orEmpty(),
+                onSave = { point, note -> onEntrance(stop, point, note) },
+            ),
         )
     }
     if (adding) {
@@ -195,12 +213,15 @@ private fun SwipeableStopRow(
     index: Int,
     stop: Stop,
     spoken: String,
+    entrance: Entrance?,
     dragging: Boolean,
     reorder: ReorderState,
     onClick: () -> Unit,
     onDelete: () -> Unit,
     onDeleteAbove: () -> Unit,
     onRetry: () -> Unit,
+    onNavigate: () -> Unit,
+    onStreetView: (() -> Unit)?,
 ) {
     val dismissState = rememberSwipeToDismissBoxState()
     var menu by remember { mutableStateOf(false) }
@@ -305,6 +326,20 @@ private fun SwipeableStopRow(
                             color = AppTheme.colors.onTripMuted,
                             modifier = Modifier.ref(48),
                         )
+                        // The driver's own stopping point and note for this address, when he set them.
+                        if (entrance != null) {
+                            Text(
+                                listOfNotNull(
+                                    stringResource(if (entrance.hasPoint) R.string.entrance_saved else R.string.entrance_note_only),
+                                    entrance.note,
+                                ).joinToString(" · "),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = AppTheme.colors.success,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.ref(258),
+                            )
+                        }
                         if (stop.geoStatus == GeoStatus.NOT_LOCATED) {
                             // A place written without a town: the driver adds it (tap to edit), never a guess.
                             Text(
@@ -320,6 +355,18 @@ private fun SwipeableStopRow(
                             onClick = { menu = false; onClick() },
                             modifier = Modifier.ref(57).heightIn(min = TouchTarget),
                         )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.menu_navigate_here), style = MaterialTheme.typography.bodyLarge) },
+                            onClick = { menu = false; onNavigate() },
+                            modifier = Modifier.ref(254).heightIn(min = TouchTarget),
+                        )
+                        if (onStreetView != null) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.menu_street_view), style = MaterialTheme.typography.bodyLarge) },
+                                onClick = { menu = false; onStreetView() },
+                                modifier = Modifier.ref(255).heightIn(min = TouchTarget),
+                            )
+                        }
                         if (index > 0) {
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.menu_delete_above), style = MaterialTheme.typography.bodyLarge) },
@@ -379,6 +426,12 @@ private fun DepotCard(depot: Stop) {
     }
 }
 
+/**
+ * The driver's entrance in the edit dialog: the stopping point as he types or pastes it (decimal
+ * degrees, degrees-minutes-seconds or a Google Maps link, [Coordinates]) and a note on getting in.
+ */
+private class EntranceFields(val point: String, val note: String, val onSave: (Pair<Double, Double>?, String?) -> Unit)
+
 @Composable
 private fun AddressDialog(
     title: String,
@@ -386,11 +439,16 @@ private fun AddressDialog(
     initialTime: String,
     onDismiss: () -> Unit,
     onSave: (String, String?) -> Boolean,
+    entrance: EntranceFields? = null,
 ) {
     var text by remember { mutableStateOf(initial) }
     var time by remember { mutableStateOf(initialTime) }
     var error by remember { mutableStateOf(false) }
     var timeError by remember { mutableStateOf(false) }
+    var point by remember { mutableStateOf(entrance?.point.orEmpty()) }
+    var note by remember { mutableStateOf(entrance?.note.orEmpty()) }
+    var pointError by remember { mutableStateOf(false) }
+    val parsed = remember(point) { Coordinates.parse(point) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
@@ -417,6 +475,35 @@ private fun AddressDialog(
                     textStyle = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Ltr),
                     modifier = Modifier.ref(54).fillMaxWidth().padding(top = 8.dp),
                 )
+                if (entrance != null) {
+                    OutlinedTextField(
+                        value = point,
+                        onValueChange = { point = it; pointError = false },
+                        label = { Text(stringResource(R.string.entrance_point_label)) },
+                        placeholder = { Text("59.381234, 13.501234") },
+                        isError = pointError,
+                        supportingText = {
+                            Text(
+                                when {
+                                    pointError -> stringResource(R.string.entrance_point_invalid)
+                                    parsed != null -> Coordinates.format(parsed.first, parsed.second)
+                                    else -> stringResource(R.string.entrance_point_hint)
+                                },
+                            )
+                        },
+                        singleLine = true,
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Ltr),
+                        modifier = Modifier.ref(256).fillMaxWidth().padding(top = 8.dp),
+                    )
+                    OutlinedTextField(
+                        value = note,
+                        onValueChange = { note = it },
+                        label = { Text(stringResource(R.string.entrance_note_label)) },
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Content),
+                        minLines = 1,
+                        modifier = Modifier.ref(257).fillMaxWidth().padding(top = 4.dp),
+                    )
+                }
             }
         },
         confirmButton = {
@@ -425,8 +512,13 @@ private fun AddressDialog(
                     val parsedTime = if (time.isBlank()) null else TripTimes.normalizeTyped(time)
                     if (time.isNotBlank() && parsedTime == null) {
                         timeError = true
+                    } else if (entrance != null && point.isNotBlank() && parsed == null) {
+                        pointError = true
                     } else if (!onSave(text.trim(), parsedTime)) {
                         error = true
+                    } else if (entrance != null && (point.trim() != entrance.point || note.trim() != entrance.note)) {
+                        // Kept by the address as it now reads.
+                        entrance.onSave(parsed, note)
                     }
                 },
                 modifier = Modifier.ref(55).heightIn(min = TouchTarget),

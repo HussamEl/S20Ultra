@@ -26,6 +26,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import se.eldebosh.nastastopp.core.geo.GeoLogic
 import se.eldebosh.nastastopp.core.nav.MapWay
 import se.eldebosh.nastastopp.core.nav.OrderPlanner
 import se.eldebosh.nastastopp.core.nav.RouteLine
@@ -43,11 +44,11 @@ import java.util.Locale
  * outside, so it is drawn the same on every device. What stops the map ([trouble],
  * [routeAnswer]) is shown under it, for the driver to see why.
  *
- * Only looked at, touches never reach it. Opened by the driver ([reveal] held), it is his: Google's 3D
- * map of real buildings ([threeD]) flies from above the car to the stop's building ([tour]), and
- * then shows Google's street photos of it ([street]) or circles it; then it moves under his
- * fingers and his buttons ([zoom], [toCar], [toStop], [whole]). Where the 3D map cannot be drawn,
- * the flat map is moved instead. Every way goes from the vehicle through a few stops in turn,
+ * One map for the display's whole life (Google counts each map made, not what it shows): only
+ * looked at, touches never reach it. Opened by the driver ([reveal] held), it is his, moved by his
+ * fingers and buttons ([zoom], [toCar], [toStop], [whole]). Google's 3D map of real buildings
+ * ([tour]: a flight from above the car to the stop's building) and its street photos ([street])
+ * come only when he asks for them, each made once and kept. Every way goes from the vehicle through a few stops in turn,
  * lettered on the map ([focus]); the driver can try another order and ask for the best one
  * ([suggest]).
  *
@@ -107,14 +108,27 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
     private val main = Handler(Looper.getMainLooper())
     private var askedFor: String? = null
     private var askedAtMs = 0L
+
+    /** Where the vehicle was when the next stops' way was last asked for. */
+    private var askedFrom: MapWay? = null
     private var asking: Job? = null
     private var toNext: RouteLine? = null
     private var toNextKey: String? = null
 
-    /** Ways already given by Google, for a while, so an order tried again needs no new ask. */
-    private val known = object : LinkedHashMap<String, Pair<Long, RouteLine>>() {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Pair<Long, RouteLine>>?): Boolean = size > KNOWN_WAYS
+    /**
+     * Ways already given by Google, in memory only and for a short while ([KNOWN_MS]), from about
+     * the same place ([REUSE_M]): a stop opened again, or an order tried again, needs no new ask.
+     */
+    private val known = object : LinkedHashMap<String, Known>() {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Known>?): Boolean = size > KNOWN_WAYS
     }
+
+    private class Known(val atMs: Long, val fromLat: Double, val fromLng: Double, val line: RouteLine)
+
+    private fun knownFor(key: String, from: MapWay): RouteLine? = known[key]?.takeIf {
+        SystemClock.elapsedRealtime() - it.atMs < KNOWN_MS &&
+            GeoLogic.distanceMeters(it.fromLat, it.fromLng, from.lat, from.lng) < REUSE_M
+    }?.line
 
     /** The driver's way until [unfocus]: its stops in turn and the one he looks at; null for the next stops. */
     private var focused: Way? = null
@@ -128,8 +142,12 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
      */
     data class Suggestion(val key: String, val best: OrderPlanner.Plan, val current: OrderPlanner.Plan)
 
-    /** Google's 3D map: null until it is first wanted (a held [reveal]), then whether it can be drawn here. */
+    /** Google's 3D map: null until the driver first asks for it ([tour]), then whether it can be drawn here. */
     var threeD by mutableStateOf<Boolean?>(null)
+        private set
+
+    /** The 3D map is in view (else the flat one). */
+    var deepShown by mutableStateOf(false)
         private set
 
     /** Google's street photos of the stop are shown ([street]). */
@@ -148,6 +166,9 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
 
     /** The page's last [reveal] or [conceal], given again when the page has loaded. */
     private var stage: String? = null
+
+    /** The display's look given after the page was made ([setLook]), given again when it has loaded. */
+    private var look: String? = null
 
 
     // JavaScript runs Google's map; the page is the app's own and nothing else can be loaded.
@@ -175,6 +196,7 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean = true
 
             override fun onPageFinished(view: WebView, url: String?) {
+                look?.let { view.evaluateJavascript(it, null) }
                 stage?.let { view.evaluateJavascript(it, null) }
             }
 
@@ -221,6 +243,7 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
         held = false
         streetShown = false
         noStreet = false
+        deepShown = false
         stage = "hold(false);conceal($ms)"
         js(stage!!)
         main.removeCallbacks(hide)
@@ -242,8 +265,21 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
     /** The held map to stop [index] of the driver's way (its building on the 3D map). */
     fun lookAt(index: Int) = js("lookAt($index)")
 
-    /** The flight from the car to the stop again. */
+    /** Google's 3D map and the flight from the car to the stop (the 3D map is made the first time). */
     fun tour() = js("tour()")
+
+    /** Back to the flat map. */
+    fun flat() = js("flat()")
+
+    /**
+     * The display's look changed (black or light): the same map in the new colours, never a new
+     * one (Google counts each map made).
+     */
+    fun setLook(night: Boolean, ground: String) {
+        view.setBackgroundColor(ground.toColorInt())
+        look = "setLook($night,'$ground')"
+        js(look!!)
+    }
 
     /** Google's street photos of the stop looked at, turned towards it ([on]), or back to the map. */
     fun street(on: Boolean) {
@@ -267,11 +303,26 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
         val key = keyOf(way.stops)
         val now = SystemClock.elapsedRealtime()
         if (asking?.isActive == true) return
-        if (key == askedFor && now - askedAtMs < REFRESH_MS) return
+        // The same stops: asked again only after a while and once the car has gone some way, so a
+        // car waiting at a stop asks nothing.
+        val from = askedFrom
+        if (key == askedFor && from != null &&
+            (now - askedAtMs < REFRESH_MS || GeoLogic.distanceMeters(from.lat, from.lng, way.lat, way.lng) < MOVED_M)
+        ) {
+            return
+        }
         askedFor = key
         askedAtMs = now
+        askedFrom = way
+        knownFor(key, way)?.let { line ->
+            toNext = line
+            toNextKey = key
+            if (focused == null) draw(line, Way(way.stops, 0))
+            return
+        }
         asking = scope.launch {
             val line = withContext(Dispatchers.IO) { fetch(way.lat, way.lng, way.stops) } ?: return@launch
+            known[key] = Known(SystemClock.elapsedRealtime(), way.lat, way.lng, line)
             toNext = line
             toNextKey = key
             if (focused == null) draw(line, Way(way.stops, 0))
@@ -306,13 +357,13 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
     private fun ask(way: Way) {
         val from = vehicle ?: return
         val key = keyOf(way.stops)
-        known[key]?.takeIf { SystemClock.elapsedRealtime() - it.first < REFRESH_MS }?.let {
-            draw(it.second, way)
+        knownFor(key, from)?.let {
+            draw(it, way)
             return
         }
         asking = scope.launch {
             val line = withContext(Dispatchers.IO) { fetch(from.lat, from.lng, way.stops) } ?: return@launch
-            known[key] = SystemClock.elapsedRealtime() to line
+            known[key] = Known(SystemClock.elapsedRealtime(), from.lat, from.lng, line)
             if (focused?.stops == way.stops) draw(line, focused!!)
         }
     }
@@ -443,6 +494,12 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
             }
         }
 
+        /** The 3D map came into view ([shown]) or went for the flat one. */
+        @JavascriptInterface
+        fun onDeep(shown: Boolean) {
+            main.post { deepShown = shown }
+        }
+
         /** [state]: the street photos "shown", "hidden", or "none" near the stop. */
         @JavascriptInterface
         fun onStreet(state: String?) {
@@ -519,8 +576,16 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
         /** The map stops being drawn this long after it has gone. */
         private const val HIDE_AFTER_MS = 100L
 
-        /** The way is asked for again at most this often for the same stops (Google counts each request). */
+        /**
+         * The next stops' way is asked for again at most this often, and only once the car has gone
+         * [MOVED_M] (Google counts each request).
+         */
         private const val REFRESH_MS = 4 * 60_000L
+        private const val MOVED_M = 1_500.0
+
+        /** A way asked for is used again for this long, from as near as [REUSE_M]. */
+        private const val KNOWN_MS = 15 * 60_000L
+        private const val REUSE_M = 1_000.0
 
         /** Ways kept for orders tried again. */
         private const val KNOWN_WAYS = 12

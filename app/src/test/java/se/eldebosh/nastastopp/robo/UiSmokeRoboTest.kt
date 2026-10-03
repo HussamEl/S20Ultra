@@ -158,6 +158,20 @@ class UiSmokeRoboTest {
             compose.onNodeWithText(s(R.string.save)).performClick()
             assertEquals("Kungsgatan 5, 652 24 Karlstad", app.graph.controller.route.value!!.stops[1].displayText)
             settleGeocoding()
+            // The driver's entrance: a point as Google Maps writes it and a note, kept apart from the
+            // address; the row then says so (an invented point).
+            compose.onNodeWithText("Kungsgatan 5, 652 24 Karlstad").performClick()
+            compose.onNodeWithTag("ref_256").performTextReplacement("59°22'48.0\"N 13°30'00.0\"E")
+            compose.onNodeWithTag("ref_257").performTextReplacement("Från gården")
+            compose.onNodeWithText("59.380000, 13.500000").assertExists()
+            compose.onNodeWithText(s(R.string.save)).performClick()
+            val edited = app.graph.controller.route.value!!.stops[1]
+            val entrance = app.graph.controller.entranceOf(edited)!!
+            assertEquals(59.38, entrance.lat!!, 0.000_001)
+            assertEquals(13.5, entrance.lng!!, 0.000_001)
+            assertEquals("Från gården", entrance.note)
+            compose.onNodeWithText(s(R.string.entrance_saved) + " · Från gården").assertExists()
+            app.graph.controller.clearEntrances()
             // Add manually.
             compose.onNodeWithText(s(R.string.review_add_manual)).performClick()
             compose.onNodeWithText(s(R.string.dialog_add_title)).assertExists()

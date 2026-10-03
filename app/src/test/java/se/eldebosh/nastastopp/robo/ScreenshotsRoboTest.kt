@@ -769,9 +769,11 @@ class ScreenshotsRoboTest {
         compose.onNodeWithText("Söker bilens position…").assertIsDisplayed()
         // Under it, small, why the map is not there yet.
         compose.onNodeWithTag("ref_233", useUnmergedTree = true).assert(hasText("Kartan laddas…"))
-        // The driver's buttons; the flight again (242) only once the 3D map is made.
-        for (ref in listOf(237, 238, 239, 240, 241, 243)) compose.onNodeWithTag("ref_$ref").assertIsDisplayed()
-        compose.onNodeWithTag("ref_242").assertDoesNotExist()
+        // The driver's buttons. The 3D map (242) is only offered: it is made when he asks for it.
+        for (ref in listOf(237, 238, 239, 240, 241, 242, 243)) compose.onNodeWithTag("ref_$ref").assertIsDisplayed()
+        assertEquals(false, map!!.deepShown)
+        compose.onNodeWithTag("ref_242").performClick()
+        assertEquals("tour()", shadowOf(map!!.view).lastEvaluatedJavascript)
         compose.onNodeWithTag("ref_237").performClick()
         assertEquals("zoom(1)", shadowOf(map!!.view).lastEvaluatedJavascript)
         compose.onNodeWithTag("ref_239").performClick()

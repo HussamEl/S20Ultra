@@ -182,7 +182,8 @@
     <string name="display_map_car">موقع السيارة</string>
     <string name="display_map_stop">مبنى المحطة</string>
     <string name="display_map_whole">الطريق كاملاً</string>
-    <string name="display_map_tour">الطيران إلى المحطة مرة أخرى</string>
+    <string name="display_map_tour">خريطة ثلاثية الأبعاد والطيران إلى المحطة</string>
+    <string name="display_map_flat">الخريطة المسطّحة</string>
     <string name="display_map_street">صور الشارع من Google عند المحطة</string>
     <string name="display_map_back">العودة إلى الخريطة</string>
     <string name="display_way_no_street">لا صور شارع هنا</string>
@@ -341,4 +342,19 @@
     <string name="street_map_downloading_busy">جارٍ التنزيل… الجزء %1$d من %2$d · الخادم مشغول، ننتظر</string>
     <string name="street_map_failed">توقّف التنزيل عند الجزء %1$d من %2$d: اضغط للمتابعة</string>
     <string name="street_map_delete">حذف خريطة الشوارع</string>
+    <string name="stop_navigate">الملاحة إلى هنا</string>
+    <string name="stop_street_view">صور الشارع</string>
+    <string name="menu_navigate_here">الملاحة إلى هنا في Google Maps</string>
+    <string name="menu_street_view">صور الشارع في Google Maps</string>
+    <string name="entrance_saved">مدخل محفوظ</string>
+    <string name="entrance_note_only">ملاحظة الوصول</string>
+    <string name="entrance_point_label">نقطة الوقوف (إحداثيات)</string>
+    <string name="entrance_point_hint">الصق النقطة من Google Maps، أو اتركه فارغاً</string>
+    <string name="entrance_point_invalid">لا توجد هنا نقطة في السويد</string>
+    <string name="entrance_note_label">ملاحظة الوصول (مثلاً: من الفناء الخلفي)</string>
+    <string name="settings_entrances">نقاط المدخل</string>
+    <string name="help_entrances">نقطة الوقوف الصحيحة وملاحظة الوصول لكل عنوان، كما وضعتها أنت في نافذة تعديل التوقف. تبقى على هذا الجوال فقط، بلا اسم، حتى تحذفها، وتذهب الملاحة إليها بالإحداثيات. نقطة العنوان من الجوال تبقى كما هي.</string>
+    <string name="entrances_saved">العناوين التي لها مدخل محفوظ: %1$d</string>
+    <string name="entrances_delete">اضغط لحذفها كلها</string>
+    <string name="entrances_delete_confirm">حذف كل نقاط المدخل وملاحظات الوصول المحفوظة (العدد: %1$d)؟</string>
 </resources>

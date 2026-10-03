@@ -15,7 +15,7 @@ import se.eldebosh.nastastopp.core.route.MapsUrlBuilder
 import se.eldebosh.nastastopp.service.Notifications
 import se.eldebosh.nastastopp.util.DebugLog
 
-/** Opens Google Maps turn-by-turn navigation for up to 10 stops. */
+/** Opens Google Maps: turn-by-turn navigation for up to 10 stops, or one URL ([open]). */
 class MapsLauncher(private val context: Context) {
 
     fun intentFor(stops: List<String>, withPackage: Boolean = true): Intent {
@@ -34,6 +34,22 @@ class MapsLauncher(private val context: Context) {
         if (stops.isEmpty()) return
         if (fromBackground && !isAppInForeground()) postOpenMapsNotification(stops) else cancelOpenMapsNotification()
         startSafely(stops)
+    }
+
+    /** Opens one Google Maps URL (navigation to a stop, its street photos): Google's app, else the browser. */
+    fun open(url: String) {
+        val intent = Intent(Intent.ACTION_VIEW, url.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            context.startActivity(Intent(intent).setPackage(MapsUrlBuilder.MAPS_PACKAGE))
+        } catch (_: ActivityNotFoundException) {
+            try {
+                context.startActivity(intent)
+            } catch (e: Exception) {
+                DebugLog.w(e) { "no app can open maps url" }
+            }
+        } catch (e: Exception) {
+            DebugLog.w(e) { "maps start failed" }
+        }
     }
 
     private fun startSafely(stops: List<String>) {

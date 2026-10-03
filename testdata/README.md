@@ -35,6 +35,7 @@ None of these may appear in logcat from the app. The app shows the passenger's *
 - **Streets:** Depågatan, Storgatan, Järnvägsgatan, Lindvägen, Kyrkogatan, Skolgatan, Västra Torggatan, Torggatan, Hamngatan, Kungsgatan, Östra Storgatan, Norra allén, Södra Kyrkogatan, S:t Olofsgatan, Stora torget, Lilla Badhusgatan, Gamla Kyrkogatan, Övre Torggatan, Strandvägen
 - **Postcodes:** 653 40, 652 24, 652 25, 688 30, 664 30, 663 30, 681 30, 681 31, 665 30
 - **Places** (invented, except the public hospital Centralsjukhuset): Provby Vårdcentral, Provby Äldreboende, Provby Servicehus, Kortboende Provgården
+- **Points** (an entrance in tests): 59.381234, 13.501234 · 59°22'48.0"N 13°30'00.0"E; the entrance note "Från gården"
 
 ## Floating panel positions (UI Automator cannot see overlay windows)
 ```

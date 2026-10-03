@@ -407,6 +407,56 @@ class RouteControllerRoboTest {
         c.end()
     }
 
+    /**
+     * The driver's entrance for an address: Google Maps navigates to it by its point (never a
+     * search for the address), the tablet's map shows it, and the same address finds it again on
+     * another day; it never replaces the address's own point (invented address and point).
+     */
+    @Test
+    fun theDriversEntranceIsWhereMapsGoes() {
+        val c = graph.controller
+        assertTrue(c.addManual("Strandvägen 3, 665 30 Kil", "08:00"))
+        assertTrue(c.addManual("Storgatan 14, 652 24 Karlstad", "08:30"))
+        idleUntil { c.route.value!!.stops.none { it.geoStatus == GeoStatus.PENDING } }
+        val stop = c.route.value!!.stops.first()
+        // Not located here (Robolectric's geocoder never answers): Google Maps gets the address.
+        c.navigateTo(stop)
+        assertEquals(
+            "https://www.google.com/maps/dir/?api=1&destination=Strandv%C3%A4gen%203%2C%20665%2030%20Kil&travelmode=driving&dir_action=navigate",
+            shadowOf(app).nextStartedActivity.dataString,
+        )
+        c.setEntrance(stop, 59.381234 to 13.501234, " Från gården ")
+        idle()
+        assertEquals("Från gården", c.entranceOf(stop)?.note)
+        assertEquals("59.381234,13.501234", c.mapsDestination(stop))
+        assertNull("the address's own point stays apart", c.route.value!!.stops.first().geo)
+        c.navigateTo(stop)
+        assertEquals(
+            "https://www.google.com/maps/dir/?api=1&destination=59.381234%2C13.501234&travelmode=driving&dir_action=navigate",
+            shadowOf(app).nextStartedActivity.dataString,
+        )
+        c.streetViewAt(stop)
+        assertEquals(
+            "https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=59.381234%2C13.501234",
+            shadowOf(app).nextStartedActivity.dataString,
+        )
+        assertTrue(c.start())
+        idle()
+        val batch = shadowOf(app).nextStartedActivity.dataString!!
+        assertTrue(batch, batch.contains("waypoints=59.381234%2C13.501234") && batch.contains("Storgatan"))
+        // The tablet's map shows the entrance too.
+        assertEquals(59.381234, c.display.value.current?.lat ?: 0.0, 0.0)
+        // Another day, the same address: its entrance comes with it.
+        c.end()
+        idle()
+        assertTrue(c.addManual("STRANDVÄGEN 3, 66530 KIL", "09:00"))
+        assertEquals("Från gården", c.entranceOf(c.route.value!!.stops.first())?.note)
+        c.setEntrance(c.route.value!!.stops.first(), null, " ")
+        assertNull(c.entranceOf(c.route.value!!.stops.first()))
+        c.clearEntrances()
+        c.clear()
+    }
+
     /** The hospital typed with its town is said once with it, never "Karlstad, Karlstad", and written short. */
     @Test
     fun theHospitalsTownIsSaidOnce() {

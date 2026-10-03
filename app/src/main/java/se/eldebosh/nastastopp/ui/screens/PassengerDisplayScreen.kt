@@ -1015,9 +1015,10 @@ private fun MapLayer(map: RouteMap, moments: Moments, held: Boolean, from: () ->
 
 /**
  * The driver's buttons on his own map, at the right: closer (237), farther (238), the car (239),
- * the stop's building (240), the whole way (241), the flight again (242, on the 3D map) and
- * Google's street photos of the stop and back (244); and × at the top (243). Each use keeps the
- * map open ([onUse]).
+ * the stop's building (240), the whole way (241), Google's 3D map with the flight to the stop and
+ * back to the flat map (242), and Google's street photos of the stop and back (244); and × at the
+ * top (243). The 3D map and the photos come only from these buttons. Each use keeps the map open
+ * ([onUse]).
  */
 @Composable
 private fun MapControls(map: RouteMap, visible: Boolean, onUse: () -> Unit, onClose: () -> Unit, modifier: Modifier = Modifier) {
@@ -1039,9 +1040,17 @@ private fun MapControls(map: RouteMap, visible: Boolean, onUse: () -> Unit, onCl
                 MapButton(R.drawable.ic_my_location, R.string.display_map_car, 239, onClick = use { map.toCar() })
                 MapButton(R.drawable.ic_pin, R.string.display_map_stop, 240, onClick = use { map.toStop() })
                 MapButton(R.drawable.ic_zoom_out_map, R.string.display_map_whole, 241, onClick = use { map.whole() })
-                if (map.threeD == true) MapButton(R.drawable.ic_flight, R.string.display_map_tour, 242, onClick = use { map.tour() })
+                // Google's 3D map only when asked for: the flight to the stop, and back to the flat map.
+                if (map.threeD != false) {
+                    MapButton(
+                        if (map.deepShown) R.drawable.ic_map else R.drawable.ic_flight,
+                        if (map.deepShown) R.string.display_map_flat else R.string.display_map_tour,
+                        242,
+                        onClick = use { if (map.deepShown) map.flat() else map.tour() },
+                    )
+                }
                 MapButton(
-                    if (map.streetShown) R.drawable.ic_map else R.drawable.ic_street,
+                    if (map.streetShown) R.drawable.ic_close else R.drawable.ic_street,
                     if (map.streetShown) R.string.display_map_back else R.string.display_map_street,
                     244,
                     onClick = use { map.street(!map.streetShown) },
@@ -1169,7 +1178,7 @@ private fun mapNote(map: RouteMap, held: Boolean): String? {
         !held || !map.ready -> null
         map.noStreet -> stringResource(R.string.display_way_no_street)
         map.noThreeD != null -> stringResource(R.string.passenger_map_no_3d, map.noThreeD!!)
-        map.threeD == null -> stringResource(R.string.passenger_map_3d_loading)
+        map.deepShown && map.threeD == null -> stringResource(R.string.passenger_map_3d_loading)
         else -> null
     }
     val way = map.routeAnswer?.let { if (it == 0) stringResource(R.string.passenger_way_no_answer) else stringResource(R.string.passenger_way_refused, it) }

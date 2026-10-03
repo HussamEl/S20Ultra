@@ -29,6 +29,7 @@ import se.eldebosh.nastastopp.overlay.RoutePanelSource
 import se.eldebosh.nastastopp.settings.DeviceRole
 import se.eldebosh.nastastopp.route.RouteController
 import se.eldebosh.nastastopp.route.RouteRepository
+import se.eldebosh.nastastopp.route.StoredEntrances
 import se.eldebosh.nastastopp.route.StoredPlaceMemory
 import se.eldebosh.nastastopp.route.TripHistory
 import se.eldebosh.nastastopp.service.Notifications
@@ -50,7 +51,7 @@ class AppGraph(app: Application) {
     val repository = RouteRepository(app)
     val geocoding = Geocoding(app)
     val history = TripHistory(app, settings, scope)
-    val controller = RouteController(app, scope, repository, settings, geocoding, announcer, maps, localities, extractor, history, StoredPlaceMemory(app))
+    val controller = RouteController(app, scope, repository, settings, geocoding, announcer, maps, localities, extractor, history, StoredPlaceMemory(app), StoredEntrances(app))
     val notifier = RouteNotifier(app, controller, settings, scope)
 
     /** The street the vehicle is on now (floating button and route screen). */

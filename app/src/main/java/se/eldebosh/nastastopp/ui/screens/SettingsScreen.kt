@@ -92,6 +92,9 @@ fun SettingsScreen(
     streetMap: StreetMapStore.State,
     onDownloadStreetMap: () -> Unit,
     onDeleteStreetMap: () -> Unit,
+    /** How many entrances the driver saved for addresses; [onClearEntrances] deletes them all. */
+    entrancesSaved: Int = 0,
+    onClearEntrances: () -> Unit = {},
 ) {
     var loginDialog by remember { mutableStateOf(false) }
     if (loginDialog) {
@@ -223,6 +226,28 @@ fun SettingsScreen(
                 if (streetMap is StreetMapStore.State.Ready) {
                     CardDivider()
                     ListRow(title = stringResource(R.string.street_map_delete), onClick = onDeleteStreetMap, ref = 139)
+                }
+            }
+
+            // The driver's own stopping points for addresses (Google Maps navigates to them).
+            SectionTitle(stringResource(R.string.settings_entrances), help = R.string.help_entrances)
+            AppCard {
+                var confirm by remember { mutableStateOf(false) }
+                ListRow(
+                    title = stringResource(R.string.entrances_saved, entrancesSaved),
+                    subtitle = if (entrancesSaved > 0) stringResource(R.string.entrances_delete) else null,
+                    onClick = if (entrancesSaved > 0) ({ confirm = true }) else null,
+                    ref = 259,
+                )
+                if (confirm) {
+                    AlertDialog(
+                        onDismissRequest = { confirm = false },
+                        text = { Text(stringResource(R.string.entrances_delete_confirm, entrancesSaved)) },
+                        confirmButton = {
+                            TextButton(onClick = { confirm = false; onClearEntrances() }) { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) }
+                        },
+                        dismissButton = { TextButton(onClick = { confirm = false }) { Text(stringResource(R.string.cancel)) } },
+                    )
                 }
             }
 

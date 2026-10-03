@@ -181,7 +181,8 @@
     <string name="display_map_car">The car\'s position</string>
     <string name="display_map_stop">The stop\'s building</string>
     <string name="display_map_whole">The whole way</string>
-    <string name="display_map_tour">Fly to the stop again</string>
+    <string name="display_map_tour">3D map: fly to the stop</string>
+    <string name="display_map_flat">Flat map</string>
     <string name="display_map_street">Google\'s street photos at the stop</string>
     <string name="display_map_back">Back to the map</string>
     <string name="display_way_no_street">No street photos here</string>
@@ -340,4 +341,19 @@
     <string name="street_map_downloading_busy">Downloading… part %1$d of %2$d · the server is busy, waiting</string>
     <string name="street_map_failed">The download stopped at part %1$d of %2$d: tap to continue</string>
     <string name="street_map_delete">Delete the street map</string>
+    <string name="stop_navigate">Navigate here</string>
+    <string name="stop_street_view">Street photos</string>
+    <string name="menu_navigate_here">Navigate here in Google Maps</string>
+    <string name="menu_street_view">Street photos in Google Maps</string>
+    <string name="entrance_saved">Entrance saved</string>
+    <string name="entrance_note_only">Access note</string>
+    <string name="entrance_point_label">Stopping point (coordinates)</string>
+    <string name="entrance_point_hint">Paste the point from Google Maps, or leave it empty</string>
+    <string name="entrance_point_invalid">No point in Sweden here</string>
+    <string name="entrance_note_label">How to get in (e.g. from the back yard)</string>
+    <string name="settings_entrances">Entrances</string>
+    <string name="help_entrances">The right stopping point and an access note for an address, as you set them in a stop\'s edit dialog. They stay on this phone only, without names, until you delete them, and navigation goes to them by coordinates. The address\'s own point stays as it is.</string>
+    <string name="entrances_saved">Addresses with a saved entrance: %1$d</string>
+    <string name="entrances_delete">Tap to delete them all</string>
+    <string name="entrances_delete_confirm">Delete every saved entrance and access note (count: %1$d)?</string>
 </resources>

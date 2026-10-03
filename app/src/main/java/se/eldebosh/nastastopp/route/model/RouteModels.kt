@@ -88,6 +88,18 @@ data class Stop(
     val townUnknown: Boolean
         get() = parsedTown == null && parsedPostalCode == null && displayText.none { it.isDigit() } && geo?.locality == null
 
+    /**
+     * The address the driver's entrance is kept by ([se.eldebosh.nastastopp.route.Entrances]): the
+     * street and number with the postal code (or town) as written, folded; never a name. Only what
+     * the trip writes, never the geocoder's answer, so the same address finds it every time.
+     */
+    val entranceKey: String
+        get() {
+            val street = streetText.substringBefore(',').trim()
+            val area = parsedPostalCode?.filter { it.isDigit() }?.takeIf { it.isNotEmpty() } ?: parsedTown.orEmpty()
+            return TextNorm.key("$street $area")
+        }
+
     /** Text handed to Google Maps: the geocoder's formatted address when located, else the cleaned text. */
     val navigationText: String
         get() = geo?.addressLine?.takeIf { isLocated && it.isNotBlank() } ?: displayText

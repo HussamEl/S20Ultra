@@ -101,6 +101,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
     val importState by vm.importState.collectAsStateWithLifecycle()
     val importError by vm.importError.collectAsStateWithLifecycle()
     val display by controller.display.collectAsStateWithLifecycle()
+    val entrances by controller.savedEntrances.collectAsStateWithLifecycle()
     val linkServer by graph.displayServer.state.collectAsStateWithLifecycle()
     val history by graph.history.entries.collectAsStateWithLifecycle()
     val street by graph.street.state.collectAsStateWithLifecycle()
@@ -279,6 +280,14 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             onAddScreenshots = ::pickImages,
                             onStart = ::requestStart,
                             onBackToRoute = { vm.leaveReviewToActive() },
+                            entrances = entrances,
+                            onEntrance = { stop, point, note ->
+                                // The stop as it now reads (its address may just have been edited).
+                                val fresh = controller.route.value?.stops?.firstOrNull { it.id == stop.id } ?: stop
+                                controller.setEntrance(fresh, point, note)
+                            },
+                            onNavigate = { controller.navigateTo(it) },
+                            onStreetView = { controller.streetViewAt(it) },
                         )
                         Screen.ACTIVE -> route?.takeIf { it.active }?.let { r ->
                             ActiveRouteScreen(
@@ -298,6 +307,9 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 onPreviousTrip = { controller.back() },
                                 onOpenDisplay = { vm.navigate(Screen.DISPLAY_LOCAL) },
                                 onToggleOverlay = { graph.settings.update { it.copy(overlayHidden = !it.overlayHidden, overlayMinimized = false) } },
+                                entranceOf = { entrances[it.entranceKey] },
+                                onNavigateStop = { controller.navigateTo(it) },
+                                onStreetViewStop = { controller.streetViewAt(it) },
                             )
                             // Look up the current street while this screen is shown.
                             DisposableEffect(Unit) {
@@ -370,11 +382,15 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             val ground = displayColors(night).background.toArgb()
                             val mapScope = rememberCoroutineScope()
                             var mapRestarts by remember { mutableIntStateOf(0) }
-                            val routeMap = remember(settings.mapsKey, night, mapRestarts) {
+                            // One map for as long as the display is open (Google counts each map made):
+                            // a new look recolours it.
+                            val groundHex = String.format(Locale.ROOT, "#%06X", ground and 0xFFFFFF)
+                            val routeMap = remember(settings.mapsKey, mapRestarts) {
                                 settings.mapsKey?.takeIf { RoutesApi.isKey(it) }?.let {
-                                    RouteMap(context, it, night, String.format(Locale.ROOT, "#%06X", ground and 0xFFFFFF), mapScope)
+                                    RouteMap(context, it, night, groundHex, mapScope)
                                 }
                             }
+                            LaunchedEffect(routeMap, night, groundHex) { routeMap?.setLook(night, groundHex) }
                             DisposableEffect(routeMap) { onDispose { routeMap?.destroy() } }
                             // A map whose renderer stopped is replaced by a new one.
                             LaunchedEffect(routeMap?.gone) { if (routeMap?.gone == true) mapRestarts++ }
@@ -504,6 +520,8 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             streetMap = streetMap,
                             onDownloadStreetMap = { graph.streetMap.download() },
                             onDeleteStreetMap = { graph.streetMap.delete() },
+                            entrancesSaved = entrances.size,
+                            onClearEntrances = { controller.clearEntrances() },
                             onVoice = {
                                 if (ttsStatus == se.eldebosh.nastastopp.tts.TtsStatus.READY) testVoice() else vm.navigate(Screen.TTS_MISSING)
                             },

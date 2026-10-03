@@ -56,4 +56,29 @@ class MapsUrlBuilderTest {
         assertTrue(url.contains("destination=S10&"))
         assertEquals(9, url.substringAfter("waypoints=").substringBefore("&").split("%7C").size)
     }
+
+    /** Navigation and the point by coordinates, so Google never searches the address (an invented point). */
+    @Test
+    fun oneStopByItsPoint() {
+        val p = MapsUrlBuilder.point(59.381234, 13.501234)
+        assertEquals("59.381234,13.501234", p)
+        assertEquals(
+            "https://www.google.com/maps/dir/?api=1&destination=59.381234%2C13.501234&travelmode=driving&dir_action=navigate",
+            MapsUrlBuilder.navigateUrl(p),
+        )
+        assertEquals("https://www.google.com/maps/search/?api=1&query=59.381234%2C13.501234", MapsUrlBuilder.pointUrl(59.381234, 13.501234))
+        assertEquals(
+            "https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=59.381234%2C13.501234",
+            MapsUrlBuilder.streetViewUrl(59.381234, 13.501234),
+        )
+    }
+
+    /** Without a point the address is sent, as written. */
+    @Test
+    fun oneStopByItsAddress() {
+        assertEquals(
+            "https://www.google.com/maps/dir/?api=1&destination=STRANDV%C3%84GEN%203%2C%2066530%20KIL&travelmode=driving&dir_action=navigate",
+            MapsUrlBuilder.navigateUrl("STRANDVÄGEN 3, 66530 KIL"),
+        )
+    }
 }
