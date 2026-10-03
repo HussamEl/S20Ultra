@@ -14,10 +14,12 @@ import java.util.UUID
 
 /**
  * Messages between the driver's device (controller) and a passenger display, one JSON object
- * per line: the display's state ([DisplaySnapshot]) and the announcements; the display sends back
- * only the buttons pressed on its floating panel ([Command]) and the trips' order the driver set
- * on its map ([Order]: their numbers). The vehicle's position is never sent: a tablet's map takes
- * it from the tablet itself.
+ * per line: the display's state ([DisplaySnapshot]), the announcements and the controls the driver
+ * used on the phone's floating panel for the display ([Remote]); the display sends back only the
+ * buttons pressed on its floating panel ([Command]), the trips' order the driver set on its map
+ * ([Order]: their numbers) and what its map shows ([MapView]: trip numbers, minutes and switches,
+ * never a name or a position). The vehicle's position is never sent: a tablet's map takes it from
+ * the tablet itself. A message of a kind a device does not know is skipped.
  */
 @Serializable
 sealed interface LinkMessage {
@@ -51,6 +53,76 @@ sealed interface LinkMessage {
     @Serializable
     @SerialName("order")
     data class Order(val ids: List<Long>) : LinkMessage
+
+    /**
+     * A control the driver used on the phone's floating panel, for the passenger display to carry
+     * out as if tapped there: [id] is a trip's number ([DisplaySnapshot] item id; null: the next
+     * stop), [ids] an order to try on the map, [on] a switch.
+     */
+    @Serializable
+    @SerialName("remote")
+    data class Remote(val action: Action, val id: Long? = null, val ids: List<Long>? = null, val on: Boolean? = null) : LinkMessage {
+        enum class Action {
+            /** Shows trip [id] at the top of the display (null: back to the next stop). */
+            SHOW_TRIP,
+
+            /** Opens the display's map for trip [id] (null: the next stop), as a long press there. */
+            OPEN_MAP,
+            CLOSE_MAP,
+
+            /** Google's satellite picture ([on]) or the map. */
+            SATELLITE,
+            TO_CAR,
+            TO_STOP,
+            WHOLE,
+
+            /** Looks at trip [id] of the way (picks it in the list). */
+            LOOK_AT,
+
+            /** Tries the order [ids] on the map (the same trips as its way). */
+            TRY_ORDER,
+            UNDO,
+
+            /** Sends the order tried to the phone, as "Use" on the display's list. */
+            APPLY,
+            ADD,
+            ADD_EARLIER,
+
+            /** Takes trip [id] off the way on the map only. */
+            REMOVE,
+            SUGGEST,
+
+            /** Says the time on the display and shows it large, as a tap on its clock. */
+            SAY_TIME,
+            EARTH,
+            STREET_PHOTOS,
+        }
+    }
+
+    /**
+     * What the passenger display's map shows, for the phone's floating panel: whether it [open]s
+     * (and whether the display has a map at all, [hasMap]); the way's trips in their order ([ids],
+     * the one looked at [at]) with each leg's minutes ([minutes], null until known); whether the
+     * order is one tried ([changed]) and can be used ([allowed]); whether a trip can be added after
+     * ([canAdd]) or before ([canAddEarlier]) the way; Google's satellite picture; Google being asked
+     * for the best order ([suggesting]) and whether the tablet knows where it is ([located]).
+     */
+    @Serializable
+    @SerialName("map")
+    data class MapView(
+        val hasMap: Boolean = false,
+        val open: Boolean = false,
+        val ids: List<Long> = emptyList(),
+        val at: Int = 0,
+        val minutes: List<Int?> = emptyList(),
+        val changed: Boolean = false,
+        val allowed: Boolean = true,
+        val canAdd: Boolean = false,
+        val canAddEarlier: Boolean = false,
+        val satellite: Boolean = false,
+        val suggesting: Boolean = false,
+        val located: Boolean = false,
+    ) : LinkMessage
 }
 
 object LinkProtocol {

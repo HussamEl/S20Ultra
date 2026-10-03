@@ -5,18 +5,36 @@ import android.app.NotificationManager
 import android.content.Intent
 import android.os.Looper
 import android.speech.tts.TextToSpeech
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.TextView
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.hasAnyDescendant
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTouchInput
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import java.time.Duration
+import java.util.Locale
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
@@ -24,24 +42,27 @@ import org.robolectric.annotation.Config
 import org.robolectric.shadow.api.Shadow
 import org.robolectric.shadows.ShadowSettings
 import org.robolectric.shadows.ShadowTextToSpeech
+import org.robolectric.shadows.ShadowToast
 import org.robolectric.shadows.ShadowWindowManagerImpl
-import kotlinx.coroutines.launch
 import se.eldebosh.nastastopp.App
 import se.eldebosh.nastastopp.AppGraph
 import se.eldebosh.nastastopp.R
+import se.eldebosh.nastastopp.core.geo.Fix
 import se.eldebosh.nastastopp.core.geo.GeoResult
 import se.eldebosh.nastastopp.core.geo.StreetInfo
 import se.eldebosh.nastastopp.core.geo.StreetMapBuilder
-import se.eldebosh.nastastopp.core.geo.Fix
+import se.eldebosh.nastastopp.core.link.LinkMessage
 import se.eldebosh.nastastopp.geo.CurrentStreet
 import se.eldebosh.nastastopp.geo.StreetCaller
+import se.eldebosh.nastastopp.overlay.FloatingPanel
+import se.eldebosh.nastastopp.overlay.PanelActions
+import se.eldebosh.nastastopp.overlay.PanelSource
+import se.eldebosh.nastastopp.overlay.RoutePanelSource
 import se.eldebosh.nastastopp.route.model.GeoStatus
 import se.eldebosh.nastastopp.service.Notifications
 import se.eldebosh.nastastopp.service.RouteActionReceiver
 import se.eldebosh.nastastopp.util.LocaleHelper
 import se.eldebosh.nastastopp.util.TimeLabels
-import java.time.Duration
-import java.util.Locale
 
 /** Back (undo "Nästa"), the current street, the waiting timer and the floating panel (Android 13). */
 @RunWith(AndroidJUnit4::class)
@@ -171,7 +192,8 @@ class FloatingPanelRoboTest {
         val spokenBefore = tts.lastSpokenText
         val sent = mutableListOf<String>()
         val job = graph.scope.launch { graph.controller.announcements.collect { sent += it.swedish } }
-        overlayView(R.string.overlay_stop_street_desc).performClick()
+        showPanel()
+        compose.onNodeWithTag("ref_13").performClick()
         idle()
         assertEquals("Västra Torggatan 12", tts.lastSpokenText) // never the passenger's name
         assertTrue(spokenBefore != tts.lastSpokenText)
@@ -250,12 +272,11 @@ class FloatingPanelRoboTest {
         graph.controller.start()
         idle()
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
-        val speed = wm.views.single().findViewById<TextView>(R.id.ref_15)
-        assertEquals(View.VISIBLE, speed.visibility)
-        assertEquals("–", speed.text.toString())
+        showPanel()
+        compose.onNodeWithTag("ref_15", useUnmergedTree = true).assert(hasAnyDescendant(hasText("–")))
         graph.street.onFix(Fix(System.currentTimeMillis(), 59.38, 13.5, 12.5f, 5f))
-        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
-        assertEquals("45", speed.text.toString())
+        compose.mainClock.advanceTimeBy(1_500)
+        compose.onNodeWithTag("ref_15", useUnmergedTree = true).assert(hasAnyDescendant(hasText("45")))
         graph.controller.end()
     }
 
@@ -267,10 +288,11 @@ class FloatingPanelRoboTest {
         graph.controller.start()
         idle()
         assertTrue(graph.settings.current.sayStreetChanges)
-        overlayView(R.string.overlay_say_street_on).performClick()
+        showPanel()
+        compose.onNodeWithContentDescription(ui(R.string.overlay_say_street_on)).performClick()
         idle()
         assertFalse(graph.settings.current.sayStreetChanges)
-        overlayView(R.string.overlay_say_street_off).performClick()
+        compose.onNodeWithContentDescription(ui(R.string.overlay_say_street_off)).performClick()
         idle()
         assertTrue(graph.settings.current.sayStreetChanges)
         graph.controller.end()
@@ -360,11 +382,20 @@ class FloatingPanelRoboTest {
     }
 
     private fun overlayView(description: Int): View {
-        assertEquals(1, wm.views.size)
-        val view = find(wm.views.single(), ui(description))
+        assertEquals(1, overlays.size)
+        val view = find(overlays.single(), ui(description))
         assertNotNull("view '${ui(description)}'", view)
         return view!!
     }
+
+    @get:Rule
+    val compose = createComposeRule()
+
+    /** The panel's window draws itself with Compose: found like any screen once it is laid out. */
+    private fun showPanel() = compose.waitForIdle()
+
+    /** The overlay windows (the compose rule has a window of its own). */
+    private val overlays get() = wm.views.filter { (it.layoutParams as? WindowManager.LayoutParams)?.type == WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY }
 
     private fun reminder() = shadowOf(app.getSystemService(NotificationManager::class.java)).getNotification(Notifications.ID_OVERLAY_HIDDEN)
 
@@ -375,32 +406,133 @@ class FloatingPanelRoboTest {
         threeStops()
         graph.controller.start()
         idle()
-        assertEquals(1, wm.views.size)
+        assertEquals(1, overlays.size)
         graph.overlay.suppress("passenger_display", true)
         idle()
-        assertTrue("no panel over the passenger display", wm.views.isEmpty())
+        assertTrue("no panel over the passenger display", overlays.isEmpty())
         assertNull("not the \"closed\" reminder: the driver did not close it", reminder())
         graph.overlay.suppress("passenger_display", false)
         idle()
-        assertEquals(1, wm.views.size)
+        assertEquals(1, overlays.size)
         graph.controller.end()
     }
 
-    /** Found on the S20 Ultra (V5): the faded Back at stop 1 let the map show through it. */
+    /**
+     * The panel drives the linked passenger display as if tapped there: a long press on the trip
+     * shown opens the display's map, a tapped coming trip is shown there too, the clock is said
+     * there; while the map is open its buttons and its list of trips run it.
+     */
     @Test
-    fun backAtFirstStopDimsOnlyItsContent() {
+    fun thePanelRunsThePassengerDisplay() {
+        ShadowSettings.setCanDrawOverlays(true)
+        graph.settings.update { it.copy(overlayHidden = true) } // the app's own panel stays away
+        threeStops()
+        val c = graph.controller
+        c.start()
+        idle()
+        val sent = ArrayList<LinkMessage.Remote>()
+        val map = MutableStateFlow<LinkMessage.MapView?>(LinkMessage.MapView(hasMap = true))
+        val real = RoutePanelSource(c, graph.street, graph.announcer, graph.displayServer, graph.scope)
+        val source = object : PanelSource by real {
+            override val mapView: StateFlow<LinkMessage.MapView?> = map
+            override val displayName: StateFlow<String?> = MutableStateFlow("Galaxy Tab S9")
+
+            override fun remote(message: LinkMessage.Remote) {
+                sent += message
+            }
+
+            override fun sayTime() = remote(LinkMessage.Remote(LinkMessage.Remote.Action.SAY_TIME))
+        }
+        val actions = object : PanelActions {
+            override fun minimize() = Unit
+            override fun close() = Unit
+            override fun openApp() = Unit
+            override fun toggleSayStreet() = Unit
+            override fun toast(text: Int) = Unit
+            override fun barAt(bounds: androidx.compose.ui.geometry.Rect) = Unit
+        }
+        compose.setContent { FloatingPanel(source, actions, sayStreetOn = true) }
+        compose.waitForIdle()
+        val ids = c.route.value!!.stops.map { it.id }
+        // A long press on the next stop's address: the display's map for the next stop.
+        compose.onNodeWithTag("ref_13").performTouchInput { longClick() }
+        assertEquals(LinkMessage.Remote(LinkMessage.Remote.Action.OPEN_MAP), sent.last())
+        // The trip after it, tapped in the row: shown here and on the display.
+        compose.onAllNodesWithTag("ref_277")[1].performClick()
+        assertEquals(LinkMessage.Remote(LinkMessage.Remote.Action.SHOW_TRIP, id = ids[1]), sent.last())
+        compose.onNodeWithTag("ref_13").assert(hasText("Järnvägsgatan 3B"))
+        // The clock: said on the display.
+        compose.onNodeWithTag("ref_8").performClick()
+        assertEquals(LinkMessage.Remote(LinkMessage.Remote.Action.SAY_TIME), sent.last())
+        // The display says its map is open: its buttons and list here.
+        map.value = LinkMessage.MapView(hasMap = true, open = true, ids = ids, at = 0, located = true)
+        compose.waitForIdle()
+        compose.onNodeWithTag("ref_280").performScrollTo().performClick()
+        assertEquals(LinkMessage.Remote(LinkMessage.Remote.Action.SATELLITE, on = true), sent.last())
+        // The first trip a step later: the order tried, sent to the display.
+        compose.onAllNodesWithTag("ref_289")[0].performScrollTo().performClick()
+        assertEquals(LinkMessage.Remote(LinkMessage.Remote.Action.TRY_ORDER, ids = listOf(ids[1], ids[0], ids[2])), sent.last())
+        map.value = map.value!!.copy(ids = listOf(ids[1], ids[0], ids[2]), changed = true)
+        compose.waitForIdle()
+        compose.onNodeWithTag("ref_295").performScrollTo().performClick()
+        assertEquals(LinkMessage.Remote(LinkMessage.Remote.Action.APPLY), sent.last())
+        compose.onNodeWithTag("ref_286").performScrollTo().performClick()
+        assertEquals(LinkMessage.Remote(LinkMessage.Remote.Action.CLOSE_MAP), sent.last())
+        c.end()
+    }
+
+    /**
+     * The panel's window is sized like any window: its right edge makes it wider only, its bottom
+     * edge taller only (also taller than what it shows); the size is kept for next time.
+     */
+    @Test
+    @Config(qualifiers = "en-w412dp-h915dp-mdpi")
+    fun thePanelsWindowIsSizedFromItsEdges() {
         ShadowSettings.setCanDrawOverlays(true)
         threeStops()
         val c = graph.controller
         c.start()
         idle()
-        fun content(v: View) = (v as ViewGroup).let { b -> (0 until b.childCount).map { b.getChildAt(it).alpha } }
-        val back = overlayView(R.string.overlay_back)
-        assertEquals("the button itself stays opaque", 1f, back.alpha)
-        assertTrue("icon and caption dimmed", content(back).all { it < 1f })
-        overlayView(R.string.overlay_next).performClick()
+        val frame = overlays.single()
+        val lp = frame.layoutParams as WindowManager.LayoutParams
+        frame.measure(View.MeasureSpec.makeMeasureSpec(lp.width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(1200, View.MeasureSpec.AT_MOST))
+        frame.layout(0, 0, frame.measuredWidth, frame.measuredHeight)
+        val w = frame.width
+        val h = frame.height
+        fun drag(x: Float, y: Float, dx: Float, dy: Float) {
+            val t = android.os.SystemClock.uptimeMillis()
+            frame.dispatchTouchEvent(MotionEvent.obtain(t, t, MotionEvent.ACTION_DOWN, x, y, 0))
+            for (i in 1..5) frame.dispatchTouchEvent(MotionEvent.obtain(t, t + i * 20L, MotionEvent.ACTION_MOVE, x + dx * i / 5, y + dy * i / 5, 0))
+            frame.dispatchTouchEvent(MotionEvent.obtain(t, t + 120, MotionEvent.ACTION_UP, x + dx, y + dy, 0))
+            idle()
+        }
+        // The right edge, 40 px further: wider, as tall; never wider than the screen.
+        drag(w - 4f, h / 2f, 40f, 0f)
+        assertEquals(w + 40, lp.width)
+        assertEquals(w + 40, graph.settings.overlaySize()!!.first)
+        drag(w + 36f, h / 2f, 400f, 0f)
+        assertEquals(412, lp.width)
+        // The bottom edge, 150 px down: taller than it was, as wide.
+        drag(w / 2f, h - 4f, 0f, 150f)
+        assertEquals(412, lp.width)
+        assertEquals(h + 150, lp.height)
+        assertEquals(412 to h + 150, graph.settings.overlaySize())
+        c.end()
+    }
+
+    /** Back at stop 1 has nothing to undo: it says so and the route stays. */
+    @Test
+    fun backAtFirstStopSaysThereIsNothingToUndo() {
+        ShadowSettings.setCanDrawOverlays(true)
+        threeStops()
+        val c = graph.controller
+        c.start()
         idle()
-        assertTrue("full again once there is something to go back to", content(overlayView(R.string.overlay_back)).all { it == 1f })
+        showPanel()
+        compose.onNodeWithTag("ref_1").performClick()
+        idle()
+        assertEquals(ui(R.string.overlay_no_previous), ShadowToast.getTextOfLatestToast())
+        assertEquals(0, c.route.value!!.completedCount)
         c.end()
     }
 
@@ -412,41 +544,43 @@ class FloatingPanelRoboTest {
         c.start()
         idle()
 
-        overlayView(R.string.overlay_next).performClick()
+        assertEquals("the panel's window", 1, overlays.size)
+        showPanel()
+        compose.onNodeWithTag("ref_5").performClick()
         idle()
         assertEquals(1, c.route.value!!.completedCount)
-        overlayView(R.string.overlay_back).performClick()
+        compose.onNodeWithTag("ref_1").performClick()
         idle()
         assertEquals(0, c.route.value!!.completedCount)
-        overlayView(R.string.overlay_street_desc)
-        overlayView(R.string.overlay_stop_street_desc)
+        compose.onNodeWithTag("ref_2").assertExists()
+        compose.onNodeWithTag("ref_13").assertExists()
         assertTrue("panel shows the street", graph.street.isWanted)
 
         // "–" → small bubble; tap → full panel again.
-        overlayView(R.string.overlay_minimize_desc).performClick()
+        compose.onNodeWithTag("ref_6").performClick()
         idle()
         assertTrue(graph.settings.current.overlayMinimized)
         assertFalse("no street lookups while minimised", graph.street.isWanted)
         overlayView(R.string.overlay_expand_desc).performClick()
         idle()
         assertFalse(graph.settings.current.overlayMinimized)
-        overlayView(R.string.overlay_next)
+        assertEquals(1, overlays.size)
 
         // "×" → closed, a notification brings it back with one tap.
-        overlayView(R.string.overlay_close_desc).performClick()
+        compose.onNodeWithTag("ref_7").performClick()
         idle()
         assertTrue(graph.settings.current.overlayHidden)
-        assertTrue(wm.views.isEmpty())
+        assertTrue(overlays.isEmpty())
         assertNotNull(reminder())
         RouteActionReceiver().onReceive(app, Intent(RouteActionReceiver.ACTION_SHOW_OVERLAY))
         idle()
         assertFalse(graph.settings.current.overlayHidden)
-        assertEquals(1, wm.views.size)
+        assertEquals(1, overlays.size)
         assertNull(reminder())
 
         c.end()
         idle()
-        assertTrue(wm.views.isEmpty())
+        assertTrue(overlays.isEmpty())
         assertNull(reminder())
     }
 }

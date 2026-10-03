@@ -440,6 +440,8 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 onToggleSpeaks = { v -> graph.settings.update { it.copy(displaySpeaks = v) } },
                                 onToggleLook = { graph.settings.update { it.copy(displayDark = !it.displayDark) } },
                                 onOrder = { ids -> client.order(ids) },
+                                remote = client.remotes,
+                                onMapView = { client.mapView(it) },
                                 places = graph.settings,
                                 panelAllowed = remember(resumeTick) { graph.tabletPanel.canShow },
                                 onAllowPanel = { SystemIntents.openOverlaySettings(context) },

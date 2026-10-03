@@ -189,6 +189,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -197,7 +198,9 @@ import se.eldebosh.nastastopp.core.display.DisplayItem
 import se.eldebosh.nastastopp.core.display.DisplaySnapshot
 import se.eldebosh.nastastopp.core.display.TimeStatus
 import se.eldebosh.nastastopp.core.geo.GeoLogic
+import se.eldebosh.nastastopp.core.link.LinkMessage
 import se.eldebosh.nastastopp.core.nav.DisplayEta
+import se.eldebosh.nastastopp.core.nav.OrderPlanner
 import se.eldebosh.nastastopp.core.parse.TripKinds
 import se.eldebosh.nastastopp.core.parse.TripTimes
 import se.eldebosh.nastastopp.core.route.Announcement
@@ -271,6 +274,10 @@ fun PassengerDisplayScreen(
     onEarth: ((Double, Double) -> Unit)? = null,
     onStreetPhotos: ((Double, Double) -> Unit)? = null,
     places: WindowPlaces? = null,
+    /** The controls the driver used on the phone's floating panel, carried out here as if tapped. */
+    remote: Flow<LinkMessage.Remote>? = null,
+    /** What this display's map shows, for the phone's floating panel. */
+    onMapView: ((LinkMessage.MapView) -> Unit)? = null,
 ) {
     KeepScreenOnFullscreen()
     // The trip card and the driver's list of trips open where he last left them, as big.
@@ -373,6 +380,40 @@ fun PassengerDisplayScreen(
         if (edit.preview != null) delay(ORDER_ASK_MS)
         map.focus(wayShown.map { it.mapStop }, wayShownAt)
     }
+    val canAdd = DisplaySnapshot.canAdd(ahead, wayAt, added, earlier)
+    val canAddEarlier = DisplaySnapshot.canAddEarlier(ahead, wayAt, added, earlier)
+    val removeTrip = { trip: DisplayItem ->
+        removed = removed + trip
+        edit.preview = edit.preview?.filterNot { it.sameTrip(trip) }
+        if (edit.picked?.sameTrip(trip) == true) edit.picked = null
+    }
+    // The stop looked at: its own point, else where Google's way to it ends.
+    val lookedPoint: () -> Pair<Double, Double>? = {
+        val looked = wayShown.getOrNull(wayShownAt)
+        val own = looked?.let { item -> item.lat?.let { lat -> item.lng?.let { lng -> lat to lng } } }
+        own ?: routeMap?.route?.takeIf { routeMap.routeKey == RouteMap.keyOf(wayShown.map { it.mapStop }) }?.legs?.getOrNull(wayShownAt)?.path?.lastOrNull()
+    }
+    // The way's trips as Google gave their legs, for the phone: the minutes of each.
+    val wayLine = routeMap?.route?.takeIf { routeMap.routeKey == RouteMap.keyOf(wayShown.map { it.mapStop }) }?.legs?.takeIf { it.size == wayShown.size }
+    val wayAllowed = OrderPlanner.allowed(wayShown.indices.toList(), plannerTrips(wayShown))
+    // What the map shows, told to the phone's floating panel each time it changes.
+    if (onMapView != null) {
+        val view = LinkMessage.MapView(
+            hasMap = map != null,
+            open = held,
+            ids = if (held) wayShown.mapNotNull { it.id } else emptyList(),
+            at = if (held) wayShownAt else 0,
+            minutes = if (held) wayShown.indices.map { i -> wayLine?.get(i)?.let { (it.seconds + 30) / 60 } } else emptyList(),
+            changed = held && edit.preview != null,
+            allowed = wayAllowed,
+            canAdd = held && canAdd,
+            canAddEarlier = held && canAddEarlier,
+            satellite = map?.satellite == true,
+            suggesting = map?.suggesting == true,
+            located = map?.located == true,
+        )
+        LaunchedEffect(view, connected) { onMapView(view) }
+    }
     // The trip shown at the top (the next stop, or one paged to): reported by the stage with the
     // next stop it belongs to (so a stale one is never shown) and whether the screen is focused on it.
     var shownTrip by remember { mutableStateOf<Triple<DisplayItem, DisplayItem, Boolean>?>(null) }
@@ -392,6 +433,72 @@ fun PassengerDisplayScreen(
     val swiping = lineSwiped || listSwiped
     // Home (200), or the strip put away after a while: the stage goes back to the next stop.
     var homeCalls by remember { mutableIntStateOf(0) }
+    // A trip the phone's panel shows: the stage pages to it (its number, and a count so the same
+    // trip asked again is shown again).
+    var showCall by remember { mutableStateOf<Pair<Long, Int>?>(null) }
+    // The phone's floating panel: each of its controls as if tapped here.
+    if (remote != null) {
+        val act by rememberUpdatedState { r: LinkMessage.Remote ->
+            fun trip(id: Long?): DisplayItem? = if (id == null) live?.current else ahead.firstOrNull { it.id == id }
+            fun onMap(block: (RouteMap) -> Unit) {
+                if (!held || map == null) return
+                moments.touched()
+                block(map)
+            }
+            when (r.action) {
+                LinkMessage.Remote.Action.SHOW_TRIP -> {
+                    val id = r.id
+                    if (id == null || id == live?.current?.id) homeCalls++ else showCall = id to ((showCall?.second ?: 0) + 1)
+                }
+                LinkMessage.Remote.Action.OPEN_MAP -> trip(r.id)?.let { item -> showWay?.invoke(item, r.id == null || item.id == live?.current?.id) }
+                LinkMessage.Remote.Action.CLOSE_MAP -> if (held) moments.settle()
+                LinkMessage.Remote.Action.SATELLITE -> onMap { it.showSatellite(r.on ?: !it.satellite) }
+                LinkMessage.Remote.Action.TO_CAR -> onMap { it.toCar() }
+                LinkMessage.Remote.Action.TO_STOP -> onMap { it.toStop() }
+                LinkMessage.Remote.Action.WHOLE -> onMap { it.whole() }
+                LinkMessage.Remote.Action.LOOK_AT -> onMap { m ->
+                    val i = wayShown.indexOfFirst { it.id == r.id }
+                    if (i >= 0) {
+                        edit.picked = wayShown[i]
+                        m.lookAt(i)
+                    }
+                }
+                LinkMessage.Remote.Action.TRY_ORDER -> onMap {
+                    val ids = r.ids.orEmpty()
+                    val tried = ids.mapNotNull { id -> wayShown.firstOrNull { it.id == id } }
+                    if (tried.size == wayShown.size && tried.size == ids.toSet().size) {
+                        edit.preview = tried
+                        edit.advice = null
+                    }
+                }
+                LinkMessage.Remote.Action.UNDO -> onMap {
+                    edit.preview = null
+                    edit.picked = null
+                    edit.advice = null
+                }
+                LinkMessage.Remote.Action.APPLY -> onMap {
+                    val ids = wayShown.mapNotNull { it.id }.takeIf { it.size == wayShown.size }
+                    if (ids != null && edit.preview != null && wayAllowed && edit.sent != ids) {
+                        edit.sent = ids
+                        onOrder?.invoke(ids)
+                    }
+                }
+                LinkMessage.Remote.Action.ADD -> onMap { if (canAdd) added++ }
+                LinkMessage.Remote.Action.ADD_EARLIER -> onMap { if (canAddEarlier) earlier++ }
+                LinkMessage.Remote.Action.REMOVE -> onMap { wayShown.firstOrNull { it.id == r.id }?.let(removeTrip) }
+                LinkMessage.Remote.Action.SUGGEST -> onMap { m ->
+                    if (m.located && !m.suggesting && wayShown.size > 1) suggestOrder(m, wayShown, fromNext = wayAt - windowAt == 0, now.value)
+                }
+                LinkMessage.Remote.Action.SAY_TIME -> {
+                    onSay(Announcements.clock(now.value.hour, now.value.minute))
+                    moments.playTime(tapped = true)
+                }
+                LinkMessage.Remote.Action.EARTH -> onMap { lookedPoint()?.let { (lat, lng) -> onEarth?.invoke(lat, lng) } }
+                LinkMessage.Remote.Action.STREET_PHOTOS -> onMap { lookedPoint()?.let { (lat, lng) -> onStreetPhotos?.invoke(lat, lng) } }
+            }
+        }
+        LaunchedEffect(remote) { remote.collect { act(it) } }
+    }
     LaunchedEffect(swiping, list.isScrollInProgress, browse.open) {
         if (swiping) {
             browse.open = true
@@ -418,13 +525,6 @@ fun PassengerDisplayScreen(
     val lineHidden = focus || browse.open
     val line by animateFloatAsState(if (lineHidden) 0f else 1f, tween(if (lineHidden) CLOCK_FADE_MS else CLOCK_BACK_MS), label = "line")
     val chrome by animateFloatAsState(if (focus) 0f else 1f, tween(if (focus) CLOCK_FADE_MS else CLOCK_BACK_MS), label = "chrome")
-    val focusingState = animateFloatAsState(if (focus) 1f else 0f, tween(if (focus) CLOCK_FADE_MS else CLOCK_FADE_MS * 2), label = "focus")
-    val focusing by focusingState
-    // Followed per frame only where it is drawn: the screen itself is laid out again only as it comes and goes.
-    val focusSeen by remember { derivedStateOf { focusingState.value > 0f } }
-    // The trip whose time stands large under its address, kept while it fades away.
-    var focusedTrip by remember { mutableStateOf<DisplayItem?>(null) }
-    if (focus && tripShown != null) focusedTrip = tripShown
     // Black (or light, 223); Swedish for the passengers, read left to right whatever the app's language.
     // The arrows' light: one frame loop, while there is a route to show.
     val arrowPhase = remember { mutableFloatStateOf(0f) }
@@ -448,10 +548,6 @@ fun PassengerDisplayScreen(
         val bottomPad = with(density) { (minuteSize * (SECONDS_DROP + SECOND_SHARE * DIGIT_HEIGHT)).toDp() } + SECONDS_CLEAR
         // The clock at the bottom, as laid out (the coming trips follow it).
         var clockLine by remember { mutableStateOf(IntSize.Zero) }
-        // How wide a time is, for the focused trip's large time.
-        val timeMeasurer = rememberTextMeasurer()
-        // Where the focused trip's address ends, for its large time under it.
-        var heroBottom by remember { mutableFloatStateOf(0f) }
         // The map lies under everything, unseen until its moment, so it loads once and stays ready.
         if (routeMap != null) {
             MapLayer(routeMap, moments, held, from = { if (pinAt.isSpecified) pinAt - screen.topLeft else Offset.Unspecified })
@@ -521,6 +617,7 @@ fun PassengerDisplayScreen(
                 list = list,
                 snap = snap,
                 homeCalls = homeCalls,
+                showCall = showCall,
                 // A tap on the next stop's address says the announcement here.
                 onSpeakNext = {
                     tapped++
@@ -529,7 +626,6 @@ fun PassengerDisplayScreen(
                 onSay = say,
                 showWay = showWay,
                 onShown = { next, item, byTap -> shownTrip = Triple(next, item, byTap) },
-                onFocusBottom = { heroBottom = it },
                 lineBack = { moments.lineBack },
                 nowMinutes = { now.value.hour * 60 + now.value.minute },
                 // The passenger's last name, tapped: said here and shown large.
@@ -590,25 +686,6 @@ fun PassengerDisplayScreen(
                 modifier = Modifier.graphicsLayer { alpha = line }.ref(88).ink(minuteSize),
             )
         }
-        // Focused: the trip's time large under its address, in the middle of the room left down to
-        // the screen's bottom, drawn at that size so it stays sharp.
-        val big = focusedTrip?.time
-        if (big != null && focusSeen && !screen.isEmpty) {
-            val floor = screen.bottom - with(density) { SECONDS_CLEAR.toPx() }
-            val roomTop = if (heroBottom > screen.top && heroBottom < floor) heroBottom else floor - clockLine.height
-            val room = (floor - roomTop).coerceAtLeast(1f)
-            val perSp = timeMeasurer.measure(big, TextStyle(fontFamily = DigitFont, fontWeight = FontWeight.Bold, fontSize = 100.sp)).size.width / with(density) { 100.sp.toPx() }
-            val sizePx = minOf(room * FOCUS_FILL / DIGIT_HEIGHT, screen.width * FOCUS_WIDTH / perSp, with(density) { FOCUS_MAX.toPx() })
-            val size = with(density) { sizePx.toSp() }
-            // Its box reaches above its digits: placed so the digits' middle is the room's.
-            val top = (roomTop - screen.top + room / 2f - sizePx * (DIGIT_ASCENT - DIGIT_HEIGHT / 2f)).roundToInt()
-            FocusTime(
-                focusedTrip!!,
-                big,
-                size,
-                Modifier.align(Alignment.TopCenter).offset { IntOffset(0, top) }.graphicsLayer { alpha = focusing }.ref(225),
-            )
-        }
         // The weather or the travel time, in the middle while it shows.
         InfoMoment(moments, live?.weather, live?.eta, landscape, weatherWidget, live?.current, Modifier.align(Alignment.Center))
         if (routeMap != null) {
@@ -623,12 +700,7 @@ fun PassengerDisplayScreen(
                 visible = held && moments.infoShown,
                 onUse = { moments.touched() },
                 onClose = { moments.settle() },
-                // The stop looked at: its own point, else where Google's way to it ends.
-                at = {
-                    val looked = wayShown.getOrNull(wayShownAt)
-                    val own = looked?.let { item -> item.lat?.let { lat -> item.lng?.let { lng -> lat to lng } } }
-                    own ?: routeMap.route?.takeIf { routeMap.routeKey == RouteMap.keyOf(wayShown.map { it.mapStop }) }?.legs?.getOrNull(wayShownAt)?.path?.lastOrNull()
-                },
+                at = lookedPoint,
                 onEarth = onEarth,
                 onStreetPhotos = onStreetPhotos,
                 modifier = Modifier.fillMaxSize().zIndex(MAP_OVER_Z),
@@ -644,13 +716,9 @@ fun PassengerDisplayScreen(
                 now = { now.value },
                 note = mapNote(routeMap),
                 onOrder = onOrder,
-                onAdd = if (DisplaySnapshot.canAdd(ahead, wayAt, added, earlier)) ({ added++ }) else null,
-                onAddEarlier = if (DisplaySnapshot.canAddEarlier(ahead, wayAt, added, earlier)) ({ earlier++ }) else null,
-                onRemove = { trip ->
-                    removed = removed + trip
-                    edit.preview = edit.preview?.filterNot { it.sameTrip(trip) }
-                    if (edit.picked?.sameTrip(trip) == true) edit.picked = null
-                },
+                onAdd = if (canAdd) ({ added++ }) else null,
+                onAddEarlier = if (canAddEarlier) ({ earlier++ }) else null,
+                onRemove = removeTrip,
                 onUse = { moments.touched() },
                 place = listPlace,
                 modifier = Modifier.fillMaxSize().zIndex(MAP_OVER_Z),
@@ -1284,7 +1352,7 @@ private fun WeatherGlyph(kind: WeatherKind, color: Color, modifier: Modifier = M
 
 /** A person, simply and lightly: an outlined head over outlined shoulders, in [color]. */
 @Composable
-private fun PersonGlyph(color: Color, modifier: Modifier = Modifier) {
+internal fun PersonGlyph(color: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
         val w = size.width
         val line = Stroke(width = w * 0.09f, cap = StrokeCap.Round)
@@ -1344,11 +1412,11 @@ private fun Stage(
     list: LazyListState,
     snap: FlingBehavior,
     homeCalls: Int,
+    showCall: Pair<Long, Int>?,
     onSpeakNext: () -> Unit,
     onSay: (Announcement) -> Unit,
     showWay: ((DisplayItem, Boolean) -> Unit)?,
     onShown: (next: DisplayItem, shown: DisplayItem, tapped: Boolean) -> Unit,
-    onFocusBottom: (Float) -> Unit,
     onCard: (DisplayItem) -> Unit,
     onName: (String) -> Unit,
     lineBack: () -> Float,
@@ -1408,6 +1476,14 @@ private fun Stage(
                     }
                     goHome()
                 }
+            }
+            // A trip the phone's panel shows: paged to here too (home again after a while, as when browsed).
+            val showBefore = remember { showCall }
+            LaunchedEffect(showCall) {
+                val (id, _) = showCall?.takeIf { it != showBefore } ?: return@LaunchedEffect
+                val page = (0 until pager.pageCount).firstOrNull { pageItem(it).id == id } ?: return@LaunchedEffect
+                spotlight.stop()
+                pager.animateScrollToPage(page)
             }
             // Home: whatever is shown gives way to the next stop (not for the calls made before).
             val calledBefore = remember { homeCalls }
@@ -1490,7 +1566,6 @@ private fun Stage(
                             shared = if (index == home) shared else null,
                             onClick = if (index == home) onSpeakNext else { { sayTrip(item, index > home) } },
                             onLongClick = showWay?.let { { it(item, index == home) } },
-                            onBottom = if (focused) onFocusBottom else null,
                             // Only the next stop's name is shown (beside its figure) and said.
                             onName = if (index == home) item.lastName?.let { name -> { onName(name) } } else null,
                             onCard = item.card?.let { { onCard(item) } },
@@ -1698,13 +1773,6 @@ private fun Modifier.hangAbove(): Modifier = layout { measurable, constraints ->
     layout(placeable.width, 0) { placeable.place(0, -placeable.height) }
 }
 
-/** The focused trip's time, large and still under its address, coming into view like it ([entering]). */
-@Composable
-private fun FocusTime(item: DisplayItem, time: String, size: TextUnit, modifier: Modifier = Modifier) {
-    val entrance = rememberEntrance(true, item.trip, 0L)
-    TimeFace(time, size, modifier.entering(entrance, AppTheme.colors.text.copy(alpha = SHINE_ALPHA)), breathing = false)
-}
-
 /**
  * The connection, in the top-left corner, small and quiet (it is for the driver): a dot (green
  * while the phone is linked) and the phone's name; a tap offers to close the display ([onExit]).
@@ -1870,13 +1938,12 @@ private fun WeatherSign(weather: DisplayWeather?, onClick: () -> Unit, enabled: 
 private enum class HeroRole { EARLIER, NEXT, LATER }
 
 /**
- * A stop, from the top: a line with its passenger's figure, its time and its town and area
- * ([HeroLine]), then the street and number as large as fits in [TITLE_ROOM] of the height (at most
- * two lines, never breaking a word). The next stop keeps its place in the "Därefter" → next stop
- * transition ([shared]).
+ * A stop, from the top: a line with its passenger's figure, its time large in the clock's style
+ * and its town and area ([HeroLine]), then the street and number as large as fits in [TITLE_ROOM]
+ * of the height (at most two lines, never breaking a word); the time takes the room the address
+ * leaves. The next stop keeps its place in the "Därefter" → next stop transition ([shared]).
  * A tap says it ([onClick]). When it is [focused], the address comes into view again
- * ([entering]) and lights up, and [onBottom] learns where it ends (its large time goes under it);
- * while something else is said, it is [dimmed].
+ * ([entering]) and lights up; while something else is said, it is [dimmed].
  */
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -1890,13 +1957,10 @@ private fun StopHero(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
-    onBottom: ((Float) -> Unit)? = null,
     onName: (() -> Unit)? = null,
     onCard: (() -> Unit)? = null,
 ) {
     val next = role == HeroRole.NEXT
-    var bottom by remember { mutableFloatStateOf(0f) }
-    if (onBottom != null) LaunchedEffect(bottom) { onBottom(bottom) }
     // Focused, the address comes into view out of a soft blur with a sweep of light, then the area.
     val title = rememberEntrance(focused, current.trip, ENTER_TITLE_DELAY_MS)
     val area = rememberEntrance(focused, current.trip, ENTER_AREA_DELAY_MS)
@@ -1920,20 +1984,22 @@ private fun StopHero(
         contentAlignment = Alignment.TopCenter,
     ) {
         val titleRoom = maxHeight * TITLE_ROOM
-        Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    // Whole pixels: a moving layer above does not lay the screen out again every frame.
-                    .onGloballyPositioned { bottom = (it.positionInRoot().y + it.size.height).roundToInt().toFloat() },
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                // Over the address, on one line: the passenger's figure (a tap opens the trip's
-                // YouDrive card, [onCard]; without a card, on the next stop, it shows the last name
-                // beside it for a while, and a tap on the name says it and shows it large), the
-                // trip's time, and its town and area.
-                HeroLine(current, next, landscape, focused, area, shine, onName, onCard)
-                BoxWithConstraints(Modifier.ref(91).heightIn(max = titleRoom).weight(1f, fill = false).fillMaxWidth().entering(title, shine)) {
+        // The address takes what it needs (at most [TITLE_ROOM] of the height); the trip's time
+        // over it, in the clock's style, takes the room left above it: large over a short
+        // address, smaller over a long one.
+        Layout(
+            content = {
+                BoxWithConstraints(Modifier.fillMaxWidth()) {
+                    val room = with(LocalDensity.current) { (maxHeight * HERO_TIME_FILL).toSp() }
+                    val wide = with(LocalDensity.current) { (maxWidth * HERO_TIME_WIDTH).toSp() }
+                    // Over the address, on one line: the passenger's figure (a tap opens the trip's
+                    // YouDrive card, [onCard]; without a card, on the next stop, it shows the last
+                    // name beside it for a while, and a tap on the name says it and shows it large),
+                    // the trip's time, large, and its town and area.
+                    val size = minOf(room.value, wide.value / timeEms(current.time), HERO_TIME_MAX.value).coerceAtLeast(HERO_TIME_MIN.value).sp
+                    HeroLine(current, next, landscape, focused, size, area, shine, onName, onCard)
+                }
+                BoxWithConstraints(Modifier.ref(91).fillMaxWidth().entering(title, shine)) {
                     val style = TextStyle(
                         fontFamily = DisplayFont,
                         fontWeight = FontWeight.Bold,
@@ -1959,16 +2025,36 @@ private fun StopHero(
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
+            },
+            modifier = Modifier.fillMaxSize(),
+        ) { measurables, constraints ->
+            val width = constraints.maxWidth
+            val loose = Constraints(maxWidth = width)
+            val address = measurables[1].measure(loose.copy(maxHeight = titleRoom.roundToPx()))
+            val gap = HERO_GAP.roundToPx()
+            val room = (constraints.maxHeight - address.height - gap).coerceAtLeast(0)
+            val time = measurables[0].measure(loose.copy(maxHeight = room))
+            layout(width, constraints.maxHeight) {
+                time.place((width - time.width) / 2, 0)
+                address.place((width - address.width) / 2, time.height + gap)
             }
         }
     }
 }
 
+/** How wide a trip's [time] is in the clock's style, in ems of its minutes' size. */
+private fun timeEms(time: String?): Float {
+    val hour = time?.substringBefore(':').orEmpty()
+    // A digit is about 0.6 em; the colon and the room beside it about 0.5 em of the hours' size.
+    return (hour.length * HOUR_SHARE + HOUR_SHARE * 0.5f + 2f) * 0.62f
+}
+
 /**
  * The line over a stop's address: the passenger's figure (231 on the next stop, 234 on another)
- * and, on the next stop without a card, its last name for a while (236); the trip's time (230),
- * larger and in the highlight colour; and its town and area (92). The figure and the name step
- * aside while the stop is [focused] (its time then stands large under the address).
+ * and, on the next stop without a card, its last name for a while (236); the trip's time (230) in
+ * the clock's style ([TimeFace]: the hours smaller, the colon's dots, the minutes large; no
+ * seconds) at [timeSize]; and its town and area (92). The figure and the name step aside while
+ * the stop is [focused]. The time is only here: never again on the same page.
  */
 @Composable
 private fun HeroLine(
@@ -1976,6 +2062,7 @@ private fun HeroLine(
     next: Boolean,
     landscape: Boolean,
     focused: Boolean,
+    timeSize: TextUnit,
     area: Entrance,
     shine: Color,
     onName: (() -> Unit)?,
@@ -2041,15 +2128,7 @@ private fun HeroLine(
             Spacer(Modifier.width(6.dp))
         }
         if (current.time != null) {
-            Text(
-                current.time,
-                fontFamily = DigitFont,
-                fontWeight = FontWeight.Bold,
-                fontSize = lineSp * HERO_TIME_SHARE,
-                color = AppTheme.colors.highlight,
-                maxLines = 1,
-                modifier = Modifier.ref(230),
-            )
+            TimeFace(current.time, timeSize, Modifier.ref(230), breathing = false)
         }
         current.subtitle?.let {
             Spacer(Modifier.width(14.dp))
@@ -2137,7 +2216,7 @@ private fun Modifier.entering(entrance: Entrance, shine: Color): Modifier = this
     }
 
 @Composable
-private fun ThenLabel(modifier: Modifier = Modifier, text: String = stringResource(R.string.passenger_then), color: Color = AppTheme.colors.textMuted, size: TextUnit = 13.sp) {
+internal fun ThenLabel(modifier: Modifier = Modifier, text: String = stringResource(R.string.passenger_then), color: Color = AppTheme.colors.textMuted, size: TextUnit = 13.sp) {
     Text(
         text.uppercase(),
         fontFamily = DisplayFont,
@@ -2651,7 +2730,7 @@ private fun Colon(digitSize: TextUnit, status: TimeStatus?, second: Int?, modifi
 private val ColonLine = VerticalAlignmentLine(::min)
 
 @Composable
-private fun statusColor(status: TimeStatus): Color = when (status) {
+internal fun statusColor(status: TimeStatus): Color = when (status) {
     TimeStatus.ON_TIME -> AppTheme.colors.success
     TimeStatus.SOON, TimeStatus.DUE -> AppTheme.colors.soon
     TimeStatus.LATE, TimeStatus.VERY_LATE -> AppTheme.colors.danger
@@ -2663,7 +2742,7 @@ private fun statusColor(status: TimeStatus): Color = when (status) {
  * the colon unless it is still ([breathing] off).
  */
 @Composable
-private fun TimeFace(time: String, minuteSize: TextUnit, modifier: Modifier = Modifier, breathing: Boolean = true) {
+internal fun TimeFace(time: String, minuteSize: TextUnit, modifier: Modifier = Modifier, breathing: Boolean = true) {
     val hour = time.substringBefore(':')
     val minute = time.substringAfter(':', "")
     val breath = rememberInfiniteTransition(label = "breath")
@@ -3299,7 +3378,15 @@ private const val NAME_OUT_MS = 200
 /** The line over a stop's address ([HeroLine]): its words this size, its time this much larger. */
 private val HERO_LINE_SP = 44.sp
 private val HERO_LINE_SP_NARROW = 30.sp
-private const val HERO_TIME_SHARE = 1.15f
+/**
+ * The trip's time over its address, in the clock's style: filling this share of the room left over
+ * the address, at most this share of the width, between these sizes (of its minutes).
+ */
+private const val HERO_TIME_FILL = 0.92f
+private const val HERO_TIME_WIDTH = 0.62f
+private val HERO_TIME_MAX = 200.sp
+private val HERO_TIME_MIN = 40.sp
+private val HERO_GAP = 6.dp
 private val NAME_SP_WIDE = 260.sp
 private val NAME_SP_NARROW = 120.sp
 private const val NAME_WIDTH = 0.9f
@@ -3327,13 +3414,7 @@ private const val ARROW_LOW = 0.35f
 private const val ARROW_HIGH = 1f
 private const val ARROW_FLOW_MS = 2_700
 
-/**
- * Focused on a trip: its time fills this share of the room under the address (in height) or of the
- * screen's width, whichever comes first, and is never larger than [FOCUS_MAX], while the clock and
- * the top line fade out fast and come back gently.
- */
-private const val FOCUS_FILL = 0.72f
-private const val FOCUS_WIDTH = 0.7f
+/** The largest a time is drawn; focused, the clock and the top line fade out fast and come back gently. */
 private val FOCUS_MAX = 260.sp
 
 /**

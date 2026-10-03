@@ -1,8 +1,18 @@
 package se.eldebosh.nastastopp.overlay
 
-import se.eldebosh.nastastopp.core.parse.Places
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import se.eldebosh.nastastopp.core.display.DisplayItem
+import se.eldebosh.nastastopp.core.display.DisplaySnapshot
+import se.eldebosh.nastastopp.core.parse.Places
+import se.eldebosh.nastastopp.core.route.Announcements
+import se.eldebosh.nastastopp.link.DisplayLinkServer
+import java.time.LocalTime
 import se.eldebosh.nastastopp.core.link.LinkMessage
 import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.core.route.Announcement
@@ -51,11 +61,68 @@ interface PanelSource {
 
     /** Says the street the vehicle is on, or repeats the announcement while none is known. */
     fun sayStreet()
+
+    /** What the passenger display shows: the panel shows the same trips. */
+    val snapshot: StateFlow<DisplaySnapshot?>
+
+    /** The passenger's first + last name on [item]: only on the driver's own phone, never on a tablet. */
+    fun fullName(item: DisplayItem): String? = null
+
+    /** Says [announcement] on this device (a trip tapped on the panel). */
+    fun say(announcement: Announcement)
+
+    /** Says the time: on the passenger display when one is linked (as a tap on its clock), else here. */
+    fun sayTime()
+
+    /** The linked passenger display's name, or null (only on the phone). */
+    val displayName: StateFlow<String?>? get() = null
+
+    /** What the linked passenger display's map shows (only on the phone; null before it says). */
+    val mapView: StateFlow<LinkMessage.MapView?>? get() = null
+
+    /** A control for the linked passenger display, carried out there as if tapped (only on the phone). */
+    fun remote(message: LinkMessage.Remote) = Unit
 }
 
-/** The phone: its own route, its location's street and speed, and the passenger's name. */
-class RoutePanelSource(private val controller: RouteController, override val street: CurrentStreet) : PanelSource {
+/**
+ * The phone: its own route, its location's street and speed, and the passenger's name; the linked
+ * passenger display ([server]) is driven from the panel.
+ */
+class RoutePanelSource(
+    private val controller: RouteController,
+    override val street: CurrentStreet,
+    private val announcer: Announcer,
+    private val server: DisplayLinkServer,
+    scope: CoroutineScope,
+) : PanelSource {
     override val changes: Flow<Unit> = combine(controller.route, street.state) { _, _ -> }
+
+    override val snapshot: StateFlow<DisplaySnapshot?> = controller.display
+
+    override fun fullName(item: DisplayItem): String? {
+        val r = controller.route.value ?: return null
+        val id = item.id ?: return null
+        return (r.stops + r.completed).firstOrNull { it.id == id }?.name
+    }
+
+    override fun say(announcement: Announcement) = announcer.speak(announcement)
+
+    override fun sayTime() {
+        if (server.mapView.value != null) {
+            server.remote(LinkMessage.Remote(LinkMessage.Remote.Action.SAY_TIME))
+        } else {
+            val now = LocalTime.now()
+            announcer.speak(Announcements.clock(now.hour, now.minute))
+        }
+    }
+
+    override val displayName: StateFlow<String?> = server.state
+        .map { s -> s.clients.firstOrNull()?.takeIf { s.status == DisplayLinkServer.Status.CONNECTED } }
+        .stateIn(scope, SharingStarted.Eagerly, null)
+
+    override val mapView: StateFlow<LinkMessage.MapView?> = server.mapView
+
+    override fun remote(message: LinkMessage.Remote) = server.remote(message)
 
     override fun trip(): PanelTrip? {
         val r = controller.route.value ?: return null
@@ -99,6 +166,15 @@ class RoutePanelSource(private val controller: RouteController, override val str
  */
 class LinkPanelSource(private val client: DisplayLinkClient, private val announcer: Announcer) : PanelSource {
     override val changes: Flow<Unit> = combine(client.snapshot, client.state) { _, _ -> }
+
+    override val snapshot: StateFlow<DisplaySnapshot?> = client.snapshot
+
+    override fun say(announcement: Announcement) = announcer.speak(announcement)
+
+    override fun sayTime() {
+        val now = LocalTime.now()
+        announcer.speak(Announcements.clock(now.hour, now.minute))
+    }
 
     override val street: CurrentStreet? = null
 

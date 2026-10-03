@@ -59,6 +59,19 @@ class DisplayLinkServer(
     private val acceptJobs = mutableListOf<Job>()
     private val serverSockets = ConcurrentHashMap.newKeySet<BluetoothServerSocket>()
     private val sockets = ConcurrentHashMap<BluetoothSocket, String>()
+    private val sessions = ConcurrentHashMap.newKeySet<LinkSession>()
+
+    private val _mapView = MutableStateFlow<LinkMessage.MapView?>(null)
+
+    /** What a connected passenger display's map shows (null without one, or before it says). */
+    val mapView: StateFlow<LinkMessage.MapView?> = _mapView.asStateFlow()
+
+    /** A control used on this phone's floating panel, sent to the connected passenger displays. */
+    fun remote(message: LinkMessage.Remote) {
+        val to = sessions.toList()
+        if (to.isEmpty()) return
+        scope.launch(Dispatchers.IO) { to.forEach { s -> runCatching { s.send(message) } } }
+    }
 
     private val enabled: Boolean
         get() = settings.current.role == DeviceRole.CONTROLLER && settings.current.displayLinkEnabled
@@ -167,6 +180,7 @@ class DisplayLinkServer(
             return
         }
         sockets[socket] = name
+        sessions.add(session)
         publishClients()
         val done = CompletableDeferred<Unit>()
         fun io(block: suspend () -> Unit): Job = scope.launch(Dispatchers.IO) {
@@ -195,6 +209,7 @@ class DisplayLinkServer(
                     when (message) {
                         is LinkMessage.Command -> scope.launch(Dispatchers.Main) { carryOut(message.action) }
                         is LinkMessage.Order -> scope.launch(Dispatchers.Main) { controller.reorder(message.ids) }
+                        is LinkMessage.MapView -> _mapView.value = message
                         else -> Unit
                     }
                 }
@@ -204,7 +219,9 @@ class DisplayLinkServer(
         jobs.forEach { it.cancel() }
         runCatching { socket.close() }
         session.close()
+        sessions.remove(session)
         sockets.remove(socket)
+        if (sessions.isEmpty()) _mapView.value = null
         publishClients()
     }
 

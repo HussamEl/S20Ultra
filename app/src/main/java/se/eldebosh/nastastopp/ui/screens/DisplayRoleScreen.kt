@@ -1,15 +1,6 @@
 package se.eldebosh.nastastopp.ui.screens
 
 import androidx.compose.foundation.background
-import se.eldebosh.nastastopp.weather.WeatherWidgets
-import se.eldebosh.nastastopp.core.nav.RoutesApi
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,11 +14,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,9 +34,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.flow.Flow
 import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.core.display.DisplaySnapshot
+import se.eldebosh.nastastopp.core.link.LinkMessage
+import se.eldebosh.nastastopp.core.nav.RoutesApi
 import se.eldebosh.nastastopp.core.route.Announcement
 import se.eldebosh.nastastopp.link.DisplayLinkClient
 import se.eldebosh.nastastopp.link.PairedDevice
@@ -55,6 +56,7 @@ import se.eldebosh.nastastopp.ui.TopBar
 import se.eldebosh.nastastopp.ui.ref
 import se.eldebosh.nastastopp.ui.refCorner
 import se.eldebosh.nastastopp.ui.theme.AppTheme
+import se.eldebosh.nastastopp.weather.WeatherWidgets
 
 /**
  * This device is a passenger display: first choose the driver's (paired) device, then show the
@@ -106,6 +108,9 @@ fun DisplayRoleScreen(
     availabilityStatus: DisplayLinkClient.Status = DisplayLinkClient.Status.IDLE,
     /** Goes up by one with each announcement from the driver's phone. */
     spoken: Int = 0,
+    /** The controls the driver used on the phone's floating panel, and what this display's map shows, for it. */
+    remote: Flow<LinkMessage.Remote>? = null,
+    onMapView: ((LinkMessage.MapView) -> Unit)? = null,
 ) {
     var showSetup by remember { mutableStateOf(false) }
     val blocked = !bluetoothReady || paired.isEmpty() ||
@@ -136,6 +141,8 @@ fun DisplayRoleScreen(
             dark = settings.displayDark,
             onToggleLook = onToggleLook,
             onOrder = onOrder,
+            remote = remote,
+            onMapView = onMapView,
         )
         return
     }

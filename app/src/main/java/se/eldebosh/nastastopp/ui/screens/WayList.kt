@@ -150,6 +150,15 @@ internal class WayEdit {
 internal fun DisplayItem.sameTrip(other: DisplayItem): Boolean =
     if (id != null && other.id != null) id == other.id else trip == other.trip
 
+/**
+ * Asks Google for the best order of [shown] ([RouteMap.suggest]). Lateness counts only from the
+ * next stop ([fromNext]): a way that starts later skips the trips before it.
+ */
+internal fun suggestOrder(map: RouteMap, shown: List<DisplayItem>, fromNext: Boolean, now: LocalTime) {
+    val trips = plannerTrips(shown)
+    map.suggest(shown.map { it.mapStop }, if (fromNext) trips else trips.map { it.copy(booked = null) }, now.toSecondOfDay())
+}
+
 /** The trips for [OrderPlanner]: booked time, pick-up or drop-off, passenger's number. */
 internal fun plannerTrips(trips: List<DisplayItem>): List<OrderPlanner.Trip> = trips.map {
     OrderPlanner.Trip(
@@ -377,8 +386,7 @@ internal fun WayList(
                         enabled = map.located && !map.suggesting && shown.size > 1,
                     ) {
                         onUse()
-                        // Lateness counts only from the next stop: a way that starts later skips the trips before it.
-                        map.suggest(shown.map { it.mapStop }, if (fromNext) trips else trips.map { it.copy(booked = null) }, now().toSecondOfDay())
+                        suggestOrder(map, shown, fromNext, now())
                     }
                 }
                 if (changed) {

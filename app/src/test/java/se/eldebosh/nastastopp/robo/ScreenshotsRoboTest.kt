@@ -6,107 +6,121 @@ import android.graphics.Paint
 import android.os.Looper
 import android.view.View
 import android.view.WindowManager
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.filterToOne
+import androidx.compose.ui.test.hasAnyDescendant
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDialog
+import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.pinch
+import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.swipeRight
+import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import java.io.File
+import java.time.Duration
+import java.time.LocalTime
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 import org.robolectric.shadow.api.Shadow
 import org.robolectric.shadows.ShadowSettings
 import org.robolectric.shadows.ShadowWindowManagerImpl
 import se.eldebosh.nastastopp.App
-import se.eldebosh.nastastopp.core.geo.GeoResult
-import se.eldebosh.nastastopp.core.geo.Fix
-import se.eldebosh.nastastopp.geo.CurrentStreet
-import se.eldebosh.nastastopp.geo.StreetMapStore
-import se.eldebosh.nastastopp.overlay.OverlayManager
-import se.eldebosh.nastastopp.overlay.PanelSource
-import se.eldebosh.nastastopp.overlay.RoutePanelSource
-import se.eldebosh.nastastopp.ui.screens.OnboardingScreen
-import java.time.Duration
-import androidx.compose.material3.MaterialTheme
-import se.eldebosh.nastastopp.ui.theme.AppTheme
-import androidx.compose.material3.Text
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.background
-import androidx.compose.material3.Surface
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onAllNodesWithTag
-import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.assertCountEquals
-import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.performTouchInput
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.test.swipeLeft
-import androidx.compose.ui.test.swipeRight
-import se.eldebosh.nastastopp.core.nav.DisplayEta
-import se.eldebosh.nastastopp.core.weather.DisplayWeather
-import androidx.compose.ui.test.click
-import androidx.compose.ui.test.longClick
-import androidx.compose.ui.test.onFirst
-import java.time.LocalTime
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.graphics.asAndroidBitmap
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.test.captureToImage
-import androidx.compose.ui.test.junit4.v2.createComposeRule
-import androidx.compose.ui.test.onRoot
-import androidx.compose.ui.test.hasTestTag
-import androidx.compose.ui.test.filterToOne
-import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.assert
-import androidx.compose.ui.test.hasAnyDescendant
-import androidx.test.ext.junit.runners.AndroidJUnit4
-import org.junit.Rule
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.remember
-import se.eldebosh.nastastopp.ui.screens.RouteMap
-import se.eldebosh.nastastopp.settings.WindowPlaces
-import androidx.compose.ui.test.pinch
-import androidx.compose.ui.test.performScrollTo
-import org.junit.Test
-import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.onNodeWithContentDescription
-import org.junit.runner.RunWith
-import org.robolectric.annotation.Config
-import org.robolectric.annotation.GraphicsMode
 import se.eldebosh.nastastopp.core.display.DisplayItem
-import se.eldebosh.nastastopp.core.parse.DeviceFixtures
 import se.eldebosh.nastastopp.core.display.DisplaySnapshot
+import se.eldebosh.nastastopp.core.geo.Fix
+import se.eldebosh.nastastopp.core.geo.GeoResult
+import se.eldebosh.nastastopp.core.link.LinkMessage
+import se.eldebosh.nastastopp.core.nav.DisplayEta
+import se.eldebosh.nastastopp.core.parse.DeviceFixtures
+import se.eldebosh.nastastopp.core.parse.TripKind
+import se.eldebosh.nastastopp.core.weather.DisplayWeather
 import se.eldebosh.nastastopp.core.youdrive.TripChange
 import se.eldebosh.nastastopp.core.youdrive.WatchedTrip
+import se.eldebosh.nastastopp.geo.CurrentStreet
+import se.eldebosh.nastastopp.geo.StreetMapStore
 import se.eldebosh.nastastopp.link.DisplayLinkServer
+import se.eldebosh.nastastopp.overlay.FloatingPanel
+import se.eldebosh.nastastopp.overlay.OverlayManager
+import se.eldebosh.nastastopp.overlay.PanelActions
+import se.eldebosh.nastastopp.overlay.PanelSource
+import se.eldebosh.nastastopp.overlay.RoutePanelSource
 import se.eldebosh.nastastopp.route.HistoryEntry
 import se.eldebosh.nastastopp.route.model.GeoPoint
 import se.eldebosh.nastastopp.route.model.GeoStatus
 import se.eldebosh.nastastopp.route.model.RouteData
 import se.eldebosh.nastastopp.route.model.Stop
-import se.eldebosh.nastastopp.settings.Appearance
-import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.settings.AppSettings
+import se.eldebosh.nastastopp.settings.Appearance
+import se.eldebosh.nastastopp.settings.WindowPlaces
 import se.eldebosh.nastastopp.tts.TtsStatus
 import se.eldebosh.nastastopp.ui.LocalExplainResources
 import se.eldebosh.nastastopp.ui.screens.ActiveRouteScreen
 import se.eldebosh.nastastopp.ui.screens.HelpScreen
 import se.eldebosh.nastastopp.ui.screens.HomeScreen
+import se.eldebosh.nastastopp.ui.screens.OnboardingScreen
 import se.eldebosh.nastastopp.ui.screens.PassengerDisplayScreen
 import se.eldebosh.nastastopp.ui.screens.PermissionStatus
 import se.eldebosh.nastastopp.ui.screens.ReviewScreen
+import se.eldebosh.nastastopp.ui.screens.RouteMap
 import se.eldebosh.nastastopp.ui.screens.SettingsScreen
 import se.eldebosh.nastastopp.ui.screens.YouDriveBar
 import se.eldebosh.nastastopp.ui.screens.YouDriveCard
+import se.eldebosh.nastastopp.ui.theme.AppTheme
 import se.eldebosh.nastastopp.ui.theme.NastaTheme
 import se.eldebosh.nastastopp.util.LocaleHelper
 import se.eldebosh.nastastopp.youdrive.YouDriveWatcher
-import java.io.File
 
 /**
  * Renders each screen (English UI, Arabic explanations, reference numbers on) with invented trips
@@ -305,6 +319,11 @@ class ScreenshotsRoboTest {
     @Test
     fun floatingBubble() = renderPanel("floating_bubble", Appearance.DAY, minimized = true)
 
+    /** The passenger display's map open: the panel runs it (its buttons and its list of trips). */
+    @Test
+    @Config(qualifiers = "en-w412dp-h1500dp-xhdpi")
+    fun floatingPanelRunsTheDisplaysMap() = renderPanel("floating_map", Appearance.DAY, mapOpen = true)
+
     /** Arabic: the panel is mirrored (Back on the right). */
     @Test
     fun floatingArabic() = renderPanel("floating_ar", Appearance.DAY, language = "ar")
@@ -320,7 +339,7 @@ class ScreenshotsRoboTest {
     @Test
     fun floatingBubbleOnTheTablet() = renderPanel("floating_tablet_bubble", Appearance.NIGHT, minimized = true, tablet = true)
 
-    private fun renderPanel(name: String, appearance: Appearance, minimized: Boolean = false, language: String = "en", tablet: Boolean = false) {
+    private fun renderPanel(name: String, appearance: Appearance, minimized: Boolean = false, language: String = "en", tablet: Boolean = false, mapOpen: Boolean = false) {
         val app = ApplicationProvider.getApplicationContext<App>()
         val graph = app.graph
         ShadowSettings.setCanDrawOverlays(true)
@@ -342,15 +361,61 @@ class ScreenshotsRoboTest {
         shadowOf(Looper.getMainLooper()).idle()
         street.onFix(Fix(10_000, 59.38, 13.5, 12.5f, 5f)) // the confirming reading
         shadowOf(Looper.getMainLooper()).idle()
-        val phone = RoutePanelSource(graph.controller, street)
+        val phone = RoutePanelSource(graph.controller, street, graph.announcer, graph.displayServer, graph.scope)
         // A tablet gets what its passenger display gets: no name, and no street or speed.
-        val source = if (!tablet) phone else object : PanelSource by phone {
-            override val street: CurrentStreet? = null
-            override fun trip() = phone.trip()?.copy(name = null, area = null)
+        val source = when {
+            tablet -> object : PanelSource by phone {
+                override val street: CurrentStreet? = null
+                override fun trip() = phone.trip()?.copy(name = null, area = null)
+                override fun fullName(item: DisplayItem): String? = null
+                override val mapView: StateFlow<LinkMessage.MapView?>? = null
+                override val displayName: StateFlow<String?>? = null
+            }
+            // The tablet's map open: the panel runs it.
+            mapOpen -> object : PanelSource by phone {
+                override val displayName: StateFlow<String?> = MutableStateFlow("Galaxy Tab S9")
+                override val mapView: StateFlow<LinkMessage.MapView?> = MutableStateFlow(
+                    LinkMessage.MapView(hasMap = true, open = true, ids = graph.controller.route.value!!.stops.map { it.id }, at = 0, minutes = listOf(4, 11), located = true, canAdd = false, canAddEarlier = false),
+                )
+            }
+            else -> object : PanelSource by phone {
+                override val displayName: StateFlow<String?> = MutableStateFlow("Galaxy Tab S9")
+                override val mapView: StateFlow<LinkMessage.MapView?> = MutableStateFlow(LinkMessage.MapView(hasMap = true))
+            }
         }
-        val panelManager = OverlayManager(app, source, graph.settings, graph.scope, bubbleScale = if (tablet) 2f else 1f) { true }
         graph.controller.start()
         shadowOf(Looper.getMainLooper()).idle()
+        if (!minimized) {
+            // The full panel is drawn with Compose: drawn here over the same backgrounds.
+            val actions = object : PanelActions {
+                override fun minimize() = Unit
+                override fun close() = Unit
+                override fun openApp() = Unit
+                override fun toggleSayStreet() = Unit
+                override fun toast(text: Int) = Unit
+                override fun barAt(bounds: androidx.compose.ui.geometry.Rect) = Unit
+            }
+            compose.setContent {
+                Box(Modifier.size(PANEL_SHOT_W, if (mapOpen) 900.dp else 560.dp)) {
+                    Row(Modifier.fillMaxSize()) {
+                        Box(Modifier.weight(1f).fillMaxHeight().background(PanelShotDay))
+                        Box(Modifier.weight(1f).fillMaxHeight().background(PanelShotNight))
+                    }
+                    Box(Modifier.padding(14.dp)) {
+                        FloatingPanel(source, actions, sayStreetOn = true, time = { LocalTime.of(7, 21, 30) })
+                    }
+                }
+            }
+            compose.waitForIdle()
+            save(name, compose.onRoot().captureToImage().asAndroidBitmap())
+            graph.overlay.suppress("render", false)
+            street.want("render", false)
+            graph.controller.end()
+            graph.settings.update { it.copy(appearance = Appearance.DAY, overlayMinimized = false, uiLanguage = "en") }
+            LocaleHelper.applyAppLocale(app, "en")
+            return
+        }
+        val panelManager = OverlayManager(app, source, graph.settings, graph.scope, bubbleScale = if (tablet) 2f else 1f) { true }
         val wm = Shadow.extract<ShadowWindowManagerImpl>(app.getSystemService(WindowManager::class.java))
         val panel = wm.views.last() // the compose rule's own window comes first
         panel.measure(View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
@@ -632,7 +697,7 @@ class ScreenshotsRoboTest {
         // The stop after "Därefter", large at the top (and small on the bottom line) with its time
         // over it.
         compose.onAllNodesWithText("Storgatan 14").assertCountEquals(2)
-        compose.onAllNodesWithTag("ref_230", useUnmergedTree = true).filterToOne(hasText("08:25")).assertIsDisplayed()
+        compose.onAllNodesWithTag("ref_230", useUnmergedTree = true).filterToOne(hasAnyDescendant(hasText("08")) and hasAnyDescendant(hasText("25"))).assertIsDisplayed()
         compose.onNodeWithText("Västra Torggatan 12").assertDoesNotExist()
         compose.onNodeWithTag("ref_200").performClick()
         compose.mainClock.advanceTimeBy(3_000)
@@ -742,6 +807,83 @@ class ScreenshotsRoboTest {
      * takes his touches; its buttons move it, and its × brings the screen back. Google's apps open
      * only from 242 and 244, at the trip looked at (the one picked in the list, else the one opened).
      */
+    /**
+     * The phone's floating panel drives the display as if tapped there: it opens the map for a trip,
+     * switches it to the satellite picture, tries an order, uses it, says the time and closes the
+     * map; the display tells the phone what its map shows (trip numbers only).
+     */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun theDisplayTakesThePhonesControls() {
+        var map: RouteMap? = null
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val remote = MutableSharedFlow<LinkMessage.Remote>(extraBufferCapacity = 8)
+        val views = ArrayList<LinkMessage.MapView>()
+        val said = ArrayList<String>()
+        val sent = ArrayList<List<Long>>()
+        val numbered = tabletSnapshot.copy(
+            current = tabletSnapshot.current!!.copy(id = 11, lat = 59.381234, lng = 13.501234),
+            upcoming = tabletSnapshot.upcoming.mapIndexed { i, t -> t.copy(id = 12L + i) },
+        )
+        compose.setContent {
+            val scope = rememberCoroutineScope()
+            map = remember { RouteMap(context, "AIzaTestKeyForTheMapOnly", true, "#000000", scope) }
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(
+                    numbered,
+                    status = "Galaxy S20",
+                    connected = true,
+                    onSpeak = {},
+                    onExit = {},
+                    onSay = { said += it.swedish },
+                    time = { LocalTime.of(8, 11, 42) },
+                    routeMap = map,
+                    onOrder = { sent += it },
+                    remote = remote,
+                    onMapView = { views += it },
+                )
+            }
+        }
+        compose.waitForIdle()
+        assertEquals(LinkMessage.MapView(hasMap = true), views.last())
+        compose.mainClock.autoAdvance = false
+        // A long press on "Hamngatan 7" in the phone's panel: the display's map for it, its list.
+        remote.tryEmit(LinkMessage.Remote(LinkMessage.Remote.Action.OPEN_MAP, id = 12))
+        compose.mainClock.advanceTimeBy(1_500)
+        val open = views.last()
+        assertTrue("open: $open", open.open)
+        assertEquals(listOf(11L, 12L, 13L, 14L), open.ids)
+        assertEquals(1, open.at)
+        compose.onNodeWithTag("ref_243").assertIsDisplayed()
+        // The satellite picture, from the phone.
+        remote.tryEmit(LinkMessage.Remote(LinkMessage.Remote.Action.SATELLITE, on = true))
+        compose.mainClock.advanceTimeBy(300)
+        assertEquals("satellite(true)", shadowOf(map!!.view).lastEvaluatedJavascript)
+        assertTrue(views.last().satellite)
+        // An order tried on the phone: drawn here at once, and used.
+        remote.tryEmit(LinkMessage.Remote(LinkMessage.Remote.Action.TRY_ORDER, ids = listOf(11L, 13L, 12L, 14L)))
+        compose.mainClock.advanceTimeBy(300)
+        assertEquals(listOf(11L, 13L, 12L, 14L), views.last().ids)
+        assertTrue(views.last().changed)
+        remote.tryEmit(LinkMessage.Remote(LinkMessage.Remote.Action.APPLY))
+        compose.mainClock.advanceTimeBy(300)
+        assertEquals(listOf(listOf(11L, 13L, 12L, 14L)), sent)
+        // An order with trips that are not the way's is not taken.
+        remote.tryEmit(LinkMessage.Remote(LinkMessage.Remote.Action.TRY_ORDER, ids = listOf(99L, 11L, 12L, 13L)))
+        compose.mainClock.advanceTimeBy(300)
+        assertEquals(listOf(11L, 13L, 12L, 14L), views.last().ids)
+        // The time, said here.
+        remote.tryEmit(LinkMessage.Remote(LinkMessage.Remote.Action.SAY_TIME))
+        compose.mainClock.advanceTimeBy(300)
+        assertTrue(said.toString(), said.last().startsWith("Klockan är 8"))
+        // Closed from the phone.
+        remote.tryEmit(LinkMessage.Remote(LinkMessage.Remote.Action.CLOSE_MAP))
+        compose.mainClock.advanceTimeBy(1_500)
+        assertFalse(views.last().open)
+        compose.onNodeWithTag("ref_243").assertDoesNotExist()
+        compose.mainClock.autoAdvance = true
+    }
+
     @Test
     @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
     fun passengerDisplayMapAsksForThePosition() {
@@ -774,7 +916,7 @@ class ScreenshotsRoboTest {
         }
         compose.waitForIdle()
         // The next stop's time, over its address.
-        compose.onAllNodesWithTag("ref_230", useUnmergedTree = true).filterToOne(hasText("07:36")).assertIsDisplayed()
+        compose.onAllNodesWithTag("ref_230", useUnmergedTree = true).filterToOne(hasAnyDescendant(hasText("07")) and hasAnyDescendant(hasText("36"))).assertIsDisplayed()
         compose.mainClock.autoAdvance = false
         compose.onNodeWithTag("ref_219").performClick()
         compose.mainClock.advanceTimeBy(1_500)
@@ -1260,3 +1402,7 @@ class ScreenshotsRoboTest {
         )
     }
 }
+
+private val PANEL_SHOT_W = 400.dp
+private val PanelShotDay = androidx.compose.ui.graphics.Color(0xFFEDEBE6)
+private val PanelShotNight = androidx.compose.ui.graphics.Color(0xFF202124)

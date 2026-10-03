@@ -37,6 +37,11 @@ class LinkProtocolTest {
             LinkMessage.Command(LinkMessage.Command.Action.BACK),
             LinkMessage.Command(LinkMessage.Command.Action.REPEAT),
             LinkMessage.Order(listOf(12L, 9L, 14L)),
+            LinkMessage.Remote(LinkMessage.Remote.Action.OPEN_MAP, id = 12L),
+            LinkMessage.Remote(LinkMessage.Remote.Action.TRY_ORDER, ids = listOf(14L, 12L)),
+            LinkMessage.Remote(LinkMessage.Remote.Action.SATELLITE, on = true),
+            LinkMessage.Remote(LinkMessage.Remote.Action.SAY_TIME),
+            LinkMessage.MapView(hasMap = true, open = true, ids = listOf(12L, 14L), at = 1, minutes = listOf(4, null), changed = true, canAdd = true),
         ).forEach { msg ->
             val line = LinkProtocol.encode(msg)
             assertTrue(line, !line.contains('\n'))
@@ -55,6 +60,17 @@ class LinkProtocolTest {
     @Test
     fun anOrderIsOnlyTheTripsNumbers() {
         assertEquals("{\"type\":\"order\",\"ids\":[12,9]}", LinkProtocol.encode(LinkMessage.Order(listOf(12L, 9L))))
+    }
+
+    /** What the tablet's map shows goes to the phone as trip numbers, minutes and switches: no name, no place. */
+    @Test
+    fun aMapViewIsOnlyNumbersAndSwitches() {
+        assertEquals(
+            "{\"type\":\"map\",\"hasMap\":true,\"open\":true,\"ids\":[12,9],\"minutes\":[3,null]}",
+            LinkProtocol.encode(LinkMessage.MapView(hasMap = true, open = true, ids = listOf(12L, 9L), minutes = listOf(3, null))),
+        )
+        assertEquals("{\"type\":\"remote\",\"action\":\"SHOW_TRIP\",\"id\":7}", LinkProtocol.encode(LinkMessage.Remote(LinkMessage.Remote.Action.SHOW_TRIP, id = 7L)))
+        assertNull(LinkProtocol.decode("{\"type\":\"remote\",\"action\":\"FORMAT_DISK\"}"))
     }
 
     @Test

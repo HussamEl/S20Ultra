@@ -60,6 +60,11 @@ class DisplayLinkClient(
     private val _announcements = MutableSharedFlow<Announcement>(extraBufferCapacity = 8)
     val announcements: SharedFlow<Announcement> = _announcements.asSharedFlow()
 
+    private val _remotes = MutableSharedFlow<LinkMessage.Remote>(extraBufferCapacity = 16)
+
+    /** The controls the driver used on the phone's floating panel, for this display to carry out. */
+    val remotes: SharedFlow<LinkMessage.Remote> = _remotes.asSharedFlow()
+
     private var job: Job? = null
     @Volatile private var socket: BluetoothSocket? = null
     @Volatile private var session: LinkSession? = null
@@ -218,7 +223,8 @@ class DisplayLinkClient(
                         snapshotFrom = target.address
                     }
                     is LinkMessage.Announce -> _announcements.tryEmit(Announcement(msg.sv, msg.en))
-                    is LinkMessage.Hello, LinkMessage.Ping, is LinkMessage.Command, is LinkMessage.Order -> Unit
+                    is LinkMessage.Remote -> _remotes.tryEmit(msg)
+                    is LinkMessage.Hello, LinkMessage.Ping, is LinkMessage.Command, is LinkMessage.Order, is LinkMessage.MapView -> Unit
                 }
             }
         } catch (e: Exception) {
@@ -251,6 +257,18 @@ class DisplayLinkClient(
         val to = session ?: return
         scope.launch(Dispatchers.IO) { runCatching { to.send(LinkMessage.Order(ids)) } }
     }
+
+    /** Tells the phone what this display's map shows (while connected; sent only when it changed). */
+    fun mapView(view: LinkMessage.MapView) {
+        val to = session ?: return
+        if (view == lastMapView && to === mapViewTo) return
+        lastMapView = view
+        mapViewTo = to
+        scope.launch(Dispatchers.IO) { runCatching { to.send(view) } }
+    }
+
+    @Volatile private var lastMapView: LinkMessage.MapView? = null
+    @Volatile private var mapViewTo: LinkSession? = null
 
     private fun closeSocket() {
         try {

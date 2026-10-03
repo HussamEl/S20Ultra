@@ -108,6 +108,14 @@ class SettingsStore(context: Context) : WindowPlaces {
 
     fun setOverlayPosition(x: Int, y: Int) = prefs.edit { putInt(K_OX, x); putInt(K_OY, y) }
 
+    /** The floating panel's window size (pixels) as the driver left it, or null until he sizes it. */
+    fun overlaySize(): Pair<Int, Int>? {
+        if (!prefs.contains(K_OW)) return null
+        return prefs.getInt(K_OW, 0) to prefs.getInt(K_OH, 0)
+    }
+
+    fun setOverlaySize(width: Int, height: Int) = prefs.edit { putInt(K_OW, width); putInt(K_OH, height) }
+
     override fun place(name: String): WindowPlace? {
         if (!prefs.contains(K_WINDOW + name + "_x")) return null
         return WindowPlace(
@@ -174,6 +182,8 @@ class SettingsStore(context: Context) : WindowPlaces {
         private const val K_HISTORY_HOURS = "history_retention_hours"
         private const val K_OX = "overlay_x"
         private const val K_OY = "overlay_y"
+        private const val K_OW = "overlay_w"
+        private const val K_OH = "overlay_h"
         private const val K_WINDOW = "window_"
         private const val K_EXPLAIN_AR = "explanations_arabic"
         private const val K_REF_NUMBERS = "show_ref_numbers"

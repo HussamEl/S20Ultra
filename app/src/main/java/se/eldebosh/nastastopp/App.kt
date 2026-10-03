@@ -62,12 +62,13 @@ class AppGraph(app: Application) {
 
     /** Says the street's name when it changes (the driver can switch it off). */
     val streetCaller = StreetCaller(street, controller, scope)
-    /** The phone's floating panel over Maps (its own route, street and speed). */
-    val overlay = OverlayManager(app, RoutePanelSource(controller, street), settings, scope) { it.role != DeviceRole.DISPLAY }
     val importer = ScreenshotImporter(OcrEngine(app), extractor)
 
     /** Controller: Bluetooth server for passenger displays (runs only when enabled). */
     val displayServer = DisplayLinkServer(app, controller, settings, scope)
+
+    /** The phone's floating panel over Maps (its own route, street and speed; drives the linked display). */
+    val overlay = OverlayManager(app, RoutePanelSource(controller, street, announcer, displayServer, scope), settings, scope) { it.role != DeviceRole.DISPLAY }
 
     /** Passenger displays shown on this phone itself (the screen counts itself while open). */
     val localDisplays = MutableStateFlow(0)
