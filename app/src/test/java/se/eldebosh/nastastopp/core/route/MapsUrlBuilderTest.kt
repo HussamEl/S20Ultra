@@ -73,6 +73,19 @@ class MapsUrlBuilderTest {
         )
     }
 
+    /** Google Earth's 3D view of a point (tilted, from 400 m), else Google Maps' satellite view of it. */
+    @Test
+    fun aPointIn3D() {
+        assertEquals(
+            "https://earth.google.com/web/@59.381234,13.501234,60a,400d,35y,0h,60t,0r",
+            MapsUrlBuilder.earthUrl(59.381234, 13.501234),
+        )
+        assertEquals(
+            "https://www.google.com/maps/@?api=1&map_action=map&center=59.381234%2C13.501234&zoom=19&basemap=satellite",
+            MapsUrlBuilder.satelliteUrl(59.381234, 13.501234),
+        )
+    }
+
     /** Without a point the address is sent, as written. */
     @Test
     fun oneStopByItsAddress() {

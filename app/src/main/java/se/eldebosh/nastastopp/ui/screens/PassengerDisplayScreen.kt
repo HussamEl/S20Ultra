@@ -16,6 +16,7 @@ import kotlin.math.cos
 import kotlin.math.min
 import se.eldebosh.nastastopp.core.weather.WeatherKind
 import se.eldebosh.nastastopp.core.weather.DisplayWeather
+import se.eldebosh.nastastopp.core.parse.TripKinds
 import se.eldebosh.nastastopp.core.parse.TripTimes
 import se.eldebosh.nastastopp.core.nav.DisplayEta
 import se.eldebosh.nastastopp.core.display.TimeStatus
@@ -107,6 +108,9 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -254,6 +258,8 @@ fun PassengerDisplayScreen(
     dark: Boolean = true,
     onToggleLook: (() -> Unit)? = null,
     onOrder: ((List<Long>) -> Unit)? = null,
+    onEarth: ((Double, Double) -> Unit)? = null,
+    onStreetPhotos: ((Double, Double) -> Unit)? = null,
 ) {
     KeepScreenOnFullscreen()
     var tapped by remember { mutableIntStateOf(0) }
@@ -286,24 +292,26 @@ fun PassengerDisplayScreen(
         derivedStateOf { if (hasNext) TimeStatus.of(TripTimes.minutesUntil(nextTime, now.value.hour * 60 + now.value.minute)) else null }
     }
     // A long press on a trip (or the map sign for the next stop): the driver's own map of the way
-    // to it, filling the screen until he closes it; it flies to the stop's building in 3D, and his
-    // fingers and buttons move it. The way goes from the car through up to three trips before it
-    // and three after it ([DisplaySnapshot.around]), and comes as soon as the tablet knows where
-    // it is. On it the driver can try another order and send it to the phone ([WayStrip]).
+    // to it, filling the screen until he closes it, moved by his fingers and buttons. The way goes
+    // from the car through the trip before it and the two after it ([DisplaySnapshot.around]), and
+    // each trip he adds (+), and comes as soon as the tablet knows where it is. On it the driver can
+    // try another order and send it to the phone ([WayList]).
     var wayTrip by remember { mutableStateOf<DisplayItem?>(null) }
+    var added by remember { mutableIntStateOf(0) }
     val edit = remember { WayEdit() }
     val map = routeMap?.takeIf { !it.refused }
     val showWay: ((DisplayItem, Boolean) -> Unit)? = map?.let { _ ->
         { item, isNext ->
             onWantPosition?.invoke()
             wayTrip = if (isNext) null else item.trip
+            added = 0
             edit.clear()
             moments.playFocus()
         }
     }
     val ahead = live?.ahead.orEmpty()
     val wayAt = wayTrip?.let { t -> ahead.indexOfFirst { it.sameTrip(t) } }?.takeIf { it >= 0 } ?: 0
-    val (window, windowAt) = DisplaySnapshot.around(ahead, wayAt)
+    val (window, windowAt) = DisplaySnapshot.around(ahead, wayAt, added)
     val windowKey = window.map { it.mapStop.key }
     LaunchedEffect(windowKey) { edit.settle(window) }
     val wayShown = edit.preview ?: window
@@ -324,11 +332,16 @@ fun PassengerDisplayScreen(
         routeMap?.onTouch = { moments.touched() }
         onDispose { routeMap?.onTouch = null }
     }
-    LaunchedEffect(held) { if (!held) edit.clear() }
-    // The driver's way on his map; an order he tries a moment after his last tap on the arrows.
+    LaunchedEffect(held) {
+        if (held) return@LaunchedEffect
+        edit.clear()
+        added = 0
+    }
+    // The driver's way on his map; an order he tries a moment after his last tap on the arrows, or
+    // once he lets go of a trip he drags.
     val wayKey = wayShown.map { it.mapStop.key }
-    LaunchedEffect(map, held, wayKey, wayShownAt) {
-        if (!held || map == null || wayShown.isEmpty()) return@LaunchedEffect
+    LaunchedEffect(map, held, wayKey, wayShownAt, edit.dragging) {
+        if (!held || map == null || wayShown.isEmpty() || edit.dragging) return@LaunchedEffect
         if (edit.preview != null) delay(ORDER_ASK_MS)
         map.focus(wayShown.map { it.mapStop }, wayShownAt)
     }
@@ -565,7 +578,6 @@ fun PassengerDisplayScreen(
             TripTime(
                 live?.current,
                 tripSize,
-                landscape,
                 marks = true,
                 modifier = lineRest
                     .ref(90)
@@ -611,9 +623,17 @@ fun PassengerDisplayScreen(
                 visible = held && moments.infoShown,
                 onUse = { moments.touched() },
                 onClose = { moments.settle() },
+                // The stop looked at: its own point, else where Google's way to it ends.
+                at = {
+                    val looked = wayShown.getOrNull(wayShownAt)
+                    val own = looked?.let { item -> item.lat?.let { lat -> item.lng?.let { lng -> lat to lng } } }
+                    own ?: routeMap.route?.takeIf { routeMap.routeKey == RouteMap.keyOf(wayShown.map { it.mapStop }) }?.legs?.getOrNull(wayShownAt)?.path?.lastOrNull()
+                },
+                onEarth = onEarth,
+                onStreetPhotos = onStreetPhotos,
                 modifier = Modifier.fillMaxSize().zIndex(MAP_OVER_Z),
             )
-            WayStrip(
+            WayList(
                 visible = held && moments.infoShown && wayShown.isNotEmpty(),
                 map = routeMap,
                 edit = edit,
@@ -622,10 +642,11 @@ fun PassengerDisplayScreen(
                 window = window,
                 fromNext = wayAt - windowAt == 0,
                 now = { now.value },
-                note = mapNote(routeMap, held),
+                note = mapNote(routeMap),
                 onOrder = onOrder,
+                onAdd = if (DisplaySnapshot.canAdd(ahead, wayAt, added)) ({ added++ }) else null,
                 onUse = { moments.touched() },
-                modifier = Modifier.align(Alignment.BottomStart).zIndex(MAP_OVER_Z),
+                modifier = Modifier.align(Alignment.CenterStart).zIndex(MAP_OVER_Z),
             )
         }
         // While the time, the weather or the travel time fills the screen, a tap anywhere brings the
@@ -1015,13 +1036,22 @@ private fun MapLayer(map: RouteMap, moments: Moments, held: Boolean, from: () ->
 
 /**
  * The driver's buttons on his own map, at the right: closer (237), farther (238), the car (239),
- * the stop's building (240), the whole way (241), Google's 3D map with the flight to the stop and
- * back to the flat map (242), and Google's street photos of the stop and back (244); and × at the
- * top (243). The 3D map and the photos come only from these buttons. Each use keeps the map open
- * ([onUse]).
+ * the stop looked at (240), the whole way (241); Google's own apps at the stop looked at ([at]):
+ * Google Earth flying to it in 3D (242, [onEarth]) and Google Maps' street photos of it (244,
+ * [onStreetPhotos]), which cost the driver's key nothing; and × at the top (243). Each use keeps
+ * the map open ([onUse]).
  */
 @Composable
-private fun MapControls(map: RouteMap, visible: Boolean, onUse: () -> Unit, onClose: () -> Unit, modifier: Modifier = Modifier) {
+private fun MapControls(
+    map: RouteMap,
+    visible: Boolean,
+    onUse: () -> Unit,
+    onClose: () -> Unit,
+    at: () -> Pair<Double, Double>?,
+    onEarth: ((Double, Double) -> Unit)?,
+    onStreetPhotos: ((Double, Double) -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
     AnimatedVisibility(visible, modifier, enter = fadeIn(tween(INFO_IN_MS)), exit = fadeOut(tween(SETTLE_MS))) {
         Box(Modifier.fillMaxSize().padding(MAP_CONTROLS_EDGE)) {
             MapButton(R.drawable.ic_close, R.string.display_map_close, 243, highlight = true, modifier = Modifier.align(Alignment.TopEnd), onClick = onClose)
@@ -1040,21 +1070,15 @@ private fun MapControls(map: RouteMap, visible: Boolean, onUse: () -> Unit, onCl
                 MapButton(R.drawable.ic_my_location, R.string.display_map_car, 239, onClick = use { map.toCar() })
                 MapButton(R.drawable.ic_pin, R.string.display_map_stop, 240, onClick = use { map.toStop() })
                 MapButton(R.drawable.ic_zoom_out_map, R.string.display_map_whole, 241, onClick = use { map.whole() })
-                // Google's 3D map only when asked for: the flight to the stop, and back to the flat map.
-                if (map.threeD != false) {
-                    MapButton(
-                        if (map.deepShown) R.drawable.ic_map else R.drawable.ic_flight,
-                        if (map.deepShown) R.string.display_map_flat else R.string.display_map_tour,
-                        242,
-                        onClick = use { if (map.deepShown) map.flat() else map.tour() },
-                    )
+                // Google's own apps, at the stop's point: never a map billed on the driver's key.
+                val point = at()
+                if (onEarth != null) {
+                    Spacer(Modifier.height(MAP_CONTROLS_GAP))
+                    MapButton(R.drawable.ic_flight, R.string.display_map_tour, 242, enabled = point != null, onClick = use { point?.let { (lat, lng) -> onEarth(lat, lng) } })
                 }
-                MapButton(
-                    if (map.streetShown) R.drawable.ic_close else R.drawable.ic_street,
-                    if (map.streetShown) R.string.display_map_back else R.string.display_map_street,
-                    244,
-                    onClick = use { map.street(!map.streetShown) },
-                )
+                if (onStreetPhotos != null) {
+                    MapButton(R.drawable.ic_street, R.string.display_map_street, 244, enabled = point != null, onClick = use { point?.let { (lat, lng) -> onStreetPhotos(lat, lng) } })
+                }
             }
         }
     }
@@ -1062,7 +1086,7 @@ private fun MapControls(map: RouteMap, visible: Boolean, onUse: () -> Unit, onCl
 
 /** A round button on the driver's map, light over the map in both looks. */
 @Composable
-private fun MapButton(icon: Int, label: Int, ref: Int, onClick: () -> Unit, modifier: Modifier = Modifier, highlight: Boolean = false) {
+private fun MapButton(icon: Int, label: Int, ref: Int, onClick: () -> Unit, modifier: Modifier = Modifier, highlight: Boolean = false, enabled: Boolean = true) {
     val description = stringResource(label)
     Box(
         contentAlignment = Alignment.Center,
@@ -1072,13 +1096,17 @@ private fun MapButton(icon: Int, label: Int, ref: Int, onClick: () -> Unit, modi
             .size(MAP_BUTTON)
             .clip(CircleShape)
             .background(if (highlight) AppTheme.colors.highlight else AppTheme.colors.card)
-            .clickable(onClickLabel = description, role = Role.Button, onClick = onClick)
+            .clickable(enabled = enabled, onClickLabel = description, role = Role.Button, onClick = onClick)
             .semantics { contentDescription = description },
     ) {
         Icon(
             painterResource(icon),
             contentDescription = null,
-            tint = if (highlight) AppTheme.colors.onInfo else AppTheme.colors.text,
+            tint = when {
+                highlight -> AppTheme.colors.onInfo
+                enabled -> AppTheme.colors.text
+                else -> AppTheme.colors.textMuted
+            },
             modifier = Modifier.size(MAP_ICON),
         )
     }
@@ -1088,7 +1116,7 @@ private fun MapButton(icon: Int, label: Int, ref: Int, onClick: () -> Unit, modi
  * Under the minute's map, in its faded bottom: the minutes and the distance to the next stop
  * (Google Maps' own when it navigates); until the tablet knows where it is, a word that it is
  * looking. Under them, small, what keeps the map or the way from coming ([mapNote]). The driver's
- * own map has its way strip instead ([WayStrip]).
+ * own map has its list of trips instead ([WayList]).
  */
 @Composable
 private fun MapMomentText(moments: Moments, eta: DisplayEta?, map: RouteMap, modifier: Modifier = Modifier) {
@@ -1097,7 +1125,7 @@ private fun MapMomentText(moments: Moments, eta: DisplayEta?, map: RouteMap, mod
     val toNext = map.route?.to(0)
     val minutes = if (map.located) eta?.minutes ?: toNext?.first else null
     val meters = eta?.meters ?: toNext?.second
-    val note = mapNote(map, held = false)
+    val note = mapNote(map)
     val hue = AppTheme.colors.showHues[(moments.hue + 2) % AppTheme.colors.showHues.size]
     val big = MAP_SP
     Column(
@@ -1162,27 +1190,19 @@ private fun MapMomentText(moments: Moments, eta: DisplayEta?, map: RouteMap, mod
 
 /**
  * Why the map or the way does not come, in a few words, or null: Google's script did not load,
- * its pictures did not come, the page stopped (its own words), the map is still loading; on the
- * driver's own map ([held]), the 3D map still loading or not drawn here; and Google's answer when
- * it gave no way.
+ * its pictures did not come, the page stopped (its own words), the map is still loading; and
+ * Google's answer when it gave no way.
  */
 @Composable
-private fun mapNote(map: RouteMap, held: Boolean): String? {
+private fun mapNote(map: RouteMap): String? {
     val page = when (map.trouble?.takeIf { !map.tiles }) {
         RouteMap.Trouble.NO_SCRIPT -> stringResource(R.string.passenger_map_no_script)
         RouteMap.Trouble.NO_TILES -> stringResource(R.string.passenger_map_no_tiles)
         RouteMap.Trouble.PAGE -> stringResource(R.string.passenger_map_stopped, map.troubleDetail ?: "?")
         null -> if (!map.ready) stringResource(R.string.passenger_map_loading) else null
     }
-    val deep = when {
-        !held || !map.ready -> null
-        map.noStreet -> stringResource(R.string.display_way_no_street)
-        map.noThreeD != null -> stringResource(R.string.passenger_map_no_3d, map.noThreeD!!)
-        map.deepShown && map.threeD == null -> stringResource(R.string.passenger_map_3d_loading)
-        else -> null
-    }
     val way = map.routeAnswer?.let { if (it == 0) stringResource(R.string.passenger_way_no_answer) else stringResource(R.string.passenger_way_refused, it) }
-    return listOfNotNull(page, deep, way).joinToString("  ·  ").ifEmpty { null }
+    return listOfNotNull(page, way).joinToString("  ·  ").ifEmpty { null }
 }
 
 /** "5,3 km" / "800 m", the Swedish way. */
@@ -1608,10 +1628,10 @@ private fun ThenLine(besideClock: Int, line: Dp, content: @Composable () -> Unit
 }
 
 /**
- * Three small chevrons pointing right, in bright yellow, lighting up one after another, over and
+ * Two small chevrons pointing right, in bright yellow, lighting up one after another, over and
  * over, so the eye flows from the clock to the next stop's time beside it, on to "Därefter" and
- * to the trip after it. The three arrows go by one light over their nine chevrons: this one's are
- * chevrons [first] to [first] + 2.
+ * to the trip after it. The three arrows go by one light over their six chevrons: this one's are
+ * chevrons [first] and [first] + 1.
  */
 @Composable
 private fun NextArrow(visible: Boolean, first: Int, modifier: Modifier = Modifier) {
@@ -1680,14 +1700,14 @@ private fun FocusTime(item: DisplayItem, time: String, size: TextUnit, modifier:
  * style and gently breathing; where the trip was marked done, small at its left ([marks]).
  */
 @Composable
-private fun TripTime(item: DisplayItem?, size: TextUnit, landscape: Boolean, marks: Boolean, modifier: Modifier = Modifier) {
+private fun TripTime(item: DisplayItem?, size: TextUnit, marks: Boolean, modifier: Modifier = Modifier) {
     val time = item?.time
     val done = marks && item != null && (item.doneInYouDrive || item.doneHere)
     if (item == null || (time == null && !done)) return
     Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier) {
-        if (done) DoneMarks(youDrive = item.doneInYouDrive, here = item.doneHere, size = if (landscape) 12.dp else 10.dp)
+        if (done) DoneMarks(youDrive = item.doneInYouDrive, here = item.doneHere, size = 8.dp)
         if (time != null) {
-            if (done) Spacer(Modifier.width(8.dp))
+            if (done) Spacer(Modifier.width(4.dp))
             TimeFace(time, size)
         }
     }
@@ -2096,15 +2116,15 @@ private fun ThenChip(
                 )
                 .padding(horizontal = 4.dp, vertical = 2.dp),
         ) {
-            if (first) ThenLabel(modifier = Modifier.hangAbove().padding(bottom = 2.dp))
+            if (first) ThenLabel(modifier = Modifier.hangAbove().padding(bottom = 1.dp), size = THEN_LABEL_SP)
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.alpha(if (first) 1f else AFTER_ALPHA)) {
                 if (item.time != null) {
                     Text(item.time, fontFamily = DigitFont, fontWeight = FontWeight.Bold, fontSize = size, color = if (first) AppTheme.colors.highlight else AppTheme.colors.time)
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(4.dp))
                 }
                 if (item.doneInYouDrive || item.doneHere) {
-                    DoneMarks(youDrive = item.doneInYouDrive, here = item.doneHere, size = 12.dp)
-                    Spacer(Modifier.width(8.dp))
+                    DoneMarks(youDrive = item.doneInYouDrive, here = item.doneHere, size = 8.dp)
+                    Spacer(Modifier.width(4.dp))
                 }
                 // Only its start, cut short where it would take more room.
                 Text(
@@ -2568,70 +2588,160 @@ private fun Modifier.breathe(rest: Float, scale: () -> Float): Modifier = layout
 }
 
 /**
- * A trip's whole YouDrive card (235), laid out as YouDrive's own details window shows it
- * ([TripCardText]): the kind and time on top, the name, the times, the kind and status, then a
- * row per field, label and value, in YouDrive's order. Over everything, for the driver, until a
- * tap; a long card scrolls. Never said. Numbers in [DigitFont], words in [DisplayFont].
+ * A trip's whole YouDrive card (235), in the order of YouDrive's own details window
+ * ([TripCardText]), small (about a quarter of the screen) and drawn to be read at a glance: a band
+ * in the trip's colour (green pick-up, light drop-off) with its kind and time and its status; the
+ * passenger's name beside a figure, the two times beside a clock; then each field with its own
+ * sign (the address, phone, seats and mobility aids as chips, fare, compensation, eligibility),
+ * and the instructions in a box of their own. Over everything, for the driver, until a tap; a long
+ * card scrolls. Never said. Numbers in [DigitFont], words in [DisplayFont].
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TripCard(item: DisplayItem, landscape: Boolean, onClose: () -> Unit) {
     val card = remember(item.card) { TripCardText.of(item.card.orEmpty()) }
-    val text = AppTheme.colors.text
-    val muted = AppTheme.colors.textMuted
-    val line = AppTheme.colors.outline
-    val big = if (landscape) CARD_SP else CARD_SP_NARROW
-    val words = TextStyle(fontFamily = DisplayFont, color = text, fontSize = big, lineHeight = 1.25.em, textDirection = TextDirection.Content)
-    Box(
+    val colors = AppTheme.colors
+    val size = if (landscape) CARD_SP else CARD_SP_NARROW
+    val words = TextStyle(fontFamily = DisplayFont, color = colors.text, fontSize = size, lineHeight = 1.3.em, textDirection = TextDirection.Content)
+    val shape = RoundedCornerShape(CARD_CORNER)
+    BoxWithConstraints(
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .fillMaxSize()
-            .background(AppTheme.colors.background.copy(alpha = CARD_SCRIM))
+            .background(colors.background.copy(alpha = CARD_SCRIM))
             .pointerInput(Unit) { detectTapGestures { onClose() } }
             .ref(235),
     ) {
         Column(
             Modifier
-                .fillMaxWidth(if (landscape) CARD_WIDTH else CARD_WIDTH_NARROW)
-                .clip(RoundedCornerShape(24.dp))
-                .background(AppTheme.colors.card)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 28.dp, vertical = 20.dp),
+                .width(maxWidth * if (landscape) CARD_WIDTH else CARD_WIDTH_NARROW)
+                .heightIn(max = maxHeight * CARD_HEIGHT)
+                .shadow(CARD_SHADOW, shape)
+                .clip(shape)
+                .background(colors.card)
+                .border(1.dp, colors.cardBorder, shape),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(withDigitFont(card.title.orEmpty()), style = words.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.weight(1f))
-                Icon(painterResource(R.drawable.ic_close), contentDescription = null, tint = muted, modifier = Modifier.size(with(LocalDensity.current) { big.toDp() }))
+            // The band: the trip's kind and time on its own colour, and its status.
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(colors.trip(item.kind ?: card.kind?.let { TripKinds.labelIn(it) }))
+                    .padding(horizontal = CARD_PAD, vertical = 8.dp),
+            ) {
+                Text(
+                    withDigitFont(card.title ?: item.time.orEmpty()),
+                    style = words.copy(color = colors.onTrip, fontWeight = FontWeight.Bold, fontSize = size * CARD_TITLE),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                card.status?.let {
+                    Text(
+                        it,
+                        style = words.copy(color = colors.onStatus, fontWeight = FontWeight.SemiBold, fontSize = size * CARD_SMALL),
+                        modifier = Modifier.padding(start = 8.dp).clip(RoundedCornerShape(50)).background(colors.success).padding(horizontal = 8.dp, vertical = 2.dp),
+                    )
+                }
+                Icon(
+                    painterResource(R.drawable.ic_close),
+                    contentDescription = null,
+                    tint = colors.onTripMuted,
+                    modifier = Modifier.padding(start = 8.dp).size(with(LocalDensity.current) { size.toDp() }),
+                )
             }
-            CardRule(line)
-            card.name?.let { Text(it, style = words.copy(fontSize = big * 1.15f, fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(top = 4.dp)) }
-            card.estimated?.let { Text(withDigitFont("Estimated time $it"), style = words.copy(color = muted)) }
-            card.negotiated?.let { Text(withDigitFont("Client's negotiated time: $it"), style = words.copy(color = muted)) }
-            if (card.kind != null || card.status != null) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
-                    card.kind?.let { Text(it, style = words.copy(fontWeight = FontWeight.Bold)) }
-                    card.status?.let {
-                        Spacer(Modifier.width(16.dp))
-                        Text(it, style = words.copy(color = AppTheme.colors.success, fontWeight = FontWeight.SemiBold))
+            Column(
+                Modifier.verticalScroll(rememberScrollState()).padding(horizontal = CARD_PAD, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(CARD_GAP),
+            ) {
+                card.name?.let { name ->
+                    CardLine(R.drawable.ic_person, size) {
+                        Text(name, style = words.copy(fontWeight = FontWeight.SemiBold, fontSize = size * CARD_NAME))
                     }
                 }
-            }
-            for (row in card.rows) {
-                CardRule(line)
-                Row(Modifier.padding(vertical = 6.dp)) {
-                    if (row.label != null) {
-                        Text("${row.label}:", style = words.copy(color = muted), modifier = Modifier.weight(CARD_LABEL_SHARE))
-                        Spacer(Modifier.width(16.dp))
+                if (card.estimated != null || card.negotiated != null) {
+                    CardLine(R.drawable.ic_schedule, size) {
+                        Column {
+                            card.estimated?.let { Text(withDigitFont("Estimated time $it"), style = words) }
+                            card.negotiated?.let { Text(withDigitFont("Client's negotiated time: $it"), style = words.copy(color = colors.textMuted)) }
+                        }
                     }
-                    Text(withDigitFont(row.value), style = words, modifier = Modifier.weight(1f))
+                }
+                for (row in card.rows) {
+                    when (row.label) {
+                        TripCardText.INSTRUCTIONS -> CardNote(row.value, words)
+                        TripCardText.SPACE, TripCardText.AIDS -> CardLine(cardIcon(row.label), size, row.label) {
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                row.value.split(", ").forEach { chip ->
+                                    Text(
+                                        withDigitFont(chip),
+                                        style = words.copy(fontWeight = FontWeight.SemiBold, fontSize = size * CARD_SMALL),
+                                        modifier = Modifier.clip(RoundedCornerShape(50)).background(colors.tonalHigh).padding(horizontal = 8.dp, vertical = 2.dp),
+                                    )
+                                }
+                            }
+                        }
+                        else -> CardLine(cardIcon(row.label), size, row.label) {
+                            Text(withDigitFont(row.value), style = words)
+                        }
+                    }
                 }
             }
         }
     }
 }
 
-/** A thin line between a card's parts. */
+/** One field of a trip's card: its sign, its name small above it ([label], YouDrive's), and [content]. */
 @Composable
-private fun CardRule(color: Color) {
-    Box(Modifier.padding(vertical = 8.dp).fillMaxWidth().height(1.dp).background(color))
+private fun CardLine(icon: Int, size: TextUnit, label: String? = null, content: @Composable () -> Unit) {
+    Row(verticalAlignment = Alignment.Top) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.size(with(LocalDensity.current) { (size * CARD_SIGN).toDp() }).clip(CircleShape).background(AppTheme.colors.tonal),
+        ) {
+            Icon(painterResource(icon), contentDescription = null, tint = AppTheme.colors.info, modifier = Modifier.size(with(LocalDensity.current) { (size * CARD_SIGN * 0.58f).toDp() }))
+        }
+        Spacer(Modifier.width(8.dp))
+        Column(Modifier.weight(1f)) {
+            if (label != null) {
+                Text(label, fontFamily = DisplayFont, fontSize = size * CARD_LABEL, color = AppTheme.colors.textMuted, maxLines = 1)
+            }
+            content()
+        }
+    }
+}
+
+/** The card's instructions, in a box of their own marked in yellow: what the driver must not miss at the door. */
+@Composable
+private fun CardNote(text: String, words: TextStyle) {
+    val stripe = AppTheme.colors.accent
+    Row(
+        verticalAlignment = Alignment.Top,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(AppTheme.colors.tonalHigh)
+            .drawWithContent {
+                drawContent()
+                drawRect(stripe, size = Size(NOTE_STRIPE.toPx(), size.height))
+            }
+            .padding(start = NOTE_STRIPE + 8.dp, top = 8.dp, end = 8.dp, bottom = 8.dp),
+    ) {
+        Icon(painterResource(R.drawable.ic_info), contentDescription = null, tint = AppTheme.colors.accent, modifier = Modifier.size(with(LocalDensity.current) { words.fontSize.toDp() }))
+        Spacer(Modifier.width(6.dp))
+        Text(withDigitFont(text), style = words)
+    }
+}
+
+/** The sign of a card's field, by YouDrive's name for it. */
+private fun cardIcon(label: String?): Int = when (label) {
+    TripCardText.ADDRESS -> R.drawable.ic_pin
+    TripCardText.PHONE -> R.drawable.ic_phone
+    TripCardText.SPACE -> R.drawable.ic_seat
+    TripCardText.AIDS -> R.drawable.ic_accessible
+    TripCardText.FARE, TripCardText.COMPENSATION -> R.drawable.ic_wallet
+    TripCardText.ELIGIBILITY -> R.drawable.ic_verified
+    else -> R.drawable.ic_info
 }
 
 /** [text] with every run of digits in [DigitFont] (the display's figures). */
@@ -2747,8 +2857,9 @@ private const val TITLE_ROOM = 0.62f
  * The coming trips on the bottom line: their size (tablet, phone), how much of their street shows
  * (in widths of their size), and how faint the one after "Därefter" is.
  */
-private val THEN_SP = 26.sp
-private val THEN_SP_NARROW = 22.sp
+private val THEN_SP = 13.sp
+private val THEN_SP_NARROW = 12.sp
+private val THEN_LABEL_SP = 10.sp
 private const val THEN_STREET_EMS = 4.4f
 private const val AFTER_ALPHA = 0.75f
 private const val DONE_CARD_ALPHA = 0.6f
@@ -2782,9 +2893,12 @@ private const val STRIP_FADE_DELAY_MS = 250
 private const val STRIP_FADE_MS = 350
 private const val STRIP_BACK_MS = 600
 
-/** The next stop's time beside the clock (its minutes; the hours are smaller), gently breathing. */
-private val HERO_TIME_SP = 56.sp
-private val HERO_TIME_SP_NARROW = 40.sp
+/**
+ * The next stop's time beside the clock (its minutes; the hours are smaller), gently breathing:
+ * small, like everything else on the bottom line, so the clock is its one large thing.
+ */
+private val HERO_TIME_SP = 28.sp
+private val HERO_TIME_SP_NARROW = 20.sp
 
 private const val BREATH_SCALE = 1.2f
 private const val BREATH_MS = 2_200
@@ -2913,16 +3027,31 @@ private val MAP_ICON = 30.dp
 private val MAP_CONTROLS_GAP = 14.dp
 private val MAP_CONTROLS_EDGE = 20.dp
 
-/** A trip's card: its text size (a tablet, a phone), its share of the width, the ground over the screen behind it, in and out. */
-private val CARD_SP = 28.sp
-private val CARD_SP_NARROW = 18.sp
-private const val CARD_WIDTH = 0.72f
-private const val CARD_WIDTH_NARROW = 0.94f
-private const val CARD_LABEL_SHARE = 0.42f
+/**
+ * A trip's card: its text size (a tablet, a phone), its share of the width and at most of the
+ * height (on the tablet about a quarter of the screen), its corners, edge room and gaps, its
+ * shadow; its title, name, small words, field names and signs as shares of its text size; the
+ * instructions' yellow stripe; the ground over the screen behind it, in and out.
+ */
+private val CARD_SP = 14.sp
+private val CARD_SP_NARROW = 13.sp
+private const val CARD_WIDTH = 0.36f
+private const val CARD_WIDTH_NARROW = 0.8f
+private const val CARD_HEIGHT = 0.5f
+private val CARD_CORNER = 16.dp
+private val CARD_PAD = 12.dp
+private val CARD_GAP = 8.dp
+private val CARD_SHADOW = 12.dp
+private const val CARD_TITLE = 1.15f
+private const val CARD_NAME = 1.1f
+private const val CARD_SMALL = 0.85f
+private const val CARD_LABEL = 0.75f
+private const val CARD_SIGN = 1.9f
+private val NOTE_STRIPE = 3.dp
 
 /** A figure's touch room beside a small trip (the bottom line, the strip). */
 private val SMALL_TOUCH = 36.dp
-private const val CARD_SCRIM = 0.9f
+private const val CARD_SCRIM = 0.6f
 private const val CARD_IN_MS = 260
 private const val CARD_OUT_MS = 180
 
@@ -2967,9 +3096,9 @@ private const val COLON_SIDE = 0.12f
  * how bright, and how long the light takes along all of them.
  */
 private const val ARROW_TALL = 0.42f
-private const val ARROW_LONG = 2.4f
+private const val ARROW_LONG = 1.6f
 private const val ARROW_SPACE = 0.6f
-private const val ARROW_COUNT = 3
+private const val ARROW_COUNT = 2
 private const val ARROW_LINES = 3
 private const val ARROW_LOW = 0.35f
 private const val ARROW_HIGH = 1f

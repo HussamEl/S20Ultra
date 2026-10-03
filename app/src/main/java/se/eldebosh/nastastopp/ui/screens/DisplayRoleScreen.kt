@@ -97,6 +97,9 @@ fun DisplayRoleScreen(
     mapLive: Boolean = false,
     /** The map is asked for: the tablet's location permission, if not given yet. */
     onWantPosition: (() -> Unit)? = null,
+    /** Google's own apps at a stop's point, from the driver's map: Google Earth's 3D view (242), Google Maps' street photos (244). */
+    onEarth: ((Double, Double) -> Unit)? = null,
+    onStreetPhotos: ((Double, Double) -> Unit)? = null,
     availabilityStatus: DisplayLinkClient.Status = DisplayLinkClient.Status.IDLE,
     /** Goes up by one with each announcement from the driver's phone. */
     spoken: Int = 0,
@@ -124,6 +127,8 @@ fun DisplayRoleScreen(
             routeMap = routeMap,
             mapLive = mapLive,
             onWantPosition = onWantPosition,
+            onEarth = onEarth,
+            onStreetPhotos = onStreetPhotos,
             dark = settings.displayDark,
             onToggleLook = onToggleLook,
             onOrder = onOrder,

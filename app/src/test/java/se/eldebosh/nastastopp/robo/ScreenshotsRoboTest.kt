@@ -743,13 +743,16 @@ class ScreenshotsRoboTest {
     fun passengerDisplayMapAsksForThePosition() {
         var asked = 0
         var map: RouteMap? = null
+        val google = ArrayList<String>()
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        // The next stop with its point, for Google's own apps.
+        val located = tabletSnapshot.copy(current = tabletSnapshot.current!!.copy(lat = 59.381234, lng = 13.501234))
         compose.setContent {
             val scope = rememberCoroutineScope()
             map = remember { RouteMap(context, "AIzaTestKeyForTheMapOnly", true, "#000000", scope) }
             NastaTheme(Appearance.DAY) {
                 PassengerDisplayScreen(
-                    tabletSnapshot,
+                    located,
                     status = "Galaxy S20",
                     connected = true,
                     onSpeak = {},
@@ -757,6 +760,8 @@ class ScreenshotsRoboTest {
                     time = { LocalTime.of(8, 11, 42) },
                     routeMap = map,
                     onWantPosition = { asked++ },
+                    onEarth = { lat, lng -> google += "earth $lat,$lng" },
+                    onStreetPhotos = { lat, lng -> google += "street $lat,$lng" },
                 )
             }
         }
@@ -769,11 +774,12 @@ class ScreenshotsRoboTest {
         compose.onNodeWithText("Söker bilens position…").assertIsDisplayed()
         // Under it, small, why the map is not there yet.
         compose.onNodeWithTag("ref_233", useUnmergedTree = true).assert(hasText("Kartan laddas…"))
-        // The driver's buttons. The 3D map (242) is only offered: it is made when he asks for it.
-        for (ref in listOf(237, 238, 239, 240, 241, 242, 243)) compose.onNodeWithTag("ref_$ref").assertIsDisplayed()
-        assertEquals(false, map!!.deepShown)
+        // The driver's buttons. The 3D view (242) and the street photos (244) are Google's own apps,
+        // opened at the stop's point; the map's page makes neither.
+        for (ref in listOf(237, 238, 239, 240, 241, 242, 243, 244)) compose.onNodeWithTag("ref_$ref").assertIsDisplayed()
         compose.onNodeWithTag("ref_242").performClick()
-        assertEquals("tour()", shadowOf(map!!.view).lastEvaluatedJavascript)
+        compose.onNodeWithTag("ref_244").performClick()
+        assertEquals(listOf("earth 59.381234,13.501234", "street 59.381234,13.501234"), google)
         compose.onNodeWithTag("ref_237").performClick()
         assertEquals("zoom(1)", shadowOf(map!!.view).lastEvaluatedJavascript)
         compose.onNodeWithTag("ref_239").performClick()
@@ -863,7 +869,7 @@ class ScreenshotsRoboTest {
         save("display_trip_card", compose.onRoot().captureToImage().asAndroidBitmap())
         compose.onNodeWithTag("ref_235").assertIsDisplayed()
         compose.onNodeWithText("Pick-up 07:36").assertIsDisplayed()
-        compose.onNodeWithText("Phone number:").assertIsDisplayed()
+        compose.onNodeWithText("Phone number").assertIsDisplayed()
         compose.onNodeWithText("0700000001").assertIsDisplayed()
         compose.onNodeWithText("Rullstol 1").assertIsDisplayed()
         compose.onNodeWithText("Hämtas/Lämnas inne").assertIsDisplayed()
@@ -950,10 +956,10 @@ class ScreenshotsRoboTest {
     )
 
     /**
-     * The driver's map shows his way lettered at its bottom: the next stop (A, looked at) and the
-     * three after it. A tap picks a trip and gives it arrows; moving it shows the new order with
-     * Undo and Use, and Use sends the trips' numbers in the new order. A drop-off before its
-     * pick-up cannot be used.
+     * The driver's map lists his way at its left, lettered: the next stop (A, looked at) and the two
+     * after it; "+" adds the next trip in its place, also into an order he is trying. A tap picks a
+     * trip and gives it arrows; moving it shows the new order with Undo and Use, and Use sends the
+     * trips' numbers in the new order. A drop-off before its pick-up cannot be used.
      */
     @Test
     @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
@@ -980,16 +986,20 @@ class ScreenshotsRoboTest {
         compose.mainClock.autoAdvance = false
         compose.onNodeWithTag("ref_219").performClick()
         compose.mainClock.advanceTimeBy(1_500)
-        // A, B, C, D: the next stop and the three after it.
-        compose.onAllNodesWithTag("ref_245").assertCountEquals(4)
+        // A, B, C: the next stop and the two after it.
+        compose.onAllNodesWithTag("ref_245").assertCountEquals(3)
         compose.onNodeWithTag("ref_250").assertDoesNotExist()
         compose.onNodeWithContentDescription("C: Storgatan 14").performClick()
         compose.mainClock.advanceTimeBy(500)
-        save("display_way_order", compose.onRoot().captureToImage().asAndroidBitmap())
         // Storgatan 14 one place earlier: before Hamngatan 7.
         compose.onNodeWithTag("ref_246").performClick()
         compose.mainClock.advanceTimeBy(500)
         compose.onNodeWithTag("ref_249").assertIsDisplayed()
+        // The next trip added: after the others, in the order tried too.
+        compose.onNodeWithTag("ref_260").performClick()
+        compose.mainClock.advanceTimeBy(500)
+        compose.onAllNodesWithTag("ref_245").assertCountEquals(4)
+        save("display_way_order", compose.onRoot().captureToImage().asAndroidBitmap())
         compose.onNodeWithTag("ref_250").performClick()
         assertEquals(listOf(listOf(11L, 13L, 12L, 14L)), sent)
         // Hamngatan 7 (a drop-off) before its pick-up: it cannot be used.

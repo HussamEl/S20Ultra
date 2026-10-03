@@ -94,19 +94,32 @@ data class DisplaySnapshot(
         const val UPCOMING = 7
         const val EARLIER = 7
 
-        /** Trips before and after the one looked at on the tablet's map. */
-        const val AROUND = 3
+        /** Trips before ([BEFORE]) and after ([AFTER]) the one looked at on the tablet's map; [MOST] with the ones added. */
+        const val BEFORE = 1
+        const val AFTER = 2
+        const val MOST = 7
 
         /**
-         * The trips of the tablet's map around [at] (an index into [ahead]): up to [AROUND] before
-         * and after it, and its place among them.
+         * The trips of the tablet's map around [at] (an index into [ahead]): up to [BEFORE] before it
+         * and [AFTER] after it, and its place among them. Each of the [added] trips the driver asked
+         * for comes in its place: the next one after the way, or, when none is left after, the one
+         * before it; [MOST] at most.
          */
-        fun <T> around(ahead: List<T>, at: Int): Pair<List<T>, Int> {
+        fun <T> around(ahead: List<T>, at: Int, added: Int = 0): Pair<List<T>, Int> {
             if (ahead.isEmpty()) return emptyList<T>() to 0
             val i = at.coerceIn(0, ahead.size - 1)
-            val from = (i - AROUND).coerceAtLeast(0)
-            return ahead.subList(from, minOf(ahead.size, i + AROUND + 1)) to i - from
+            var from = (i - BEFORE).coerceAtLeast(0)
+            var to = minOf(ahead.size, i + AFTER + 1)
+            repeat(added) {
+                if (to - from >= MOST) return@repeat
+                if (to < ahead.size) to++ else if (from > 0) from--
+            }
+            return ahead.subList(from, to) to i - from
         }
+
+        /** One more trip can be added to the way around [at] ([around]). */
+        fun <T> canAdd(ahead: List<T>, at: Int, added: Int): Boolean =
+            around(ahead, at, added + 1).first.size > around(ahead, at, added).first.size
 
         /**
          * @param completed finished trips, oldest first.

@@ -174,7 +174,7 @@
     <string name="maps_key_set">المفتاح محفوظ على هذا التابلت</string>
     <string name="maps_key_refused">رفضت Google المفتاح</string>
     <string name="maps_key_label">مفتاح Google Maps API</string>
-    <string name="help_maps_key">الخريطة تستخدم مفتاح Google الخاص بك. في Google Cloud: أنشئ مفتاح API، وفعّل «Maps JavaScript API» و«Routes API»، وقيّد المفتاح بالموقع https://nastastopp.app/* . الاستخدام العادي ضمن الكمية المجانية الشهرية من Google. تأخذ الخريطة موقع السيارة من GPS التابلت نفسه (الموقع ما دامت الشاشة مفتوحة، وليس في الخلفية أبداً؛ يُطلب الإذن عند أول ضغطة على زر الخريطة). هذا الموقع والمحطة التالية يذهبان إلى Google لرسم الطريق، ولا يُحفظ ولا يُسجَّل شيء.</string>
+    <string name="help_maps_key">الخريطة تستخدم مفتاح Google الخاص بك. في Google Cloud: أنشئ مفتاح API، وفعّل «Maps JavaScript API» و«Routes API»، وقيّد المفتاح بالموقع https://nastastopp.app/* . يحسب Google كل خريطة تُصنع وكل طريق يُطلب: التطبيق يصنع خريطة واحدة لكل شاشة ويطلب الطريق من جديد فقط حين يتغيّر، وثلاثي الأبعاد وصور الشارع يفتحان تطبيقات Google نفسها. راقب استهلاكك في Google Cloud. تأخذ الخريطة موقع السيارة من GPS التابلت نفسه (الموقع ما دامت الشاشة مفتوحة، وليس في الخلفية أبداً؛ يُطلب الإذن عند أول ضغطة على زر الخريطة). هذا الموقع ومحطات الطريق (حتى سبع، بلا أي اسم) تذهب إلى Google لرسم الطريق، ولا يُحفظ ولا يُسجَّل شيء.</string>
     <string name="display_show_way">إظهار الطريق على الخريطة</string>
     <string name="display_map_close">إغلاق الخريطة</string>
     <string name="display_map_closer">تقريب</string>
@@ -182,11 +182,8 @@
     <string name="display_map_car">موقع السيارة</string>
     <string name="display_map_stop">مبنى المحطة</string>
     <string name="display_map_whole">الطريق كاملاً</string>
-    <string name="display_map_tour">خريطة ثلاثية الأبعاد والطيران إلى المحطة</string>
-    <string name="display_map_flat">الخريطة المسطّحة</string>
-    <string name="display_map_street">صور الشارع من Google عند المحطة</string>
-    <string name="display_map_back">العودة إلى الخريطة</string>
-    <string name="display_way_no_street">لا صور شارع هنا</string>
+    <string name="display_map_tour">خريطة Google Earth ثلاثية الأبعاد: الطيران إلى المحطة</string>
+    <string name="display_map_street">صور الشارع في Google Maps عند المحطة</string>
     <string name="display_way_to">إلى %1$s: %2$d دقيقة · %3$s</string>
     <string name="display_way_whole">الطريق كله %1$d دقيقة</string>
     <string name="display_way_suggest">اقترح ترتيباً</string>
@@ -199,6 +196,9 @@
     <string name="display_way_trip">%1$s: %2$s</string>
     <string name="display_way_earlier">قبل</string>
     <string name="display_way_later">بعد</string>
+    <string name="display_way_add">أضف الرحلة التالية إلى الطريق</string>
+    <string name="display_way_add_short">+ رحلة</string>
+    <string name="display_way_drag">اسحب لتغيير مكان الرحلة</string>
     <string name="display_show_card">إظهار بطاقة الرحلة</string>
     <string name="display_weather">عرض الطقس</string>
     <string name="display_look_light">شاشة فاتحة</string>

@@ -8,6 +8,7 @@ import se.eldebosh.nastastopp.ui.theme.displayColors
 import se.eldebosh.nastastopp.ui.screens.HostedWidget
 import se.eldebosh.nastastopp.ui.screens.RouteMap
 import se.eldebosh.nastastopp.core.nav.RoutesApi
+import se.eldebosh.nastastopp.core.route.MapsUrlBuilder
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.graphics.toArgb
 import android.appwidget.AppWidgetProviderInfo
@@ -404,8 +405,8 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 onStopOrDispose { position.stop() }
                             }
                             val fix by position.fix.collectAsStateWithLifecycle()
-                            // The minute's map: from the car through the next stop and the three after it.
-                            val nextStops = remote?.takeIf { it.active }?.ahead?.take(DisplaySnapshot.AROUND + 1)?.map { it.mapStop }.orEmpty()
+                            // The minute's map: from the car through the next stop and the two after it.
+                            val nextStops = remote?.takeIf { it.active }?.ahead?.take(DisplaySnapshot.AFTER + 1)?.map { it.mapStop }.orEmpty()
                             LaunchedEffect(routeMap, fix, nextStops) {
                                 val at = fix ?: return@LaunchedEffect
                                 if (nextStops.isEmpty()) return@LaunchedEffect
@@ -468,6 +469,9 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 onWantPosition = {
                                     if (!position.allowed) askPosition.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
                                 },
+                                // Google's own apps on the driver's tap: nothing billed on his key.
+                                onEarth = { lat, lng -> graph.maps.openEarth(lat, lng) },
+                                onStreetPhotos = { lat, lng -> graph.maps.open(MapsUrlBuilder.streetViewUrl(lat, lng)) },
                             )
                         }
                         Screen.SETTINGS -> SettingsScreen(

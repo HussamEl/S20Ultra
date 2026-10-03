@@ -7,14 +7,10 @@
   the app never scales or fades the WebView itself, so the map is drawn the same on every device.
 
   One page, one map for the display's whole life: what changes is only what it shows. Google bills
-  each map, 3D map and street-photo view made, not what is done with them, so each is made once
-  and kept:
-  - the flat map (Google's map): the minute's moment, only looked at; and the driver's own (hold),
-    opened by his tap, moved by his touch and the app's buttons (zoom, toCar, toStop, whole);
-  - Google's 3D map of real buildings, made only when the driver asks for it (tour): a flight from
-    above the car up, along to the stop looked at, and down to its building, once around it;
-  - Google's street photos of the stop (Street View, street), only when he asks for them.
-  Where the 3D map cannot be drawn, it is not offered again.
+  each map made, not what is done with it. It is the minute's moment, only looked at, and the
+  driver's own (hold), opened by his tap and moved by his touch and the app's buttons (zoom, toCar,
+  toStop, whole). Google's 3D view and street photos are not made here: the app opens Google's own
+  apps for them, which costs the driver's key nothing.
 -->
 <html>
 <head>
@@ -24,13 +20,8 @@
   :root { --ground: __GROUND__; }
   html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: var(--ground); }
   #stage { position: fixed; left: 0; top: 0; right: 0; bottom: 0; opacity: 0; transform: scale(0.06); will-change: transform, opacity; }
-  #map, #map3d { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: var(--ground); }
-  #map { pointer-events: none; }
-  #map3d { display: none; }
-  #map3d > * { width: 100%; height: 100%; }
+  #map { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: var(--ground); pointer-events: none; }
   body.held #map { pointer-events: auto; }
-  body.deep #map { display: none; }
-  body.deep #map3d { display: block; }
   /* Held, more of the map is seen: only the bottom keeps its full fade, under the minutes. */
   body.held .top, body.held .left, body.held .right { opacity: 0.45; }
   .fade { position: absolute; pointer-events: none; }
@@ -42,16 +33,11 @@
   .car { width: 26px; height: 26px; background: #1A73E8; border: 5px solid #FFFFFF;
          box-shadow: 0 0 0 10px rgba(26, 115, 232, 0.22), 0 2px 8px rgba(0, 0, 0, 0.35); }
   .pin { position: absolute; transform: translate(-50%, -50%); line-height: 0; }
-  #street { position: absolute; left: 0; top: 0; right: 0; bottom: 0; display: none; background: var(--ground); }
-  body.street #street { display: block; }
-  body.street #map3d, body.street #map { visibility: hidden; }
 </style>
 </head>
 <body>
 <div id="stage">
   <div id="map"></div>
-  <div id="map3d"></div>
-  <div id="street"></div>
   <div class="fade top"></div><div class="fade bottom"></div><div class="fade left"></div><div class="fade right"></div>
 </div>
 <script>
@@ -66,18 +52,8 @@
   var car = null, stops = [], focusAt = 0, legs = [], shown = false, tiles = false;
   var LETTERS = 'ABCDEFGHIJK';
   var stage = document.getElementById('stage');
-  // The driver's own map (hold); Google's 3D map, made the first time he asks for it and kept.
+  // The driver's own map (hold): the same map, under his touch.
   var held = false;
-  var m3 = null, m3lib = null, m3state = 'none', m3car = null, m3lines = [], m3pins = [];
-  // Google's street photos of the stop: the panorama (made once), and whether they show.
-  var pano = null, streetShown = false;
-  // The flight to the stop: 0 none, 1 over the car, 2 flying, 3 around the building.
-  var leg = 0, tourWanted = false, tourHeading = 0;
-  // Over the car, at the stop's building, and once around it (metres, degrees, milliseconds).
-  var CAR_RANGE = 450, CAR_TILT = 55, OVER_CAR_MS = 1400;
-  var STOP_RANGE = 280, STOP_TILT = 65, AROUND_MS = 30000;
-  var FLY_MIN_MS = 3500, FLY_MAX_MS = 9000;
-  var RANGE_MIN = 60, RANGE_MAX = 200000;
 
   // Anything that stops the map is told to the app (which shows it under the map; nothing is logged).
   function problem(kind, detail) {
@@ -163,10 +139,7 @@
     draw(true);
     Android.onReady();
     if (shown) waitForTiles();
-    if (held) {
-      map.setOptions({ gestureHandling: 'greedy' });
-      if (tourWanted) tour();
-    }
+    if (held) map.setOptions({ gestureHandling: 'greedy' });
   }
 
   // The map grows out of (x, y), fractions of the screen, over ms.
@@ -197,7 +170,6 @@
   function setCar(lat, lng) {
     car = { lat: lat, lng: lng };
     if (map) draw(false);
-    if (m3car) m3car.position = car;
   }
 
   // The way: {stops: [[lat, lng] or null…], focus: n, legs: [[[lat, lng]…]…] or null (not yet)}.
@@ -206,8 +178,6 @@
     focusAt = Math.max(0, Math.min(stops.length - 1, w.focus || 0));
     legs = (w.legs || []).map(function (leg) { return leg.map(function (p) { return { lat: p[0], lng: p[1] }; }); });
     if (map) draw(!held);
-    draw3d();
-    if (tourWanted) tour();
   }
 
   // Every point of the way, for the view to take in.
@@ -267,214 +237,23 @@
     }
   }
 
-  // The way keeps to the clear middle, with room for the minutes and distance at the bottom.
+  // The way keeps to the clear middle: with room for the minutes and distance at the bottom, or,
+  // on the driver's own map, for his list of trips at the left and his buttons at the right.
   function clear() {
     var d = map.getDiv(), w = d.offsetWidth, h = d.offsetHeight;
+    if (held) return { top: Math.round(h * 0.1), bottom: Math.round(h * 0.1), left: Math.round(Math.max(w * 0.16, LIST_ROOM)), right: Math.round(w * 0.12) };
     return { top: Math.round(h * 0.2), bottom: Math.round(h * 0.34), left: Math.round(w * 0.16), right: Math.round(w * 0.16) };
   }
+  // The driver's list of trips at the left of his map (its width and margins).
+  var LIST_ROOM = 380;
 
   // --- The driver's own map ---------------------------------------------------------------
 
-  // Opened (true) by the driver's tap, or closed. Opened, it is the flat map under his touch;
-  // the 3D map (tour) and the street photos (street) come only when he asks for them.
+  // Opened (true) by the driver's tap, or closed: the map takes his touches while it is his.
   function hold(on) {
     held = on;
     document.body.classList.toggle('held', on);
     if (map) map.setOptions({ gestureHandling: on ? 'greedy' : 'none' });
-    if (!on) {
-      street(false);
-      flat();
-    }
-  }
-
-  // Back to the flat map.
-  function flat() {
-    leg = 0;
-    tourWanted = false;
-    if (m3) m3.stopCameraAnimation();
-    if (!document.body.classList.contains('deep')) return;
-    document.body.classList.remove('deep');
-    try { Android.onDeep(false); } catch (e) {}
-  }
-
-  // The 3D map in view; made the first time (Google counts one 3D map load), kept after.
-  function deepen() {
-    if (!held || !map || m3state === 'failed') return false;
-    street(false);
-    if (!document.body.classList.contains('deep')) {
-      document.body.classList.add('deep');
-      try { Android.onDeep(true); } catch (e) {}
-    }
-    if (m3state === 'none') make3d();
-    return m3state === 'ready';
-  }
-
-  function make3d() {
-    m3state = 'loading';
-    var probe = document.createElement('canvas');
-    if (!probe.getContext('webgl2')) { failed3d('WebGL2'); return; }
-    google.maps.importLibrary('maps3d').then(function (lib) {
-      var from = car || target() || { lat: 59.38, lng: 13.5 };
-      m3 = new lib.Map3DElement({
-        mode: 'HYBRID', center: { lat: from.lat, lng: from.lng, altitude: 0 }, range: CAR_RANGE * 4, tilt: CAR_TILT,
-        defaultUIHidden: true, gestureHandling: 'GREEDY', language: 'sv', region: 'SE'
-      });
-      m3.addEventListener('gmp-error', function () { failed3d('3D'); });
-      m3.addEventListener('gmp-animationend', landed);
-      // A touch takes the map from the flight.
-      document.getElementById('map3d').addEventListener('pointerdown', function () {
-        if (leg) { leg = 0; tourWanted = false; m3.stopCameraAnimation(); }
-      }, true);
-      m3lib = lib;
-      m3car = new lib.Marker3DElement({ altitudeMode: 'CLAMP_TO_GROUND', drawsWhenOccluded: true, sizePreserved: true });
-      var dot = document.createElement('template');
-      dot.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44">' +
-        '<circle cx="22" cy="22" r="20" fill="#1A73E8" fill-opacity="0.25"/>' +
-        '<circle cx="22" cy="22" r="11" fill="#1A73E8" stroke="#FFFFFF" stroke-width="5"/></svg>';
-      m3car.append(dot);
-      m3.append(m3car);
-      document.getElementById('map3d').appendChild(m3);
-      m3state = 'ready';
-      if (car) m3car.position = car;
-      draw3d();
-      Android.on3d(true);
-      if (held && tourWanted) tour();
-    }).catch(function (e) { failed3d(e && e.message || e); });
-  }
-
-  // No 3D map here: the flat one stays, and the 3D map is not offered again.
-  function failed3d(why) {
-    if (m3state === 'failed') return;
-    m3state = 'failed';
-    flat();
-    problem('3d', why);
-    try { Android.on3d(false); } catch (e) {}
-  }
-
-  function draw3d() {
-    if (!m3lib) return;
-    m3lines.forEach(function (l) { l.remove(); });
-    m3lines = legs.map(function (leg, i) {
-      var st = legStyle(i);
-      var l = new m3lib.Polyline3DElement({
-        altitudeMode: 'CLAMP_TO_GROUND', strokeColor: st.opacity < 1 ? 'rgba(26, 115, 232, 0.5)' : st.color, strokeWidth: st.weight + 2,
-        outerColor: '#FFFFFF', outerWidth: i <= focusAt ? 0.35 : 0, drawsOccludedSegments: true
-      });
-      l.path = leg;
-      m3.append(l);
-      return l;
-    });
-    m3pins.forEach(function (m) { m.remove(); });
-    m3pins = [];
-    stops.forEach(function (p, i) {
-      var at = p || (legs[i] && legs[i].length ? legs[i][legs[i].length - 1] : null);
-      if (!at) return;
-      var m = new m3lib.Marker3DElement({ position: at, altitudeMode: 'CLAMP_TO_GROUND', drawsWhenOccluded: true, sizePreserved: true, zIndex: i === focusAt ? 2 : 1 });
-      var t = document.createElement('template');
-      t.innerHTML = pinSvg(i);
-      m.append(t);
-      m3.append(m);
-      m3pins.push(m);
-    });
-  }
-
-  // A camera looking at (p) on the ground, from (range) metres away.
-  function cam(p, range, tilt, heading) {
-    return { center: { lat: p.lat, lng: p.lng, altitude: 0 }, range: range, tilt: tilt, heading: heading, altitudeMode: 'RELATIVE_TO_GROUND' };
-  }
-
-  // The flight, asked for by the driver: over the car, looking towards the stop; up, along and
-  // down to the stop's building; and once slowly around it. It waits for the 3D map and the stop's
-  // point.
-  function tour() {
-    if (!held) return;
-    if (!deepen()) {
-      tourWanted = m3state !== 'failed';
-      return;
-    }
-    var s = target();
-    if (!s) { tourWanted = true; return; }
-    tourWanted = false;
-    m3.stopCameraAnimation();
-    tourHeading = car ? bearing(car, s) : (m3.heading || 0);
-    if (!car) { fly(s, 0); return; }
-    leg = 1;
-    m3.flyCameraTo({ endCamera: cam(car, CAR_RANGE, CAR_TILT, tourHeading), durationMillis: 0 });
-    var from = car;
-    setTimeout(function () { if (leg === 1 && held) fly(s, distance(from, s)); }, OVER_CAR_MS);
-  }
-
-  function fly(s, metres) {
-    leg = 2;
-    m3.flyCameraTo({ endCamera: cam(s, STOP_RANGE, STOP_TILT, tourHeading), durationMillis: Math.min(FLY_MAX_MS, Math.max(FLY_MIN_MS, 2500 + metres * 0.4)) });
-  }
-
-  // At the stop's building: once slowly around it.
-  function landed() {
-    if (leg === 2 && held) {
-      leg = 3;
-      var s = target();
-      if (s) m3.flyCameraAround({ camera: cam(s, STOP_RANGE, STOP_TILT, tourHeading), durationMillis: AROUND_MS, repeatCount: 1 });
-    } else if (leg === 3) {
-      leg = 0;
-    }
-  }
-
-  // --- Google's street photos (Street View) -----------------------------------------------
-
-  // The street photos nearest the stop (within 80 m, outdoors), or null.
-  function findStreet(s, then) {
-    // Google's answer is a promise that fails when there are none: caught, never an error.
-    google.maps.importLibrary('streetView').then(function (lib) {
-      return new lib.StreetViewService().getPanorama({ location: s, radius: 80, preference: lib.StreetViewPreference.NEAREST, sources: [lib.StreetViewSource.OUTDOOR] });
-    }).then(function (answer) {
-      then(answer && answer.data && answer.data.location ? answer.data.location : null);
-    }).catch(function () { then(null); });
-  }
-
-  // The photos, turned towards the stop's building.
-  function showStreet(found, s) {
-    google.maps.importLibrary('streetView').then(function (lib) {
-      var from = { lat: found.latLng.lat(), lng: found.latLng.lng() };
-      var pov = { heading: bearing(from, s), pitch: 6 };
-      // Shown first: a panorama made in a hidden box stays blank.
-      streetShown = true;
-      document.body.classList.add('street');
-      if (!pano) {
-        pano = new lib.StreetViewPanorama(document.getElementById('street'), {
-          pano: found.pano, pov: pov, zoom: 0, visible: true,
-          addressControl: false, fullscreenControl: false, motionTracking: false, motionTrackingControl: false,
-          enableCloseButton: false, zoomControl: false, panControl: false, linksControl: true, clickToGo: true,
-          showRoadLabels: true, imageDateControl: false
-        });
-      } else {
-        pano.setPano(found.pano);
-        pano.setPov(pov);
-        pano.setZoom(0);
-        pano.setVisible(true);
-      }
-      Android.onStreet('shown');
-    }).catch(function (e) { problem('page', e && e.message || e); });
-  }
-
-  // On (true): the stop's street photos, or the note that there are none. Off: back to the map.
-  function street(on) {
-    if (!on) {
-      if (!streetShown) return;
-      streetShown = false;
-      document.body.classList.remove('street');
-      try { Android.onStreet('hidden'); } catch (e) {}
-      return;
-    }
-    var s = target();
-    if (!s) return;
-    leg = 0;
-    tourWanted = false;
-    if (m3) m3.stopCameraAnimation();
-    findStreet(s, function (found) {
-      if (!held) return;
-      if (found) showStreet(found, s); else Android.onStreet('none');
-    });
   }
 
   // The app's buttons: closer (1) or farther (-1); to the car; to the stop; the whole way. A map
@@ -484,94 +263,34 @@
   }
 
   var zoom = button(function (step) {
-    if (streetShown && pano) {
-      pano.setZoom(Math.max(0, Math.min(4, (pano.getZoom() || 0) + step)));
-    } else if (deep()) {
-      leg = 0;
-      var c = m3.center;
-      if (!c) return;
-      var r = Math.min(RANGE_MAX, Math.max(RANGE_MIN, (m3.range || 1000) * (step > 0 ? 0.5 : 2)));
-      m3.flyCameraTo({ endCamera: { center: c, range: r, tilt: m3.tilt || 0, heading: m3.heading || 0 }, durationMillis: 400 });
-    } else if (map) {
-      map.setZoom(map.getZoom() + step);
-    }
+    if (map) map.setZoom(map.getZoom() + step);
   });
 
   var toCar = button(function () {
-    if (!car) return;
-    street(false);
-    if (deep()) {
-      leg = 0;
-      m3.flyCameraTo({ endCamera: cam(car, CAR_RANGE, CAR_TILT, m3.heading || 0), durationMillis: 1500 });
-    } else if (map) {
-      map.panTo(car);
-      map.setZoom(16);
-    }
+    if (!car || !map) return;
+    map.panTo(car);
+    map.setZoom(16);
   });
 
   var toStop = button(function () {
     var s = target();
-    if (!s) return;
-    street(false);
-    if (deep()) {
-      leg = 0;
-      m3.flyCameraTo({ endCamera: cam(s, STOP_RANGE, STOP_TILT, m3.heading || 0), durationMillis: 1500 });
-    } else if (map) {
-      map.panTo(s);
-      map.setZoom(17);
-    }
+    if (!s || !map) return;
+    map.panTo(s);
+    map.setZoom(17);
   });
 
-  // Stop i of the way: its building, or the place on the flat map.
+  // Stop i of the way, on the map.
   var lookAt = button(function (i) {
     var s = stops[i] || (legs[i] && legs[i].length ? legs[i][legs[i].length - 1] : null);
-    if (!s) return;
-    street(false);
-    if (deep()) {
-      leg = 0;
-      m3.flyCameraTo({ endCamera: cam(s, STOP_RANGE, STOP_TILT, m3.heading || 0), durationMillis: 1500 });
-    } else if (map) {
-      map.panTo(s);
-      map.setZoom(17);
-    }
+    if (!s || !map) return;
+    map.panTo(s);
+    map.setZoom(17);
   });
 
-  // The car, the way and the stop at once, seen from above with the stop ahead.
+  // The car, the way and the stops at once.
   var whole = button(function () {
-    street(false);
-    var s = target();
-    var all = wayPoints();
-    if (car) all.push(car);
-    if (s) all.push(s);
-    if (!all.length) return;
-    if (deep()) {
-      leg = 0;
-      var lat = 0, lng = 0, far = 0;
-      all.forEach(function (p) { lat += p.lat; lng += p.lng; });
-      var mid = { lat: lat / all.length, lng: lng / all.length };
-      all.forEach(function (p) { far = Math.max(far, distance(mid, p)); });
-      var heading = car && s ? bearing(car, s) : 0;
-      m3.flyCameraTo({ endCamera: cam(mid, Math.min(RANGE_MAX, Math.max(800, far * 4.4)), 20, heading), durationMillis: 1500 });
-    } else if (map) {
-      draw(true);
-    }
+    if (map) draw(true);
   });
-
-  // The 3D map is in view.
-  function deep() { return held && m3state === 'ready' && document.body.classList.contains('deep'); }
-
-  // Degrees from north from a to b, and metres between them.
-  function bearing(a, b) {
-    var r = Math.PI / 180, y = Math.sin((b.lng - a.lng) * r) * Math.cos(b.lat * r);
-    var x = Math.cos(a.lat * r) * Math.sin(b.lat * r) - Math.sin(a.lat * r) * Math.cos(b.lat * r) * Math.cos((b.lng - a.lng) * r);
-    return (Math.atan2(y, x) / r + 360) % 360;
-  }
-
-  function distance(a, b) {
-    var r = Math.PI / 180, dLat = (b.lat - a.lat) * r, dLng = (b.lng - a.lng) * r;
-    var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-    return 6371000 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
-  }
 
   // Google's script, tried again every half minute while it does not come (no internet yet).
   function load() {

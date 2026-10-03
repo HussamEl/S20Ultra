@@ -13,6 +13,25 @@ class DisplaySnapshotTest {
 
     private fun item(t: Trip) = DisplayItem(t.time, t.area)
 
+    /** The driver's way: one trip before the one looked at and two after; each one he adds in its place. */
+    @Test
+    fun theWayAroundATrip() {
+        val ahead = listOf("A", "B", "C", "D", "E", "F", "G", "H")
+        assertEquals(listOf("A", "B", "C") to 0, DisplaySnapshot.around(ahead, 0))
+        assertEquals(listOf("C", "D", "E", "F") to 1, DisplaySnapshot.around(ahead, 3))
+        // Added: the next ones after the way.
+        assertEquals(listOf("C", "D", "E", "F", "G") to 1, DisplaySnapshot.around(ahead, 3, added = 1))
+        // None left after: the ones before it.
+        assertEquals(listOf("F", "G", "H") to 1, DisplaySnapshot.around(ahead, 6))
+        assertEquals(listOf("E", "F", "G", "H") to 2, DisplaySnapshot.around(ahead, 6, added = 1))
+        // Seven at most.
+        assertEquals(7, DisplaySnapshot.around(ahead, 3, added = 10).first.size)
+        assertTrue(DisplaySnapshot.canAdd(ahead, 3, 2))
+        assertFalse(DisplaySnapshot.canAdd(ahead, 3, 3))
+        assertFalse(DisplaySnapshot.canAdd(listOf("A", "B"), 0, 0))
+        assertEquals(emptyList<String>() to 0, DisplaySnapshot.around(emptyList<String>(), 0))
+    }
+
     @Test
     fun sevenDoneTheNextAndSevenUpcoming() {
         val done = (0 until 9).map { Trip("11:0$it", "done$it") }

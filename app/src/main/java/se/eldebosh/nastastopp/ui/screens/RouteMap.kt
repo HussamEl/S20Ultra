@@ -46,11 +46,10 @@ import java.util.Locale
  *
  * One map for the display's whole life (Google counts each map made, not what it shows): only
  * looked at, touches never reach it. Opened by the driver ([reveal] held), it is his, moved by his
- * fingers and buttons ([zoom], [toCar], [toStop], [whole]). Google's 3D map of real buildings
- * ([tour]: a flight from above the car to the stop's building) and its street photos ([street])
- * come only when he asks for them, each made once and kept. Every way goes from the vehicle through a few stops in turn,
- * lettered on the map ([focus]); the driver can try another order and ask for the best one
- * ([suggest]).
+ * fingers and buttons ([zoom], [toCar], [toStop], [whole]). Google's 3D view and street photos are
+ * Google's own apps, opened by the display ([se.eldebosh.nastastopp.maps.MapsLauncher.openEarth]),
+ * never made here. Every way goes from the vehicle through a few stops in turn, lettered on the map
+ * ([focus]); the driver can try another order and ask for the best one ([suggest]).
  *
  * @param ground the page's colour ("#F3F4F6"), shown until the tiles come.
  */
@@ -142,22 +141,6 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
      */
     data class Suggestion(val key: String, val best: OrderPlanner.Plan, val current: OrderPlanner.Plan)
 
-    /** Google's 3D map: null until the driver first asks for it ([tour]), then whether it can be drawn here. */
-    var threeD by mutableStateOf<Boolean?>(null)
-        private set
-
-    /** The 3D map is in view (else the flat one). */
-    var deepShown by mutableStateOf(false)
-        private set
-
-    /** Google's street photos of the stop are shown ([street]). */
-    var streetShown by mutableStateOf(false)
-        private set
-
-    /** Google has no street photos near the stop asked last. */
-    var noStreet by mutableStateOf(false)
-        private set
-
     /** The driver holds the map (a held [reveal]): his touches reach it. */
     private var held = false
 
@@ -228,7 +211,7 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
 
     /**
      * The map grows out of ([x], [y]), fractions of its size, over [ms]: the driver's own when he
-     * opened it ([held]: 3D, flying to the stop, touched), else only looked at.
+     * opened it ([held]: touched), else only looked at.
      */
     fun reveal(x: Float, y: Float, ms: Int, held: Boolean = false) {
         main.removeCallbacks(hide)
@@ -241,9 +224,6 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
     /** The map goes back where it came from, over [ms], and is then no longer drawn. */
     fun conceal(ms: Int) {
         held = false
-        streetShown = false
-        noStreet = false
-        deepShown = false
         stage = "hold(false);conceal($ms)"
         js(stage!!)
         main.removeCallbacks(hide)
@@ -256,20 +236,14 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
     /** The held map to the car. */
     fun toCar() = js("toCar()")
 
-    /** The held map to the stop's building. */
+    /** The held map to the stop looked at. */
     fun toStop() = js("toStop()")
 
     /** The car, the way and the stop at once. */
     fun whole() = js("whole()")
 
-    /** The held map to stop [index] of the driver's way (its building on the 3D map). */
+    /** The held map to stop [index] of the driver's way. */
     fun lookAt(index: Int) = js("lookAt($index)")
-
-    /** Google's 3D map and the flight from the car to the stop (the 3D map is made the first time). */
-    fun tour() = js("tour()")
-
-    /** Back to the flat map. */
-    fun flat() = js("flat()")
 
     /**
      * The display's look changed (black or light): the same map in the new colours, never a new
@@ -279,12 +253,6 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
         view.setBackgroundColor(ground.toColorInt())
         look = "setLook($night,'$ground')"
         js(look!!)
-    }
-
-    /** Google's street photos of the stop looked at, turned towards it ([on]), or back to the map. */
-    fun street(on: Boolean) {
-        noStreet = false
-        js("street($on)")
     }
 
     private val hide = Runnable { view.visibility = View.INVISIBLE }
@@ -494,37 +462,9 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
             }
         }
 
-        /** The 3D map came into view ([shown]) or went for the flat one. */
-        @JavascriptInterface
-        fun onDeep(shown: Boolean) {
-            main.post { deepShown = shown }
-        }
-
-        /** [state]: the street photos "shown", "hidden", or "none" near the stop. */
-        @JavascriptInterface
-        fun onStreet(state: String?) {
-            main.post {
-                streetShown = state == "shown"
-                noStreet = state == "none"
-            }
-        }
-
-        /** Google's 3D map is made ([ok]), or cannot be drawn here. */
-        @JavascriptInterface
-        fun on3d(ok: Boolean) {
-            main.post { threeD = ok }
-        }
-
-        /**
-         * [kind]: "script" (Google's script did not come), "tiles" (no pictures yet), "3d" (no 3D
-         * map here, [detail]) or "page" (an error, [detail]).
-         */
+        /** [kind]: "script" (Google's script did not come), "tiles" (no pictures yet) or "page" (an error, [detail]). */
         @JavascriptInterface
         fun onProblem(kind: String?, detail: String?) {
-            if (kind == "3d") {
-                main.post { noThreeD = detail?.take(DETAIL_CHARS)?.takeIf { it.isNotBlank() } ?: "?" }
-                return
-            }
             val found = when (kind) {
                 "script" -> Trouble.NO_SCRIPT
                 "tiles" -> Trouble.NO_TILES
@@ -560,10 +500,6 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
 
     /** The page's own words for a [Trouble.PAGE], short; never logged. */
     var troubleDetail by mutableStateOf<String?>(null)
-        private set
-
-    /** Why there is no 3D map here (the page's own words, short), or null. */
-    var noThreeD by mutableStateOf<String?>(null)
         private set
 
     companion object {

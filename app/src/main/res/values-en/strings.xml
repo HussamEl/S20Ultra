@@ -173,7 +173,7 @@
     <string name="maps_key_set">Key saved on this tablet</string>
     <string name="maps_key_refused">Google refused the key</string>
     <string name="maps_key_label">Google Maps API key</string>
-    <string name="help_maps_key">The map uses your own Google key. In Google Cloud: create an API key, enable "Maps JavaScript API" and "Routes API", and restrict the key to the website https://nastastopp.app/* . Normal use stays within Google\'s free monthly amount. The map takes the car\'s position from this tablet\'s own GPS (location while the display is open, never in the background; asked the first time the map sign is tapped). That position and the next stop go to Google for the way; nothing is stored or logged.</string>
+    <string name="help_maps_key">The map uses your own Google key. In Google Cloud: create an API key, enable "Maps JavaScript API" and "Routes API", and restrict the key to the website https://nastastopp.app/* . Google bills each map made and each way asked: the app makes one map per display and asks for the way again only when it changes, and the 3D view and street photos open Google\'s own apps. See your use in Google Cloud. The map takes the car\'s position from this tablet\'s own GPS (location while the display is open, never in the background; asked the first time the map sign is tapped). That position and the stops of the way (up to seven, never a name) go to Google for the way; nothing is stored or logged.</string>
     <string name="display_show_way">Show the way on the map</string>
     <string name="display_map_close">Close the map</string>
     <string name="display_map_closer">Zoom in</string>
@@ -181,11 +181,8 @@
     <string name="display_map_car">The car\'s position</string>
     <string name="display_map_stop">The stop\'s building</string>
     <string name="display_map_whole">The whole way</string>
-    <string name="display_map_tour">3D map: fly to the stop</string>
-    <string name="display_map_flat">Flat map</string>
-    <string name="display_map_street">Google\'s street photos at the stop</string>
-    <string name="display_map_back">Back to the map</string>
-    <string name="display_way_no_street">No street photos here</string>
+    <string name="display_map_tour">3D in Google Earth: fly to the stop</string>
+    <string name="display_map_street">Street photos in Google Maps at the stop</string>
     <string name="display_way_to">To %1$s: %2$d min · %3$s</string>
     <string name="display_way_whole">Whole way %1$d min</string>
     <string name="display_way_suggest">Suggest order</string>
@@ -198,6 +195,9 @@
     <string name="display_way_trip">%1$s: %2$s</string>
     <string name="display_way_earlier">Earlier</string>
     <string name="display_way_later">Later</string>
+    <string name="display_way_add">Add the next trip to the way</string>
+    <string name="display_way_add_short">+ Trip</string>
+    <string name="display_way_drag">Drag to move the trip</string>
     <string name="display_show_card">Show the trip\'s card</string>
     <string name="display_weather">Show the weather</string>
     <string name="display_look_light">Light display</string>

@@ -15,7 +15,7 @@ import se.eldebosh.nastastopp.core.route.MapsUrlBuilder
 import se.eldebosh.nastastopp.service.Notifications
 import se.eldebosh.nastastopp.util.DebugLog
 
-/** Opens Google Maps: turn-by-turn navigation for up to 10 stops, or one URL ([open]). */
+/** Opens Google Maps: turn-by-turn navigation for up to 10 stops, or one URL ([open]); and Google Earth ([openEarth]). */
 class MapsLauncher(private val context: Context) {
 
     fun intentFor(stops: List<String>, withPackage: Boolean = true): Intent {
@@ -49,6 +49,23 @@ class MapsLauncher(private val context: Context) {
             }
         } catch (e: Exception) {
             DebugLog.w(e) { "maps start failed" }
+        }
+    }
+
+    /**
+     * Google Earth's 3D view of a point, flown to as it opens; without Google Earth, Google Maps'
+     * satellite view of it. Both are Google's own apps: nothing is billed on the driver's key.
+     */
+    fun openEarth(lat: Double, lng: Double) {
+        val earth = Intent(Intent.ACTION_VIEW, MapsUrlBuilder.earthUrl(lat, lng).toUri())
+            .setPackage(MapsUrlBuilder.EARTH_PACKAGE)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            context.startActivity(earth)
+        } catch (_: ActivityNotFoundException) {
+            open(MapsUrlBuilder.satelliteUrl(lat, lng))
+        } catch (e: Exception) {
+            DebugLog.w(e) { "earth start failed" }
         }
     }
 

@@ -173,7 +173,7 @@
     <string name="maps_key_set">Nyckeln är sparad på surfplattan</string>
     <string name="maps_key_refused">Google avvisade nyckeln</string>
     <string name="maps_key_label">API-nyckel för Google Maps</string>
-    <string name="help_maps_key">Kartan använder din egen Google-nyckel. I Google Cloud: skapa en API-nyckel, aktivera "Maps JavaScript API" och "Routes API" och begränsa nyckeln till webbplatsen https://nastastopp.app/* . Normal användning ryms i Googles kostnadsfria månadsmängd. Kartan tar bilens position från surfplattans egen GPS (plats medan skärmen är öppen, aldrig i bakgrunden; frågas första gången kartknappen trycks). Den positionen och nästa stopp går till Google för vägen; inget sparas eller loggas.</string>
+    <string name="help_maps_key">Kartan använder din egen Google-nyckel. I Google Cloud: skapa en API-nyckel, aktivera "Maps JavaScript API" och "Routes API" och begränsa nyckeln till webbplatsen https://nastastopp.app/* . Google tar betalt för varje karta som skapas och varje väg som efterfrågas: appen skapar en karta per skärm och frågar efter vägen igen bara när den ändras, och 3D-vyn och gatubilderna öppnar Googles egna appar. Se din användning i Google Cloud. Kartan tar bilens position från surfplattans egen GPS (plats medan skärmen är öppen, aldrig i bakgrunden; frågas första gången kartknappen trycks). Den positionen och vägens stopp (högst sju, aldrig ett namn) går till Google för vägen; inget sparas eller loggas.</string>
     <string name="display_show_way">Visa vägen på kartan</string>
     <string name="display_map_close">Stäng kartan</string>
     <string name="display_map_closer">Zooma in</string>
@@ -181,11 +181,8 @@
     <string name="display_map_car">Bilens position</string>
     <string name="display_map_stop">Stoppets byggnad</string>
     <string name="display_map_whole">Hela vägen</string>
-    <string name="display_map_tour">3D-karta: flyg till stoppet</string>
-    <string name="display_map_flat">Platt karta</string>
-    <string name="display_map_street">Googles gatubilder vid stoppet</string>
-    <string name="display_map_back">Tillbaka till kartan</string>
-    <string name="display_way_no_street">Inga gatubilder här</string>
+    <string name="display_map_tour">3D i Google Earth: flyg till stoppet</string>
+    <string name="display_map_street">Gatubilder i Google Maps vid stoppet</string>
     <string name="display_way_to">Till %1$s: %2$d min · %3$s</string>
     <string name="display_way_whole">Hela vägen %1$d min</string>
     <string name="display_way_suggest">Föreslå ordning</string>
@@ -198,6 +195,9 @@
     <string name="display_way_trip">%1$s: %2$s</string>
     <string name="display_way_earlier">Tidigare</string>
     <string name="display_way_later">Senare</string>
+    <string name="display_way_add">Lägg till nästa resa på vägen</string>
+    <string name="display_way_add_short">+ Resa</string>
+    <string name="display_way_drag">Dra för att flytta resan</string>
     <string name="display_show_card">Visa resans kort</string>
     <string name="display_weather">Visa vädret</string>
     <string name="display_look_light">Ljus skärm</string>
