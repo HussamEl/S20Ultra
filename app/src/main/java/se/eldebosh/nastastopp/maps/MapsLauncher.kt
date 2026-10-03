@@ -14,6 +14,7 @@ import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.core.route.MapsUrlBuilder
 import se.eldebosh.nastastopp.service.Notifications
 import se.eldebosh.nastastopp.util.DebugLog
+import se.eldebosh.nastastopp.util.findActivity
 
 /** Opens Google Maps: turn-by-turn navigation for up to 10 stops, or one URL ([open]); and Google Earth ([openEarth]). */
 class MapsLauncher(private val context: Context) {
@@ -36,14 +37,17 @@ class MapsLauncher(private val context: Context) {
         startSafely(stops)
     }
 
-    /** Opens one Google Maps URL (navigation to a stop, its street photos): Google's app, else the browser. */
-    fun open(url: String) {
-        val intent = Intent(Intent.ACTION_VIEW, url.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    /**
+     * Opens one Google Maps URL (navigation to a stop, its street photos): Google's app, else the
+     * browser. Opened from a screen ([from]), Back in Google's app comes back to that screen.
+     */
+    fun open(url: String, from: Context? = null) {
+        val (starter, intent) = view(url, from)
         try {
-            context.startActivity(Intent(intent).setPackage(MapsUrlBuilder.MAPS_PACKAGE))
+            starter.startActivity(Intent(intent).setPackage(MapsUrlBuilder.MAPS_PACKAGE))
         } catch (_: ActivityNotFoundException) {
             try {
-                context.startActivity(intent)
+                starter.startActivity(intent)
             } catch (e: Exception) {
                 DebugLog.w(e) { "no app can open maps url" }
             }
@@ -56,17 +60,27 @@ class MapsLauncher(private val context: Context) {
      * Google Earth's 3D view of a point, flown to as it opens; without Google Earth, Google Maps'
      * satellite view of it. Both are Google's own apps: nothing is billed on the driver's key.
      */
-    fun openEarth(lat: Double, lng: Double) {
-        val earth = Intent(Intent.ACTION_VIEW, MapsUrlBuilder.earthUrl(lat, lng).toUri())
-            .setPackage(MapsUrlBuilder.EARTH_PACKAGE)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    fun openEarth(lat: Double, lng: Double, from: Context? = null) {
+        val (starter, earth) = view(MapsUrlBuilder.earthUrl(lat, lng), from)
         try {
-            context.startActivity(earth)
+            starter.startActivity(earth.setPackage(MapsUrlBuilder.EARTH_PACKAGE))
         } catch (_: ActivityNotFoundException) {
-            open(MapsUrlBuilder.satelliteUrl(lat, lng))
+            open(MapsUrlBuilder.satelliteUrl(lat, lng), from)
         } catch (e: Exception) {
             DebugLog.w(e) { "earth start failed" }
         }
+    }
+
+    /**
+     * A view of [url] and what starts it: [from]'s activity when there is one, so Google's app
+     * opens over that screen and Back returns to it; else a task of its own, which Back leaves for
+     * the home screen.
+     */
+    private fun view(url: String, from: Context?): Pair<Context, Intent> {
+        val activity = from?.findActivity()
+        val intent = Intent(Intent.ACTION_VIEW, url.toUri())
+        if (activity == null) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return (activity ?: context) to intent
     }
 
     private fun startSafely(stops: List<String>) {

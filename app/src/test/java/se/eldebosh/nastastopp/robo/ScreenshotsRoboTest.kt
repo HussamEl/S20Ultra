@@ -1100,6 +1100,7 @@ class ScreenshotsRoboTest {
     @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
     fun theDriverDragsATripInTheList() {
         val sent = mutableListOf<List<Long>>()
+        val places = WindowPlaces.InMemory()
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         compose.setContent {
             val scope = rememberCoroutineScope()
@@ -1114,6 +1115,7 @@ class ScreenshotsRoboTest {
                     time = { LocalTime.of(7, 20, 42) },
                     routeMap = map,
                     onOrder = { sent += it },
+                    places = places,
                 )
             }
         }
@@ -1132,7 +1134,8 @@ class ScreenshotsRoboTest {
         compose.onNodeWithTag("ref_249").assertIsDisplayed()
         compose.onNodeWithTag("ref_250").performClick()
         assertEquals(listOf(listOf(13L, 11L, 12L)), sent)
-        // The list's bar moves the list, here to the right.
+        // The list's bar moves the list, here to the right, and the list keeps its new place. (With
+        // the test's clock held, some of the moves are merged away: the distance is not exact.)
         val before = compose.onNodeWithTag("ref_265").fetchSemanticsNode().boundsInRoot
         compose.onNodeWithTag("ref_265").performTouchInput {
             down(center)
@@ -1144,7 +1147,9 @@ class ScreenshotsRoboTest {
         }
         compose.mainClock.advanceTimeBy(500)
         val after = compose.onNodeWithTag("ref_265").fetchSemanticsNode().boundsInRoot
-        assertTrue("moved right: $before → $after", after.left > before.left + 300f)
+        assertTrue("moved right: $before → $after", after.left > before.left + 150f)
+        // Kept: the list's middle (its bar starts 26 px into the 352 px list) as a share of the screen.
+        assertEquals((after.left - 26f + 176f) / 1400f, places.place("way_list")!!.x, 0.01f)
         compose.mainClock.autoAdvance = true
     }
 

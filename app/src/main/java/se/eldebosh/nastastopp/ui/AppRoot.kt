@@ -472,8 +472,9 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                     if (!position.allowed) askPosition.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
                                 },
                                 // Google's own apps on the driver's tap: nothing billed on his key.
-                                onEarth = { lat, lng -> graph.maps.openEarth(lat, lng) },
-                                onStreetPhotos = { lat, lng -> graph.maps.open(MapsUrlBuilder.streetViewUrl(lat, lng)) },
+                                // From this screen: Back in Google's app comes back to the display.
+                                onEarth = { lat, lng -> graph.maps.openEarth(lat, lng, context) },
+                                onStreetPhotos = { lat, lng -> graph.maps.open(MapsUrlBuilder.streetViewUrl(lat, lng), context) },
                             )
                         }
                         Screen.SETTINGS -> SettingsScreen(
