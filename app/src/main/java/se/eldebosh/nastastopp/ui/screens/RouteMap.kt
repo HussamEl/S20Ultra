@@ -230,15 +230,26 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
 
     /**
      * The map grows out of ([x], [y]), fractions of its size, over [ms]: the driver's own when he
-     * opened it ([held]: touched), else only looked at.
+     * opened it ([held]: touched), else only looked at. The minute's map follows the car; with
+     * [tour] (the car moves) it then flies to the next stop in 3D, looks around it in Street View
+     * and rises away, at most once every [TOUR_EVERY_MS] (Google bills each 3D view and street
+     * photo loaded; the page makes one of each for its whole life and moves them).
      */
-    fun reveal(x: Float, y: Float, ms: Int, held: Boolean = false) {
+    fun reveal(x: Float, y: Float, ms: Int, held: Boolean = false, tour: Boolean = false) {
         main.removeCallbacks(hide)
         this.held = held
         view.visibility = View.VISIBLE
         stage = String.format(Locale.ROOT, "hold(%b);reveal(%.4f,%.4f,%d)", held, x, y, ms)
         js(stage!!)
+        if (held) return
+        val now = SystemClock.elapsedRealtime()
+        val fly = tour && vehicle != null && now - lastTourMs >= TOUR_EVERY_MS
+        if (fly) lastTourMs = now
+        js("follow($fly)")
     }
+
+    /** When the minute's map last flew to the next stop. */
+    private var lastTourMs = -TOUR_EVERY_MS
 
     /** The map goes back where it came from, over [ms], and is then no longer drawn. */
     fun conceal(ms: Int) {
@@ -590,6 +601,9 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
         /** The stops' own colours (AppColors.wayStops), by day and by night, for the page. */
         private val STOP_COLORS = DayColors.wayStops.map { String.format(Locale.ROOT, "#%06X", it.toArgb() and 0xFFFFFF) }
         private val NIGHT_STOP_COLORS = DisplayColors.wayStops.map { String.format(Locale.ROOT, "#%06X", it.toArgb() and 0xFFFFFF) }
+
+        /** The minute's map flies to the next stop at most this often (3D and Street View are billed per load). */
+        const val TOUR_EVERY_MS = 5 * 60_000L
 
         /** The borders the page draws (tools/make-boundaries.py). */
         private const val BORDERS = "boundaries.json"

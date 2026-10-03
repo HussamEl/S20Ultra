@@ -111,6 +111,9 @@ fun DisplayRoleScreen(
     /** The controls the driver used on the phone's floating panel, and what this display's map shows, for it. */
     remote: Flow<LinkMessage.Remote>? = null,
     onMapView: ((LinkMessage.MapView) -> Unit)? = null,
+    /** The car moved in the last two minutes, and how much it shakes now (the display's motion sign). */
+    awake: Boolean = true,
+    motion: (() -> Float)? = null,
 ) {
     var showSetup by remember { mutableStateOf(false) }
     val blocked = !bluetoothReady || paired.isEmpty() ||
@@ -143,6 +146,8 @@ fun DisplayRoleScreen(
             onOrder = onOrder,
             remote = remote,
             onMapView = onMapView,
+            awake = awake,
+            motion = motion,
         )
         return
     }

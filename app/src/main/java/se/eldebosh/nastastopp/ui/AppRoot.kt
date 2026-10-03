@@ -53,6 +53,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LifecycleStartEffect
 import se.eldebosh.nastastopp.core.display.DisplaySnapshot
 import se.eldebosh.nastastopp.core.nav.MapWay
+import se.eldebosh.nastastopp.geo.CarMotion
 import se.eldebosh.nastastopp.geo.TabletPosition
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import se.eldebosh.nastastopp.R
@@ -406,10 +407,19 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 onStopOrDispose { position.stop() }
                             }
                             val fix by position.fix.collectAsStateWithLifecycle()
-                            // The minute's map: from the car through the next stop and the two after it.
+                            // Whether the car moves (the tablet's accelerometer and GPS speed), while the
+                            // display is in sight: its moments and its map's flights rest when it stands still.
+                            val carMotion = remember { CarMotion(context.applicationContext) }
+                            LifecycleStartEffect(carMotion) {
+                                carMotion.start()
+                                onStopOrDispose { carMotion.stop() }
+                            }
+                            LaunchedEffect(fix) { carMotion.onSpeed(fix?.speedMps) }
+                            val carAwake by carMotion.awake.collectAsStateWithLifecycle()
+                            // The minute's map: from the car to the next stop only.
                             // Only while the phone is connected: the way to trips that may be old is never asked for.
                             val nextStops = remote?.takeIf { it.active && link.status == DisplayLinkClient.Status.CONNECTED }
-                                ?.ahead?.take(DisplaySnapshot.AFTER + 1)?.map { it.mapStop }.orEmpty()
+                                ?.ahead?.take(1)?.map { it.mapStop }.orEmpty()
                             LaunchedEffect(routeMap, fix, nextStops) {
                                 val at = fix ?: return@LaunchedEffect
                                 if (nextStops.isEmpty()) return@LaunchedEffect
@@ -442,6 +452,8 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 onOrder = { ids -> client.order(ids) },
                                 remote = client.remotes,
                                 onMapView = { client.mapView(it) },
+                                awake = carAwake,
+                                motion = if (carMotion.available) ({ carMotion.level.value }) else null,
                                 places = graph.settings,
                                 panelAllowed = remember(resumeTick) { graph.tabletPanel.canShow },
                                 onAllowPanel = { SystemIntents.openOverlaySettings(context) },

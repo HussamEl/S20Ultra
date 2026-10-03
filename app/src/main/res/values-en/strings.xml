@@ -369,4 +369,7 @@
     <string name="panel_say_time">Say the time</string>
     <string name="panel_open_display_map">Open the passenger display\'s map for this trip</string>
     <string name="panel_map_title">Passenger display map</string>
+    <string name="display_show_signs">Top line: a tap or a swipe down shows its signs</string>
+    <string name="display_motion_on">Motion sensor: the car is moving</string>
+    <string name="display_motion_off">Motion sensor: the car stands still, the display rests</string>
 </resources>

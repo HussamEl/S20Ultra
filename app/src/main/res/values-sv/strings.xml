@@ -369,4 +369,7 @@
     <string name="panel_say_time">Säg klockan</string>
     <string name="panel_open_display_map">Öppna passagerarskärmens karta för resan</string>
     <string name="panel_map_title">Passagerarskärmens karta</string>
+    <string name="display_show_signs">Översta raden: tryck eller svep nedåt för att visa symbolerna</string>
+    <string name="display_motion_on">Rörelsesensor: bilen rör sig</string>
+    <string name="display_motion_off">Rörelsesensor: bilen står still, skärmen vilar</string>
 </resources>

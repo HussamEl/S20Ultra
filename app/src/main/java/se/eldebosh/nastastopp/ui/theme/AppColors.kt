@@ -66,11 +66,10 @@ data class AppColors(
     val soon: Color,
     /**
      * The stops of a way on the tablet's map, each its own colour (its pin, the way on from it, its
-     * letter in the driver's list), in turn: dark ones on the day map, light ones on the night map.
-     * Letters on them in [onWayStop].
+     * letter and time in the driver's list), in turn: dark ones on the day map, light ones on the
+     * night map; written large on nothing.
      */
     val wayStops: List<Color> = WayStops,
-    val onWayStop: Color = Palette.White,
     // Reference numbers.
     val refText: Color,
     val refPill: Color,
@@ -180,7 +179,7 @@ val NightPanel = DayPanel.copy(
 /** The stops' own colours on the map, A first: none red, which marks the stop looked at. */
 private val WayStops = listOf(Palette.Blue700, Palette.Emerald700, Palette.Ember700, Palette.Violet700, Palette.Teal700, Palette.Fuchsia700, Palette.Brown700)
 
-/** The same stops by night: light, so the way stands out on the dark map, with dark letters. */
+/** The same stops by night: light, so the way stands out on the dark map. */
 private val NightWayStops = listOf(Palette.Sky, Palette.Emerald400, Palette.Ember400, Palette.Violet400, Palette.Teal400, Palette.Fuchsia400, Palette.Amber400)
 
 val DayColors = AppColors(
@@ -232,7 +231,6 @@ val DayColors = AppColors(
 val NightColors = AppColors(
     isDark = true,
     wayStops = NightWayStops,
-    onWayStop = Palette.Black,
     background = Palette.Night,
     card = Palette.NightCard,
     cardBorder = Palette.NightLine,

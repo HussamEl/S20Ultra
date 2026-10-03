@@ -1,16 +1,14 @@
 package se.eldebosh.nastastopp.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.ui.input.pointer.PointerInputChange
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -42,8 +40,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.findRootCoordinates
@@ -53,12 +53,19 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import java.time.LocalTime
+import java.util.Locale
+import kotlin.math.abs
 import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.core.display.DisplayItem
 import se.eldebosh.nastastopp.core.display.TimeStatus
@@ -71,9 +78,6 @@ import se.eldebosh.nastastopp.ui.refCorner
 import se.eldebosh.nastastopp.ui.theme.AppTheme
 import se.eldebosh.nastastopp.ui.theme.DigitFont
 import se.eldebosh.nastastopp.ui.theme.DisplayFont
-import java.time.LocalTime
-import java.util.Locale
-import kotlin.math.abs
 
 /**
  * The order the driver is trying on his map ([preview], null: the phone's), the trip he picked to
@@ -518,19 +522,10 @@ private fun TripRow(
                 .semantics { contentDescription = description }
                 .padding(end = 6.dp),
         ) {
-            // Its letter in its own colour, as on the map; the one looked at in a red ring.
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(LETTER_SIZE)
-                    .then(if (looked) Modifier.border(LOOKED_RING, AppTheme.colors.danger, CircleShape).padding(LOOKED_RING) else Modifier)
-                    .clip(CircleShape)
-                    .background(color),
-            ) {
-                Text(letter.toString(), fontFamily = DisplayFont, fontWeight = FontWeight.Bold, fontSize = LETTER_SP, color = AppTheme.colors.onWayStop)
-            }
+            // Its letter large in its own colour, as on the map, on nothing; the one looked at framed in red.
+            WayLetter(letter, color, looked)
             Spacer(Modifier.width(6.dp))
-            Text(item.time ?: "–", fontFamily = DigitFont, fontWeight = FontWeight.Bold, fontSize = ROW_TIME_SP, color = AppTheme.colors.text)
+            Text(item.time ?: "–", fontFamily = DigitFont, fontWeight = FontWeight.Bold, fontSize = ROW_TIME_SP, color = color)
             item.kind?.let { kind ->
                 Spacer(Modifier.width(5.dp))
                 Box(
@@ -704,8 +699,8 @@ private val ROW_STREET_SP = 14.sp
 private val ROW_SMALL_SP = 11.sp
 private val HANDLE_WIDTH = 30.dp
 private val HANDLE_ICON = 18.dp
-private val LETTER_SIZE = 22.dp
-private val LETTER_SP = 12.sp
+private val LETTER_SIZE = 30.dp
+private val LETTER_SP = 24.sp
 private val KIND_DOT = 8.dp
 private val MOVE_SIZE: Dp = 30.dp
 private val MOVE_ICON = 18.dp
@@ -717,3 +712,26 @@ private val BAR_HEIGHT = 28.dp
 private val LOOKED_RING = 2.dp
 private val REMOVE_SIZE = 26.dp
 private val REMOVE_ICON = 16.dp
+
+/**
+ * A stop's letter, as the map writes it: large and bold in the stop's own [color], on nothing (the
+ * row shows through), centred in its box; the one [looked] at framed in red.
+ */
+@Composable
+internal fun WayLetter(letter: Char, color: Color, looked: Boolean, size: Dp = LETTER_SIZE, fontSize: TextUnit = LETTER_SP) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(size)
+            .then(if (looked) Modifier.border(LOOKED_RING, AppTheme.colors.danger, RoundedCornerShape(8.dp)) else Modifier),
+    ) {
+        Text(
+            letter.toString(),
+            fontFamily = DisplayFont,
+            fontWeight = FontWeight.Bold,
+            fontSize = fontSize,
+            color = color,
+            style = TextStyle(lineHeight = 1.0.em, lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both)),
+        )
+    }
+}

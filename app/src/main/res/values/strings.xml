@@ -370,4 +370,7 @@
     <string name="panel_say_time">انطق الساعة</string>
     <string name="panel_open_display_map">افتح خريطة شاشة الركاب لهذه الرحلة</string>
     <string name="panel_map_title">خريطة شاشة الركاب</string>
+    <string name="display_show_signs">السطر الأعلى: ضغطة أو سحب للأسفل يُظهر الرموز</string>
+    <string name="display_motion_on">حساس الحركة: السيارة تتحرك</string>
+    <string name="display_motion_off">حساس الحركة: السيارة واقفة، الشاشة ترتاح</string>
 </resources>

@@ -650,7 +650,7 @@ class ScreenshotsRoboTest {
         compose.mainClock.autoAdvance = true
     }
 
-    /** When the minute changes, the time grows into the middle of the screen, stays, then goes back. */
+    /** In its turn the time grows into the middle of the screen, stays, then goes back. */
     @Test
     @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
     fun passengerDisplayMinuteGrows() {
@@ -662,7 +662,8 @@ class ScreenshotsRoboTest {
         }
         compose.waitForIdle()
         compose.mainClock.autoAdvance = false
-        now = LocalTime.of(8, 11, 0)
+        // The time's turn comes 50 s after the display last showed something.
+        compose.mainClock.advanceTimeBy(49_500)
         // Growing, the ground fading in, solid at its largest, going back as the ground clears, back.
         for (ms in listOf(1_000L, 3_700L, 1_800L, 2_000L, 900L, 2_000L)) {
             compose.mainClock.advanceTimeBy(ms)
@@ -774,8 +775,9 @@ class ScreenshotsRoboTest {
         }
         compose.waitForIdle()
         compose.mainClock.autoAdvance = false
-        now = LocalTime.of(8, 11, 27)
-        compose.mainClock.advanceTimeBy(2_500)
+        // The time first, then the weather 50 s after it has gone.
+        assertTrue("the weather in its turn", waitFor(150) { compose.onAllNodesWithTag("ref_204").fetchSemanticsNodes().isNotEmpty() })
+        compose.mainClock.advanceTimeBy(2_000)
         save("display_weather", compose.onRoot().captureToImage().asAndroidBitmap())
         compose.onNodeWithTag("ref_204").assertIsDisplayed()
         compose.onNodeWithText("Halvklart").assertIsDisplayed()
@@ -783,14 +785,16 @@ class ScreenshotsRoboTest {
         compose.onNodeWithTag("ref_204").assertDoesNotExist()
         // The small weather sign (the degrees beside the picture) brings it up at once.
         save("display_weather_sign", compose.onRoot().captureToImage().asAndroidBitmap())
+        showSigns()
         compose.onNodeWithTag("ref_222").performClick()
         compose.mainClock.advanceTimeBy(1_500)
         compose.onNodeWithText("Halvklart").assertIsDisplayed()
         compose.onRoot().performTouchInput { click(center) }
         compose.mainClock.advanceTimeBy(800)
         compose.onNodeWithText("Halvklart").assertDoesNotExist()
-        now = LocalTime.of(8, 11, 45)
-        compose.mainClock.advanceTimeBy(2_500)
+        // Then the travel time (no map here), 50 s later.
+        assertTrue("the travel time in its turn", waitFor(80) { compose.onAllNodesWithText("12").fetchSemanticsNodes().isNotEmpty() })
+        compose.mainClock.advanceTimeBy(2_000)
         save("display_eta", compose.onRoot().captureToImage().asAndroidBitmap())
         compose.onNodeWithText("12").assertIsDisplayed()
         // A tap anywhere: straight back.
@@ -918,6 +922,7 @@ class ScreenshotsRoboTest {
         // The next stop's time, over its address.
         compose.onAllNodesWithTag("ref_230", useUnmergedTree = true).filterToOne(hasAnyDescendant(hasText("07")) and hasAnyDescendant(hasText("36"))).assertIsDisplayed()
         compose.mainClock.autoAdvance = false
+        showSigns()
         compose.onNodeWithTag("ref_219").performClick()
         compose.mainClock.advanceTimeBy(1_500)
         save("display_map_looking", compose.onRoot().captureToImage().asAndroidBitmap())
@@ -1176,12 +1181,59 @@ class ScreenshotsRoboTest {
         }
         compose.waitForIdle()
         compose.mainClock.autoAdvance = false
-        now = LocalTime.of(8, 11, 27)
-        compose.mainClock.advanceTimeBy(2_500)
+        assertTrue("the widget in the weather's turn", waitFor(150) { compose.onAllNodesWithText("Widget").fetchSemanticsNodes().isNotEmpty() })
+        compose.mainClock.advanceTimeBy(2_000)
         compose.onNodeWithText("Widget").assertIsDisplayed()
         compose.onNodeWithTag("ref_211").assertExists()
         compose.mainClock.advanceTimeBy(6_000)
         compose.onNodeWithText("Widget").assertDoesNotExist()
+        compose.mainClock.autoAdvance = true
+    }
+
+    /** The top line's signs, shown as by a tap on the line (they hide themselves after a while). */
+    private fun showSigns() {
+        compose.onNodeWithTag("ref_298").performTouchInput { click(Offset(width / 2f, height / 2f)) }
+        if (compose.mainClock.autoAdvance) compose.waitForIdle() else compose.mainClock.advanceTimeBy(800)
+    }
+
+    /** Advances the held clock a second at a time, up to [seconds], until [shown]. */
+    private fun waitFor(seconds: Int, shown: () -> Boolean): Boolean {
+        repeat(seconds) {
+            if (shown()) return true
+            compose.mainClock.advanceTimeBy(1_000)
+        }
+        return shown()
+    }
+
+    /**
+     * The car has stood still for two minutes: no moment comes (nothing moves for nobody); once it
+     * moves, the moments take their turns again. The motion sign sways with the shaking; the top
+     * line's signs show on a tap and hide again.
+     */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun theDisplayRestsWhileTheCarStandsStill() {
+        var awake by mutableStateOf(false)
+        val snapshot = tabletSnapshot.copy(weather = DisplayWeather(14, 3))
+        compose.setContent {
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(snapshot, status = "Galaxy S20", connected = true, onSpeak = {}, onExit = {}, time = { LocalTime.of(8, 11, 5) }, awake = awake, motion = { if (awake) 0.6f else 0f })
+            }
+        }
+        compose.waitForIdle()
+        compose.mainClock.autoAdvance = false
+        compose.onNodeWithTag("ref_297").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Motion sensor: the car stands still, the display rests").assertExists()
+        assertFalse("nothing while the car stands still", waitFor(200) { compose.onAllNodesWithTag("ref_204").fetchSemanticsNodes().isNotEmpty() })
+        // The signs are hidden; a tap on the top line shows them, and they go again.
+        compose.onNodeWithTag("ref_222").assertDoesNotExist()
+        showSigns()
+        compose.onNodeWithTag("ref_222").assertIsDisplayed()
+        compose.mainClock.advanceTimeBy(11_000)
+        compose.onNodeWithTag("ref_222").assertDoesNotExist()
+        awake = true
+        assertTrue("the moments again once it moves", waitFor(150) { compose.onAllNodesWithTag("ref_204").fetchSemanticsNodes().isNotEmpty() })
+        compose.onNodeWithContentDescription("Motion sensor: the car is moving").assertExists()
         compose.mainClock.autoAdvance = true
     }
 
@@ -1244,6 +1296,7 @@ class ScreenshotsRoboTest {
         }
         compose.waitForIdle()
         compose.mainClock.autoAdvance = false
+        showSigns()
         compose.onNodeWithTag("ref_219").performClick()
         compose.mainClock.advanceTimeBy(1_500)
         // A, B, C: the next stop and the two after it.
@@ -1317,6 +1370,7 @@ class ScreenshotsRoboTest {
         }
         compose.waitForIdle()
         compose.mainClock.autoAdvance = false
+        showSigns()
         compose.onNodeWithTag("ref_219").performClick()
         compose.mainClock.advanceTimeBy(1_500)
         compose.onAllNodesWithTag("ref_245").assertCountEquals(3)
@@ -1378,6 +1432,7 @@ class ScreenshotsRoboTest {
         }
         compose.waitForIdle()
         compose.onNodeWithTag("ref_88").assertExists()
+        showSigns()
         compose.onNodeWithTag("ref_223").performClick()
         compose.waitForIdle()
         assertEquals(false, dark)

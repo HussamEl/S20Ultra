@@ -46,6 +46,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.FlingBehavior
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.gestures.snapping.SnapPosition
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
@@ -180,6 +181,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import java.time.LocalTime
 import java.util.Locale
+import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.min
@@ -278,6 +280,10 @@ fun PassengerDisplayScreen(
     remote: Flow<LinkMessage.Remote>? = null,
     /** What this display's map shows, for the phone's floating panel. */
     onMapView: ((LinkMessage.MapView) -> Unit)? = null,
+    /** The car moved in the last two minutes (the tablet's motion): the moments and the map's flights come only then. */
+    awake: Boolean = true,
+    /** How much the car shakes now (0–1), for the motion sign on the top line; null without a sensor. */
+    motion: (() -> Float)? = null,
 ) {
     KeepScreenOnFullscreen()
     // The trip card and the driver's list of trips open where he last left them, as big.
@@ -301,6 +307,7 @@ fun PassengerDisplayScreen(
         hasWeather = live?.weather != null || weatherWidget != null,
         hasEta = live?.eta != null,
         hasMap = live != null && mapLive && routeMap?.ready == true,
+        awake = awake,
     )
     // Everything but the time (or the weather, or the travel time) steps back while it shows, and
     // is hidden behind a solid ground at its largest.
@@ -550,7 +557,7 @@ fun PassengerDisplayScreen(
         var clockLine by remember { mutableStateOf(IntSize.Zero) }
         // The map lies under everything, unseen until its moment, so it loads once and stays ready.
         if (routeMap != null) {
-            MapLayer(routeMap, moments, held, from = { if (pinAt.isSpecified) pinAt - screen.topLeft else Offset.Unspecified })
+            MapLayer(routeMap, moments, held, tour = awake, from = { if (pinAt.isSpecified) pinAt - screen.topLeft else Offset.Unspecified })
         }
         Column(
             Modifier
@@ -559,13 +566,38 @@ fun PassengerDisplayScreen(
                 .padding(start = side, end = side, top = 12.dp, bottom = bottomPad),
         ) {
             // The top line, small and quiet: the connection at the left, the signs and the battery
-            // at the right; the address starts just under it.
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                if (status != null) {
-                    ConnectionSign(status, connected, wide = landscape, onExit = onExit, enabled = !focus, modifier = rest.graphicsLayer { alpha = chrome })
+            // at the right, hidden until a tap or a swipe down on the line (298) shows them for a
+            // while; the motion sign (297) always at the far right. The address starts just under it.
+            var topShown by remember { mutableStateOf(false) }
+            var topCalls by remember { mutableIntStateOf(0) }
+            LaunchedEffect(topShown, topCalls) {
+                if (!topShown) return@LaunchedEffect
+                delay(TOP_SHOWN_MS)
+                topShown = false
+            }
+            val showTop = {
+                topShown = true
+                topCalls++
+            }
+            val reveal = stringResource(R.string.display_show_signs)
+            Row(
+                Modifier
+                    .ref(298)
+                    .fillMaxWidth()
+                    .heightIn(min = TouchTarget)
+                    .pointerInput(Unit) { detectTapGestures { showTop() } }
+                    .pointerInput(Unit) { detectVerticalDragGestures { _, dy -> if (dy > 0) showTop() } }
+                    .semantics { contentDescription = reveal },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                AnimatedVisibility(topShown && status != null, enter = fadeIn() + slideInVertically { -it }, exit = fadeOut() + slideOutVertically { -it }) {
+                    if (status != null) {
+                        ConnectionSign(status, connected, wide = landscape, onExit = onExit, enabled = !focus, modifier = rest.graphicsLayer { alpha = chrome })
+                    }
                 }
                 Spacer(Modifier.weight(1f))
                 Column(rest.graphicsLayer { alpha = chrome }.padding(start = 16.dp), horizontalAlignment = Alignment.End) {
+                    AnimatedVisibility(topShown, enter = fadeIn() + slideInVertically { -it }, exit = fadeOut() + slideOutVertically { -it }) {
                     TopLine(
                         // The way to the next stop: the display's map, or Google Maps on its address.
                         onMap = live?.current?.let { next -> showWay?.let { { it(next, true) } } },
@@ -577,6 +609,7 @@ fun PassengerDisplayScreen(
                         onToggleLook = onToggleLook,
                         enabled = !focus,
                     )
+                    }
                     if (detail != null) {
                         Text(
                             detail,
@@ -588,6 +621,7 @@ fun PassengerDisplayScreen(
                         )
                     }
                 }
+                if (motion != null) MotionSign(motion, awake)
             }
             val lineHeight = with(density) { clockLine.height.toDp() }
 
@@ -912,13 +946,14 @@ private class Moments(private val scope: CoroutineScope) {
 }
 
 /**
- * The moments of each minute: the time as the minute changes, the weather in its middle, Google
- * Maps' travel time a little later (each only when there is something to show). Nothing comes
- * while something is being said ([cue] goes up with each announcement and tap), and a new cue
- * sends it straight back.
+ * The display's moments in turn: the time, the weather, then the map (else Google Maps' travel
+ * time), each [MOMENT_GAP_S] seconds after the one before has gone (one with nothing to show is
+ * skipped). Nothing comes while something is being said ([cue] goes up with each announcement and
+ * tap; a new cue sends it straight back), while the display is busy, or while the car has stood
+ * still for two minutes ([awake] false).
  */
 @Composable
-private fun rememberMoments(now: State<LocalTime>, cue: Int, spokenText: String?, hasWeather: Boolean, hasEta: Boolean, hasMap: Boolean): Moments {
+private fun rememberMoments(now: State<LocalTime>, cue: Int, spokenText: String?, hasWeather: Boolean, hasEta: Boolean, hasMap: Boolean, awake: Boolean): Moments {
     val scope = rememberCoroutineScope()
     val moments = remember(scope) { Moments(scope) }
     var quiet by remember { mutableStateOf(false) }
@@ -929,21 +964,39 @@ private fun rememberMoments(now: State<LocalTime>, cue: Int, spokenText: String?
         delay(msToSay(spokenText))
         quiet = false
     }
-    val minute by remember { derivedStateOf { now.value.hour * 60 + now.value.minute } }
-    val opened = remember { minute }
-    LaunchedEffect(minute) {
-        if (minute != opened && !quiet && !moments.paused) moments.playTime()
-    }
-    val second by remember { derivedStateOf { now.value.second } }
     val weather by rememberUpdatedState(hasWeather)
     val eta by rememberUpdatedState(hasEta)
     val map by rememberUpdatedState(hasMap)
-    LaunchedEffect(second) {
-        if (quiet || !moments.idle || moments.paused) return@LaunchedEffect
-        when (second) {
-            WEATHER_AT_S -> if (weather) moments.playInfo(Moments.Info.WEATHER)
-            // The map with the way when the tablet has it; else Google Maps' travel time alone.
-            ETA_AT_S -> if (map) moments.playInfo(Moments.Info.MAP) else if (eta) moments.playInfo(Moments.Info.ETA)
+    val moving by rememberUpdatedState(awake)
+    val calm by rememberUpdatedState(!quiet)
+    LaunchedEffect(moments) {
+        var turn = 0
+        var restS = 0
+        while (true) {
+            delay(1_000L)
+            // The gap counts only while nothing else shows and the car moves.
+            if (!calm || !moments.idle || moments.paused || !moving) {
+                restS = 0
+                continue
+            }
+            if (++restS < MOMENT_GAP_S) continue
+            restS = 0
+            // The next moment that has something to show.
+            for (tried in 0 until MOMENT_TURNS) {
+                val which = turn
+                turn = (turn + 1) % MOMENT_TURNS
+                val played = when (which) {
+                    0 -> true.also { moments.playTime() }
+                    1 -> weather.also { if (it) moments.playInfo(Moments.Info.WEATHER) }
+                    // The map with the way when the tablet has it; else Google Maps' travel time alone.
+                    else -> when {
+                        map -> true.also { moments.playInfo(Moments.Info.MAP) }
+                        eta -> true.also { moments.playInfo(Moments.Info.ETA) }
+                        else -> false
+                    }
+                }
+                if (played) break
+            }
         }
     }
     return moments
@@ -1077,7 +1130,7 @@ private fun InfoMoment(
  * touches reach it.
  */
 @Composable
-private fun MapLayer(map: RouteMap, moments: Moments, held: Boolean, from: () -> Offset) {
+private fun MapLayer(map: RouteMap, moments: Moments, held: Boolean, tour: Boolean, from: () -> Offset) {
     var size by remember { mutableStateOf(IntSize.Zero) }
     val on = (moments.shown == Moments.Info.MAP || moments.shown == Moments.Info.FOCUS) && moments.info.targetValue > 0f
     val driver = moments.shown == Moments.Info.FOCUS
@@ -1085,7 +1138,8 @@ private fun MapLayer(map: RouteMap, moments: Moments, held: Boolean, from: () ->
         if (on) {
             val o = from()
             val known = o.isSpecified && size.width > 0 && size.height > 0
-            map.reveal(if (known) o.x / size.width else 0.5f, if (known) o.y / size.height else 0.5f, INFO_IN_MS, held = driver)
+            // The minute's map follows the car, then may fly to the next stop (the map knows how often).
+            map.reveal(if (known) o.x / size.width else 0.5f, if (known) o.y / size.height else 0.5f, INFO_IN_MS, held = driver, tour = !driver && tour)
         } else {
             map.conceal(moments.outMs)
         }
@@ -1771,6 +1825,49 @@ private fun Modifier.ink(size: TextUnit): Modifier = layout { measurable, constr
 private fun Modifier.hangAbove(): Modifier = layout { measurable, constraints ->
     val placeable = measurable.measure(constraints)
     layout(placeable.width, 0) { placeable.place(0, -placeable.height) }
+}
+
+/**
+ * The motion sign (297), always at the top line's far right: a short upright line that waves like a
+ * snake as the car shakes (the tablet's accelerometer, [level] 0–1), so the sensor is seen working;
+ * calm and grey once the car has stood still two minutes ([awake] false: the moments rest).
+ */
+@Composable
+private fun MotionSign(level: () -> Float, awake: Boolean) {
+    val phase = remember { mutableFloatStateOf(0f) }
+    val shake = remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(Unit) {
+        var last = 0L
+        while (true) {
+            withInfiniteAnimationFrameMillis { t ->
+                val dt = if (last == 0L) 0L else t - last
+                last = t
+                // Smoothed, and the waves run faster the more it shakes.
+                shake.floatValue += (level() - shake.floatValue) * 0.1f
+                phase.floatValue = (phase.floatValue + dt / 1000f * (MOTION_SPEED_REST + MOTION_SPEED_SHAKE * shake.floatValue)) % 1f
+            }
+        }
+    }
+    val color = if (awake) AppTheme.colors.highlight else AppTheme.colors.textMuted
+    val description = stringResource(if (awake) R.string.display_motion_on else R.string.display_motion_off)
+    Canvas(
+        Modifier
+            .refCorner(297)
+            .padding(start = 8.dp)
+            .size(MOTION_WIDTH, MOTION_HEIGHT)
+            .semantics { contentDescription = description },
+    ) {
+        val path = Path()
+        val steps = 24
+        val amp = MOTION_REST_AMP.toPx() + (size.width / 2f - MOTION_REST_AMP.toPx() - 2.dp.toPx()) * shake.floatValue
+        for (i in 0..steps) {
+            val f = i / steps.toFloat()
+            val x = size.width / 2f + amp * sin(2f * PI.toFloat() * (MOTION_WAVES * f - phase.floatValue))
+            val y = f * size.height
+            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        }
+        drawPath(path, color, style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+    }
 }
 
 /**
@@ -3154,6 +3251,17 @@ private val HOME_GAP = 10.dp
 private const val HOME_BEAT = 1.14f
 private const val HOME_BEAT_MS = 700
 
+/** The top line's signs show this long after a tap or a swipe down on it. */
+private const val TOP_SHOWN_MS = 10_000L
+
+/** The motion sign: its size, its waves, how far it sways at rest, how fast its waves run (at rest, and more with the shaking). */
+private val MOTION_WIDTH = 16.dp
+private val MOTION_HEIGHT = 34.dp
+private const val MOTION_WAVES = 1.5f
+private val MOTION_REST_AMP = 1.dp
+private const val MOTION_SPEED_REST = 0.15f
+private const val MOTION_SPEED_SHAKE = 2.5f
+
 /** The battery sign: its size, and the percent at which it turns red. */
 private val BATTERY_WIDTH = 24.dp
 private val BATTERY_HEIGHT = 12.dp
@@ -3281,17 +3389,17 @@ private const val TAP_SOLID_AFTER_MS = 300L
 private const val TAP_HOLD_MS = 4_000L
 
 /**
- * The weather at this second of each minute, Google Maps' travel time at this one, each seven
- * seconds in all: in, held, out.
+ * The moments take turns (the time, the weather, the map), each this many seconds after the one
+ * before has gone; the weather and the travel time show seven seconds in all: in, held, out.
  */
-private const val WEATHER_AT_S = 27
-private const val ETA_AT_S = 45
+private const val MOMENT_GAP_S = 50
+private const val MOMENT_TURNS = 3
 private const val INFO_IN_MS = 1_200
 private const val INFO_HOLD_MS = 4_600L
 private const val INFO_OUT_MS = 1_200
 
-/** The map: ten seconds in all, filling the screen. */
-private const val MAP_HOLD_MS = 7_600L
+/** The map: forty seconds in all, filling the screen (it follows the car, then may fly to the next stop). */
+private const val MAP_HOLD_MS = 37_600L
 
 /** The driver's own map stays until he closes it, or this long after he last used it. */
 private const val FOCUS_MAX_MS = 120_000L

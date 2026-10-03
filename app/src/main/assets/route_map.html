@@ -7,10 +7,12 @@
   the app never scales or fades the WebView itself, so the map is drawn the same on every device.
 
   One page, one map for the display's whole life: what changes is only what it shows. Google bills
-  each map made, not what is done with it. It is the minute's moment, only looked at, and the
-  driver's own (hold), opened by his tap and moved by his touch and the app's buttons (satellite,
-  toCar, toStop, whole). Google's 3D view and street photos are not made here: the app opens Google's own
-  apps for them, which costs the driver's key nothing.
+  each map made, not what is done with it. It is the minute's moment, only looked at (the car,
+  then at most every five minutes a flight to the next stop in Google's 3D view and its street
+  photo: one of each for the page's life, see follow()), and the driver's own (hold), opened by
+  his tap and moved by his touch and the app's buttons (satellite, toCar, toStop, whole); his map
+  stays flat, and the app opens Google's own apps for 3D and street photos there. The map never
+  leaves northern Europe (REGION).
 -->
 <html>
 <head>
@@ -22,6 +24,9 @@
   #stage { position: fixed; left: 0; top: 0; right: 0; bottom: 0; opacity: 0; transform: scale(0.06); will-change: transform, opacity; }
   #map { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: var(--ground); pointer-events: none; }
   body.held #map { pointer-events: auto; }
+  /* The minute's flight: Google's 3D view and a street photo over the map, faded in and out. */
+  .layer { position: absolute; left: 0; top: 0; right: 0; bottom: 0; opacity: 0; transition: opacity 700ms ease; pointer-events: none; }
+  .layer.on { opacity: 1; }
   /* The map fills the screen to its edges; only the minute's map fades at the bottom, under its minutes. */
   .fade { position: absolute; pointer-events: none; transition: opacity 300ms; }
   .bottom { left: 0; right: 0; bottom: 0; height: 30%; }
@@ -30,22 +35,24 @@
   .car { width: 26px; height: 26px; background: #1A73E8; border: 5px solid #FFFFFF;
          box-shadow: 0 0 0 10px rgba(26, 115, 232, 0.22), 0 2px 8px rgba(0, 0, 0, 0.35); }
   /*
-    A stop: a small dot on its point; above it, on a short tail, its letter and its trip's time in
-    the stop's colour (--c, with --on written on it); under it, its address and its passenger's
-    last name, written the way the map writes its own names (with a halo).
+    A stop: a small dot on its point; above it, on a short tail, its letter (large) and its trip's
+    time in the stop's colour (--c) on nothing; under it, its address and its passenger's last
+    name; all written the way the map writes its own names (with a halo).
   */
   .pin { position: absolute; width: 0; height: 0; }
   .pin .spot { position: absolute; left: -6px; top: -6px; width: 12px; height: 12px; border-radius: 50%; box-sizing: border-box;
                background: var(--c); border: 2.5px solid var(--edge); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35); }
   .pin .tag { position: absolute; left: 0; bottom: 8px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; }
-  .pin .pill { display: flex; align-items: center; gap: 6px; padding: 3px 11px 3px 3px; border-radius: 999px; white-space: nowrap;
-               background: var(--c); color: var(--on); border: 2px solid var(--edge); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
-               font: 700 17px sans-serif; line-height: 1; font-variant-numeric: tabular-nums; }
-  .pin .letter { width: 23px; height: 23px; border-radius: 50%; background: var(--on); color: var(--c);
-                 display: flex; align-items: center; justify-content: center; font: 800 15px sans-serif; }
-  .pin .tail { width: 0; height: 0; margin-top: -1px; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid var(--tail); }
-  .pin.focus .pill { font-size: 22px; padding: 4px 14px 4px 4px; box-shadow: 0 0 0 4px #EA4335, 0 3px 10px rgba(0, 0, 0, 0.45); }
-  .pin.focus .letter { width: 30px; height: 30px; font-size: 19px; }
+  /* The letter large and the time, both in the stop's colour, on nothing (the map shows through),
+     with a halo like the map's own names; the one looked at framed in red. */
+  .pin .pill { display: flex; align-items: baseline; gap: 5px; padding: 0 4px; border-radius: 12px; white-space: nowrap;
+               background: transparent; color: var(--c); border: 3px solid transparent;
+               font: 800 20px sans-serif; line-height: 1; font-variant-numeric: tabular-nums;
+               text-shadow: 0 0 3px var(--halo), 0 0 3px var(--halo), 0 0 2px var(--halo), 0 0 1px var(--halo); }
+  .pin .letter { font: 900 30px sans-serif; color: var(--c); }
+  .pin .tail { width: 3px; height: 9px; margin-top: 1px; border-radius: 2px; background: var(--c); }
+  .pin.focus .pill { font-size: 25px; border-color: #EA4335; padding: 1px 7px; }
+  .pin.focus .letter { font-size: 38px; }
   .pin.focus .spot { left: -8px; top: -8px; width: 16px; height: 16px; box-shadow: 0 0 0 3px #EA4335; }
   .pin .label { position: absolute; left: 0; top: 9px; transform: translateX(-50%); text-align: center; white-space: nowrap; line-height: 1.15;
                 font: 600 13px sans-serif; color: var(--ink); text-shadow: 0 0 3px var(--halo), 0 0 3px var(--halo), 0 0 2px var(--halo); }
@@ -56,6 +63,8 @@
 <body>
 <div id="stage">
   <div id="map"></div>
+  <div id="sky" class="layer"></div>
+  <div id="street" class="layer"></div>
   <div class="fade bottom"></div>
 </div>
 <script>
@@ -139,9 +148,18 @@
     google.maps.importLibrary('maps').then(make, function (e) { problem('page', e && e.message || e); });
   }
 
+  // The map never leaves northern Europe, nor zooms out farther than a country: a way, a car or a
+  // gesture can never make it show the whole world.
+  var REGION = { north: 71.5, south: 54.0, west: 3.0, east: 32.0 };
+  var MIN_ZOOM = 5;
+  function inRegion(p) {
+    return p && isFinite(p.lat) && isFinite(p.lng) && p.lat <= REGION.north && p.lat >= REGION.south && p.lng >= REGION.west && p.lng <= REGION.east;
+  }
+
   function make() {
     map = new google.maps.Map(document.getElementById('map'), {
-      center: { lat: 59.38, lng: 13.5 }, zoom: 14,
+      center: { lat: 59.38, lng: 13.5 }, zoom: 14, minZoom: MIN_ZOOM,
+      restriction: { latLngBounds: REGION, strictBounds: false },
       disableDefaultUI: true, gestureHandling: 'none', keyboardShortcuts: false,
       clickableIcons: false, backgroundColor: GROUND, styles: NIGHT ? dark : quiet
     });
@@ -194,6 +212,7 @@
   // Back into where it came from, over ms.
   function conceal(ms) {
     shown = false;
+    endTour();
     stage.style.transition = 'transform ' + ms + 'ms cubic-bezier(0.4, 0, 1, 1), opacity ' + ms + 'ms ease-in';
     stage.style.opacity = '0';
     stage.style.transform = 'scale(' + FROM + ')';
@@ -206,7 +225,132 @@
 
   function setCar(lat, lng) {
     car = { lat: lat, lng: lng };
-    if (map) draw(false);
+    if (!map) return;
+    // Followed: the map moves with the car.
+    if (following && !held && inRegion(car)) {
+      carDot.place(car);
+      map.panTo(car);
+      return;
+    }
+    draw(false);
+  }
+
+  // --- The minute's map: the car, then a flight to the next stop ------------------------------
+
+  // The minute's map stays on the car this long (moving with it), then, when the app says so,
+  // flies to the next stop: up into the sky from the car, across, down onto the stop in 3D, a
+  // street photo there turning round for a few seconds, then up and away. Google bills each 3D
+  // view and street photo loaded: one of each is made for the page's whole life and moved, and the
+  // app asks for a flight at most every five minutes.
+  var FOLLOW_MS = 10000, FOLLOW_ZOOM = 16, LOOK_ROUND_MS = 5000;
+  var following = false, followTimer = null, touring = 0, sky3d = null, pano = null;
+
+  function follow(flight) {
+    clearTimeout(followTimer);
+    following = true;
+    if (map && inRegion(car)) { map.setZoom(FOLLOW_ZOOM); map.panTo(car); }
+    followTimer = setTimeout(function () {
+      following = false;
+      if (!shown || held) return;
+      if (flight) tour(); else draw(true);
+    }, FOLLOW_MS);
+  }
+
+  function endTour() {
+    clearTimeout(followTimer);
+    following = false;
+    touring++;
+    document.getElementById('sky').classList.remove('on');
+    document.getElementById('street').classList.remove('on');
+  }
+
+  function bearing(a, b) {
+    var y = Math.sin((b.lng - a.lng) * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180);
+    var x = Math.cos(a.lat * Math.PI / 180) * Math.sin(b.lat * Math.PI / 180) -
+      Math.sin(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.cos((b.lng - a.lng) * Math.PI / 180);
+    return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+  }
+
+  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  // The 3D camera to [cam] over [ms]; done when it arrives (or a little after it should have).
+  function fly(cam, ms) {
+    return new Promise(function (done) {
+      var over = false;
+      function end() { if (over) return; over = true; sky3d.removeEventListener('gmp-animationend', end); done(); }
+      sky3d.addEventListener('gmp-animationend', end);
+      sky3d.flyCameraTo({ endCamera: { center: { lat: cam.lat, lng: cam.lng, altitude: 0 }, range: cam.range, tilt: cam.tilt, heading: cam.heading }, durationMillis: ms });
+      setTimeout(end, ms + 1500);
+    });
+  }
+
+  // The street photo nearest [at] (within about 50 m), or false when there is none.
+  function streetAt(at) {
+    return new Promise(function (done) {
+      var over = false;
+      function end(ok) { if (over) return; over = true; google.maps.event.clearListeners(pano, 'status_changed'); done(ok); }
+      google.maps.event.addListenerOnce(pano, 'status_changed', function () { end(pano.getStatus() === 'OK'); });
+      pano.setPosition(at);
+      setTimeout(function () { end(false); }, 3000);
+    });
+  }
+
+  function tour() {
+    var to = target(), from = car;
+    if (!inRegion(to) || !inRegion(from)) { draw(true); return; }
+    var mine = ++touring;
+    function still() { return mine === touring && shown && !held; }
+    var heading = bearing(from, to);
+    var skyDiv = document.getElementById('sky'), streetDiv = document.getElementById('street');
+    google.maps.importLibrary('maps3d').then(function (lib) {
+      if (!still()) return;
+      if (!sky3d) {
+        sky3d = new lib.Map3DElement({ center: { lat: from.lat, lng: from.lng, altitude: 0 }, range: 600, tilt: 55, heading: heading, mode: 'HYBRID' });
+        sky3d.style.width = '100%';
+        sky3d.style.height = '100%';
+        skyDiv.appendChild(sky3d);
+      } else {
+        sky3d.center = { lat: from.lat, lng: from.lng, altitude: 0 };
+        sky3d.range = 600;
+        sky3d.tilt = 55;
+        sky3d.heading = heading;
+      }
+      skyDiv.classList.add('on');
+      var mid = { lat: (from.lat + to.lat) / 2, lng: (from.lng + to.lng) / 2 };
+      return wait(800)
+        .then(function () { if (still()) return fly({ lat: from.lat, lng: from.lng, range: 4000, tilt: 15, heading: heading }, 3000); })
+        .then(function () { if (still()) return fly({ lat: mid.lat, lng: mid.lng, range: 4500, tilt: 25, heading: heading }, 5000); })
+        .then(function () { if (still()) return fly({ lat: to.lat, lng: to.lng, range: 350, tilt: 65, heading: heading }, 4000); })
+        .then(function () {
+          if (!still()) return;
+          if (!pano) pano = new google.maps.StreetViewPanorama(streetDiv, { visible: true, disableDefaultUI: true, clickToGo: false, linksControl: false, motionTracking: false, showRoadLabels: false });
+          return streetAt(to).then(function (ok) {
+            if (!ok || !still()) return;
+            streetDiv.classList.add('on');
+            // Turning round where the stop is.
+            var start = performance.now();
+            return new Promise(function (done) {
+              function turn(t) {
+                if (!still()) { done(); return; }
+                var f = (t - start) / LOOK_ROUND_MS;
+                pano.setPov({ heading: (heading + 360 * f) % 360, pitch: 4 });
+                if (f < 1) requestAnimationFrame(turn); else done();
+              }
+              requestAnimationFrame(turn);
+            }).then(function () { streetDiv.classList.remove('on'); return wait(500); });
+          });
+        })
+        .then(function () { if (still()) return fly({ lat: to.lat, lng: to.lng, range: 5000, tilt: 10, heading: heading }, 3000); })
+        .then(function () {
+          skyDiv.classList.remove('on');
+          if (still()) draw(true);
+        });
+    }).catch(function () {
+      // No 3D here (the key's rights, the device): the map stays.
+      skyDiv.classList.remove('on');
+      streetDiv.classList.remove('on');
+      if (still()) draw(true);
+    });
   }
 
   // The way: {stops: [[lat, lng] or null…], focus: n, legs: [[[lat, lng]…]…] or null (not yet)}.
@@ -259,9 +403,7 @@
   function pinStyle(pin, i) {
     var s = pin.div.style, c = colorOf(i);
     s.setProperty('--c', c);
-    s.setProperty('--on', NIGHT ? '#111418' : '#FFFFFF');
     s.setProperty('--edge', NIGHT ? '#111418' : '#FFFFFF');
-    s.setProperty('--tail', NIGHT ? c : '#FFFFFF');
     s.setProperty('--ink', NIGHT ? '#E8EAED' : '#202124');
     s.setProperty('--halo', NIGHT ? 'rgba(17, 20, 24, 0.95)' : 'rgba(255, 255, 255, 0.95)');
     s.setProperty('--name', c);
@@ -376,21 +518,30 @@
       pins2d.push(pin);
     });
     carDot.place(car);
+    // Only points in the region count: one wrong point would take the view across the world.
     var bounds = new google.maps.LatLngBounds();
-    wayPoints().forEach(function (p) { bounds.extend(p); });
-    if (car) bounds.extend(car);
+    var points = wayPoints().filter(inRegion);
+    points.forEach(function (p) { bounds.extend(p); });
+    if (inRegion(car)) bounds.extend(car);
     if (bounds.isEmpty()) return;
     var seen = map.getBounds();
     if (refit || !seen || (!held && car && !seen.contains(car))) {
-      if (wayPoints().length) map.fitBounds(bounds, clear()); else { map.setCenter(car); map.setZoom(15); }
+      if (points.length) map.fitBounds(bounds, clear()); else { map.setCenter(car); map.setZoom(15); }
     }
   }
 
   // The way keeps to the clear middle: with room for the minutes and distance at the bottom, or,
   // on the driver's own map, for his list of trips (where he put it) and his buttons at the left.
+  // The room kept never takes more than [MAX_SIDES] of the width: a wide list, or one in the
+  // middle, would leave the way no room, and Google would show the whole world instead.
+  var MAX_SIDES = 0.6;
   function clear() {
     var d = map.getDiv(), w = d.offsetWidth, h = d.offsetHeight;
-    if (held) return { top: Math.round(h * 0.1), bottom: Math.round(h * 0.1), left: Math.round(w * Math.max(0.1, listRoom.left)), right: Math.round(w * Math.max(0.08, listRoom.right)) };
+    if (held) {
+      var left = Math.max(0.1, listRoom.left), right = Math.max(0.08, listRoom.right);
+      var f = Math.min(1, MAX_SIDES / (left + right));
+      return { top: Math.round(h * 0.1), bottom: Math.round(h * 0.1), left: Math.round(w * left * f), right: Math.round(w * right * f) };
+    }
     return { top: Math.round(h * 0.2), bottom: Math.round(h * 0.34), left: Math.round(w * 0.16), right: Math.round(w * 0.16) };
   }
   // How much of the map's width the driver's list of trips covers from its left or its right.
@@ -403,6 +554,8 @@
 
   // Opened (true) by the driver's tap, or closed: the map takes his touches while it is his.
   function hold(on) {
+    // His map is the map alone: a flight under way stops.
+    if (on) endTour();
     held = on;
     document.body.classList.toggle('held', on);
     if (map) map.setOptions({ gestureHandling: on ? 'greedy' : 'none' });
@@ -420,14 +573,14 @@
   });
 
   var toCar = button(function () {
-    if (!car || !map) return;
+    if (!inRegion(car) || !map) return;
     map.panTo(car);
     map.setZoom(16);
   });
 
   var toStop = button(function () {
     var s = target();
-    if (!s || !map) return;
+    if (!inRegion(s) || !map) return;
     map.panTo(s);
     map.setZoom(17);
   });
@@ -435,7 +588,7 @@
   // Stop i of the way, on the map.
   var lookAt = button(function (i) {
     var s = stops[i] || (legs[i] && legs[i].length ? legs[i][legs[i].length - 1] : null);
-    if (!s || !map) return;
+    if (!inRegion(s) || !map) return;
     map.panTo(s);
     map.setZoom(17);
   });
