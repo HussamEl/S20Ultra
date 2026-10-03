@@ -48,7 +48,7 @@ data class DisplayItem(
     val trip: DisplayItem get() = if (doneInYouDrive || doneHere || lastName != null || card != null) copy(doneInYouDrive = false, doneHere = false, lastName = null, card = null) else this
 
     /** The trip on the tablet's map: its point, or the address the phone navigates to (never a name). */
-    val mapStop: MapWay.Stop get() = MapWay.Stop(lat, lng, place ?: listOfNotNull(title, subtitle).joinToString(", "), id)
+    val mapStop: MapWay.Stop get() = MapWay.Stop(lat, lng, place ?: listOfNotNull(title, subtitle).joinToString(", "), id, time)
 
     companion object {
         /** "Storgatan 14, 652 24 Karlstad" → "Storgatan 14" (the part before the first comma). */
@@ -103,9 +103,9 @@ data class DisplaySnapshot(
          * The trips of the tablet's map around [at] (an index into [ahead]): up to [BEFORE] before it
          * and [AFTER] after it, and its place among them. Each of the [added] trips the driver asked
          * for comes in its place: the next one after the way, or, when none is left after, the one
-         * before it; [MOST] at most.
+         * before it; each of the [earlier] ones, the one before the way. [MOST] at most.
          */
-        fun <T> around(ahead: List<T>, at: Int, added: Int = 0): Pair<List<T>, Int> {
+        fun <T> around(ahead: List<T>, at: Int, added: Int = 0, earlier: Int = 0): Pair<List<T>, Int> {
             if (ahead.isEmpty()) return emptyList<T>() to 0
             val i = at.coerceIn(0, ahead.size - 1)
             var from = (i - BEFORE).coerceAtLeast(0)
@@ -114,12 +114,19 @@ data class DisplaySnapshot(
                 if (to - from >= MOST) return@repeat
                 if (to < ahead.size) to++ else if (from > 0) from--
             }
+            repeat(earlier) {
+                if (to - from < MOST && from > 0) from--
+            }
             return ahead.subList(from, to) to i - from
         }
 
-        /** One more trip can be added to the way around [at] ([around]). */
-        fun <T> canAdd(ahead: List<T>, at: Int, added: Int): Boolean =
-            around(ahead, at, added + 1).first.size > around(ahead, at, added).first.size
+        /** One more trip can be added after the way around [at] ([around]). */
+        fun <T> canAdd(ahead: List<T>, at: Int, added: Int, earlier: Int = 0): Boolean =
+            around(ahead, at, added + 1, earlier).first.size > around(ahead, at, added, earlier).first.size
+
+        /** The trip before the way around [at] can be added ([around]). */
+        fun <T> canAddEarlier(ahead: List<T>, at: Int, added: Int, earlier: Int): Boolean =
+            around(ahead, at, added, earlier + 1).first.size > around(ahead, at, added, earlier).first.size
 
         /**
          * @param completed finished trips, oldest first.

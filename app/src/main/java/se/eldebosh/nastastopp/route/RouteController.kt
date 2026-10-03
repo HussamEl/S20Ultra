@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import se.eldebosh.nastastopp.core.nav.OrderPlanner
 import se.eldebosh.nastastopp.core.display.DisplayItem
 import se.eldebosh.nastastopp.core.display.DisplaySnapshot
 import se.eldebosh.nastastopp.core.nav.DisplayEta
@@ -90,7 +91,8 @@ class RouteController(
 
     private val persistDispatcher = Dispatchers.IO.limitedParallelism(1)
     private var geocodeJob: Job? = null
-    private var editBaseline: List<Long>? = null
+    /** The stops of an active route as the review screen opened, each with where Maps goes for it. */
+    private var editBaseline: List<Pair<Long, String>>? = null
 
     init {
         _route.value?.let { repo.scheduleExpiry(it.createdAtMs) }
@@ -253,7 +255,7 @@ class RouteController(
                 continue
             }
             val prev = added.lastOrNull() ?: base.stops.lastOrNull()
-            if (prev != null && extractor.isSameAddress(prev.toExtracted(), e) && extractor.sameKindOrUnknown(prev.toExtracted(), e)) continue
+            if (prev != null && extractor.isSameTrip(prev.toExtracted(), e)) continue
             added += e.toStop(nextId++)
         }
         set(base.copy(stops = base.stops + added, nextId = nextId))
@@ -325,6 +327,9 @@ class RouteController(
         val stops = r.stops.toMutableList()
         places.forEachIndexed { k, at -> stops[at] = byId.getValue(ids[k]) }
         if (stops == r.stops) return
+        // The tablet never sends one, and the phone never takes one: a passenger dropped off before
+        // they are picked up.
+        if (!OrderPlanner.allowed(stops.indices.toList(), plannerTrips(stops))) return
         set(r.copy(stops = stops))
         if (!r.active) return
         val before = r.stops.map { it.id }
@@ -334,6 +339,22 @@ class RouteController(
     }
 
     fun delete(id: Long) = update { r -> r.copy(stops = r.stops.filterNot { it.id == id }) }
+
+    /** [stops] for [OrderPlanner]: pick-up or drop-off, and a number for each passenger (never a name). */
+    private fun plannerTrips(stops: List<Stop>): List<OrderPlanner.Trip> {
+        val riders = stops.mapNotNull { riderKey(it.name) }.distinct()
+        return stops.map { s ->
+            OrderPlanner.Trip(
+                booked = null,
+                pickUp = when (s.kind) {
+                    TripKind.PICK_UP -> true
+                    TripKind.DROP_OFF -> false
+                    else -> null
+                },
+                rider = riderKey(s.name)?.let { riders.indexOf(it) },
+            )
+        }
+    }
 
     // ------------------------------------------------------------------------------------------
     // The driver's entrances and Google Maps for one stop
@@ -568,12 +589,13 @@ class RouteController(
 
     /** Called when the review screen is opened for an active route. */
     fun beginEdit() {
-        editBaseline = _route.value?.takeIf { it.active }?.stops?.map { it.id }
+        editBaseline = _route.value?.takeIf { it.active }?.stops?.map { it.id to mapsDestination(it) }
     }
 
     /**
-     * Called when leaving the review screen of an active route: re-announces if the next stop
-     * changed and re-launches Maps if the first 10 stops changed.
+     * Called when leaving the review screen of an active route: re-announces if the next stop or
+     * the one after it changed and re-launches Maps if the first 10 stops changed: another stop,
+     * another order, or the same stop with its address or the driver's entrance changed.
      */
     fun finishEdit() {
         val baseline = editBaseline ?: return
@@ -584,7 +606,7 @@ class RouteController(
             end()
             return
         }
-        val now = r.stops.map { it.id }
+        val now = r.stops.map { it.id to mapsDestination(it) }
         val batchChanged = now.take(MapsUrlBuilder.MAX_STOPS_PER_LAUNCH) != baseline.take(MapsUrlBuilder.MAX_STOPS_PER_LAUNCH)
         if (now.firstOrNull() != baseline.firstOrNull() || now.getOrNull(1) != baseline.getOrNull(1)) {
             speak(announcementFor(r.stops))

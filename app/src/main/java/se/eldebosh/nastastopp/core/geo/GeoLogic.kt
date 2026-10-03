@@ -52,8 +52,9 @@ object GeoLogic {
     }
 
     /**
-     * Prefer a result whose postal code matches [parsedPostal]; else whose locality matches
-     * [parsedTown]; else the first result.
+     * A result whose postal code matches [parsedPostal]; else whose locality matches [parsedTown];
+     * else none: a point in another place is never taken for the one written. The first result
+     * only when neither is written.
      */
     fun choose(results: List<GeoResult>, parsedPostal: String?, parsedTown: String?): GeoResult? {
         if (results.isEmpty()) return null
@@ -68,7 +69,7 @@ object GeoLogic {
                     (r.subLocality != null && TextNorm.fold(r.subLocality) == town)
             }?.let { return it }
         }
-        return results.first()
+        return if (postalDigits.isNullOrEmpty() && parsedTown.isNullOrBlank()) results.first() else null
     }
 
     /**

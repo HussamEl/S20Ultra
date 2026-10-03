@@ -47,33 +47,49 @@ object OrderPlanner {
         return Plan(order, arrivals.toList(), late, t - DWELL_SECONDS)
     }
 
-    /** Every passenger in [order] is picked up before they are dropped off (when both are there). */
+    /**
+     * Every passenger in [order] is picked up before they are dropped off. A drop-off with no
+     * pick-up of theirs before it is a passenger already in the car: there are as many of those as
+     * the passenger's drop-offs outnumber their pick-ups (two trips of one passenger in a day).
+     */
     fun allowed(order: List<Int>, trips: List<Trip>): Boolean {
-        val pickedAt = HashMap<Int, Int>()
-        val droppedAt = HashMap<Int, Int>()
-        order.forEachIndexed { place, k ->
-            val trip = trips[k]
-            val rider = trip.rider ?: return@forEachIndexed
-            when (trip.pickUp) {
-                true -> pickedAt[rider] = place
-                false -> droppedAt[rider] = place
+        val inCar = HashMap<Int, Int>()
+        for (k in order) {
+            val rider = trips[k].rider ?: continue
+            when (trips[k].pickUp) {
+                false -> inCar[rider] = (inCar[rider] ?: 0) + 1
+                true -> inCar[rider] = (inCar[rider] ?: 0) - 1
                 null -> Unit
             }
         }
-        return droppedAt.all { (rider, at) -> pickedAt[rider]?.let { it < at } ?: true }
+        inCar.replaceAll { _, n -> n.coerceAtLeast(0) }
+        for (k in order) {
+            val rider = trips[k].rider ?: continue
+            when (trips[k].pickUp) {
+                true -> inCar[rider] = (inCar[rider] ?: 0) + 1
+                false -> {
+                    val n = inCar[rider] ?: 0
+                    if (n == 0) return false
+                    inCar[rider] = n - 1
+                }
+                null -> Unit
+            }
+        }
+        return true
     }
 
     /**
-     * The best order of [trips] (at most [MAX_TRIPS]): the one given ([current]) unless another
-     * allowed order is better. Null when the current order cannot be timed.
+     * The best allowed order of [trips] (at most [MAX_TRIPS]): the one given ([current]) unless
+     * another allowed order is better; another one when [current] drops a passenger off before
+     * picking them up. Null when no allowed order can be timed.
      */
     fun best(trips: List<Trip>, seconds: Array<IntArray>, now: Int, current: List<Int> = trips.indices.toList()): Plan? {
-        var best = plan(current, trips, seconds, now) ?: return null
+        var best = if (allowed(current, trips)) plan(current, trips, seconds, now) else null
         if (trips.size > MAX_TRIPS) return best
         permutations(trips.indices.toList()) { order ->
             if (!allowed(order, trips)) return@permutations
             val p = plan(order, trips, seconds, now) ?: return@permutations
-            if (p.betterThan(best)) best = p
+            if (best?.let { p.betterThan(it) } != false) best = p
         }
         return best
     }

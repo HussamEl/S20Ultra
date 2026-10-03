@@ -9,6 +9,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -126,6 +129,11 @@ internal class WayEdit {
         }
     }
 
+    /** Where the trip looked at is in [shown]: the one picked, else the one the map was opened for ([opened]). */
+    fun lookedIndex(shown: List<DisplayItem>, opened: Int): Int =
+        picked?.let { p -> shown.indexOfFirst { it.sameTrip(p) } }?.takeIf { it >= 0 }
+            ?: opened.coerceIn(0, shown.lastIndex.coerceAtLeast(0))
+
     /** Moves the trip at [from] of [shown] to [to] (a neighbour's place, or one step with the arrows). */
     fun move(shown: List<DisplayItem>, from: Int, to: Int) {
         if (from !in shown.indices || to !in shown.indices || from == to) return
@@ -166,9 +174,9 @@ internal fun plannerTrips(trips: List<DisplayItem>): List<OrderPlanner.Trip> = t
  * back; "Use" (250) sends the order to the phone ([onOrder]). An order with a passenger's drop-off
  * before their pick-up cannot be used.
  *
- * The list is a window ([FloatingWindow], [place]): its bar moves it (265), − and + size it (266,
- * 267), and two fingers on it do both; it opens where the driver last left it. The map keeps the way
- * clear of it ([RouteMap.listAt]).
+ * The list is a window ([FloatingWindow], [place]): its bar moves it (265), its border makes it
+ * bigger or smaller from any edge or corner (266), and two fingers on it do both; it opens where and
+ * as big as the driver last left it. The map keeps the way clear of it ([RouteMap.listAt]).
  */
 @Composable
 internal fun WayList(
@@ -183,6 +191,8 @@ internal fun WayList(
     note: String?,
     onOrder: ((List<Long>) -> Unit)?,
     onAdd: (() -> Unit)?,
+    onAddEarlier: (() -> Unit)?,
+    onRemove: (DisplayItem) -> Unit,
     onUse: () -> Unit,
     place: WindowState,
     modifier: Modifier = Modifier,
@@ -209,7 +219,7 @@ internal fun WayList(
         } else {
             edit.preview = s.best.order.map { shown[it] }
             edit.picked = null
-            edit.advice = WayEdit.Advice(false, s.current.seconds - s.best.seconds, s.current.lateMinutes, s.best.lateMinutes)
+            edit.advice = WayEdit.Advice(false, (s.current.seconds - s.best.seconds).coerceAtLeast(0), s.current.lateMinutes, s.best.lateMinutes)
         }
     }
     // Dragged by its handle: the trip follows the finger and takes a neighbour's place as it passes it.
@@ -223,10 +233,9 @@ internal fun WayList(
     }
     val keys = rowKeys(shown)
     AnimatedVisibility(visible, modifier, enter = fadeIn(tween(LIST_IN_MS)), exit = fadeOut(tween(LIST_OUT_MS))) {
-        FloatingWindow(place, onTouch = onUse) {
+        FloatingWindow(place, edgeRef = 266, onTouch = onUse) {
             Column(
                 Modifier
-                    .padding(LIST_EDGE)
                     .width(LIST_WIDTH)
                     .clip(RoundedCornerShape(LIST_CORNER))
                     .background(AppTheme.colors.card.copy(alpha = LIST_GROUND))
@@ -237,7 +246,7 @@ internal fun WayList(
                     }
                     .padding(LIST_PAD),
             ) {
-                // The window's bar: a finger on it moves the list; − and + size it.
+                // The window's bar: a finger on it moves the list.
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     val move = stringResource(R.string.window_move)
                     Box(
@@ -253,7 +262,6 @@ internal fun WayList(
                     ) {
                         Icon(painterResource(R.drawable.ic_drag), contentDescription = null, tint = AppTheme.colors.textMuted, modifier = Modifier.size(HANDLE_ICON))
                     }
-                    WindowZoom(place, smaller = 266, larger = 267, tint = AppTheme.colors.text, ground = AppTheme.colors.tonal, size = BAR_HEIGHT)
                 }
                 Spacer(Modifier.height(LIST_GAP))
                 Column(Modifier.ref(251)) {
@@ -300,9 +308,24 @@ internal fun WayList(
                     itemsIndexed(shown, key = { i, _ -> keys[i] }) { i, item ->
                         val dragged = reorder.draggingKey == keys[i]
                         val picked = edit.picked?.sameTrip(item) == true
+                        // Its handle drags it at once; the rest of its line after a long press.
+                        val begin: () -> Unit = {
+                            onUse()
+                            edit.dragging = true
+                            reorder.start(keys[i])
+                        }
+                        val finish: () -> Unit = {
+                            reorder.end()
+                            edit.dragging = false
+                        }
+                        val follow: (PointerInputChange, Offset) -> Unit = { change, amount ->
+                            change.consume()
+                            reorder.drag(amount.y)
+                        }
                         TripRow(
                             item,
                             letter = LETTERS[i],
+                            color = AppTheme.colors.wayStops[i % AppTheme.colors.wayStops.size],
                             looked = i == at,
                             picked = picked,
                             clash = i in clashing,
@@ -315,28 +338,15 @@ internal fun WayList(
                             },
                             onEarlier = if (picked && i > 0) ({ onUse(); edit.move(shown, i, i - 1) }) else null,
                             onLater = if (picked && i < shown.lastIndex) ({ onUse(); edit.move(shown, i, i + 1) }) else null,
+                            onRemove = if (shown.size > 1) ({ onUse(); onRemove(item) }) else null,
                             handle = Modifier.pointerInput(keys[i]) {
-                                detectDragGestures(
-                                    onDragStart = {
-                                        onUse()
-                                        edit.dragging = true
-                                        reorder.start(keys[i])
-                                    },
-                                    onDragEnd = {
-                                        reorder.end()
-                                        edit.dragging = false
-                                    },
-                                    onDragCancel = {
-                                        reorder.end()
-                                        edit.dragging = false
-                                    },
-                                    onDrag = { change, amount ->
-                                        change.consume()
-                                        reorder.drag(amount.y)
-                                    },
-                                )
+                                detectDragGestures(onDragStart = { begin() }, onDragEnd = finish, onDragCancel = finish, onDrag = follow)
                             },
-                            modifier = Modifier
+                            row = Modifier.pointerInput(keys[i]) {
+                                detectDragGesturesAfterLongPress(onDragStart = { begin() }, onDragEnd = finish, onDragCancel = finish, onDrag = follow)
+                            },
+                            // The others slide out of its way.
+                            modifier = (if (dragged) Modifier else Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null))
                                 .zIndex(if (dragged) 1f else 0f)
                                 .graphicsLayer { translationY = if (dragged) reorder.offset else 0f },
                         )
@@ -344,6 +354,10 @@ internal fun WayList(
                 }
                 Spacer(Modifier.height(LIST_GAP))
                 Row(horizontalArrangement = Arrangement.spacedBy(BUTTON_GAP), verticalAlignment = Alignment.CenterVertically) {
+                    ListButton(stringResource(R.string.display_way_add_earlier_short), 269, enabled = onAddEarlier != null, description = stringResource(R.string.display_way_add_earlier)) {
+                        onUse()
+                        onAddEarlier?.invoke()
+                    }
                     ListButton(stringResource(R.string.display_way_add_short), 260, enabled = onAdd != null, description = stringResource(R.string.display_way_add)) {
                         onUse()
                         onAdd?.invoke()
@@ -439,6 +453,7 @@ private fun adviceText(advice: WayEdit.Advice?, asking: Boolean): String? = when
 private fun TripRow(
     item: DisplayItem,
     letter: Char,
+    color: Color,
     looked: Boolean,
     picked: Boolean,
     clash: Boolean,
@@ -447,8 +462,10 @@ private fun TripRow(
     onClick: () -> Unit,
     onEarlier: (() -> Unit)?,
     onLater: (() -> Unit)?,
+    onRemove: (() -> Unit)?,
     modifier: Modifier = Modifier,
     handle: Modifier = Modifier,
+    row: Modifier = Modifier,
 ) {
     val border = when {
         clash -> BorderStroke(ROW_BORDER, AppTheme.colors.danger)
@@ -464,7 +481,8 @@ private fun TripRow(
             .heightIn(min = ROW_HEIGHT)
             .clip(RoundedCornerShape(ROW_CORNER))
             .background(AppTheme.colors.tonal)
-            .border(border, RoundedCornerShape(ROW_CORNER)),
+            .border(border, RoundedCornerShape(ROW_CORNER))
+            .then(row),
     ) {
         // The handle: a finger on it drags the trip up or down.
         Box(
@@ -482,14 +500,16 @@ private fun TripRow(
                 .semantics { contentDescription = description }
                 .padding(end = 6.dp),
         ) {
+            // Its letter in its own colour, as on the map; the one looked at in a red ring.
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .size(LETTER_SIZE)
+                    .then(if (looked) Modifier.border(LOOKED_RING, AppTheme.colors.danger, CircleShape).padding(LOOKED_RING) else Modifier)
                     .clip(CircleShape)
-                    .background(if (looked) AppTheme.colors.danger else AppTheme.colors.info),
+                    .background(color),
             ) {
-                Text(letter.toString(), fontFamily = DisplayFont, fontWeight = FontWeight.Bold, fontSize = LETTER_SP, color = if (looked) AppTheme.colors.onStatus else AppTheme.colors.onInfo)
+                Text(letter.toString(), fontFamily = DisplayFont, fontWeight = FontWeight.Bold, fontSize = LETTER_SP, color = AppTheme.colors.onWayStop)
             }
             Spacer(Modifier.width(6.dp))
             Text(item.time ?: "–", fontFamily = DigitFont, fontWeight = FontWeight.Bold, fontSize = ROW_TIME_SP, color = AppTheme.colors.text)
@@ -539,8 +559,9 @@ private fun TripRow(
         if (onEarlier != null || onLater != null) {
             MoveButton(R.string.display_way_earlier, 246, up = true, onEarlier)
             MoveButton(R.string.display_way_later, 247, up = false, onLater)
-            Spacer(Modifier.width(4.dp))
         }
+        if (onRemove != null) RemoveButton(onRemove)
+        Spacer(Modifier.width(4.dp))
     }
 }
 
@@ -565,6 +586,24 @@ private fun MoveButton(label: Int, ref: Int, up: Boolean, onClick: (() -> Unit)?
             tint = if (onClick != null) AppTheme.colors.onInfo else AppTheme.colors.textMuted,
             modifier = Modifier.size(MOVE_ICON).rotate(if (up) -90f else 90f),
         )
+    }
+}
+
+/** × on a trip: off the way on this map (the phone's route keeps it). */
+@Composable
+private fun RemoveButton(onClick: () -> Unit) {
+    val description = stringResource(R.string.display_way_remove)
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .refCorner(268)
+            .padding(start = 4.dp)
+            .size(REMOVE_SIZE)
+            .clip(CircleShape)
+            .clickable(onClickLabel = description, role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = description },
+    ) {
+        Icon(painterResource(R.drawable.ic_close), contentDescription = null, tint = AppTheme.colors.textMuted, modifier = Modifier.size(REMOVE_ICON))
     }
 }
 
@@ -631,7 +670,6 @@ private const val LETTERS = "ABCDEFGHIJK"
 private const val LIST_IN_MS = 400
 private const val LIST_OUT_MS = 200
 private const val LIST_GROUND = 0.92f
-private val LIST_EDGE = 16.dp
 private val LIST_WIDTH = 320.dp
 private val LIST_MAX_HEIGHT = 420.dp
 private val LIST_CORNER = 16.dp
@@ -658,3 +696,6 @@ private val BUTTON_GAP = 6.dp
 private val BUTTON_CORNER = 10.dp
 private val BUTTON_SP = 14.sp
 private val BAR_HEIGHT = 28.dp
+private val LOOKED_RING = 2.dp
+private val REMOVE_SIZE = 26.dp
+private val REMOVE_ICON = 16.dp

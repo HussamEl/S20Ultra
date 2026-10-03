@@ -66,6 +66,10 @@ class DisplayLinkClient(
     private var preferred: String? = null
     private var started = false
 
+    /** The phone the shown trips came from, and the clearing of them a while after its link broke. */
+    private var snapshotFrom: String? = null
+    private var staleJob: Job? = null
+
     /**
      * Starts searching/connecting (idempotent). [preferredAddress] is tried first; null means
      * fully automatic.
@@ -117,11 +121,15 @@ class DisplayLinkClient(
         }
     }
 
+    /** Stops the link; the trips it brought are cleared at once (the display is left, or another phone is chosen). */
     fun stop() {
         started = false
         job?.cancel()
         job = null
         closeSocket()
+        staleJob?.cancel()
+        _snapshot.value = null
+        snapshotFrom = null
         _state.value = State(Status.IDLE)
     }
 
@@ -160,6 +168,9 @@ class DisplayLinkClient(
     }
 
     private fun runSession(s: BluetoothSocket, target: LinkCandidate) {
+        staleJob?.cancel()
+        // Another phone: nothing of the last one's trips stays.
+        if (target.address != snapshotFrom) _snapshot.value = null
         _state.value = State(Status.CONNECTED, target.name)
         onConnected(target.address)
         var watchdog: Job? = null
@@ -182,7 +193,10 @@ class DisplayLinkClient(
                 val msg = session.receive() ?: break
                 lastReceived = System.currentTimeMillis()
                 when (msg) {
-                    is LinkMessage.State -> _snapshot.value = msg.snapshot
+                    is LinkMessage.State -> {
+                        _snapshot.value = msg.snapshot
+                        snapshotFrom = target.address
+                    }
                     is LinkMessage.Announce -> _announcements.tryEmit(Announcement(msg.sv, msg.en))
                     is LinkMessage.Hello, LinkMessage.Ping, is LinkMessage.Command, is LinkMessage.Order -> Unit
                 }
@@ -194,6 +208,12 @@ class DisplayLinkClient(
             watchdog?.cancel()
             closeSocket()
             _state.value = State(Status.CONNECTING, target.name)
+            // A short break keeps the last trips on the display (its dot turns red); a longer one clears them.
+            staleJob?.cancel()
+            staleJob = scope.launch {
+                delay(STALE_MS)
+                _snapshot.value = null
+            }
         }
     }
 
@@ -220,5 +240,8 @@ class DisplayLinkClient(
     companion object {
         private const val RETRY_MS = 3_000L
         private const val SILENCE_MS = 30_000L
+
+        /** The last trips stay this long after the link broke, while it is found again. */
+        private const val STALE_MS = 2 * 60_000L
     }
 }

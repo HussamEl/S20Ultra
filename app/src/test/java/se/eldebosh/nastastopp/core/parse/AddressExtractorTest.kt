@@ -1,6 +1,7 @@
 package se.eldebosh.nastastopp.core.parse
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -150,6 +151,22 @@ class AddressExtractorTest {
             ),
         )
         assertEquals(1, stops.size)
+    }
+
+    /**
+     * The same address twice in a row is one trip read twice only when nothing known differs: two
+     * times, two passengers or a drop-off and a pick-up are two trips (invented data).
+     */
+    @Test
+    fun theSameAddressIsTwoTripsWhenTheyDiffer() {
+        val at = single("Storgatan 14, 65224 Karlstad")
+        val first = at.copy(time = "07:30", name = "Anna Testsson", kind = TripKind.PICK_UP)
+        assertTrue(extractor.isSameTrip(first, at))
+        assertTrue(extractor.isSameTrip(first, first.copy(time = "7:30", name = "ANNA TESTSSON")))
+        assertFalse(extractor.isSameTrip(first, first.copy(time = "08:05")))
+        assertFalse(extractor.isSameTrip(first, first.copy(name = "Bengt Provare")))
+        assertFalse(extractor.isSameTrip(first, first.copy(kind = TripKind.DROP_OFF)))
+        assertFalse(extractor.isSameTrip(first, single("Lindvägen 9, 66430 Grums").copy(time = "07:30")))
     }
 
     @Test

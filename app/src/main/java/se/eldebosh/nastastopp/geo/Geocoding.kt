@@ -31,39 +31,24 @@ class Geocoding(context: Context) {
     val isAvailable: Boolean get() = Geocoder.isPresent()
 
     /**
-     * Tries [candidates] in order. A result matching the parsed postal code (or town) wins at once;
-     * otherwise the first non-empty answer is used. Without a postal code or town the stop is
-     * looked for in Värmland only, and taken only when it is in one town ([GeoLogic.inOneTown]):
-     * a town is never guessed.
+     * Tries [candidates] in order. A result matching the written postal code or town wins
+     * ([GeoLogic.choose]); an answer in another place is never used, and the next candidate is
+     * tried. Without a postal code or town the stop is looked for in Värmland only, and taken
+     * only when it is in one town ([GeoLogic.inOneTown]): a town is never guessed.
      */
     suspend fun locate(candidates: List<String>, parsedPostal: String?, parsedTown: String?): LocateResult? {
         if (!isAvailable) return null
         val unplaced = parsedPostal == null && parsedTown == null
-        var fallback: LocateResult? = null
         for (candidate in candidates.take(MAX_CANDIDATES)) {
-            val results = lookup(candidate, unplaced) ?: return fallback // geocoder failed (e.g. offline)
+            val results = lookup(candidate, unplaced) ?: return null // geocoder failed (e.g. offline)
             if (results.isEmpty()) continue
             if (unplaced) {
                 val one = GeoLogic.inOneTown(results) ?: continue
                 return LocateResult(one, candidate)
             }
-            val chosen = GeoLogic.choose(results, parsedPostal, parsedTown) ?: continue
-            val matches = matches(chosen, parsedPostal, parsedTown)
-            if (matches) return LocateResult(chosen, candidate)
-            if (fallback == null) fallback = LocateResult(chosen, candidate)
-            if (parsedPostal == null && parsedTown == null) return fallback
+            GeoLogic.choose(results, parsedPostal, parsedTown)?.let { return LocateResult(it, candidate) }
         }
-        return fallback
-    }
-
-    private fun matches(r: GeoResult, postal: String?, town: String?): Boolean {
-        val p = postal?.filter { it.isDigit() }
-        if (!p.isNullOrEmpty()) return r.postalCode?.filter { it.isDigit() } == p
-        if (!town.isNullOrBlank()) {
-            val t = TextNorm.fold(town)
-            return listOfNotNull(r.locality, r.subLocality).any { TextNorm.fold(it) == t }
-        }
-        return true
+        return null
     }
 
     /** Returns results (possibly empty), or null if the geocoder is unavailable / failed; in Värmland when [varmland]. */

@@ -325,7 +325,7 @@ class AddressExtractor(private val localities: Localities) {
         val out = ArrayList<Pair<ExtractedStop, ParsedAddress>>()
         for (item in items) {
             val last = out.lastOrNull()
-            if (last != null && sameParsed(last.second, item.second) && sameKindOrUnknown(last.first, item.first)) {
+            if (last != null && sameParsed(last.second, item.second) && noConflict(last.first, item.first)) {
                 // Keep the more complete of the two (more place info), at the first position.
                 val time = last.first.time ?: item.first.time
                 val kind = last.first.kind ?: item.first.kind
@@ -347,8 +347,18 @@ class AddressExtractor(private val localities: Localities) {
     private fun lowerCaseWords(text: String): Int =
         text.split(' ', ',').count { w -> w.length >= 2 && w.first().isLowerCase() && w.all { it.isLetter() || it == '/' } }
 
-    /** A drop-off and a pick-up at the same address are two stops, not one read twice. */
-    fun sameKindOrUnknown(a: ExtractedStop, b: ExtractedStop): Boolean = a.kind == null || b.kind == null || a.kind == b.kind
+    /**
+     * Nothing known says [a] and [b] are two trips: no two different kinds (a drop-off and a
+     * pick-up at the same address are two stops), times or passengers. A field that one of them
+     * lacks says nothing, so a card cut by the edge of a screenshot still merges with its whole read.
+     */
+    fun noConflict(a: ExtractedStop, b: ExtractedStop): Boolean =
+        (a.kind == null || b.kind == null || a.kind == b.kind) &&
+            (a.time == null || b.time == null || TripTimes.minutes(a.time) == TripTimes.minutes(b.time)) &&
+            (a.name == null || b.name == null || TextNorm.fold(a.name) == TextNorm.fold(b.name))
+
+    /** One trip read twice (one after the other in an image, or across two overlapping images): its address, nothing in conflict. */
+    fun isSameTrip(a: ExtractedStop, b: ExtractedStop): Boolean = isSameAddress(a, b) && noConflict(a, b)
 
     private fun placeScore(p: ParsedAddress) = (if (p.postalCode != null) 2 else 0) + (if (p.town != null) 1 else 0)
 

@@ -91,7 +91,7 @@
     <string name="voice_ready">Ready ✓</string>
     <string name="voice_missing">Missing – tap to install</string>
     <string name="voice_checking">Checking…</string>
-    <string name="settings_privacy_note">Privacy: images are read on the phone only and never stored. Only times, addresses, the trip kind and the passenger\'s first and last name (shown on your screens only) are kept; the route list is deleted when the route ends, when you clear, or after 12 hours, and finished trips stay in the history for the chosen time (12 hours by default). The app uses the internet only for your YouDrive page, the street map download you start, and the passenger display\'s weather (SMHI, for a fixed place, Karlstad); it sends no data of yours anywhere; no analytics. With your permission it reads only Google Maps\' navigation notification, for the travel time on the passenger display. Location (if you allow it) only names the street you are on during a route; it is never stored or sent, and the YouDrive page never gets it. The YouDrive login stays on this phone and can be deleted.</string>
+    <string name="settings_privacy_note">Privacy: images are read on the phone only and never stored. Kept: times, addresses, the trip kind and the passenger\'s first and last name (on your screens only), and a YouDrive trip\'s whole card, which goes only to the passenger display\'s trip card, opens on your tap and is never said. The route list is deleted when the route ends, when you clear, or after 12 hours; finished trips stay in the history for the chosen time (12 hours by default). With the passenger display on, the route goes over Bluetooth to the paired tablet that says it is the display. The internet is used only for your YouDrive page, the street map download you start, the display\'s weather (SMHI, for a fixed place, Karlstad) and the tablet\'s Google map with your own key (the tablet\'s position and the stops of the way, never a name). No analytics. With your permission the app reads only Google Maps\' navigation notification, for the travel time on the display. Location (if you allow it) only names the street you are on during a route; it is never stored or sent, and the YouDrive page never gets it. The YouDrive login stays on this phone and can be deleted.</string>
     <string name="settings_version">Version %1$s · %2$s</string>
 
     <string name="help_title">Help</string>
@@ -173,7 +173,7 @@
     <string name="maps_key_set">Key saved on this tablet</string>
     <string name="maps_key_refused">Google refused the key</string>
     <string name="maps_key_label">Google Maps API key</string>
-    <string name="help_maps_key">The map uses your own Google key. In Google Cloud: create an API key, enable "Maps JavaScript API" and "Routes API", and restrict the key to the website https://nastastopp.app/* . Google bills each map made and each way asked: the app makes one map per display and asks for the way again only when it changes, and the 3D view and street photos open Google\'s own apps. See your use in Google Cloud. The map takes the car\'s position from this tablet\'s own GPS (location while the display is open, never in the background; asked the first time the map sign is tapped). That position and the stops of the way (up to seven, never a name) go to Google for the way; nothing is stored or logged.</string>
+    <string name="help_maps_key">The map uses your own Google key. In Google Cloud: create an API key, enable "Maps JavaScript API" and "Routes API", and restrict the key to those two APIs and the website https://nastastopp.app/* . Google bills each map made and each way asked beyond its free monthly use, and that free use is not promised to cover yours: set a budget and alerts in Google Cloud and watch your use there. The app makes one map per display and asks for the way again only when it changes; the 3D view and street photos open Google\'s own apps. The map takes the car\'s position from this tablet\'s own GPS (location while the display is open, never in the background; asked the first time the map sign is tapped). That position and the stops of the way (up to seven, never a name) go to Google for the way; nothing is stored or logged.</string>
     <string name="display_show_way">Show the way on the map</string>
     <string name="display_map_close">Close the map</string>
     <string name="display_map_closer">Zoom in</string>
@@ -198,8 +198,10 @@
     <string name="display_way_add">Add the next trip to the way</string>
     <string name="display_way_add_short">+ Trip</string>
     <string name="display_way_drag">Drag to move the trip</string>
-    <string name="window_smaller">Smaller</string>
-    <string name="window_larger">Larger</string>
+    <string name="display_way_add_earlier">Add the trip before the way</string>
+    <string name="display_way_add_earlier_short">+ Earlier</string>
+    <string name="display_way_remove">Take the trip off the way on this map</string>
+    <string name="window_resize">Drag an edge or corner to make the window bigger or smaller</string>
     <string name="window_move">Drag to move the window</string>
     <string name="display_card_close">Close the trip card</string>
     <string name="display_show_card">Show the trip\'s card</string>

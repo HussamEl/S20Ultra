@@ -152,9 +152,22 @@ class DisplayLinkServer(
         } catch (_: SecurityException) {
             "?"
         }
+        val session = LinkSession(socket.inputStream, socket.outputStream)
+        // The tablet says first what it is: a passenger display of this protocol, within [HELLO_MS].
+        // Until then nothing is sent to it; anything else ends the link.
+        val giveUp = scope.launch(Dispatchers.IO) {
+            delay(HELLO_MS)
+            runCatching { socket.close() }
+        }
+        val hello = runCatching { session.receive() }.getOrNull()
+        giveUp.cancel()
+        if (!LinkProtocol.isDisplayHello(hello)) {
+            session.close()
+            runCatching { socket.close() }
+            return
+        }
         sockets[socket] = name
         publishClients()
-        val session = LinkSession(socket.inputStream, socket.outputStream)
         val done = CompletableDeferred<Unit>()
         fun io(block: suspend () -> Unit): Job = scope.launch(Dispatchers.IO) {
             try {
@@ -214,5 +227,8 @@ class DisplayLinkServer(
 
     companion object {
         private const val PING_MS = 10_000L
+
+        /** A tablet that has not said it is a passenger display after this long is let go. */
+        private const val HELLO_MS = 10_000L
     }
 }

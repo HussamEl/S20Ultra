@@ -12,14 +12,19 @@ class GeoLogicTest {
     private fun r(postal: String?, locality: String?, sub: String? = null) =
         GeoResult(59.0, 13.0, "x", postal, locality, sub, "Storgatan")
 
+    /** The written postal code first, then the written town; a point in another place never; the first only when nothing is written. */
     @Test
-    fun choosePrefersPostalThenLocalityThenFirst() {
+    fun choosePrefersPostalThenLocalityAndNeverAnotherPlace() {
         val a = r("652 25", "Karlstad")
         val b = r("652 24", "Karlstad")
         val c = r("663 41", "Hammarö")
         assertEquals(b, GeoLogic.choose(listOf(a, b, c), "652 24", "Karlstad"))
         assertEquals(c, GeoLogic.choose(listOf(a, b, c), null, "HAMMARÖ"))
-        assertEquals(a, GeoLogic.choose(listOf(a, b, c), "111 11", "Kiruna"))
+        // Another postal code in the written town still counts.
+        assertEquals(a, GeoLogic.choose(listOf(a, c), "652 99", "Karlstad"))
+        assertEquals(null, GeoLogic.choose(listOf(a, b, c), "111 11", "Kiruna"))
+        assertEquals(null, GeoLogic.choose(listOf(a, b), null, "Grums"))
+        assertEquals(a, GeoLogic.choose(listOf(a, b, c), null, null))
         assertEquals(null, GeoLogic.choose(emptyList(), null, null))
     }
 

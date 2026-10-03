@@ -44,7 +44,7 @@ class ScreenshotImporter(private val ocr: OcrEngine, private val extractor: Addr
                 DebugLog.d { "image ${index + 1}: ${lines.size} lines, ${stops.size} addresses" }
                 for (stop in stops) {
                     val last = all.lastOrNull()
-                    if (last != null && extractor.isSameAddress(last, stop)) continue // merge across images
+                    if (last != null && extractor.isSameTrip(last, stop)) continue // read twice across images
                     all += stop
                 }
             } catch (e: CancellationException) {

@@ -16,6 +16,19 @@ class WayEditTest {
     private val d = trip(4)
     private val e = trip(5)
 
+    /** The trip picked is the one looked at, wherever it moves; none picked, the one the map was opened for. */
+    @Test
+    fun thePickedTripIsTheOneLookedAt() {
+        val edit = WayEdit()
+        assertEquals(1, edit.lookedIndex(listOf(a, b, c), opened = 1))
+        edit.picked = c
+        assertEquals(2, edit.lookedIndex(listOf(a, b, c), opened = 1))
+        edit.move(listOf(a, b, c), 2, 0)
+        assertEquals(0, edit.lookedIndex(edit.preview!!, opened = 1))
+        // Picked trip gone from the way: back to the one opened.
+        assertEquals(1, edit.lookedIndex(listOf(a, b), opened = 1))
+    }
+
     @Test
     fun aTripMovedTakesItsNewPlace() {
         val edit = WayEdit()

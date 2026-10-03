@@ -33,7 +33,9 @@ import se.eldebosh.nastastopp.core.nav.RouteLine
 import se.eldebosh.nastastopp.core.nav.RoutesApi
 import java.net.HttpURLConnection
 import java.net.URI
+import androidx.compose.ui.graphics.toArgb
 import java.util.Locale
+import se.eldebosh.nastastopp.ui.theme.DisplayColors
 
 /**
  * The tablet's map of the way to the next stop: Google's map in a WebView of its own, with the
@@ -108,11 +110,12 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
     private var askedFor: String? = null
     private var askedAtMs = 0L
 
+    /** When Google last gave no way for the next stops (no network, an error): asked again after [RETRY_MS]. */
+    private var failedAtMs: Long? = null
+
     /** Where the vehicle was when the next stops' way was last asked for. */
     private var askedFrom: MapWay? = null
     private var asking: Job? = null
-    private var toNext: RouteLine? = null
-    private var toNextKey: String? = null
 
     /**
      * Ways already given by Google, in memory only and for a short while ([KNOWN_MS]), from about
@@ -290,10 +293,11 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
         val key = keyOf(way.stops)
         val now = SystemClock.elapsedRealtime()
         if (asking?.isActive == true) return
+        failedAtMs?.let { if (now - it < RETRY_MS) return }
         // The same stops: asked again only after a while and once the car has gone some way, so a
-        // car waiting at a stop asks nothing.
+        // car waiting at a stop asks nothing; at once when no way came.
         val from = askedFrom
-        if (key == askedFor && from != null &&
+        if (failedAtMs == null && key == askedFor && from != null &&
             (now - askedAtMs < REFRESH_MS || GeoLogic.distanceMeters(from.lat, from.lng, way.lat, way.lng) < MOVED_M)
         ) {
             return
@@ -302,16 +306,18 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
         askedAtMs = now
         askedFrom = way
         knownFor(key, way)?.let { line ->
-            toNext = line
-            toNextKey = key
+            failedAtMs = null
             if (focused == null) draw(line, Way(way.stops, 0))
             return
         }
         asking = scope.launch {
-            val line = withContext(Dispatchers.IO) { fetch(way.lat, way.lng, way.stops) } ?: return@launch
+            val line = withContext(Dispatchers.IO) { fetch(way.lat, way.lng, way.stops) }
+            if (line == null) {
+                failedAtMs = SystemClock.elapsedRealtime()
+                return@launch
+            }
+            failedAtMs = null
             known[key] = Known(SystemClock.elapsedRealtime(), way.lat, way.lng, line)
-            toNext = line
-            toNextKey = key
             if (focused == null) draw(line, Way(way.stops, 0))
         }
     }
@@ -323,15 +329,12 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
      */
     fun focus(stops: List<MapWay.Stop>, at: Int) {
         val way = Way(stops, at.coerceIn(0, (stops.size - 1).coerceAtLeast(0)))
-        if (way == focused) return
-        val key = keyOf(stops)
+        // A way already given, while it still holds ([knownFor]); an old one is asked for again.
+        val cached = vehicle?.let { knownFor(keyOf(stops), it) }
+        if (way == focused && (cached != null || asking?.isActive == true)) return
         focused = way
-        if (key == routeKey && route != null) {
-            draw(route!!, way)
-            return
-        }
-        if (key == toNextKey && toNext != null) {
-            draw(toNext!!, way)
+        if (cached != null) {
+            draw(cached, way)
             return
         }
         // The stops at once, in their new order; the way through them when Google gives it.
@@ -361,8 +364,8 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
         focused = null
         suggestion = null
         val next = vehicle?.stops.orEmpty()
-        val line = toNext
-        if (line != null && toNextKey == keyOf(next)) {
+        val line = vehicle?.let { knownFor(keyOf(next), it) }
+        if (line != null) {
             draw(line, Way(next, 0))
         } else {
             route = null
@@ -412,7 +415,11 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
             // No legs in the answer: the whole way as one, up to the stop looked at.
             else -> "[" + line.path.joinToString(",", "[", "]") { (lat, lng) -> String.format(Locale.ROOT, "[%.5f,%.5f]", lat, lng) } + "]"
         }
-        return "{\"stops\":" + stops.joinToString(",", "[", "]") + ",\"focus\":" + way.at + ",\"legs\":" + paths + "}"
+        // Each stop's own colour (and the way on from it) and its trip's time under its pin.
+        val colors = way.stops.indices.joinToString(",", "[", "]") { "\"" + STOP_COLORS[it % STOP_COLORS.size] + "\"" }
+        val times = way.stops.joinToString(",", "[", "]") { s -> s.time?.filter { it.isDigit() || it == ':' }?.let { "\"$it\"" } ?: "null" }
+        return "{\"stops\":" + stops.joinToString(",", "[", "]") + ",\"focus\":" + way.at + ",\"legs\":" + paths +
+            ",\"colors\":" + colors + ",\"times\":" + times + "}"
     }
 
     fun destroy() {
@@ -540,6 +547,9 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
 
         /** A way asked for is used again for this long, from as near as [REUSE_M]. */
         private const val KNOWN_MS = 15 * 60_000L
+
+        /** No way came for the next stops: asked again after this long, whether the car moved or not. */
+        private const val RETRY_MS = 30_000L
         private const val REUSE_M = 1_000.0
 
         /** Ways kept for orders tried again. */
@@ -547,5 +557,8 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
 
         /** The stops of a way in their order, as one name. */
         fun keyOf(stops: List<MapWay.Stop>): String = stops.joinToString("|") { it.key }
+
+        /** The stops' own colours (AppColors.wayStops, the same in both looks), for the page. */
+        private val STOP_COLORS = DisplayColors.wayStops.map { String.format(Locale.ROOT, "#%06X", it.toArgb() and 0xFFFFFF) }
     }
 }

@@ -91,7 +91,7 @@
     <string name="voice_ready">Klar ✓</string>
     <string name="voice_missing">Saknas – tryck för att installera</string>
     <string name="voice_checking">Kontrollerar…</string>
-    <string name="settings_privacy_note">Integritet: bilderna läses bara i telefonen och sparas aldrig. Bara tider, adresser, typ av resa och passagerarens för- och efternamn (visas bara på dina skärmar) sparas; ruttlistan raderas när rutten avslutas, när du rensar eller efter 12 timmar, och avslutade resor finns kvar i historiken under den valda tiden (standard 12 timmar). Appen använder internet bara för din YouDrive-sida, gatukartan som du själv laddar ner och vädret på passagerarskärmen (SMHI, för en fast plats, Karlstad); den skickar inga av dina data någonstans; ingen analys. Med ditt tillstånd läser den bara navigeringsaviseringen från Google Maps, för restiden på passagerarskärmen. Platsen (om du tillåter den) säger bara gatan du kör på under en rutt; den sparas eller skickas aldrig, och YouDrive-sidan får den aldrig. Inloggningen till YouDrive stannar i telefonen och kan raderas.</string>
+    <string name="settings_privacy_note">Integritet: bilderna läses bara i telefonen och sparas aldrig. Det som sparas: tider, adresser, typ av resa och passagerarens för- och efternamn (bara på dina skärmar), och en YouDrive-resas hela kort, som bara går till passagerarskärmens resekort, öppnas när du trycker och aldrig läses upp. Ruttlistan raderas när rutten avslutas, när du rensar eller efter 12 timmar; avslutade resor finns kvar i historiken under den valda tiden (standard 12 timmar). Med passagerarskärmen påslagen går rutten via Bluetooth till den parkopplade surfplattan som säger att den är skärmen. Internet används bara för din YouDrive-sida, gatukartan som du själv laddar ner, skärmens väder (SMHI, för en fast plats, Karlstad) och surfplattans Google-karta med din egen nyckel (surfplattans position och vägens stopp, aldrig ett namn). Ingen analys. Med ditt tillstånd läser appen bara navigeringsaviseringen från Google Maps, för restiden på skärmen. Platsen (om du tillåter den) säger bara gatan du kör på under en rutt; den sparas eller skickas aldrig, och YouDrive-sidan får den aldrig. Inloggningen till YouDrive stannar i telefonen och kan raderas.</string>
     <string name="settings_version">Version %1$s · %2$s</string>
 
     <string name="help_title">Hjälp</string>
@@ -173,7 +173,7 @@
     <string name="maps_key_set">Nyckeln är sparad på surfplattan</string>
     <string name="maps_key_refused">Google avvisade nyckeln</string>
     <string name="maps_key_label">API-nyckel för Google Maps</string>
-    <string name="help_maps_key">Kartan använder din egen Google-nyckel. I Google Cloud: skapa en API-nyckel, aktivera "Maps JavaScript API" och "Routes API" och begränsa nyckeln till webbplatsen https://nastastopp.app/* . Google tar betalt för varje karta som skapas och varje väg som efterfrågas: appen skapar en karta per skärm och frågar efter vägen igen bara när den ändras, och 3D-vyn och gatubilderna öppnar Googles egna appar. Se din användning i Google Cloud. Kartan tar bilens position från surfplattans egen GPS (plats medan skärmen är öppen, aldrig i bakgrunden; frågas första gången kartknappen trycks). Den positionen och vägens stopp (högst sju, aldrig ett namn) går till Google för vägen; inget sparas eller loggas.</string>
+    <string name="help_maps_key">Kartan använder din egen Google-nyckel. I Google Cloud: skapa en API-nyckel, aktivera "Maps JavaScript API" och "Routes API" och begränsa nyckeln till de två API:erna och webbplatsen https://nastastopp.app/* . Google tar betalt för varje karta som skapas och varje väg som efterfrågas utöver den fria månadsanvändningen, och det är inte lovat att den räcker för din: sätt en budget och varningar i Google Cloud och följ din användning där. Appen skapar en karta per skärm och frågar efter vägen igen bara när den ändras; 3D-vyn och gatubilderna öppnar Googles egna appar. Kartan tar bilens position från surfplattans egen GPS (plats medan skärmen är öppen, aldrig i bakgrunden; frågas första gången kartknappen trycks). Den positionen och vägens stopp (högst sju, aldrig ett namn) går till Google för vägen; inget sparas eller loggas.</string>
     <string name="display_show_way">Visa vägen på kartan</string>
     <string name="display_map_close">Stäng kartan</string>
     <string name="display_map_closer">Zooma in</string>
@@ -198,8 +198,10 @@
     <string name="display_way_add">Lägg till nästa resa på vägen</string>
     <string name="display_way_add_short">+ Resa</string>
     <string name="display_way_drag">Dra för att flytta resan</string>
-    <string name="window_smaller">Mindre</string>
-    <string name="window_larger">Större</string>
+    <string name="display_way_add_earlier">Lägg till resan före vägen</string>
+    <string name="display_way_add_earlier_short">+ Tidigare</string>
+    <string name="display_way_remove">Ta bort resan från vägen på den här kartan</string>
+    <string name="window_resize">Dra i en kant eller ett hörn för att göra fönstret större eller mindre</string>
     <string name="window_move">Dra för att flytta fönstret</string>
     <string name="display_card_close">Stäng resans kort</string>
     <string name="display_show_card">Visa resans kort</string>

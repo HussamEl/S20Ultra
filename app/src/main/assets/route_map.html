@@ -33,6 +33,9 @@
   .car { width: 26px; height: 26px; background: #1A73E8; border: 5px solid #FFFFFF;
          box-shadow: 0 0 0 10px rgba(26, 115, 232, 0.22), 0 2px 8px rgba(0, 0, 0, 0.35); }
   .pin { position: absolute; transform: translate(-50%, -50%); line-height: 0; }
+  /* The trip's time under its pin, framed in the stop's colour. */
+  .pin .time { position: absolute; left: 50%; top: 100%; transform: translate(-50%, 2px); background: #FFFFFF; color: #202124;
+               font: 700 15px sans-serif; line-height: 1; padding: 3px 6px; border-radius: 7px; border: 2px solid; white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -50,6 +53,10 @@
   var map = null, carDot = null, Dot = null, lines2d = [], pins2d = [];
   // The way: its stops in turn (points, or null until known), the one looked at, each leg's line.
   var car = null, stops = [], focusAt = 0, legs = [], shown = false, tiles = false;
+  // Each stop's own colour and its trip's time (from the app; the colour also marks the way on from it).
+  var colors = [], times = [];
+  // The way from the car to the first stop.
+  var CAR_WAY = '#5F6368';
   var LETTERS = 'ABCDEFGHIJK';
   var stage = document.getElementById('stage');
   // The driver's own map (hold): the same map, under his touch.
@@ -177,6 +184,8 @@
     stops = (w.stops || []).map(function (p) { return p ? { lat: p[0], lng: p[1] } : null; });
     focusAt = Math.max(0, Math.min(stops.length - 1, w.focus || 0));
     legs = (w.legs || []).map(function (leg) { return leg.map(function (p) { return { lat: p[0], lng: p[1] }; }); });
+    colors = (w.colors || []).map(function (c) { return /^#[0-9A-Fa-f]{6}$/.test(c) ? c : '#1A73E8'; });
+    times = (w.times || []).map(function (t) { return t ? String(t).replace(/[^0-9:]/g, '').slice(0, 5) : ''; });
     if (map) draw(!held);
   }
 
@@ -196,17 +205,26 @@
     return leg && leg.length ? leg[leg.length - 1] : null;
   }
 
-  // A stop's letter on a round pin: larger and red for the one looked at.
-  function pinSvg(i) {
-    var focus = i === focusAt, size = focus ? 58 : 40, half = size / 2;
-    return '<svg xmlns="http://www.w3.org/2000/svg" width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '">' +
-      '<circle cx="' + half + '" cy="' + half + '" r="' + (half - 3) + '" fill="' + (focus ? '#EA4335' : '#1A73E8') + '" stroke="#FFFFFF" stroke-width="4"/>' +
-      '<text x="' + half + '" y="' + half + '" dy="0.36em" text-anchor="middle" font-family="sans-serif" font-weight="700" font-size="' + (focus ? 28 : 19) + '" fill="#FFFFFF">' +
+  function colorOf(i) { return colors[i] || '#1A73E8'; }
+
+  // A stop's letter on a round pin in its own colour, its trip's time under it; the one looked at
+  // larger, in a red ring.
+  function pinHtml(i) {
+    var focus = i === focusAt, size = focus ? 62 : 40, half = size / 2, r = focus ? half - 7 : half - 3;
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '">' +
+      (focus ? '<circle cx="' + half + '" cy="' + half + '" r="' + (half - 2.5) + '" fill="none" stroke="#EA4335" stroke-width="5"/>' : '') +
+      '<circle cx="' + half + '" cy="' + half + '" r="' + r + '" fill="' + colorOf(i) + '" stroke="#FFFFFF" stroke-width="4"/>' +
+      '<text x="' + half + '" y="' + half + '" dy="0.36em" text-anchor="middle" font-family="sans-serif" font-weight="700" font-size="' + (focus ? 26 : 19) + '" fill="#FFFFFF">' +
       LETTERS.charAt(i) + '</text></svg>';
+    return svg + (times[i] ? '<div class="time" style="border-color:' + colorOf(i) + '">' + times[i] + '</div>' : '');
   }
 
-  // A leg up to the stop looked at is drawn full; the legs after it, lighter.
-  function legStyle(i) { return i <= focusAt ? { color: '#1A73E8', opacity: 1, weight: 8 } : { color: '#1A73E8', opacity: 0.45, weight: 6 }; }
+  // Each leg in the colour of the stop it leaves (the first, the car's): full up to the stop looked
+  // at, lighter after it.
+  function legStyle(i) {
+    var color = i === 0 ? CAR_WAY : colorOf(i - 1);
+    return i <= focusAt ? { color: color, opacity: 1, weight: 8 } : { color: color, opacity: 0.5, weight: 6 };
+  }
 
   function draw(refit) {
     lines2d.forEach(function (l) { l.setMap(null); });
@@ -221,7 +239,7 @@
     stops.forEach(function (p, i) {
       var at = p || (legs[i] && legs[i].length ? legs[i][legs[i].length - 1] : null);
       if (!at) return;
-      var pin = new Dot('pin', pinSvg(i));
+      var pin = new Dot('pin', pinHtml(i));
       pin.at = at;
       pin.setMap(map);
       pins2d.push(pin);

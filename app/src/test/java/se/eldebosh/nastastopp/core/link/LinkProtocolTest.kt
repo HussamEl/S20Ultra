@@ -3,6 +3,7 @@ package se.eldebosh.nastastopp.core.link
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Test
 import se.eldebosh.nastastopp.core.display.DisplayItem
 import se.eldebosh.nastastopp.core.display.DisplaySnapshot
@@ -92,5 +93,15 @@ class LinkProtocolTest {
         assertEquals(3, received.size)
         assertEquals(snapshot, (received[1] as LinkMessage.State).snapshot)
         assertEquals("Nästa stopp: Herrhagen. Därefter: Kil.", (received[2] as LinkMessage.Announce).sv)
+    }
+
+    /** The phone sends its trips only to a passenger display of this protocol that says so first. */
+    @Test
+    fun onlyADisplaysHelloOpensTheLink() {
+        assertTrue(LinkProtocol.isDisplayHello(LinkMessage.Hello(LinkProtocol.VERSION, LinkProtocol.ROLE_DISPLAY)))
+        assertFalse(LinkProtocol.isDisplayHello(LinkMessage.Hello(LinkProtocol.VERSION, LinkProtocol.ROLE_CONTROLLER)))
+        assertFalse(LinkProtocol.isDisplayHello(LinkMessage.Hello(LinkProtocol.VERSION + 1, LinkProtocol.ROLE_DISPLAY)))
+        assertFalse(LinkProtocol.isDisplayHello(LinkMessage.Ping))
+        assertFalse(LinkProtocol.isDisplayHello(null))
     }
 }

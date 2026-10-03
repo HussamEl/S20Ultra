@@ -407,7 +407,9 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             }
                             val fix by position.fix.collectAsStateWithLifecycle()
                             // The minute's map: from the car through the next stop and the two after it.
-                            val nextStops = remote?.takeIf { it.active }?.ahead?.take(DisplaySnapshot.AFTER + 1)?.map { it.mapStop }.orEmpty()
+                            // Only while the phone is connected: the way to trips that may be old is never asked for.
+                            val nextStops = remote?.takeIf { it.active && link.status == DisplayLinkClient.Status.CONNECTED }
+                                ?.ahead?.take(DisplaySnapshot.AFTER + 1)?.map { it.mapStop }.orEmpty()
                             LaunchedEffect(routeMap, fix, nextStops) {
                                 val at = fix ?: return@LaunchedEffect
                                 if (nextStops.isEmpty()) return@LaunchedEffect

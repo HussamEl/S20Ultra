@@ -66,6 +66,8 @@ object Palette {
     val Rose700 = Color(0xFFBE123C)
     val Emerald700 = Color(0xFF047857)
     val Fuchsia700 = Color(0xFFA21CAF)
+    val Blue700 = Color(0xFF1D4ED8)
+    val Brown700 = Color(0xFF7C4A1E)
     val Orange600 = Color(0xFFEA580C)
     val Ember400 = Color(0xFFFB923C)
     val Violet400 = Color(0xFFA78BFA)

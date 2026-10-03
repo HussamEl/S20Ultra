@@ -30,6 +30,10 @@ class DisplaySnapshotTest {
         assertFalse(DisplaySnapshot.canAdd(ahead, 3, 3))
         assertFalse(DisplaySnapshot.canAdd(listOf("A", "B"), 0, 0))
         assertEquals(emptyList<String>() to 0, DisplaySnapshot.around(emptyList<String>(), 0))
+        // The trip before the way, asked for; none before the first.
+        assertEquals(listOf("B", "C", "D", "E", "F") to 2, DisplaySnapshot.around(ahead, 3, earlier = 1))
+        assertTrue(DisplaySnapshot.canAddEarlier(ahead, 3, 0, 1))
+        assertFalse(DisplaySnapshot.canAddEarlier(ahead, 0, 0, 0))
     }
 
     @Test

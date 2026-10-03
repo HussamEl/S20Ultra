@@ -60,6 +60,28 @@ class OrderPlannerTest {
         assertTrue(OrderPlanner.allowed(listOf(0), listOf(Trip(null, false, 7))))
     }
 
+    /**
+     * A passenger with two trips in the day: the drop-off of the first (already in the car) may
+     * come before the pick-up of the second, never the second's drop-off.
+     */
+    @Test
+    fun aPassengerAlreadyInTheCarIsDroppedOffFirst() {
+        val trips = listOf(Trip(null, false, 3), Trip(null, true, 3), Trip(null, false, 3))
+        assertTrue(OrderPlanner.allowed(listOf(0, 1, 2), trips))
+        assertTrue(OrderPlanner.allowed(listOf(1, 0, 2), trips))
+        assertFalse(OrderPlanner.allowed(listOf(0, 2, 1), trips))
+        assertFalse(OrderPlanner.allowed(listOf(1, 0), trips.take(2).map { it.copy(pickUp = !it.pickUp!!) }))
+    }
+
+    /** An order that drops a passenger off first is never kept as the best: the best allowed one is. */
+    @Test
+    fun aForbiddenOrderIsNeverTheBest() {
+        val trips = listOf(Trip(null, false, 1), Trip(null, true, 1))
+        // The drop-off first would be far shorter.
+        val seconds = times(intArrayOf(100, 1000), intArrayOf(0, 1000), intArrayOf(1000, 0))
+        assertEquals(listOf(1, 0), OrderPlanner.best(trips, seconds, eight)!!.order)
+    }
+
     /** The given order stays when no other is better, and a missing way cannot be timed. */
     @Test
     fun theDriversOrderStaysWhenNoneIsBetter() {

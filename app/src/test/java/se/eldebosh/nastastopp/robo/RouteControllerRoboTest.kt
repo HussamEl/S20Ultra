@@ -70,6 +70,50 @@ class RouteControllerRoboTest {
         return shadow
     }
 
+    /**
+     * One trip read twice (the end of one screenshot and the start of the next) is one stop; the
+     * same address at another time is a trip of its own (invented data).
+     */
+    @Test
+    fun theSameAddressAtAnotherTimeStaysATrip() {
+        val c = graph.controller
+        // A first line that is only a time is the status bar's clock: the list starts with its date.
+        fun card(time: String) = graph.extractor.extract(listOf("2026-09-29", time, "Pick-up", "Anna Testsson", "Storgatan 14, 65224 Karlstad"))
+        assertEquals(1, c.addExtracted(card("07:30") + card("07:30")))
+        assertEquals(1, c.addExtracted(card("08:05")))
+        assertEquals(listOf("07:30", "08:05"), c.route.value!!.stops.map { it.time })
+    }
+
+    /**
+     * The driver corrects a stop's address during the route: the same stop (its number kept), but
+     * Maps goes elsewhere now, so it opens again; a review without a change opens nothing.
+     */
+    @Test
+    fun aCorrectedAddressOpensMapsAgain() {
+        readyTts()
+        val c = graph.controller
+        val lines = listOf("Storgatan 14, 65224 Karlstad", "Järnvägsgatan 3B, 68830 Storfors", "Lindvägen 9, 66430 Grums")
+        assertEquals(3, c.addExtracted(graph.extractor.extract(lines)))
+        idleUntil { c.route.value!!.stops.none { it.geoStatus == GeoStatus.PENDING } }
+        assertTrue(c.start())
+        idle()
+        assertNotNull(shadowOf(app).nextStartedActivity)
+
+        c.beginEdit()
+        c.finishEdit()
+        idle()
+        assertNull("nothing changed", shadowOf(app).nextStartedActivity)
+
+        val second = c.route.value!!.stops[1]
+        c.beginEdit()
+        assertTrue(c.editText(second.id, "Järnvägsgatan 5, 68830 Storfors"))
+        c.finishEdit()
+        idle()
+        val url = shadowOf(app).nextStartedActivity?.dataString
+        assertTrue("Maps again: $url", url != null && url.contains("J%C3%A4rnv%C3%A4gsgatan%205"))
+        assertEquals(second.id, c.route.value!!.stops[1].id)
+    }
+
     /** A YouDrive list: the grey "Pull-out" is the start point, not a stop (invented data). */
     @Test
     fun pullOutBecomesTheStartPointNotAStop() {
@@ -379,7 +423,8 @@ class RouteControllerRoboTest {
     /**
      * The order the driver sets on the tablet's map: the trips take the places they held, in his
      * order; the new next stop is said. A passenger's pick-up and drop-off share a number, never
-     * the name; an order naming a trip that is not there is ignored.
+     * the name; an order naming a trip that is not there, or dropping a passenger off before they
+     * are picked up, is ignored.
      */
     @Test
     fun theTabletsOrderIsTaken() {
@@ -403,6 +448,9 @@ class RouteControllerRoboTest {
         assertEquals(listOf(ids[1], ids[0], ids[2]), c.route.value!!.stops.map { it.id })
         assertTrue(tts.lastSpokenText.orEmpty(), tts.lastSpokenText.orEmpty().startsWith("Nästa stopp: Storgatan 14"))
         c.reorder(listOf(ids[0], 999L))
+        assertEquals(listOf(ids[1], ids[0], ids[2]), c.route.value!!.stops.map { it.id })
+        // Frida dropped off before she is picked up: not taken.
+        c.reorder(listOf(ids[2], ids[0]))
         assertEquals(listOf(ids[1], ids[0], ids[2]), c.route.value!!.stops.map { it.id })
         c.end()
     }

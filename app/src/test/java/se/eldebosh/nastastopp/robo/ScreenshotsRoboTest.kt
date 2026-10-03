@@ -739,8 +739,8 @@ class ScreenshotsRoboTest {
      * The map sign and a long press on a trip open the driver's own map, filling the screen, and
      * ask for the tablet's position (its permission, when not given yet); until the tablet knows
      * where it is the map says it is looking, and under it why the map is not there yet. The map
-     * takes his touches; its buttons move it, and its × brings the screen back. Google Maps is
-     * never opened from the display.
+     * takes his touches; its buttons move it, and its × brings the screen back. Google's apps open
+     * only from 242 and 244, at the trip looked at (the one picked in the list, else the one opened).
      */
     @Test
     @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
@@ -750,7 +750,10 @@ class ScreenshotsRoboTest {
         val google = ArrayList<String>()
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         // The next stop with its point, for Google's own apps.
-        val located = tabletSnapshot.copy(current = tabletSnapshot.current!!.copy(lat = 59.381234, lng = 13.501234))
+        val located = tabletSnapshot.copy(
+            current = tabletSnapshot.current!!.copy(lat = 59.381234, lng = 13.501234),
+            upcoming = listOf(tabletSnapshot.upcoming.first().copy(lat = 59.391234, lng = 13.491234)) + tabletSnapshot.upcoming.drop(1),
+        )
         compose.setContent {
             val scope = rememberCoroutineScope()
             map = remember { RouteMap(context, "AIzaTestKeyForTheMapOnly", true, "#000000", scope) }
@@ -784,6 +787,13 @@ class ScreenshotsRoboTest {
         compose.onNodeWithTag("ref_242").performClick()
         compose.onNodeWithTag("ref_244").performClick()
         assertEquals(listOf("earth 59.381234,13.501234", "street 59.381234,13.501234"), google)
+        // The trip picked in the list is the one looked at: Google's apps open at its point.
+        compose.onNodeWithContentDescription("B: Hamngatan 7").performClick()
+        compose.mainClock.advanceTimeBy(500)
+        compose.onNodeWithTag("ref_242").performClick()
+        assertEquals("earth 59.391234,13.491234", google.last())
+        compose.onNodeWithContentDescription("B: Hamngatan 7").performClick()
+        compose.mainClock.advanceTimeBy(500)
         compose.onNodeWithTag("ref_237").performClick()
         assertEquals("zoom(1)", shadowOf(map!!.view).lastEvaluatedJavascript)
         compose.onNodeWithTag("ref_239").performClick()
@@ -923,11 +933,21 @@ class ScreenshotsRoboTest {
         val first = compose.onNodeWithTag("ref_235").fetchSemanticsNode().boundsInRoot
         // Its middle at the screen's middle at first.
         assertEquals(700f, first.center.x, 2f)
-        compose.onNodeWithTag("ref_263").performClick()
+        // Its right edge, 100 px further right: bigger, its left edge where it was.
+        compose.onNodeWithTag("ref_262").performTouchInput {
+            down(Offset(width - 6f, height / 2f))
+            repeat(10) {
+                advanceEventTime(50)
+                moveBy(Offset(10f, 0f))
+            }
+            up()
+        }
         compose.waitForIdle()
-        assertEquals(1.2f, places.place("trip_card")!!.scale, 0.001f)
+        val scale = places.place("trip_card")!!.scale
+        assertTrue("bigger: $scale", scale > 1.1f)
         val bigger = compose.onNodeWithTag("ref_235").fetchSemanticsNode().boundsInRoot
-        assertEquals(first.width * 1.2f, bigger.width, 2f)
+        assertEquals(first.width * scale, bigger.width, 3f)
+        assertEquals(first.left, bigger.left, 3f)
         // Its band, 300 px to the left; then far up: it stops at the screen's top.
         compose.onNodeWithTag("ref_261").performTouchInput {
             down(center)
@@ -948,7 +968,7 @@ class ScreenshotsRoboTest {
             pinch(center + Offset(-120f, 0f), center + Offset(-40f, 0f), center + Offset(120f, 0f), center + Offset(40f, 0f))
         }
         compose.waitForIdle()
-        assertTrue("pinched smaller: ${places.place("trip_card")}", places.place("trip_card")!!.scale < 1.2f)
+        assertTrue("pinched smaller: ${places.place("trip_card")}", places.place("trip_card")!!.scale < scale)
         val kept = compose.onNodeWithTag("ref_235").fetchSemanticsNode().boundsInRoot
         compose.onNodeWithTag("ref_264").performClick()
         compose.waitForIdle()
@@ -1066,10 +1086,19 @@ class ScreenshotsRoboTest {
         // A, B, C: the next stop and the two after it.
         compose.onAllNodesWithTag("ref_245").assertCountEquals(3)
         compose.onNodeWithTag("ref_250").assertDoesNotExist()
-        // The list is a window too: + makes it bigger.
-        compose.onNodeWithTag("ref_267").performClick()
+        // The list is a window too: its corner makes it bigger.
+        compose.onNodeWithTag("ref_266").performTouchInput {
+            down(Offset(width - 6f, height - 6f))
+            repeat(10) {
+                advanceEventTime(50)
+                moveBy(Offset(8f, 8f))
+            }
+            up()
+        }
         compose.mainClock.advanceTimeBy(500)
-        assertEquals(1.2f, places.place("way_list")!!.scale, 0.001f)
+        assertTrue("bigger: ${places.place("way_list")}", places.place("way_list")!!.scale > 1.05f)
+        // Nothing before the next stop to add.
+        compose.onNodeWithTag("ref_269").assertIsNotEnabled()
         compose.onNodeWithContentDescription("C: Storgatan 14").performClick()
         compose.mainClock.advanceTimeBy(500)
         // Storgatan 14 one place earlier: before Hamngatan 7.
@@ -1083,6 +1112,10 @@ class ScreenshotsRoboTest {
         save("display_way_order", compose.onRoot().captureToImage().asAndroidBitmap())
         compose.onNodeWithTag("ref_250").performClick()
         assertEquals(listOf(listOf(11L, 13L, 12L, 14L)), sent)
+        // × takes a trip off the way on this map: D goes, the others stay.
+        compose.onAllNodesWithTag("ref_268")[3].performClick()
+        compose.mainClock.advanceTimeBy(500)
+        compose.onAllNodesWithTag("ref_245").assertCountEquals(3)
         // Hamngatan 7 (a drop-off) before its pick-up: it cannot be used.
         compose.onNodeWithTag("ref_249").performClick()
         compose.mainClock.advanceTimeBy(500)
@@ -1148,8 +1181,8 @@ class ScreenshotsRoboTest {
         compose.mainClock.advanceTimeBy(500)
         val after = compose.onNodeWithTag("ref_265").fetchSemanticsNode().boundsInRoot
         assertTrue("moved right: $before → $after", after.left > before.left + 150f)
-        // Kept: the list's middle (its bar starts 26 px into the 352 px list) as a share of the screen.
-        assertEquals((after.left - 26f + 176f) / 1400f, places.place("way_list")!!.x, 0.01f)
+        // Kept: the list's middle (its bar starts 28 px into the 356 px window) as a share of the screen.
+        assertEquals((after.left - 28f + 178f) / 1400f, places.place("way_list")!!.x, 0.01f)
         compose.mainClock.autoAdvance = true
     }
 

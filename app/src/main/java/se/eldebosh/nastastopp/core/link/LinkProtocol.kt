@@ -58,6 +58,10 @@ object LinkProtocol {
     const val ROLE_CONTROLLER = "controller"
     const val ROLE_DISPLAY = "display"
 
+    /** A passenger display of this protocol says so first: the only link the phone sends its trips to. */
+    fun isDisplayHello(message: LinkMessage?): Boolean =
+        message is LinkMessage.Hello && message.version == VERSION && message.role == ROLE_DISPLAY
+
     /** Bluetooth RFCOMM service of this app (random, fixed): secure (authenticated) channel. */
     val SERVICE_UUID: UUID = UUID.fromString("7d3f2a91-5c4e-4b8a-9e61-2f0c8d4b6a15")
 

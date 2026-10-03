@@ -12,9 +12,10 @@ data class MapWay(
 ) {
     /**
      * A stop on the map: its point when the phone has located it, else its [address]; [id] is the
-     * trip's number in the route, when known.
+     * trip's number in the route, when known; [time] its trip's time, shown under its pin (never
+     * sent to Google).
      */
-    data class Stop(val lat: Double?, val lng: Double?, val address: String, val id: Long? = null) {
+    data class Stop(val lat: Double?, val lng: Double?, val address: String, val id: Long? = null, val time: String? = null) {
         /** Google can be asked the way to it. */
         val routable: Boolean get() = (lat != null && lng != null) || address.isNotBlank()
 

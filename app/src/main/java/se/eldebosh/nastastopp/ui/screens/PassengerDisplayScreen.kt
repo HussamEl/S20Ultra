@@ -306,6 +306,9 @@ fun PassengerDisplayScreen(
     // try another order and send it to the phone ([WayList]).
     var wayTrip by remember { mutableStateOf<DisplayItem?>(null) }
     var added by remember { mutableIntStateOf(0) }
+    var earlier by remember { mutableIntStateOf(0) }
+    // The trips the driver took off the way on this map (×); the phone's route keeps them.
+    var removed by remember { mutableStateOf(emptyList<DisplayItem>()) }
     val edit = remember { WayEdit() }
     val map = routeMap?.takeIf { !it.refused }
     val showWay: ((DisplayItem, Boolean) -> Unit)? = map?.let { _ ->
@@ -313,22 +316,32 @@ fun PassengerDisplayScreen(
             onWantPosition?.invoke()
             wayTrip = if (isNext) null else item.trip
             added = 0
+            earlier = 0
+            removed = emptyList()
             edit.clear()
             moments.playFocus()
         }
     }
     val ahead = live?.ahead.orEmpty()
     val wayAt = wayTrip?.let { t -> ahead.indexOfFirst { it.sameTrip(t) } }?.takeIf { it >= 0 } ?: 0
-    val (window, windowAt) = DisplaySnapshot.around(ahead, wayAt, added)
+    val (around, aroundAt) = DisplaySnapshot.around(ahead, wayAt, added, earlier)
+    val window = around.filterNot { t -> removed.any { it.sameTrip(t) } }
+    val windowAt = around.getOrNull(aroundAt)?.let { looked -> window.indexOfFirst { it.sameTrip(looked) } }?.takeIf { it >= 0 } ?: 0
     val windowKey = window.map { it.mapStop.key }
     LaunchedEffect(windowKey) { edit.settle(window) }
     val wayShown = edit.preview ?: window
-    val wayShownAt = window.getOrNull(windowAt)?.let { looked -> wayShown.indexOfFirst { it.sameTrip(looked) } }?.takeIf { it >= 0 } ?: 0
+    val openedAt = window.getOrNull(windowAt)?.let { looked -> wayShown.indexOfFirst { it.sameTrip(looked) } }?.takeIf { it >= 0 } ?: 0
+    // The trip picked in the list is the one looked at: the red letter, the minutes to it, and 242 / 244.
+    val wayShownAt = edit.lookedIndex(wayShown, openedAt)
     // Where the map sign is: the map grows out of it.
     var pinAt by remember { mutableStateOf(Offset.Unspecified) }
     // The trip whose YouDrive card is open (235, from its person figure), over everything until a
     // tap; nothing comes over it.
     var openCard by remember { mutableStateOf<DisplayItem?>(null) }
+    // The card closes when the phone's link breaks or the route ends.
+    LaunchedEffect(connected, live != null) {
+        if (!connected || live == null) openCard = null
+    }
     LaunchedEffect(openCard != null) {
         if (openCard != null) moments.settle()
     }
@@ -344,6 +357,8 @@ fun PassengerDisplayScreen(
         if (held) return@LaunchedEffect
         edit.clear()
         added = 0
+        earlier = 0
+        removed = emptyList()
     }
     // The driver's way on his map; an order he tries a moment after his last tap on the arrows, or
     // once he lets go of a trip he drags.
@@ -652,7 +667,13 @@ fun PassengerDisplayScreen(
                 now = { now.value },
                 note = mapNote(routeMap),
                 onOrder = onOrder,
-                onAdd = if (DisplaySnapshot.canAdd(ahead, wayAt, added)) ({ added++ }) else null,
+                onAdd = if (DisplaySnapshot.canAdd(ahead, wayAt, added, earlier)) ({ added++ }) else null,
+                onAddEarlier = if (DisplaySnapshot.canAddEarlier(ahead, wayAt, added, earlier)) ({ earlier++ }) else null,
+                onRemove = { trip ->
+                    removed = removed + trip
+                    edit.preview = edit.preview?.filterNot { it.sameTrip(trip) }
+                    if (edit.picked?.sameTrip(trip) == true) edit.picked = null
+                },
                 onUse = { moments.touched() },
                 place = listPlace,
                 modifier = Modifier.fillMaxSize().zIndex(MAP_OVER_Z),
@@ -2604,9 +2625,9 @@ private fun Modifier.breathe(rest: Float, scale: () -> Float): Modifier = layout
  * sign (the address, the phone numbers large in the highlight colour, one under the other, seats
  * and mobility aids as chips, fare, compensation, eligibility), and the instructions in a box of
  * their own, a line for each ([CardNotes]). Over everything, for the driver, until a tap beside it
- * or its ×; a long card scrolls. It is a window ([place]): its band moves it (261), − and + size it
- * (262, 263), two fingers do both, and it opens where and as big as the driver last left it. Never
- * said. Numbers in [DigitFont], words in [DisplayFont].
+ * or its ×; a long card scrolls. It is a window ([place]): its band moves it (261), its border
+ * makes it bigger or smaller from any edge or corner (262), two fingers do both, and it opens where
+ * and as big as the driver last left it. Never said. Numbers in [DigitFont], words in [DisplayFont].
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -2626,7 +2647,7 @@ private fun TripCard(item: DisplayItem, landscape: Boolean, place: WindowState, 
         )
         val width = maxWidth * if (landscape) CARD_WIDTH else CARD_WIDTH_NARROW
         val height = maxHeight * CARD_HEIGHT
-        FloatingWindow(place) {
+        FloatingWindow(place, edgeRef = 262) {
             Column(
                 Modifier
                     .ref(235)
@@ -2669,7 +2690,6 @@ private fun TripCard(item: DisplayItem, landscape: Boolean, place: WindowState, 
                     }
                     val button = with(LocalDensity.current) { (size * CARD_BUTTON).toDp() }
                     Spacer(Modifier.width(4.dp))
-                    WindowZoom(place, smaller = 262, larger = 263, tint = colors.onTrip, ground = colors.onTrip.copy(alpha = CARD_BUTTON_GROUND), size = button)
                     val close = stringResource(R.string.display_card_close)
                     Box(
                         contentAlignment = Alignment.Center,

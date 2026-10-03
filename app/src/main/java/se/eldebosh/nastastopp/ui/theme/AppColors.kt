@@ -64,6 +64,13 @@ data class AppColors(
     val showHues: List<Color>,
     /** A trip due within a few minutes (the display clock's colon, the panel's countdown). */
     val soon: Color,
+    /**
+     * The stops of a way on the tablet's map, each its own colour (its pin, the way on from it, its
+     * letter in the driver's list), in turn; the same in both looks, as the map is. Letters on them
+     * in [onWayStop].
+     */
+    val wayStops: List<Color> = WayStops,
+    val onWayStop: Color = Palette.White,
     // Reference numbers.
     val refText: Color,
     val refPill: Color,
@@ -170,6 +177,9 @@ val NightPanel = DayPanel.copy(
 )
 
 /** Day ("Route cards"): YouDrive's light list, black actions, taxi yellow, sky-blue details. */
+/** The stops' own colours on the map, A first: none red, which marks the stop looked at. */
+private val WayStops = listOf(Palette.Blue700, Palette.Emerald700, Palette.Ember700, Palette.Violet700, Palette.Teal700, Palette.Fuchsia700, Palette.Brown700)
+
 val DayColors = AppColors(
     isDark = false,
     background = Palette.Paper,
