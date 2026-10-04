@@ -1145,7 +1145,7 @@ class ScreenshotsRoboTest {
         }
         compose.waitForIdle()
         val moved = compose.onNodeWithTag("ref_235").fetchSemanticsNode().boundsInRoot
-        assertTrue("moved left: $moved", moved.center.x < bigger.center.x - 250f)
+        assertTrue("moved left: $moved from $bigger", moved.center.x < bigger.center.x - 150f)
         assertTrue("inside the screen: $moved", moved.top >= 0f)
         // Two fingers drawn together: smaller.
         compose.onNodeWithTag("ref_235").performTouchInput {

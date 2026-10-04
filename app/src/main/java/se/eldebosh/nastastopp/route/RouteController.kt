@@ -166,9 +166,15 @@ class RouteController(
     fun logLine(stop: Stop): String? {
         val street = streetOf(stop)
         val town = listOfNotNull(stop.parsedPostalCode, stop.parsedTown ?: stop.geo?.locality).joinToString(" ").ifEmpty { null }
-        var text = listOfNotNull(stop.place?.takeIf { !TextNorm.fold(street).contains(TextNorm.fold(it)) }, street, town).joinToString(", ")
-        stop.name?.split(' ')?.filter { it.length > 1 }?.forEach { word -> text = text.replace(Regex("(?iU)\\b" + Regex.escape(word) + "\\b"), "") }
-        return text.replace(Regex("\\s+"), " ").replace(Regex("(, )+"), ", ").trim(' ', ',').ifEmpty { null }
+        val text = listOfNotNull(stop.place?.takeIf { !TextNorm.fold(street).contains(TextNorm.fold(it)) }, street, town).joinToString(", ")
+        // Any word of the passenger's name is left out, word by word (no pattern: Android's
+        // regular expressions differ from the computer's the tests run on).
+        val named = stop.name.orEmpty().split(' ').map { TextNorm.key(it) }.filter { it.length > 1 }.toSet()
+        return text.split(", ")
+            .map { part -> part.split(' ').filter { it.isNotBlank() && TextNorm.key(it) !in named }.joinToString(" ") }
+            .filter { it.isNotBlank() }
+            .joinToString(", ")
+            .ifEmpty { null }
     }
 
     /** The stop's named place: as YouDrive wrote it, or a well-known place written as the address ("Centralsjukhuset Karlstad"). */

@@ -37,6 +37,7 @@ import se.eldebosh.nastastopp.service.Notifications
 import se.eldebosh.nastastopp.service.RouteNotifier
 import se.eldebosh.nastastopp.settings.SettingsStore
 import se.eldebosh.nastastopp.tts.Announcer
+import se.eldebosh.nastastopp.util.DebugLog
 import se.eldebosh.nastastopp.util.LocaleHelper
 import se.eldebosh.nastastopp.youdrive.YouDriveLogin
 import se.eldebosh.nastastopp.youdrive.YouDriveWatcher
@@ -57,7 +58,13 @@ class AppGraph(app: Application) {
 
     /** The addresses the routes went to (never a name), for the driver to share (Settings 302). */
     val addressLog = AddressLog(app).also { log ->
-        scope.launch { controller.route.collect { r -> log.record(r?.stops.orEmpty().mapNotNull(controller::logLine)) } }
+        // A fault in the log never stops the route: the addresses are then simply not kept.
+        scope.launch {
+            controller.route.collect { r ->
+                runCatching { log.record(r?.stops.orEmpty().mapNotNull(controller::logLine)) }
+                    .onFailure { DebugLog.w(it) { "address log skipped" } }
+            }
+        }
     }
 
     /** The street the vehicle is on now (floating button and route screen). */
