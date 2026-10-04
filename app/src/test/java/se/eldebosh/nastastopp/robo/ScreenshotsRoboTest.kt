@@ -609,13 +609,14 @@ class ScreenshotsRoboTest {
         compose.waitForIdle()
         compose.mainClock.autoAdvance = false
         compose.onNodeWithText("Hamngatan 7").performClick()
-        compose.mainClock.advanceTimeBy(1_700)
+        compose.mainClock.advanceTimeBy(2_500)
         save("display_card_tap", compose.onRoot().captureToImage().asAndroidBitmap())
-        compose.mainClock.advanceTimeBy(5_000)
+        // Said, held two seconds, faded to black; then the next stop and the clock are back.
+        compose.mainClock.advanceTimeBy(9_000)
         compose.onNodeWithTag("ref_88").performClick()
         compose.mainClock.advanceTimeBy(1_000)
         compose.mainClock.autoAdvance = true
-        assertEquals(listOf("Klockan 8 ska vi till Hamngatan 7, Skoghall.", "Klockan är 8 och 11 minuter."), said)
+        assertEquals(listOf("Därefter: 8. Hamngatan 7, Skoghall.", "Klockan är 8 och 11 minuter."), said)
     }
 
     /**
@@ -759,11 +760,11 @@ class ScreenshotsRoboTest {
         compose.onNodeWithTag("ref_88").performTouchInput { swipeLeft() }
         compose.mainClock.advanceTimeBy(1_000)
         compose.onNode(hasTestTag("ref_226") and hasText("Södra Kyrkogatan 7")).performClick()
-        compose.mainClock.advanceTimeBy(1_500)
+        compose.mainClock.advanceTimeBy(2_500)
         save("display_list_pick", compose.onRoot().captureToImage().asAndroidBitmap())
         compose.onAllNodesWithTag("ref_226").assertCountEquals(0)
         compose.mainClock.autoAdvance = true
-        assertEquals(listOf("Klockan 8 och 50 minuter ska vi till Södra Kyrkogatan 7, Kristinehamn."), said)
+        assertEquals(listOf("Sen: 8 och 50 minuter. Södra Kyrkogatan 7, Kristinehamn."), said)
     }
 
     /**
@@ -1124,15 +1125,22 @@ class ScreenshotsRoboTest {
         assertEquals(bigger.height - 60f, lower.height, 4f)
         assertEquals(bigger.width, lower.width, 3f)
         assertEquals(bigger.top, lower.top, 3f)
-        // Its band, 300 px to the left; then far up: it stops at the screen's top.
+        // Its band, about 300 px to the left; then far up: it stops at the screen's top.
         compose.onNodeWithTag("ref_261").performTouchInput {
             down(center)
-            repeat(10) { moveBy(Offset(-30f, 0f)) }
+            // A little more than 300 px: the first few go into the touch slop.
+            repeat(12) {
+                advanceEventTime(50)
+                moveBy(Offset(-30f, 0f))
+            }
             up()
         }
         compose.onNodeWithTag("ref_261").performTouchInput {
             down(center)
-            repeat(20) { moveBy(Offset(0f, -60f)) }
+            repeat(20) {
+                advanceEventTime(50)
+                moveBy(Offset(0f, -60f))
+            }
             up()
         }
         compose.waitForIdle()

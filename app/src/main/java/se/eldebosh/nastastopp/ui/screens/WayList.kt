@@ -1,6 +1,10 @@
 package se.eldebosh.nastastopp.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -522,10 +526,11 @@ private fun TripRow(
                 .semantics { contentDescription = description }
                 .padding(end = 6.dp),
         ) {
-            // Its letter large in its own colour, as on the map, on nothing; the one looked at framed in red.
-            WayLetter(letter, color, looked)
+            // Its letter large in its own colour, as on the map, on nothing; the time of the one looked
+            // at red and beating, as on the map.
+            WayLetter(letter, color)
             Spacer(Modifier.width(6.dp))
-            Text(item.time ?: "–", fontFamily = DigitFont, fontWeight = FontWeight.Bold, fontSize = ROW_TIME_SP, color = color)
+            WayTime(item.time ?: "–", color, looked, ROW_TIME_SP)
             item.kind?.let { kind ->
                 Spacer(Modifier.width(5.dp))
                 Box(
@@ -709,22 +714,42 @@ private val BUTTON_GAP = 6.dp
 private val BUTTON_CORNER = 10.dp
 private val BUTTON_SP = 14.sp
 private val BAR_HEIGHT = 28.dp
-private val LOOKED_RING = 2.dp
+/** The time of the trip looked at beats this much, this fast. */
+private const val LOOKED_BEAT = 1.18f
+private const val LOOKED_BEAT_MS = 450
 private val REMOVE_SIZE = 26.dp
 private val REMOVE_ICON = 16.dp
 
+/** A way's trip time in its stop's [color]; the one [looked] at red and beating, as on the map. */
+@Composable
+internal fun WayTime(time: String, color: Color, looked: Boolean, fontSize: TextUnit, modifier: Modifier = Modifier) {
+    val beat = if (looked) {
+        rememberInfiniteTransition(label = "looked").animateFloat(1f, LOOKED_BEAT, infiniteRepeatable(tween(LOOKED_BEAT_MS), RepeatMode.Reverse), label = "beat")
+    } else {
+        null
+    }
+    Text(
+        time,
+        fontFamily = DigitFont,
+        fontWeight = FontWeight.Bold,
+        fontSize = fontSize,
+        color = if (looked) AppTheme.colors.danger else color,
+        maxLines = 1,
+        modifier = modifier.graphicsLayer {
+            val b = beat?.value ?: 1f
+            scaleX = b
+            scaleY = b
+        },
+    )
+}
+
 /**
  * A stop's letter, as the map writes it: large and bold in the stop's own [color], on nothing (the
- * row shows through), centred in its box; the one [looked] at framed in red.
+ * row shows through), centred in its box.
  */
 @Composable
-internal fun WayLetter(letter: Char, color: Color, looked: Boolean, size: Dp = LETTER_SIZE, fontSize: TextUnit = LETTER_SP) {
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier
-            .size(size)
-            .then(if (looked) Modifier.border(LOOKED_RING, AppTheme.colors.danger, RoundedCornerShape(8.dp)) else Modifier),
-    ) {
+internal fun WayLetter(letter: Char, color: Color, size: Dp = LETTER_SIZE, fontSize: TextUnit = LETTER_SP) {
+    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(size)) {
         Text(
             letter.toString(),
             fontFamily = DisplayFont,

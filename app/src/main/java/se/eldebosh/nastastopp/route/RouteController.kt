@@ -149,11 +149,26 @@ class RouteController(
         val street = streetOf(stop)
         val numbered = street.any { it.isDigit() }
         val care = Places.spokenName(placeOf(stop), localities::contains)
+        val shop = Places.shopName(stop.place)
         return when {
             care != null -> listOfNotNull(care, street.takeIf { numbered }).joinToString(", ")
+            // A shop by its name only ("ICA Maxi Bergvik"), its town after it.
+            shop != null -> shop
             stop.place != null && !numbered -> stop.geo?.thoroughfare.orEmpty()
             else -> street
         }
+    }
+
+    /**
+     * The address as it goes into the driver's address log ([AddressLog]): the named place, the
+     * street and number, and the town as written; the passenger's name is never in it.
+     */
+    fun logLine(stop: Stop): String? {
+        val street = streetOf(stop)
+        val town = listOfNotNull(stop.parsedPostalCode, stop.parsedTown ?: stop.geo?.locality).joinToString(" ").ifEmpty { null }
+        var text = listOfNotNull(stop.place?.takeIf { !TextNorm.fold(street).contains(TextNorm.fold(it)) }, street, town).joinToString(", ")
+        stop.name?.split(' ')?.filter { it.length > 1 }?.forEach { word -> text = text.replace(Regex("(?iU)\\b" + Regex.escape(word) + "\\b"), "") }
+        return text.replace(Regex("\\s+"), " ").replace(Regex("(, )+"), ", ").trim(' ', ',').ifEmpty { null }
     }
 
     /** The stop's named place: as YouDrive wrote it, or a well-known place written as the address ("Centralsjukhuset Karlstad"). */
@@ -163,6 +178,8 @@ class RouteController(
     private fun displayTitle(stop: Stop): String {
         Places.displayName(placeOf(stop), localities::contains)?.let { return it }
         val street = streetOf(stop)
+        // A shop: its whole name and its street, as written.
+        if (Places.shopName(stop.place) != null) return listOfNotNull(stop.place, street.takeIf { it.any(Char::isDigit) }).joinToString(" ")
         if (stop.place != null && street.none { it.isDigit() }) return stop.geo?.thoroughfare ?: spokenName(stop)
         return Places.written(street)
     }
@@ -222,7 +239,7 @@ class RouteController(
                 val point = entranceOf(s)?.takeIf { it.hasPoint }?.let { it.lat!! to it.lng!! } ?: at?.let { it.lat to it.lng }
                 if (full) {
                     // A place of care by its short name, said in full when tapped.
-                    val said = Places.spokenName(placeOf(s), localities::contains)
+                    val said = Places.spokenName(placeOf(s), localities::contains) ?: Places.shopName(s.place)
                     DisplayItem(time = s.time, title = displayTitle(s), subtitle = spokenName(s), doneInYouDrive = s.youDriveDone, kind = s.kind, place = routeTo, lat = point?.first, lng = point?.second, said = said, card = s.card, id = s.id, rider = riders[riderKey(s.name)])
                 } else {
                     DisplayItem(time = s.time, title = spokenName(s), doneInYouDrive = s.youDriveDone, kind = s.kind, place = routeTo, lat = point?.first, lng = point?.second, card = s.card, id = s.id, rider = riders[riderKey(s.name)])

@@ -29,6 +29,7 @@ import se.eldebosh.nastastopp.overlay.RoutePanelSource
 import se.eldebosh.nastastopp.settings.DeviceRole
 import se.eldebosh.nastastopp.route.RouteController
 import se.eldebosh.nastastopp.route.RouteRepository
+import se.eldebosh.nastastopp.route.AddressLog
 import se.eldebosh.nastastopp.route.StoredEntrances
 import se.eldebosh.nastastopp.route.StoredPlaceMemory
 import se.eldebosh.nastastopp.route.TripHistory
@@ -53,6 +54,11 @@ class AppGraph(app: Application) {
     val history = TripHistory(app, settings, scope)
     val controller = RouteController(app, scope, repository, settings, geocoding, announcer, maps, localities, extractor, history, StoredPlaceMemory(app), StoredEntrances(app))
     val notifier = RouteNotifier(app, controller, settings, scope)
+
+    /** The addresses the routes went to (never a name), for the driver to share (Settings 302). */
+    val addressLog = AddressLog(app).also { log ->
+        scope.launch { controller.route.collect { r -> log.record(r?.stops.orEmpty().mapNotNull(controller::logLine)) } }
+    }
 
     /** The street the vehicle is on now (floating button and route screen). */
     val street = CurrentStreet(scope, lookup = geocoding::reverse)

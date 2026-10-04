@@ -103,6 +103,7 @@ import se.eldebosh.nastastopp.ui.screens.PersonGlyph
 import se.eldebosh.nastastopp.ui.screens.ThenLabel
 import se.eldebosh.nastastopp.ui.screens.TimeFace
 import se.eldebosh.nastastopp.ui.screens.WayLetter
+import se.eldebosh.nastastopp.ui.screens.WayTime
 import se.eldebosh.nastastopp.ui.screens.plannerTrips
 import se.eldebosh.nastastopp.ui.screens.statusColor
 import se.eldebosh.nastastopp.ui.theme.AppTheme
@@ -661,7 +662,7 @@ private fun MapPart(view: LinkMessage.MapView, all: List<DisplayItem>, source: P
     }
 }
 
-/** A trip of the display's way: its letter large and its time in its colour (the one looked at framed in red), street, name, leg's minutes; ↑ ↓ ×. */
+/** A trip of the display's way: its letter large and its time in its colour (the time of the one looked at red and beating), street, name, leg's minutes; ↑ ↓ ×. */
 @Composable
 private fun WayRow(
     i: Int,
@@ -691,9 +692,9 @@ private fun WayRow(
             .semantics { contentDescription = description }
             .padding(horizontal = 6.dp, vertical = 4.dp),
     ) {
-        WayLetter(LETTERS[i], stop, looked, size = 28.dp, fontSize = 22.sp)
+        WayLetter(LETTERS[i], stop, size = 28.dp, fontSize = 22.sp)
         Spacer(Modifier.width(4.dp))
-        Text(t.time.orEmpty(), fontFamily = DigitFont, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = stop, modifier = Modifier.width(48.dp))
+        WayTime(t.time.orEmpty(), stop, looked, 15.sp, Modifier.width(48.dp))
         Column(Modifier.weight(1f)) {
             Text(t.title, fontFamily = DisplayFont, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = colors.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val more = listOfNotNull(name ?: t.lastName, minutes?.let { "$it min" }).joinToString(" · ")

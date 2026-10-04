@@ -44,16 +44,26 @@
                background: var(--c); border: 2.5px solid var(--edge); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35); }
   .pin .tag { position: absolute; left: 0; bottom: 8px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; }
   /* The letter large and the time, both in the stop's colour, on nothing (the map shows through),
-     with a halo like the map's own names; the one looked at framed in red. */
+     with a halo like the map's own names; the one looked at: its time red and beating, a red
+     marker beating over it. */
   .pin .pill { display: flex; align-items: baseline; gap: 5px; padding: 0 4px; border-radius: 12px; white-space: nowrap;
                background: transparent; color: var(--c); border: 3px solid transparent;
                font: 800 20px sans-serif; line-height: 1; font-variant-numeric: tabular-nums;
                text-shadow: 0 0 3px var(--halo), 0 0 3px var(--halo), 0 0 2px var(--halo), 0 0 1px var(--halo); }
   .pin .letter { font: 900 30px sans-serif; color: var(--c); }
   .pin .tail { width: 3px; height: 9px; margin-top: 1px; border-radius: 2px; background: var(--c); }
-  .pin.focus .pill { font-size: 25px; border-color: #EA4335; padding: 1px 7px; }
+  .pin.focus .pill { font-size: 25px; padding: 1px 7px; }
   .pin.focus .letter { font-size: 38px; }
-  .pin.focus .spot { left: -8px; top: -8px; width: 16px; height: 16px; box-shadow: 0 0 0 3px #EA4335; }
+  .pin.focus .time { color: #EA4335; animation: beat 0.9s ease-in-out infinite alternate; display: inline-block; }
+  .pin .mark { display: none; }
+  .pin.focus .mark { display: block; width: 0; height: 0; margin-bottom: 3px; border-left: 11px solid transparent; border-right: 11px solid transparent;
+                     border-top: 14px solid #EA4335; filter: drop-shadow(0 0 2px var(--halo)); animation: beat 0.9s ease-in-out infinite alternate; }
+  .pin.focus .spot { left: -8px; top: -8px; width: 16px; height: 16px; }
+  @keyframes beat { from { transform: scale(1); opacity: 1; } to { transform: scale(1.25); opacity: 0.7; } }
+  /* Stops at the same place stand apart, a thin line from each to where they meet. */
+  .pin .body { position: absolute; left: 0; top: 0; }
+  .pin .lead { position: absolute; left: 0; top: 0; height: 2px; transform-origin: 0 50%; background: var(--c); opacity: 0.9; display: none; }
+  .pin .meet { position: absolute; left: -4px; top: -4px; width: 8px; height: 8px; border-radius: 50%; background: var(--ink); display: none; }
   .pin .label { position: absolute; left: 0; top: 9px; transform: translateX(-50%); text-align: center; white-space: nowrap; line-height: 1.15;
                 font: 600 13px sans-serif; color: var(--ink); text-shadow: 0 0 3px var(--halo), 0 0 3px var(--halo), 0 0 2px var(--halo); }
   .pin.focus .label { font-size: 15px; top: 12px; }
@@ -189,6 +199,7 @@
       if (z === lastZoom) return;
       lastZoom = z;
       try { showDistricts(); drawLines(); } catch (e) {}
+      setTimeout(spread, 0);
     });
     drawBorders();
     draw(true);
@@ -391,13 +402,14 @@
   }
 
   // A stop: its letter and its trip's time together in its own colour, on a tail down to its point;
-  // its address and its passenger's last name under the point. The one looked at larger, in a red ring.
+  // its address and its passenger's last name under the point. The one looked at larger, its time
+  // red and beating under a beating red marker.
   function pinHtml(i) {
     var label = (labels[i] ? '<div>' + esc(labels[i]) + '</div>' : '') + (names[i] ? '<div class="who">' + esc(names[i]) + '</div>' : '');
-    return '<div class="spot"></div>' +
-      '<div class="tag"><div class="pill"><span class="letter">' + LETTERS.charAt(i) + '</span>' + (times[i] ? '<span>' + esc(times[i]) + '</span>' : '') + '</div>' +
+    return '<div class="lead"></div><div class="meet"></div><div class="body"><div class="spot"></div>' +
+      '<div class="tag"><div class="mark"></div><div class="pill"><span class="letter">' + LETTERS.charAt(i) + '</span>' + (times[i] ? '<span class="time">' + esc(times[i]) + '</span>' : '') + '</div>' +
       '<div class="tail"></div></div>' +
-      (label ? '<div class="label">' + label + '</div>' : '');
+      (label ? '<div class="label">' + label + '</div>' : '') + '</div>';
   }
 
   function pinStyle(pin, i) {
@@ -498,6 +510,41 @@
     showDistricts();
   }
 
+  // Stops whose pins would cover each other (the same place, or close at this zoom) stand apart
+  // around where they are, each with a thin line back to its point and a dot where they meet.
+  var APART_PX = 70, OUT_PX = 64;
+  function spread() {
+    var projection = pins2d.length && pins2d[0].getProjection();
+    if (!projection) { if (pins2d.length) setTimeout(spread, 100); return; }
+    var at = pins2d.map(function (d) { return projection.fromLatLngToDivPixel(new google.maps.LatLng(d.at.lat, d.at.lng)); });
+    var group = at.map(function (_, i) { return i; });
+    for (var i = 0; i < at.length; i++) {
+      for (var j = 0; j < i; j++) {
+        if (Math.hypot(at[i].x - at[j].x, at[i].y - at[j].y) < APART_PX) { group[i] = group[j]; break; }
+      }
+    }
+    pins2d.forEach(function (d, i) {
+      var mates = group.map(function (g, k) { return g === group[i] ? k : -1; }).filter(function (k) { return k >= 0; });
+      var body = d.div.querySelector('.body'), lead = d.div.querySelector('.lead'), meet = d.div.querySelector('.meet');
+      if (!body) return;
+      if (mates.length < 2) {
+        body.style.transform = ''; lead.style.display = 'none'; meet.style.display = 'none';
+        return;
+      }
+      // Around the group's middle, evenly, the first upward.
+      var cx = 0, cy = 0;
+      mates.forEach(function (k) { cx += at[k].x; cy += at[k].y; });
+      cx /= mates.length; cy /= mates.length;
+      var angle = -Math.PI / 2 + 2 * Math.PI * mates.indexOf(i) / mates.length;
+      var dx = cx + OUT_PX * Math.cos(angle) - at[i].x, dy = cy + OUT_PX * Math.sin(angle) - at[i].y;
+      body.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+      lead.style.display = 'block';
+      lead.style.width = Math.hypot(dx, dy) + 'px';
+      lead.style.transform = 'rotate(' + Math.atan2(dy, dx) + 'rad)';
+      meet.style.display = 'block';
+    });
+  }
+
   function showDistricts() {
     var near = map.getZoom() >= DISTRICTS_FROM_ZOOM;
     borders.forEach(function (b) { if (b.district) b.line.setVisible(near); });
@@ -517,6 +564,7 @@
       pin.setMap(map);
       pins2d.push(pin);
     });
+    spread();
     carDot.place(car);
     // Only points in the region count: one wrong point would take the view across the world.
     var bounds = new google.maps.LatLngBounds();

@@ -10,6 +10,14 @@ class PlacesTest {
     private val isLocality: (String) -> Boolean = TestLocalities.instance::contains
 
     @Test
+    fun aShopIsSaidByItsShortName() {
+        assertEquals("ICA Maxi Bergvik", Places.shopName("ICA Maxi Stormarknad Bergvik"))
+        assertEquals("Coop Kronoparken", Places.shopName("Coop Kronoparken"))
+        assertEquals(null, Places.shopName("Provby Äldreboende"))
+        assertEquals(null, Places.shopName("Provby Vårdcentral"))
+    }
+
+    @Test
     fun aPlaceOfCareIsShownByItsOwnName() {
         assertEquals("Kils Vårdcentral", Places.publicName("Kils Vårdcentral", isLocality))
         assertEquals("Provby Vårdcentral", Places.publicName("Provby Vårdcentral", isLocality))

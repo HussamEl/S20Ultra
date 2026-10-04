@@ -95,6 +95,10 @@ fun SettingsScreen(
     /** How many entrances the driver saved for addresses; [onClearEntrances] deletes them all. */
     entrancesSaved: Int = 0,
     onClearEntrances: () -> Unit = {},
+    /** How many addresses the address log keeps; [onShareAddresses] shares them, [onClearAddresses] deletes them. */
+    addressesLogged: Int = 0,
+    onShareAddresses: () -> Unit = {},
+    onClearAddresses: () -> Unit = {},
 ) {
     var loginDialog by remember { mutableStateOf(false) }
     if (loginDialog) {
@@ -245,6 +249,33 @@ fun SettingsScreen(
                         text = { Text(stringResource(R.string.entrances_delete_confirm, entrancesSaved)) },
                         confirmButton = {
                             TextButton(onClick = { confirm = false; onClearEntrances() }) { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) }
+                        },
+                        dismissButton = { TextButton(onClick = { confirm = false }) { Text(stringResource(R.string.cancel)) } },
+                    )
+                }
+            }
+
+            // The addresses the routes went to (never a name): shared by the driver to improve how
+            // long addresses are said.
+            SectionTitle(stringResource(R.string.settings_address_log), help = R.string.help_address_log)
+            AppCard {
+                var confirm by remember { mutableStateOf(false) }
+                ListRow(
+                    title = stringResource(R.string.address_log_count, addressesLogged),
+                    subtitle = if (addressesLogged > 0) stringResource(R.string.address_log_share) else null,
+                    onClick = if (addressesLogged > 0) onShareAddresses else null,
+                    ref = 302,
+                )
+                if (addressesLogged > 0) {
+                    CardDivider()
+                    ListRow(title = stringResource(R.string.address_log_delete), onClick = { confirm = true }, ref = 303)
+                }
+                if (confirm) {
+                    AlertDialog(
+                        onDismissRequest = { confirm = false },
+                        text = { Text(stringResource(R.string.address_log_delete_confirm, addressesLogged)) },
+                        confirmButton = {
+                            TextButton(onClick = { confirm = false; onClearAddresses() }) { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) }
                         },
                         dismissButton = { TextButton(onClick = { confirm = false }) { Text(stringResource(R.string.cancel)) } },
                     )

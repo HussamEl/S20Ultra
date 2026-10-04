@@ -127,7 +127,7 @@ class FloatingPanelRoboTest {
         assertTrue(r.completed.isEmpty())
         assertEquals(listOf("12:30", "12:45", "13:40"), r.stops.map { it.time })
         assertTrue("history entry removed", graph.history.entries.value.isEmpty())
-        assertEquals("Nästa stopp: Storgatan 14, Karlstad. Klockan 12 och 30 minuter. Därefter: Järnvägsgatan 3B, Storfors. Klockan 12 och 45 minuter.", tts.lastAnnouncement)
+        assertEquals("Nästa stopp: 12 och 30 minuter. Storgatan 14, Karlstad. Därefter: 12 och 45 minuter. Järnvägsgatan 3B, Storfors.", tts.lastAnnouncement)
         assertNull("Maps already has this stop (mid-batch)", shadowOf(app).nextStartedActivity)
         c.end()
     }

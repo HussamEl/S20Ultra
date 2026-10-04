@@ -70,10 +70,8 @@ data class AppColors(
      * night map; written large on nothing.
      */
     val wayStops: List<Color> = WayStops,
-    /** A word of a large address on the passenger display as the star: a bright yellow (a dark gold by day). */
+    /** A large address on the passenger display as the star: a bright yellow (a dark gold by day). */
     val swell: Color = Palette.Sun,
-    /** The light around that word: a bright yellow in every look. */
-    val glow: Color = Palette.Sun,
     // Reference numbers.
     val refText: Color,
     val refPill: Color,

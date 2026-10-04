@@ -13,6 +13,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.graphics.toArgb
 import android.appwidget.AppWidgetProviderInfo
 import android.app.Activity
+import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -52,7 +53,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LifecycleStartEffect
 import se.eldebosh.nastastopp.core.display.DisplaySnapshot
-import se.eldebosh.nastastopp.core.nav.MapWay
 import se.eldebosh.nastastopp.geo.CarMotion
 import se.eldebosh.nastastopp.geo.TabletPosition
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -104,6 +104,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
     val importError by vm.importError.collectAsStateWithLifecycle()
     val display by controller.display.collectAsStateWithLifecycle()
     val entrances by controller.savedEntrances.collectAsStateWithLifecycle()
+    val addressLog by graph.addressLog.all.collectAsStateWithLifecycle()
     val linkServer by graph.displayServer.state.collectAsStateWithLifecycle()
     val history by graph.history.entries.collectAsStateWithLifecycle()
     val street by graph.street.state.collectAsStateWithLifecycle()
@@ -417,15 +418,6 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             }
                             LaunchedEffect(fix) { carMotion.onSpeed(fix?.speedMps) }
                             val carAwake by carMotion.awake.collectAsStateWithLifecycle()
-                            // The minute's map: from the car to the next stop only.
-                            // Only while the phone is connected: the way to trips that may be old is never asked for.
-                            val nextStops = remote?.takeIf { it.active && link.status == DisplayLinkClient.Status.CONNECTED }
-                                ?.ahead?.take(1)?.map { it.mapStop }.orEmpty()
-                            LaunchedEffect(routeMap, fix, nextStops) {
-                                val at = fix ?: return@LaunchedEffect
-                                if (nextStops.isEmpty()) return@LaunchedEffect
-                                routeMap?.show(MapWay(at.lat, at.lng, at.bearingDeg, nextStops))
-                            }
                             DisplayRoleScreen(
                                 settings = settings,
                                 link = link,
@@ -548,6 +540,12 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             onDeleteStreetMap = { graph.streetMap.delete() },
                             entrancesSaved = entrances.size,
                             onClearEntrances = { controller.clearEntrances() },
+                            addressesLogged = addressLog.size,
+                            onShareAddresses = {
+                                val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, graph.addressLog.asText())
+                                runCatching { context.startActivity(Intent.createChooser(send, null)) }
+                            },
+                            onClearAddresses = { graph.addressLog.clear() },
                             onVoice = {
                                 if (ttsStatus == se.eldebosh.nastastopp.tts.TtsStatus.READY) testVoice() else vm.navigate(Screen.TTS_MISSING)
                             },

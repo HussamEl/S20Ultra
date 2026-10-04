@@ -373,4 +373,10 @@
     <string name="display_show_signs">Översta raden: tryck eller svep nedåt för att visa symbolerna</string>
     <string name="display_motion_on">Rörelsesensor: bilen rör sig</string>
     <string name="display_motion_off">Rörelsesensor: bilen står still, skärmen vilar</string>
+    <string name="settings_address_log">Adresslogg</string>
+    <string name="address_log_count">Sparade adresser, inga namn: %d</string>
+    <string name="address_log_share">Tryck för att dela dem</string>
+    <string name="address_log_delete">Radera adressloggen</string>
+    <string name="address_log_delete_confirm">Radera adressloggen? Adresser: %d</string>
+    <string name="help_address_log">Varje adress dina resor gick till sparas en gång, bara i den här telefonen: plats, gata, nummer och ort som de skrevs, med antal dagar och senaste dagen. Ett passagerarnamn eller resekort sparas aldrig, och inget skickas förrän du själv trycker Dela. Det är till för att förbättra hur långa adresser sägs och kortas.</string>
 </resources>

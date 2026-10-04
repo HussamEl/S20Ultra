@@ -88,6 +88,19 @@ object Places {
         return (listOf(known(place)?.short ?: name) + entrances(place)).joinToString(" ")
     }
 
+    /**
+     * A shop or shopping centre the passengers know by name ("ICA Maxi Stormarknad Bergvik"), as
+     * it is said: its name without the words that only tell the kind of shop ("ICA Maxi Bergvik");
+     * null when [place] is not one, or is a home.
+     */
+    fun shopName(place: String?): String? {
+        val tokens = place?.trim()?.split(' ')?.map { it.trimEnd(',', '.') }?.filter { it.isNotEmpty() } ?: return null
+        val folded = tokens.map { TextNorm.fold(it) }
+        if (folded.any { t -> HOME_WORDS.any { t.contains(it) } }) return null
+        if (folded.none { t -> t in SHOP_NAMES || SHOP_WORDS.any { t.endsWith(it) } }) return null
+        return tokens.filterIndexed { i, _ -> folded[i] !in SHOP_FILLER }.joinToString(" ").ifEmpty { null }
+    }
+
     private fun words(text: String): List<String> = TextNorm.fold(text).split(' ', ',', '.').filter { it.isNotEmpty() }
 
     /** Folded parts of a place-of-care word ("vårdcentralen", "centralsjukhuset", "Arvika sjukhus"). */
@@ -101,6 +114,16 @@ object Places {
         "psyk", "beroende", "missbruk", "onkolog", "cancer", "dialys", "abort", "kvinno", "ungdom",
         "hiv", "smitt", "habilit", "rehab", "minne", "geriatri", "avd",
     )
+
+    /** Folded shop names and the words that make a place a shop or a shopping centre. */
+    private val SHOP_NAMES = setOf(
+        "ica", "coop", "willys", "lidl", "hemkop", "netto", "citygross", "biltema", "jula", "ikea",
+        "systembolaget", "apoteket", "apotek", "mio", "rusta", "elgiganten", "mediamarkt", "clas", "dollarstore", "overskottsbolaget",
+    )
+    private val SHOP_WORDS = listOf("kopcentrum", "galleria", "gallerian", "handelsomrade", "stormarknad")
+
+    /** Words that only tell the kind of shop: left out when it is said. */
+    private val SHOP_FILLER = setOf("stormarknad", "supermarket", "butik", "butiken", "ab", "handelsomrade")
 
     /** Folded endings of an entrance word. */
     private val ENTRANCE_WORDS = listOf("entren", "entre", "ingang", "ingangen")

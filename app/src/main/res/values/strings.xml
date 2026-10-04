@@ -374,4 +374,10 @@
     <string name="display_show_signs">السطر الأعلى: ضغطة أو سحب للأسفل يُظهر الرموز</string>
     <string name="display_motion_on">حساس الحركة: السيارة تتحرك</string>
     <string name="display_motion_off">حساس الحركة: السيارة واقفة، الشاشة ترتاح</string>
+    <string name="settings_address_log">سجل العناوين</string>
+    <string name="address_log_count">العناوين المحفوظة، بلا أسماء: %d</string>
+    <string name="address_log_share">اضغط لمشاركتها</string>
+    <string name="address_log_delete">حذف سجل العناوين</string>
+    <string name="address_log_delete_confirm">حذف سجل العناوين؟ عدد العناوين: %d</string>
+    <string name="help_address_log">كل عنوان ذهبت إليه رحلاتك يُحفظ مرة واحدة على هذا الجوال فقط: المكان والشارع والرقم والمدينة كما كُتبت، مع عدد الأيام وآخر يوم. لا يُحفظ اسم راكب ولا بطاقة رحلة أبداً، ولا يُرسل شيء إلا حين تضغط «مشاركة» بنفسك. الغرض: تحسين طريقة نطق العناوين الطويلة واختصارها.</string>
 </resources>

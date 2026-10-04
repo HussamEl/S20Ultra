@@ -23,23 +23,30 @@ class AnnouncementsTest {
     @Test
     fun eachStopIsSaidWithItsTime() {
         assertEquals(
-            "Nästa stopp: Hamngatan 7, Skoghall. Klockan 9 och 8 minuter. Därefter: Storgatan 14, Karlstad. Klockan 9 och 30 minuter.",
+            "Nästa stopp: 9 och 8 minuter. Hamngatan 7, Skoghall. Därefter: 9 och 30 minuter. Storgatan 14, Karlstad.",
             Announcements.nextStops("Hamngatan 7, Skoghall", "Storgatan 14, Karlstad", false, "09:08", "09:30").swedish,
         )
-        assertEquals("Nästa stopp: Kil. Klockan 10. Det är sista stoppet.", Announcements.nextStops("Kil", null, false, "10:00").swedish)
-        assertEquals("Next stop: Kil, at 9:08. Then: Skoghall, at 9:30.", Announcements.nextStops("Kil", "Skoghall", true, "09:08", "09:30").english)
+        assertEquals("Nästa stopp: 10. Kil. Det är sista stoppet.", Announcements.nextStops("Kil", null, false, "10:00").swedish)
+        assertEquals("Next stop: 9:08, Kil. Then: 9:30, Skoghall.", Announcements.nextStops("Kil", "Skoghall", true, "09:08", "09:30").english)
         // A stop without a time is said without one.
-        assertEquals("Nästa stopp: Kil. Därefter: Skoghall. Klockan 9 och 30 minuter.", Announcements.nextStops("Kil", "Skoghall", false, null, "09:30").swedish)
+        assertEquals("Nästa stopp: Kil. Därefter: 9 och 30 minuter. Skoghall.", Announcements.nextStops("Kil", "Skoghall", false, null, "09:30").swedish)
     }
 
     @Test
     fun aNextStopAnnouncementIsSaidInTwoParts() {
         val text = Announcements.nextStops("Hamngatan 7, Skoghall", "Kil", false, "09:08", "09:30").swedish
-        assertEquals(listOf("Nästa stopp: Hamngatan 7, Skoghall. Klockan 9 och 8 minuter.", "Därefter: Kil. Klockan 9 och 30 minuter."), Announcements.parts(text))
+        assertEquals(listOf("Nästa stopp: 9 och 8 minuter. Hamngatan 7, Skoghall.", "Därefter: 9 och 30 minuter. Kil."), Announcements.parts(text))
         assertEquals(listOf("Nästa stopp: Kil. Det är sista stoppet."), Announcements.parts(Announcements.nextStops("Kil", null, false).swedish))
         // Anything else is one part.
         assertEquals(listOf("Klockan är 9."), Announcements.parts("Klockan är 9."))
         assertEquals(false, Announcements.isNextStops(Announcements.at("09:08", "Kil", coming = true).swedish))
+    }
+
+    @Test
+    fun aComingTripShownUnderItsWordIsSaidLikeTheAnnouncement() {
+        assertEquals("Sen: 8 och 5 minuter. Hamngatan 7, Skoghall.", Announcements.at("08:05", "Hamngatan 7, Skoghall", coming = true, word = "Sen").swedish)
+        assertEquals("Därefter: Hamngatan 7.", Announcements.at(null, "Hamngatan 7", coming = true, word = "Därefter").swedish)
+        assertEquals("9 och 1 minut", Announcements.hourMinutes("09:01"))
     }
 
     @Test
