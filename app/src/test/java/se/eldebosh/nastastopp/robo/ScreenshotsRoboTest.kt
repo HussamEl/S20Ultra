@@ -569,13 +569,14 @@ class ScreenshotsRoboTest {
         compose.mainClock.autoAdvance = false
         snapshot = next
         spoken++
-        // 0–400 ms: the stop left goes; 400–950: the new one pops in; then it is said, stays, fades
-        // (about 4.1–5 s) and "Därefter" pops in its place.
-        for (ms in listOf(200L, 400L, 300L, 1_100L, 2_400L, 800L, 900L)) {
+        // 0–400 ms: the stop left goes; 400–1300: the new one pops in; then it is said, its words
+        // become stars, it stays, fades, and "Därefter" pops in its place.
+        for (ms in listOf(200L, 700L, 1_100L, 1_500L, 1_500L, 2_500L, 2_500L)) {
             compose.mainClock.advanceTimeBy(ms)
             save("display_move_${compose.mainClock.currentTime}", compose.onRoot().captureToImage().asAndroidBitmap())
         }
-        compose.mainClock.advanceTimeBy(8_000)
+        // Said, "Därefter" said in turn, and back (the steps are slow).
+        compose.mainClock.advanceTimeBy(20_000)
         compose.mainClock.autoAdvance = true
         compose.waitForIdle()
         hero("Hamngatan 7").assertExists()

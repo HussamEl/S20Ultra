@@ -97,10 +97,10 @@ object Announcements {
     fun isNextStops(swedish: String?): Boolean = swedish?.startsWith("$NEXT: ") == true
 
     /** Silence before a next-stop announcement, while the screen before it goes and the next stop comes into view. */
-    const val LEAD_MS = 1_000L
+    const val LEAD_MS = 1_300L
 
-    /** Silence between "Nästa stopp …" and "Därefter …": the next stop stays a moment, fades, and the trip after it comes into view. */
-    const val GAP_MS = 2_200L
+    /** Silence between "Nästa stopp …" and "Därefter …": the next stop stays two seconds, fades slowly, and the trip after it comes into view. */
+    const val GAP_MS = 4_300L
 
     private const val NEXT = "Nästa stopp"
     private const val THEN = "Därefter"

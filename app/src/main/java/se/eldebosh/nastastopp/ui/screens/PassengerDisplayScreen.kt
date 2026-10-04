@@ -126,6 +126,7 @@ import androidx.compose.ui.graphics.ColorProducer
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.TileMode
@@ -136,10 +137,12 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.AlignmentLine
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.VerticalAlignmentLine
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
@@ -1659,6 +1662,12 @@ private fun Stage(
                             // A trip that is said lights up here while it is shown; the rest steps back.
                             dimmed = index != home && spot != NONE && !focused,
                             timeSize = clockSize * HERO_TIME_OF_CLOCK,
+                            // The trip's word over its time: only the next stop is "Nästa", the one after it "Därefter".
+                            label = when (index) {
+                                home -> stringResource(R.string.passenger_next)
+                                home + 1 -> stringResource(R.string.passenger_then)
+                                else -> null
+                            },
                             onClick = if (index == home) onSpeakNext else { { sayTrip(item, index > home) } },
                             onLongClick = showWay?.let { { it(item, index == home) } },
                             // Only the next stop's name is shown (beside its figure) and said.
@@ -2093,14 +2102,22 @@ private fun WeatherSign(weather: DisplayWeather?, onClick: () -> Unit, enabled: 
 private enum class HeroRole { EARLIER, NEXT, LATER }
 
 /**
- * A stop: a line with its passenger's figure, its time in the clock's style a little smaller than
- * the clock ([timeSize]) and its town and area ([HeroLine]); just under it the street and number,
- * half as large as would fit in [TITLE_ROOM] of the height (at most two lines, never breaking a
- * word). Together they stand a little above the middle, well clear of the bottom line. On the
- * next stop (and on the trip said) the address's words swell one after another, each turning
- * yellow as it grows ([Wave]); with each the trip's minutes grow too and the time and the address
- * draw a little together. A tap says it ([onClick]). When it is [focused], the address comes into
- * view again ([entering]) and lights up; while something else is said, it is [dimmed].
+ * A stop shown over the whole top (every address the display shows large moves the same way):
+ * its time in the clock's style as high as it can stand, a little smaller than the clock
+ * ([timeSize]), with the passenger's figure at its left and the town and area at its right
+ * ([HeroLine]); right under it the street and number, at [TITLE_SHARE] of the size that would
+ * fill the rest of the height (as many lines as it needs, a long word broken if it must). The time
+ * and the address never move toward each other.
+ *
+ * On the next stop and on a trip said or tapped ([Stars], while it is [focused] or the next
+ * stop, and not [dimmed]) the address's words become, one after another, the star: each goes to
+ * the middle and grows to nearly fill it, in a glowing yellow, while everything else shrinks
+ * and fades; then back. Meanwhile the time's colon glows and its minutes breathe with each word.
+ * Then the time is the star (five times its size, in the middle), with the trip's word over it
+ * ([label]: "Nästa", "Därefter"), the town and area drawing away; back in place, the word comes
+ * and goes and swells twice. A rest, and again. A tap says it ([onClick]). When it is [focused],
+ * the address comes into view again ([entering]) and lights up; while something else is said,
+ * it is [dimmed].
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -2113,6 +2130,7 @@ private fun StopHero(
     timeSize: TextUnit,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    label: String? = null,
     onLongClick: (() -> Unit)? = null,
     onName: (() -> Unit)? = null,
     onCard: (() -> Unit)? = null,
@@ -2125,8 +2143,10 @@ private fun StopHero(
     val shade by animateFloatAsState(if (dimmed) DIM else 1f, tween(DIM_MS), label = "dim")
     val titleColor by animateColorAsState(if (focused) AppTheme.colors.highlight else AppTheme.colors.text, tween(FOCUS_MS / 2), label = "street")
     val swellColor = AppTheme.colors.swell
+    val glowColor = AppTheme.colors.glow
     val words = remember(current.title) { current.title.split(' ').filter { it.isNotBlank() } }
-    val wave = rememberWave(active = (next || focused) && !dimmed)
+    val stars = rememberStars(words.size, active = (next || focused) && !dimmed, restart = focused)
+    val star by remember(stars) { derivedStateOf { stars.who() } }
     val drawn = LocalDensity.current
     val description = stringResource(if (next) R.string.display_repeat else R.string.display_say_trip)
     BoxWithConstraints(
@@ -2143,7 +2163,6 @@ private fun StopHero(
             ),
         contentAlignment = Alignment.TopCenter,
     ) {
-        val titleRoom = maxHeight * TITLE_ROOM
         val style = TextStyle(
             fontFamily = DisplayFont,
             fontWeight = FontWeight.Bold,
@@ -2151,30 +2170,10 @@ private fun StopHero(
             textDirection = TextDirection.Content,
             lineHeight = 1.0.em,
         )
-        // Half the size at which the address would fill its room (two lines at most, the longest
-        // word on one line).
         val measurer = rememberTextMeasurer()
-        val width = constraints.maxWidth
-        val roomPx = with(drawn) { titleRoom.roundToPx() }
-        val titleSp = remember(current.title, width, roomPx) {
-            val widest = words.maxOfOrNull { measurer.measure(it, style.copy(fontSize = 100.sp)).size.width } ?: 0
-            val most = if (widest <= 0) MAX_TITLE_SP else (100f * width / widest * 0.95f).coerceIn(MIN_TITLE_SP, MAX_TITLE_SP)
-            var fit = MIN_TITLE_SP
-            var size = most
-            while (size >= MIN_TITLE_SP) {
-                val laid = measurer.measure(current.title, style.copy(fontSize = size.sp), maxLines = 2, constraints = Constraints(maxWidth = width))
-                if (!laid.hasVisualOverflow && laid.size.height <= roomPx) {
-                    fit = size
-                    break
-                }
-                size -= 2f
-            }
-            (fit * TITLE_SHARE).coerceAtLeast(MIN_TITLE_SP)
-        }
-        val approach = with(drawn) { HERO_APPROACH.toPx() }
         Layout(
             content = {
-                BoxWithConstraints(Modifier.fillMaxWidth().graphicsLayer { translationY = approach * wave.any(words.size) }) {
+                BoxWithConstraints(Modifier.fillMaxWidth()) {
                     val room = with(LocalDensity.current) { (maxHeight * HERO_TIME_FILL).toSp() }
                     val wide = with(LocalDensity.current) { (maxWidth * HERO_TIME_WIDTH).toSp() }
                     // Over the address, on one line: the passenger's figure (a tap opens the trip's
@@ -2182,100 +2181,164 @@ private fun StopHero(
                     // name beside it for a while, and a tap on the name says it and shows it large),
                     // the trip's time, a little smaller than the clock, and its town and area.
                     val size = minOf(room.value, wide.value / timeEms(current.time), timeSize.value).coerceAtLeast(HERO_TIME_MIN.value).sp
-                    HeroLine(current, next, landscape, focused, size, area, shine, onName, onCard, minutes = { 1f + MINUTES_GROW * wave.any(words.size) })
+                    HeroLine(current, next, landscape, focused, size, area, shine, onName, onCard, stars = stars, label = label)
                 }
-                // The words one by one, each with room around it to swell into (it never covers
-                // another); read as one address.
-                FlowRow(
-                    horizontalArrangement = Arrangement.Center,
-                    modifier = Modifier
-                        .ref(91)
-                        .fillMaxWidth()
-                        .graphicsLayer { translationY = -approach * wave.any(words.size) }
-                        .entering(title, shine)
-                        .clearAndSetSemantics { text = AnnotatedString(current.title) },
-                ) {
-                    val gap = with(drawn) { (titleSp.sp * WORD_GAP).toDp() }
-                    words.forEachIndexed { k, word ->
-                        BasicText(
-                            word,
-                            style = style.copy(fontSize = titleSp.sp),
-                            color = { lerp(titleColor, swellColor, wave.of(k, words.size)) },
-                            maxLines = 1,
-                            softWrap = false,
-                            modifier = Modifier.padding(horizontal = gap).swelling(WORD_GROW) { wave.of(k, words.size) },
-                        )
+                // The words one by one, each its own star in turn; read as one address.
+                BoxWithConstraints(Modifier.fillMaxWidth()) {
+                    val width = constraints.maxWidth
+                    val roomPx = constraints.maxHeight
+                    // A share of the size at which the address would fill the room under the time.
+                    val titleSp = remember(current.title, width, roomPx) {
+                        var size = MAX_TITLE_SP
+                        while (size > MIN_TITLE_SP) {
+                            val laid = measurer.measure(current.title, style.copy(fontSize = size.sp), constraints = Constraints(maxWidth = width))
+                            if (laid.size.height <= roomPx) break
+                            size -= 4f
+                        }
+                        (size * TITLE_SHARE).coerceAtLeast(MIN_TITLE_SP)
+                    }
+                    val glowPx = with(drawn) { (titleSp.sp * GLOW_SHARE).toPx() }
+                    FlowRow(
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .ref(91)
+                            .fillMaxWidth()
+                            .entering(title, shine)
+                            .clearAndSetSemantics { text = AnnotatedString(current.title) },
+                    ) {
+                        val gap = with(drawn) { (titleSp.sp * WORD_GAP).toDp() }
+                        words.forEachIndexed { k, word ->
+                            val shining = star == k
+                            BasicText(
+                                word,
+                                style = style.copy(
+                                    fontSize = titleSp.sp,
+                                    shadow = if (shining) Shadow(glowColor, blurRadius = glowPx) else null,
+                                ),
+                                color = { if (stars.who() == k) lerp(titleColor, swellColor, stars.p()) else titleColor },
+                                // Its glow and its letters' feet may reach past its line.
+                                overflow = TextOverflow.Visible,
+                                modifier = Modifier
+                                    .zIndex(if (shining) 1f else 0f)
+                                    .padding(horizontal = gap)
+                                    .star(stars, k),
+                            )
+                        }
                     }
                 }
             },
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().onPlaced { stars.hero = it },
         ) { measurables, constraints ->
             val w = constraints.maxWidth
             val loose = Constraints(maxWidth = w)
-            val address = measurables[1].measure(loose.copy(maxHeight = constraints.maxHeight))
-            // The time sits close over the address (its digits' blank foot tucked under).
-            val tuck = (timeSize.toPx() * HERO_TIME_TUCK).roundToInt()
-            val room = (constraints.maxHeight - address.height + tuck).coerceAtLeast(0)
-            val time = measurables[0].measure(loose.copy(maxHeight = room))
-            val block = time.height - tuck + address.height
-            val top = ((constraints.maxHeight - block) * HERO_RISE).roundToInt().coerceAtLeast(0)
+            val time = measurables[0].measure(loose.copy(maxHeight = constraints.maxHeight))
+            val address = measurables[1].measure(loose.copy(maxHeight = (constraints.maxHeight - time.height).coerceAtLeast(0)))
+            val who = star
             layout(w, constraints.maxHeight) {
-                time.place((w - time.width) / 2, top)
-                address.place((w - address.width) / 2, top + time.height - tuck)
+                // The time as high as it can stand, the address right under it; the star over all.
+                time.place((w - time.width) / 2, 0, zIndex = if (who == words.size) 1f else 0f)
+                address.place((w - address.width) / 2, time.height, zIndex = if (who in words.indices) 1f else 0f)
             }
         }
     }
 }
 
 /**
- * The words of an address swelling one after another, [WAVE_PULSE_MS] each, then a rest of
- * [WAVE_REST_MS]; it runs while it is [rememberWave]'s `active`.
+ * The stars of a large address, in turn: each of its [words] ([STAR_MS] each: growing
+ * [STAR_GROW_MS], held, going back [STAR_BACK_MS]), then the time ([CLOCK]), then the trip's
+ * word over the time ([LABEL], [LABEL_MS]), then a rest of [STAR_REST_MS]; and again. Where each
+ * one stands is kept as it is placed, so the star can go to the middle of the [hero].
  */
 @Stable
-private class Wave {
+private class Stars(val words: Int) {
     val ms = mutableLongStateOf(0L)
     var running by mutableStateOf(false)
+    var hero: LayoutCoordinates? = null
+    val placed = arrayOfNulls<LayoutCoordinates>(words + 1)
 
-    /** How far word [k] of [count] has swollen now: 0 at rest, 1 at its largest. */
-    fun of(k: Int, count: Int): Float {
-        if (!running || count <= 0) return 0f
-        val t = ms.longValue % (count * WAVE_PULSE_MS + WAVE_REST_MS) - k * WAVE_PULSE_MS
-        if (t < 0 || t >= WAVE_PULSE_MS) return 0f
-        return sin(PI * t / WAVE_PULSE_MS).toFloat()
+    val clock: Int get() = words
+
+    private fun t(): Long = ms.longValue % ((words + 1) * STAR_MS + LABEL_MS + STAR_REST_MS)
+
+    /** Which part shines now: a word's index, the time ([clock]), [LABEL], or [NO_STAR]. */
+    fun who(): Int {
+        if (!running) return NO_STAR
+        val t = t()
+        val stars = (words + 1) * STAR_MS
+        return when {
+            t < stars -> (t / STAR_MS).toInt()
+            t < stars + LABEL_MS -> LABEL
+            else -> NO_STAR
+        }
     }
 
-    /** How far the word swelling now has swollen. */
-    fun any(count: Int): Float = (0 until count).maxOfOrNull { of(it, count) } ?: 0f
+    /** How far it has come: for a star 0 → 1 → 0 (grown, held, back); for [LABEL] 0 → 1 over its time. */
+    fun p(): Float {
+        if (!running) return 0f
+        val t = t()
+        val stars = (words + 1) * STAR_MS
+        if (t >= stars) return ((t - stars).toFloat() / LABEL_MS).coerceIn(0f, 1f)
+        val at = t % STAR_MS
+        return when {
+            at < STAR_GROW_MS -> FastOutSlowInEasing.transform(at.toFloat() / STAR_GROW_MS)
+            at < STAR_MS - STAR_BACK_MS -> 1f
+            else -> 1f - FastOutSlowInEasing.transform((at - (STAR_MS - STAR_BACK_MS)).toFloat() / STAR_BACK_MS)
+        }
+    }
+
+    /** How large star [key] grows, to stand in the middle of the [hero] (null when not placed yet). */
+    fun grownTo(key: Int): Pair<Offset, Float>? {
+        val hero = hero?.takeIf { it.isAttached } ?: return null
+        val at = placed.getOrNull(key)?.takeIf { it.isAttached } ?: return null
+        val box = hero.localBoundingBoxOf(at, clipBounds = false)
+        if (box.width <= 0f || box.height <= 0f) return null
+        val most = if (key == clock) CLOCK_STAR else WORD_STAR
+        val fill = if (key == clock) CLOCK_STAR_FILL else WORD_STAR_FILL
+        val scale = minOf(most, hero.size.width * fill / box.width, hero.size.height * fill / box.height).coerceAtLeast(1f)
+        return Offset(hero.size.width / 2f - box.center.x, hero.size.height / 2f - box.center.y) to scale
+    }
 }
 
 @Composable
-private fun rememberWave(active: Boolean): Wave {
-    val wave = remember { Wave() }
-    LaunchedEffect(active) {
-        wave.running = active
+private fun rememberStars(words: Int, active: Boolean, restart: Boolean): Stars {
+    val stars = remember(words) { Stars(words) }
+    LaunchedEffect(stars, active, restart) {
+        stars.running = active
+        stars.ms.longValue = 0L
         if (!active) return@LaunchedEffect
-        val start = withInfiniteAnimationFrameMillis { it }
-        while (true) withInfiniteAnimationFrameMillis { wave.ms.longValue = it - start }
+        // A short wait first: the address has come into view.
+        val start = withInfiniteAnimationFrameMillis { it } + STAR_FIRST_MS
+        while (true) withInfiniteAnimationFrameMillis { stars.ms.longValue = (it - start).coerceAtLeast(0L) }
     }
-    return wave
+    return stars
 }
 
 /**
- * Takes the room of this at its largest ([grow] more each way) and draws it swollen by [amount]
- * (0–1) of that, around its middle: it never covers what stands beside it.
+ * Part [key] of a large address in [stars]' turn: as the star it goes to the middle and grows;
+ * while another is the star it shrinks and fades ([away] also draws it aside, -1 left or 1
+ * right, while the time is the star). A part that is never a star has [key] [NO_STAR].
  */
-private fun Modifier.swelling(grow: Float, amount: () -> Float): Modifier = layout { measurable, constraints ->
-    val placeable = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
-    val w = (placeable.width * (1f + grow)).roundToInt()
-    val h = (placeable.height * (1f + grow)).roundToInt()
-    layout(w, h) {
-        placeable.placeWithLayer((w - placeable.width) / 2, (h - placeable.height) / 2) {
-            val s = 1f + grow * amount()
+private fun Modifier.star(stars: Stars, key: Int, away: Float = 0f): Modifier = this
+    .onPlaced { if (key in 0..stars.words) stars.placed[key] = it }
+    .graphicsLayer {
+        val who = stars.who()
+        if (who == NO_STAR || who == LABEL) return@graphicsLayer
+        val p = stars.p()
+        if (who == key) {
+            val (move, scale) = stars.grownTo(key) ?: return@graphicsLayer
+            translationX = move.x * p
+            translationY = move.y * p
+            val s = 1f + (scale - 1f) * p
             scaleX = s
             scaleY = s
+        } else {
+            val s = 1f - STAR_OTHERS_SHRINK * p
+            scaleX = s
+            scaleY = s
+            alpha = 1f - STAR_OTHERS_FADE * p
+            if (who == stars.clock) translationX = away * STAR_AWAY.toPx() * p
         }
     }
-}
 
 /** How wide a trip's [time] is in the clock's style, in ems of its minutes' size. */
 private fun timeEms(time: String?): Float {
@@ -2288,9 +2351,10 @@ private fun timeEms(time: String?): Float {
  * The line over a stop's address: the passenger's figure (231 on the next stop, 234 on another)
  * and, on the next stop without a card, its last name for a while (236); the trip's time (230) in
  * the clock's style ([TimeFace]: the hours smaller, the colon's dots, the minutes large; no
- * seconds) at [timeSize], its minutes swelling by [minutes]; and its town and area (92). The
- * figure and the name step aside while the stop is [focused]. The time is only here: never again
- * on the same page.
+ * seconds) at [timeSize]; and its town and area (92). In [stars]' turn the time is a star with
+ * the trip's word ([label]) over it, its colon glows and its minutes breathe while a word is the
+ * star, and the figure, the town and the area shrink and draw aside. The figure and the name step
+ * aside while the stop is [focused]. The time is only here: never again on the same page.
  */
 @Composable
 private fun HeroLine(
@@ -2303,9 +2367,12 @@ private fun HeroLine(
     shine: Color,
     onName: (() -> Unit)?,
     onCard: (() -> Unit)?,
-    minutes: () -> Float = { 1f },
+    stars: Stars? = null,
+    label: String? = null,
 ) {
     val lineSp = if (landscape) HERO_LINE_SP else HERO_LINE_SP_NARROW
+    val swell = AppTheme.colors.swell
+    val accent = AppTheme.colors.accent
     val name = current.lastName?.takeIf { onName != null }
     val signShown by animateFloatAsState(if (focused) 0f else 1f, tween(CLOCK_FADE_MS), label = "name")
     var open by remember(current.trip) { mutableStateOf(false) }
@@ -2324,6 +2391,7 @@ private fun HeroLine(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .ref(if (next) 231 else 234, centered = true)
+                    .then(if (stars != null) Modifier.star(stars, NO_STAR, away = -1f) else Modifier)
                     .graphicsLayer { alpha = signShown }
                     .size(TouchTarget)
                     .clip(CircleShape)
@@ -2365,7 +2433,22 @@ private fun HeroLine(
             Spacer(Modifier.width(6.dp))
         }
         if (current.time != null) {
-            TimeFace(current.time, timeSize, Modifier.ref(230), breathing = false, minutes = minutes)
+            if (stars == null) {
+                TimeFace(current.time, timeSize, Modifier.ref(230), breathing = false)
+            } else {
+                val wordShines = { stars.who() in 0 until stars.words }
+                Column(Modifier.zIndex(if (stars.who() == stars.clock) 1f else 0f).star(stars, stars.clock), horizontalAlignment = Alignment.CenterHorizontally) {
+                    if (label != null) TimeWord(label, lineSp, stars)
+                    TimeFace(
+                        current.time,
+                        timeSize,
+                        Modifier.ref(230),
+                        breathing = false,
+                        minutes = { if (wordShines()) 1f + MINUTES_BREATH * stars.p() else 1f },
+                        colon = { if (wordShines()) lerp(accent, swell, stars.p()) else accent },
+                    )
+                }
+            }
         }
         current.subtitle?.let {
             Spacer(Modifier.width(14.dp))
@@ -2378,10 +2461,48 @@ private fun HeroLine(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 style = TextStyle(textDirection = TextDirection.Content),
-                modifier = Modifier.ref(92).weight(1f, fill = false),
+                modifier = Modifier
+                    .ref(92)
+                    .weight(1f, fill = false)
+                    .then(if (stars != null) Modifier.star(stars, NO_STAR, away = 1f) else Modifier),
             )
         }
     }
+}
+
+/**
+ * The trip's word ("Nästa", "Därefter") over its time, in the accent yellow: it grows with the
+ * time while the time is the star; once the time is back in place it comes, swells twice and
+ * goes. Its line stays, empty, the rest of the time.
+ */
+@Composable
+private fun TimeWord(word: String, size: TextUnit, stars: Stars) {
+    Text(
+        word.uppercase(),
+        fontFamily = DisplayFont,
+        fontWeight = FontWeight.Bold,
+        fontSize = size * TIME_WORD_SHARE,
+        letterSpacing = 2.sp,
+        color = AppTheme.colors.accent,
+        maxLines = 1,
+        softWrap = false,
+        modifier = Modifier
+            .graphicsLayer {
+                val who = stars.who()
+                val p = stars.p()
+                when (who) {
+                    stars.clock -> alpha = p
+                    LABEL -> {
+                        alpha = sin(PI * p).toFloat().coerceIn(0f, 1f)
+                        val beat = sin(2 * PI * p).toFloat()
+                        val s = 1f + TIME_WORD_SWELL * beat * beat
+                        scaleX = s
+                        scaleY = s
+                    }
+                    else -> alpha = 0f
+                }
+            },
+    )
 }
 
 /**
@@ -2432,8 +2553,10 @@ private fun Modifier.entering(entrance: Entrance, shine: Color): Modifier = this
         scaleY = s
         val blur = (1f - p) * ENTER_BLUR.toPx()
         renderEffect = if (blur >= 0.5f && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) BlurEffect(blur, blur, TileMode.Decal) else null
-        // Its own layer, so the light lands on the letters and not around them.
-        compositingStrategy = CompositingStrategy.Offscreen
+        // Its own layer while the light sweeps, so it lands on the letters and not around them;
+        // otherwise none, so a star can grow out of it.
+        val sweeping = entrance.shine.value in 0f..0.999f || p < 1f
+        compositingStrategy = if (sweeping) CompositingStrategy.Offscreen else CompositingStrategy.Auto
     }
     .drawWithContent {
         drawContent()
@@ -2932,7 +3055,7 @@ private fun span(a: Rect, b: Rect) = Rect(minOf(a.left, b.left), minOf(a.top, b.
  * Otherwise it blinks with the [second]. It is as tall as a line of digits of [digitSize].
  */
 @Composable
-private fun Colon(digitSize: TextUnit, status: TimeStatus?, second: Int?, modifier: Modifier = Modifier) {
+private fun Colon(digitSize: TextUnit, status: TimeStatus?, second: Int?, modifier: Modifier = Modifier, tint: (() -> Color)? = null) {
     val color = status?.let { statusColor(it) } ?: AppTheme.colors.accent
     // The beat runs only while it beats: a still colon asks for no frames.
     val pulse = if (status?.beating == true) {
@@ -2953,7 +3076,7 @@ private fun Colon(digitSize: TextUnit, status: TimeStatus?, second: Int?, modifi
         val em = digitSize.toPx()
         val middle = em * (DIGIT_ASCENT - DIGIT_HEIGHT / 2f)
         val apart = em * COLON_SPREAD / 2f
-        val dot = color.copy(alpha = pulse?.value ?: blink)
+        val dot = (tint?.invoke() ?: color).copy(alpha = pulse?.value ?: blink)
         drawCircle(dot, radius = em * COLON_DOT / 2f, center = Offset(size.width / 2f, middle - apart))
         drawCircle(dot, radius = em * COLON_DOT / 2f, center = Offset(size.width / 2f, middle + apart))
     }
@@ -2976,7 +3099,7 @@ internal fun statusColor(status: TimeStatus): Color = when (status) {
  * larger from their left side, over nothing).
  */
 @Composable
-internal fun TimeFace(time: String, minuteSize: TextUnit, modifier: Modifier = Modifier, breathing: Boolean = true, minutes: (() -> Float)? = null) {
+internal fun TimeFace(time: String, minuteSize: TextUnit, modifier: Modifier = Modifier, breathing: Boolean = true, minutes: (() -> Float)? = null, colon: (() -> Color)? = null) {
     val hour = time.substringBefore(':')
     val minute = time.substringAfter(':', "")
     // The breath runs only while it breathes: a still time asks for no frames.
@@ -3003,7 +3126,7 @@ internal fun TimeFace(time: String, minuteSize: TextUnit, modifier: Modifier = M
         modifier = if (scale != null) modifier.breathe(rest = 1f / BREATH_SCALE) { scale.value } else modifier,
     ) {
         Text(hour, style = style.copy(fontSize = size * HOUR_SHARE))
-        Colon(size * HOUR_SHARE, status = null, second = null)
+        Colon(size * HOUR_SHARE, status = null, second = null, tint = colon)
         Text(
             minute,
             style = style.copy(fontSize = size),
@@ -3371,33 +3494,46 @@ private fun msToSay(text: String?): Long {
 private const val MIN_TITLE_SP = 32f
 private const val MAX_TITLE_SP = 300f
 
-/** The address is this share of the size that would fill its room. */
-private const val TITLE_SHARE = 0.5f
+/** The address is this share of the size that would fill the room under its time. */
+private const val TITLE_SHARE = 0.6f
 
-/** Room between the address's words (in ems), and how much more each word grows as it swells. */
+/** Room between the address's words, in ems. */
 private const val WORD_GAP = 0.1f
-private const val WORD_GROW = 0.1f
 
-/** The address's words swell one after another, each this long, then rest this long. */
-private const val WAVE_PULSE_MS = 700L
-private const val WAVE_REST_MS = 1_600L
-
-/** With each word, the trip's minutes grow this much more, and the time and the address each come this much nearer. */
-private const val MINUTES_GROW = 0.1f
-private val HERO_APPROACH = 5.dp
-
-/** The trip's time over the address: this share of the clock's minutes, tucked this share of its size down over the address. */
+/** The trip's time over the address: this share of the clock's minutes. */
 private const val HERO_TIME_OF_CLOCK = 0.85f
-private const val HERO_TIME_TUCK = 0.1f
-
-/** The time and the address stand this far down the room they leave (0 top, 0.5 middle). */
-private const val HERO_RISE = 0.42f
 
 /**
- * The address takes at most this share of the height under the top line, so its time has room
- * under it when it is focused.
+ * The stars of a large address ([Stars]): each lasts [STAR_MS], growing [STAR_GROW_MS] and going
+ * back [STAR_BACK_MS] (held between); a word grows up to [WORD_STAR] times, to [WORD_STAR_FILL]
+ * of the room, the time [CLOCK_STAR] times (to [CLOCK_STAR_FILL] at most); the rest shrinks by
+ * [STAR_OTHERS_SHRINK] and fades by [STAR_OTHERS_FADE], the town and area also drawing
+ * [STAR_AWAY] aside. The trip's word then takes [LABEL_MS], swelling by [TIME_WORD_SWELL]; a rest of
+ * [STAR_REST_MS], and again. The first star comes [STAR_FIRST_MS] after the address shows.
  */
-private const val TITLE_ROOM = 0.62f
+private const val STAR_MS = 3_000L
+private const val STAR_GROW_MS = 1_200L
+private const val STAR_BACK_MS = 1_000L
+private const val WORD_STAR = 6f
+private const val WORD_STAR_FILL = 0.9f
+private const val CLOCK_STAR = 5f
+private const val CLOCK_STAR_FILL = 0.95f
+private const val STAR_OTHERS_SHRINK = 0.4f
+private const val STAR_OTHERS_FADE = 0.7f
+private val STAR_AWAY = 60.dp
+private const val LABEL_MS = 1_600L
+private const val STAR_REST_MS = 3_000L
+private const val STAR_FIRST_MS = 2_500L
+private const val NO_STAR = -1
+private const val LABEL = -2
+
+/** While a word is the star the time's minutes breathe this much; the trip's word over the time is this share of the line's size. */
+private const val MINUTES_BREATH = 0.08f
+private const val TIME_WORD_SHARE = 0.55f
+private const val TIME_WORD_SWELL = 0.3f
+
+/** The glow around a word as the star, in ems. */
+private const val GLOW_SHARE = 0.25f
 
 /**
  * The coming trips on the bottom line: their size (tablet, phone), how much of their street shows
@@ -3466,12 +3602,12 @@ private const val SHOW_TRIP_MS = 6_000L
  * device is waited for at most [VOICE_SLACK_MS] past when it should have finished.
  */
 private const val OUT_MS = 400
-private const val POP_MS = 550
-private const val FADE_MS = 900
+private const val POP_MS = 900
+private const val FADE_MS = 1_400
 private const val POP_FROM = 0.8f
-private val POP_IN = tween<Float>(POP_MS, easing = CubicBezierEasing(0.34f, 1.56f, 0.64f, 1f))
-private const val NEXT_HOLD_MS = 700L
-private const val THEN_HOLD_MS = 1_500L
+private val POP_IN = tween<Float>(POP_MS, easing = CubicBezierEasing(0.3f, 1.3f, 0.5f, 1f))
+private const val NEXT_HOLD_MS = 2_000L
+private const val THEN_HOLD_MS = 2_000L
 private const val VOICE_SLACK_MS = 4_000L
 
 /** Focused, the coming trips on the bottom line fade out a moment after the tap (so it is seen swelling), and come back gently. */
@@ -3709,15 +3845,15 @@ private val FOCUS_MAX = 260.sp
  * how blurred it starts, how fast it becomes opaque, and the delays that stagger the time, the
  * address and the area; then the sweep of light: when, how long, how wide and how bright.
  */
-private const val APPEAR_MS = 900
+private const val APPEAR_MS = 1_400
 private val ENTER_RISE = 28.dp
 private const val ENTER_SCALE = 0.93f
 private val ENTER_BLUR = 16.dp
 private const val ENTER_ALPHA_SPEED = 1.8f
 private const val ENTER_TITLE_DELAY_MS = 120L
 private const val ENTER_AREA_DELAY_MS = 300L
-private const val SHINE_AFTER_MS = 650L
-private const val SHINE_MS = 1_100
+private const val SHINE_AFTER_MS = 300L
+private const val SHINE_MS = 1_800
 private const val SHINE_BAND = 0.3f
 private const val SHINE_ALPHA = 0.55f
 private const val CLOCK_FADE_MS = 250

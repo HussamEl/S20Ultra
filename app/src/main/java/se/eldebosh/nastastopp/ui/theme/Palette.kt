@@ -26,6 +26,7 @@ object Palette {
     val TaxiYellow = Color(0xFFFFC61A)
     val Butter = Color(0xFFFFF1C2)
     val Gold = Color(0xFF7A5C00)
+    val Sun = Color(0xFFFFEA00)
     val Sky = Color(0xFF6EA8FF)
     val SkyInk = Color(0xFF2563EB)
     val SkyMist = Color(0xFFE3EEFF)
