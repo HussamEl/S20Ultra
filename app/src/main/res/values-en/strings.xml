@@ -49,7 +49,7 @@
     <string name="menu_delete_above">Delete all above</string>
     <string name="menu_retry">Locate again</string>
     <string name="stop_located">Located</string>
-    <string name="stop_not_located">Not found on the map – tap the stop to correct it, or long press → Retry</string>
+    <string name="stop_not_located">Not found on the map – tap the stop to correct it, or long press → Locate again</string>
     <string name="stop_town_unknown">Town unknown – tap the stop and add it (the app remembers this place)</string>
     <string name="stop_locating">Locating…</string>
     <string name="spoken_label">Announced: %1$s</string>

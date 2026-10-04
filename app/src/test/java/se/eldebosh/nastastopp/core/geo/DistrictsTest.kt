@@ -41,6 +41,9 @@ class DistrictsTest {
         assertEquals("Herrhagen", districts.district(lamberget.first, lamberget.second, "Fryxellsgatan", "Karlstad", "Lamberget"))
         // In Karlstad but in no district and on no known street: no district rather than a guess.
         assertNull(districts.district(outside.first, outside.second, "Påhittadgatan", "Karlstad", "Lamberget"))
+        // A street of the same name in another town never gets a Karlstad district.
+        assertEquals("Storfors", districts.district(59.53, 14.27, "Drottninggatan", "Storfors", "Storfors"))
+        assertNull(districts.district(59.53, 14.27, "Drottninggatan", "Storfors", null))
         // Outside Karlstad the geocoder's district is kept.
         assertEquals("Kils centrum", districts.district(outside.first, outside.second, "Påhittadgatan", "Kil", "Kils centrum"))
     }

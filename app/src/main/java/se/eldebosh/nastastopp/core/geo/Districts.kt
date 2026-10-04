@@ -46,15 +46,18 @@ class Districts private constructor(private val areas: List<Area>) {
 
     /**
      * The district for a stop or a position: where its point lies, when its street runs there
-     * too; else its street's only district; else, in Karlstad, none (the town alone is said, never
-     * a guess). Outside Karlstad the geocoder's [subLocality] is kept.
+     * too; else, in Karlstad, its street's only district, or none (the town alone is said, never a
+     * guess). The street archive is Karlstad's only: a street of the same name in another town
+     * (Järnvägsgatan in Storfors) never gets a Karlstad district. Outside Karlstad the geocoder's
+     * [subLocality] is kept.
      */
     fun district(lat: Double, lng: Double, street: String?, locality: String?, subLocality: String?): String? {
         val here = at(lat, lng)
         val streets = of(street)
         if (here != null && (streets == null || here in streets)) return here
-        if (streets != null) return streets.singleOrNull()
-        return if (locality != null && TextNorm.fold(locality) == KARLSTAD) null else subLocality
+        val inKarlstad = locality != null && TextNorm.fold(locality) == KARLSTAD
+        if (!inKarlstad) return if (here != null) null else subLocality
+        return streets?.singleOrNull()
     }
 
     /** [name] is one of Karlstad's own districts. */

@@ -15,6 +15,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.toArgb
 import androidx.core.content.IntentCompat
 import androidx.core.graphics.drawable.toDrawable
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import se.eldebosh.nastastopp.service.Notifications
 import se.eldebosh.nastastopp.settings.SettingsStore
@@ -88,6 +89,21 @@ class MainActivity : ComponentActivity() {
         if (graph.settings.current.youDriveWatch) YouDriveService.start(this)
     }
 
+    /**
+     * A dialog or menu of the app took the focus: the floating panel stays away while it is open,
+     * so it never lies over the dialog's buttons. Only while the app is in front (leaving it for
+     * Maps also takes the focus).
+     */
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        App.from(this).graph.overlay.suppress(DIALOG_KEY, !hasFocus && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
+    }
+
+    override fun onPause() {
+        App.from(this).graph.overlay.suppress(DIALOG_KEY, false)
+        super.onPause()
+    }
+
     /** ACTION_SEND / ACTION_SEND_MULTIPLE with an image MIME type: images are processed in the order received. */
     private fun handleShareIntent(intent: Intent?) {
         if (intent == null) return
@@ -110,3 +126,6 @@ class MainActivity : ComponentActivity() {
         intent.action = Intent.ACTION_MAIN
     }
 }
+
+/** The floating panel's suppression while one of the app's dialogs or menus is open. */
+private const val DIALOG_KEY = "dialog"
