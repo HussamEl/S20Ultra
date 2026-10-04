@@ -74,14 +74,6 @@ object Announcements {
      */
     fun passenger(lastName: String) = Announcement("$lastName.", "$lastName.")
 
-    /** Announcement for the remaining stops (current first, with their [times]), or "finished" if none remain. */
-    fun forRemaining(spokenNames: List<String>, withEnglish: Boolean, times: List<String?> = emptyList()): Announcement =
-        if (spokenNames.isEmpty()) {
-            finished(withEnglish)
-        } else {
-            nextStops(spokenNames[0], spokenNames.getOrNull(1), withEnglish, times.getOrNull(0), times.getOrNull(1))
-        }
-
     /** "9 och 8 minuter" for "09:08" (no leading zero, no "Klockan"); null without a time. */
     fun hourMinutes(time: String?): String? = parse(time)?.let { (h, m) -> hourAndMinutes(h, m) }
 

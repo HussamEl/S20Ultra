@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import se.eldebosh.nastastopp.util.DebugLog
+import se.eldebosh.nastastopp.util.writeWhole
 import java.io.File
 
 /**
@@ -89,12 +90,7 @@ class StoredEntrances(context: Context) : Entrances {
         state.value = value
         runCatching {
             val text = json.encodeToString(value)
-            val tmp = File(file.parentFile, "$FILE.tmp")
-            tmp.writeText(text)
-            if (!tmp.renameTo(file)) {
-                file.writeText(text)
-                tmp.delete()
-            }
+            writeWhole(file, text)
         }.onFailure { DebugLog.w(it) { "entrances not saved" } }
     }
 

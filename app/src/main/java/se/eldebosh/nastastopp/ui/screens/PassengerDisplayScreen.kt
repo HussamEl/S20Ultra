@@ -734,12 +734,6 @@ fun PassengerDisplayScreen(
         // The weather or the travel time, in the middle while it shows.
         InfoMoment(moments, live?.weather, live?.eta, landscape, weatherWidget, live?.current, Modifier.align(Alignment.Center))
         if (routeMap != null) {
-            MapMomentText(
-                moments,
-                live?.eta,
-                routeMap,
-                modifier = Modifier.align(Alignment.BottomCenter).zIndex(MAP_OVER_Z).padding(bottom = maxHeight * MAP_TEXT_LOW),
-            )
             MapControls(
                 routeMap,
                 visible = held && moments.infoShown,
@@ -908,7 +902,7 @@ private class Moments(private val scope: CoroutineScope) {
         outMs = INFO_OUT_MS
         job = scope.launch {
             info.animateTo(1f, tween(INFO_IN_MS, easing = FastOutSlowInEasing))
-            delay(if (which == Info.MAP) MAP_HOLD_MS else INFO_HOLD_MS)
+            delay(INFO_HOLD_MS)
             info.animateTo(0f, tween(INFO_OUT_MS, easing = FastOutSlowInEasing))
         }
     }
@@ -953,7 +947,7 @@ private class Moments(private val scope: CoroutineScope) {
         }
     }
 
-    enum class Info { WEATHER, ETA, MAP, FOCUS, NAME }
+    enum class Info { WEATHER, ETA, FOCUS, NAME }
 }
 
 /**
@@ -1022,7 +1016,7 @@ private fun InfoMoment(
     next: DisplayItem?,
     modifier: Modifier = Modifier,
 ) {
-    if (!moments.infoShown || moments.shown == Moments.Info.MAP || moments.shown == Moments.Info.FOCUS) return
+    if (!moments.infoShown || moments.shown == Moments.Info.FOCUS) return
     val hue = AppTheme.colors.showHues[(moments.hue + 2) % AppTheme.colors.showHues.size]
     val big = if (landscape) INFO_SP_WIDE else INFO_SP_NARROW
     Row(
@@ -1120,7 +1114,7 @@ private fun InfoMoment(
                     }
                 }
             }
-            Moments.Info.MAP, Moments.Info.FOCUS -> Unit
+            Moments.Info.FOCUS -> Unit
         }
     }
 }
@@ -1138,14 +1132,13 @@ private fun InfoMoment(
 @Composable
 private fun MapLayer(map: RouteMap, moments: Moments, held: Boolean, from: () -> Offset) {
     var size by remember { mutableStateOf(IntSize.Zero) }
-    val on = (moments.shown == Moments.Info.MAP || moments.shown == Moments.Info.FOCUS) && moments.info.targetValue > 0f
+    val on = moments.shown == Moments.Info.FOCUS && moments.info.targetValue > 0f
     val driver = moments.shown == Moments.Info.FOCUS
     LaunchedEffect(map, on, driver) {
         if (on) {
             val o = from()
             val known = o.isSpecified && size.width > 0 && size.height > 0
-            // The minute's map follows the car, then may fly to the next stop (the map knows how often).
-            map.reveal(if (known) o.x / size.width else 0.5f, if (known) o.y / size.height else 0.5f, INFO_IN_MS, held = driver, tour = false)
+            map.reveal(if (known) o.x / size.width else 0.5f, if (known) o.y / size.height else 0.5f, INFO_IN_MS, held = driver)
         } else {
             map.conceal(moments.outMs)
         }
@@ -1250,82 +1243,6 @@ private fun MapButton(icon: Int, label: Int, ref: Int, onClick: () -> Unit, modi
             },
             modifier = Modifier.size(MAP_ICON),
         )
-    }
-}
-
-/**
- * Under the minute's map, in its faded bottom: the minutes and the distance to the next stop
- * (Google Maps' own when it navigates); until the tablet knows where it is, a word that it is
- * looking. Under them, small, what keeps the map or the way from coming ([mapNote]). The driver's
- * own map has its list of trips instead ([WayList]).
- */
-@Composable
-private fun MapMomentText(moments: Moments, eta: DisplayEta?, map: RouteMap, modifier: Modifier = Modifier) {
-    if (moments.shown != Moments.Info.MAP || !moments.infoShown) return
-    // Google Maps' own time counts first; else the map's way to the next stop (its first leg).
-    val toNext = map.route?.to(0)
-    val minutes = if (map.located) eta?.minutes ?: toNext?.first else null
-    val meters = eta?.meters ?: toNext?.second
-    val note = mapNote(map)
-    val hue = AppTheme.colors.showHues[(moments.hue + 2) % AppTheme.colors.showHues.size]
-    val big = MAP_SP
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier.ref(205).graphicsLayer {
-            val p = moments.info.value
-            alpha = p
-            translationY = (1f - p) * 40.dp.toPx()
-        },
-    ) {
-        if (!map.located) {
-            Text(
-                stringResource(R.string.passenger_finding_position),
-                fontFamily = DisplayFont,
-                fontWeight = FontWeight.Medium,
-                fontSize = big * 0.22f,
-                color = AppTheme.colors.textMuted,
-            )
-        }
-        if (minutes != null) {
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    "$minutes",
-                    fontFamily = DigitFont,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = big,
-                    color = hue,
-                    style = TextStyle(lineHeight = 1.0.em),
-                )
-                Text(
-                    " min",
-                    fontFamily = DisplayFont,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = big * 0.35f,
-                    color = hue,
-                    modifier = Modifier.padding(bottom = 12.dp),
-                )
-            }
-            Text(
-                listOfNotNull(meters?.let(::distanceText), stringResource(R.string.passenger_to_next_stop)).joinToString("  ·  "),
-                fontFamily = DisplayFont,
-                fontWeight = FontWeight.Medium,
-                fontSize = big * 0.2f,
-                color = AppTheme.colors.textMuted,
-            )
-        }
-        if (note != null) {
-            Text(
-                note,
-                fontFamily = DisplayFont,
-                fontWeight = FontWeight.Medium,
-                fontSize = big * 0.13f,
-                color = AppTheme.colors.textMuted,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 8.dp).ref(233, centered = true),
-            )
-        }
     }
 }
 
@@ -1527,7 +1444,6 @@ private fun Stage(
             val laterWord = stringResource(R.string.passenger_later)
             val wordOf = { page: Int -> if (page == home + 1) thenWord else if (page > home + 1) laterWord else null }
             val sayingOf = { item: DisplayItem, coming: Boolean, word: String? -> Announcements.at(item.time, GeoLogic.fullSpokenName(item.said ?: item.title, item.subtitle, null), coming, word) }
-            val sayTrip = { item: DisplayItem, coming: Boolean -> onSay(sayingOf(item, coming, null)) }
             // The announcement, in step with the voice: the screen before goes completely; the next
             // stop pops in, its address and time are said; it stays a moment and fades away; then
             // "Därefter" pops in its place and is said; then home again. The voice keeps silent
@@ -2201,7 +2117,8 @@ private fun StopHero(
                         (size * TITLE_SHARE).coerceAtLeast(MIN_TITLE_SP)
                     }
                     BasicText(
-                        current.title,
+                        // The house number stays on the line of its street ("Kyrkogatan 152", never "152" alone).
+                        current.title.replace(NUMBER_AT_END, "\u00A0$1"),
                         style = style.copy(fontSize = titleSp.sp),
                         color = { if (stars.who() == ADDRESS) lerp(titleColor, swellColor, stars.p()) else titleColor },
                         // Its letters' feet may reach past its line.
@@ -2210,7 +2127,8 @@ private fun StopHero(
                             .ref(91)
                             .fillMaxWidth()
                             .entering(title, shine)
-                            .star(stars, ADDRESS, flash = flash),
+                            .star(stars, ADDRESS, flash = flash)
+                            .clearAndSetSemantics { text = AnnotatedString(current.title) },
                     )
                 }
             },
@@ -3461,12 +3379,6 @@ private fun Modifier.growTogether(grow: () -> Float, own: () -> Rect, group: () 
     translationY = p * (a.center.y - g.center.y) + (s - 1f) * (e.center.y - g.center.y)
 }
 
-/** Lays this out at its full height but takes none in its row: it hangs down over what follows. */
-private fun Modifier.overhang(): Modifier = layout { measurable, constraints ->
-    val placeable = measurable.measure(constraints.copy(minHeight = 0, maxHeight = Constraints.Infinity))
-    layout(placeable.width, 0) { placeable.place(0, 0) }
-}
-
 /**
  * Fades what is not the time while it grows ([back] 0 → 1: in view to gone). The alpha goes to each drawing
  * rather than through a layer of its own, so nothing that reaches past its box is cut off.
@@ -3511,11 +3423,11 @@ private fun msToSay(text: String?): Long {
 private const val MIN_TITLE_SP = 32f
 private const val MAX_TITLE_SP = 300f
 
+/** A house number (and its letter) at the end of an address, with the space before it. */
+private val NUMBER_AT_END = Regex(""" (\d+\s?[A-Za-z]?)$""")
+
 /** The address is this share of the size that would fill the room under its time. */
 private const val TITLE_SHARE = 0.6f
-
-/** Room between the address's words, in ems. */
-private const val WORD_GAP = 0.1f
 
 /** The trip's time over the address: this share of the clock's minutes. */
 private const val HERO_TIME_OF_CLOCK = 0.85f
@@ -3605,7 +3517,6 @@ private val STRIP_AREA_SP = 15.sp
 private const val STRIP_LIT_SCALE = 1.12f
 private const val BROWSE_IN_MS = 350
 private const val BROWSE_OUT_MS = 300
-private const val BROWSE_SCALE = 0.94f
 private const val BROWSE_LINGER_MS = 3_000L
 
 /** A tapped trip on the bottom line swells this much while it shows at the top. */
@@ -3732,8 +3643,6 @@ private const val INFO_IN_MS = 1_200
 private const val INFO_HOLD_MS = 4_600L
 private const val INFO_OUT_MS = 1_200
 
-/** The map: forty seconds in all, filling the screen (it follows the car, then may fly to the next stop). */
-private const val MAP_HOLD_MS = 37_600L
 
 /** The driver's own map stays until he closes it, or this long after he last used it. */
 private const val FOCUS_MAX_MS = 120_000L
@@ -3797,9 +3706,6 @@ private const val CARD_SCRIM = 0.6f
 private const val CARD_IN_MS = 260
 private const val CARD_OUT_MS = 180
 
-/** The minutes and distance under the map: this size, and this share of the height above the bottom. */
-private val MAP_SP = 150.sp
-private const val MAP_TEXT_LOW = 0.04f
 
 /** A weather app's widget, large in the middle. */
 private val WIDGET_WIDE_W = 640.dp
@@ -3853,9 +3759,6 @@ private const val ARROW_LINES = 3
 private const val ARROW_LOW = 0.35f
 private const val ARROW_HIGH = 1f
 private const val ARROW_FLOW_MS = 2_700
-
-/** The largest a time is drawn; focused, the clock and the top line fade out fast and come back gently. */
-private val FOCUS_MAX = 260.sp
 
 /**
  * The entrance of what the display focuses on: how long it takes, how far it rises, how small and

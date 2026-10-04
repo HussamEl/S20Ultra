@@ -1253,6 +1253,40 @@ class ScreenshotsRoboTest {
         compose.mainClock.autoAdvance = true
     }
 
+    /**
+     * A long address (a shop with its street, a hospital's entrance) fits: on the tablet and on a
+     * phone held upright the address stays inside the screen, under its time and clear of the
+     * bottom line, however long it is.
+     */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun aLongAddressFitsTheTablet() = longAddressFits("display_long_tablet")
+
+    @Test
+    @Config(qualifiers = "en-w412dp-h915dp-port-xxhdpi")
+    fun aLongAddressFitsThePhone() = longAddressFits("display_long_phone")
+
+    private fun longAddressFits(name: String) {
+        val long = tabletSnapshot.copy(
+            current = DisplayItem("09:58", "Coop Stormarknad Provby Handelsområde Södra Kyrkogatan 152", "Kristinehamn"),
+        )
+        compose.setContent {
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(long, status = "Galaxy S20", connected = true, onSpeak = {}, onExit = {}, time = { LocalTime.of(9, 11, 5) })
+            }
+        }
+        compose.waitForIdle()
+        compose.mainClock.advanceTimeBy(2_000)
+        save(name, compose.onRoot().captureToImage().asAndroidBitmap())
+        val root = compose.onRoot().fetchSemanticsNode().boundsInRoot
+        val address = compose.onNodeWithTag("ref_91", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val time = compose.onAllNodesWithTag("ref_230", useUnmergedTree = true)[0].fetchSemanticsNode().boundsInRoot
+        val clock = compose.onNodeWithTag("ref_88").fetchSemanticsNode().boundsInRoot
+        assertTrue("inside the screen: $address in $root", address.left >= root.left - 1f && address.right <= root.right + 1f && address.top >= root.top)
+        assertTrue("under its time: $address, $time", address.top >= time.bottom - 1f)
+        assertTrue("clear of the bottom line: $address, $clock", address.bottom <= clock.top + 1f)
+    }
+
     private val tabletSnapshot = DisplaySnapshot(
         active = true,
         previous = DisplayItem("07:30", "Järnvägsgatan 3B", "Storfors", doneInYouDrive = true, doneHere = true),

@@ -51,7 +51,7 @@ class AnnouncementsTest {
 
     @Test
     fun sameAreaIsStillSaidTwice() {
-        assertEquals("Nästa stopp: Karlstad. Därefter: Karlstad.", Announcements.forRemaining(listOf("Karlstad", "Karlstad", "Kil"), false).swedish)
+        assertEquals("Nästa stopp: Karlstad. Därefter: Karlstad.", Announcements.nextStops("Karlstad", "Karlstad", false).swedish)
     }
 
     @Test

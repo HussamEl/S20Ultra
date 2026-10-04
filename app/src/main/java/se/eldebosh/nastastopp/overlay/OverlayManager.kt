@@ -47,7 +47,6 @@ import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import java.time.LocalTime
-import java.time.format.DateTimeFormatter
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
@@ -115,7 +114,6 @@ class OverlayManager(
 ) {
     private val wm = context.getSystemService(WindowManager::class.java)
     private val handler = Handler(Looper.getMainLooper())
-    private val clockFormat = DateTimeFormatter.ofPattern("HH:mm")
     private var root: View? = null
     private var views: Views? = null
     private var layoutKey: String? = null

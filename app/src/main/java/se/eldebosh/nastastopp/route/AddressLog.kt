@@ -8,6 +8,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import se.eldebosh.nastastopp.core.parse.TextNorm
 import se.eldebosh.nastastopp.util.DebugLog
+import se.eldebosh.nastastopp.util.writeWhole
 import java.io.File
 import java.time.LocalDate
 
@@ -57,12 +58,7 @@ class AddressLog(context: Context) {
         state.value = value
         runCatching {
             val text = json.encodeToString(value)
-            val tmp = File(file.parentFile, "$FILE.tmp")
-            tmp.writeText(text)
-            if (!tmp.renameTo(file)) {
-                file.writeText(text)
-                tmp.delete()
-            }
+            writeWhole(file, text)
         }.onFailure { DebugLog.w(it) { "address log not saved" } }
     }
 

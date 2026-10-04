@@ -7,12 +7,10 @@
   the app never scales or fades the WebView itself, so the map is drawn the same on every device.
 
   One page, one map for the display's whole life: what changes is only what it shows. Google bills
-  each map made, not what is done with it. It is the minute's moment, only looked at (the car,
-  then at most every five minutes a flight to the next stop in Google's 3D view and its street
-  photo: one of each for the page's life, see follow()), and the driver's own (hold), opened by
-  his tap and moved by his touch and the app's buttons (satellite, toCar, toStop, whole); his map
-  stays flat, and the app opens Google's own apps for 3D and street photos there. The map never
-  leaves northern Europe (REGION).
+  each map made, not what is done with it. It is only the driver's (hold), opened by his tap and
+  moved by his touch and the app's buttons (satellite, toCar, toStop, whole); it stays flat, and
+  the app opens Google's own apps for 3D and street photos. The map never leaves northern Europe
+  (REGION).
 -->
 <html>
 <head>
@@ -24,13 +22,6 @@
   #stage { position: fixed; left: 0; top: 0; right: 0; bottom: 0; opacity: 0; transform: scale(0.06); will-change: transform, opacity; }
   #map { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: var(--ground); pointer-events: none; }
   body.held #map { pointer-events: auto; }
-  /* The minute's flight: Google's 3D view and a street photo over the map, faded in and out. */
-  .layer { position: absolute; left: 0; top: 0; right: 0; bottom: 0; opacity: 0; transition: opacity 700ms ease; pointer-events: none; }
-  .layer.on { opacity: 1; }
-  /* The map fills the screen to its edges; only the minute's map fades at the bottom, under its minutes. */
-  .fade { position: absolute; pointer-events: none; transition: opacity 300ms; }
-  .bottom { left: 0; right: 0; bottom: 0; height: 30%; }
-  body.held .bottom { opacity: 0; }
   .dot { position: absolute; transform: translate(-50%, -50%); border-radius: 50%; box-sizing: border-box; }
   .car { width: 26px; height: 26px; background: #1A73E8; border: 5px solid #FFFFFF;
          box-shadow: 0 0 0 10px rgba(26, 115, 232, 0.22), 0 2px 8px rgba(0, 0, 0, 0.35); }
@@ -73,9 +64,6 @@
 <body>
 <div id="stage">
   <div id="map"></div>
-  <div id="sky" class="layer"></div>
-  <div id="street" class="layer"></div>
-  <div class="fade bottom"></div>
 </div>
 <script>
   var NIGHT = __NIGHT__;
@@ -112,22 +100,10 @@
   window.addEventListener('unhandledrejection', function (e) { problem('page', e.reason && e.reason.message || e.reason); });
   window.gm_authFailure = function () { Android.onAuthFailure(); };
 
-  // The minute's map melts into the screen's ground at the bottom, under the minutes.
-  function paintFades() {
-    var n = parseInt(GROUND.slice(1), 16), rgb = [(n >> 16) & 255, (n >> 8) & 255, n & 255].join(',');
-    function fade(to) {
-      return 'linear-gradient(' + to + ', rgba(' + rgb + ',1) 0%, rgba(' + rgb + ',0.82) 30%, rgba(' + rgb + ',0.38) 60%, rgba(' + rgb + ',0.1) 85%, rgba(' + rgb + ',0) 100%)';
-    }
-    document.querySelector('.bottom').style.background = fade('to top');
-  }
-  paintFades();
-
-  // The display's look (black or light) changed: the same map, in the new colours.
   function setLook(night, ground) {
     NIGHT = night;
     GROUND = ground;
     document.documentElement.style.setProperty('--ground', ground);
-    paintFades();
     if (!map) return;
     try {
       map.setOptions({ styles: NIGHT ? dark : quiet, backgroundColor: GROUND });
@@ -223,7 +199,6 @@
   // Back into where it came from, over ms.
   function conceal(ms) {
     shown = false;
-    endTour();
     stage.style.transition = 'transform ' + ms + 'ms cubic-bezier(0.4, 0, 1, 1), opacity ' + ms + 'ms ease-in';
     stage.style.opacity = '0';
     stage.style.transform = 'scale(' + FROM + ')';
@@ -237,131 +212,7 @@
   function setCar(lat, lng) {
     car = { lat: lat, lng: lng };
     if (!map) return;
-    // Followed: the map moves with the car.
-    if (following && !held && inRegion(car)) {
-      carDot.place(car);
-      map.panTo(car);
-      return;
-    }
     draw(false);
-  }
-
-  // --- The minute's map: the car, then a flight to the next stop ------------------------------
-
-  // The minute's map stays on the car this long (moving with it), then, when the app says so,
-  // flies to the next stop: up into the sky from the car, across, down onto the stop in 3D, a
-  // street photo there turning round for a few seconds, then up and away. Google bills each 3D
-  // view and street photo loaded: one of each is made for the page's whole life and moved, and the
-  // app asks for a flight at most every five minutes.
-  var FOLLOW_MS = 10000, FOLLOW_ZOOM = 16, LOOK_ROUND_MS = 5000;
-  var following = false, followTimer = null, touring = 0, sky3d = null, pano = null;
-
-  function follow(flight) {
-    clearTimeout(followTimer);
-    following = true;
-    if (map && inRegion(car)) { map.setZoom(FOLLOW_ZOOM); map.panTo(car); }
-    followTimer = setTimeout(function () {
-      following = false;
-      if (!shown || held) return;
-      if (flight) tour(); else draw(true);
-    }, FOLLOW_MS);
-  }
-
-  function endTour() {
-    clearTimeout(followTimer);
-    following = false;
-    touring++;
-    document.getElementById('sky').classList.remove('on');
-    document.getElementById('street').classList.remove('on');
-  }
-
-  function bearing(a, b) {
-    var y = Math.sin((b.lng - a.lng) * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180);
-    var x = Math.cos(a.lat * Math.PI / 180) * Math.sin(b.lat * Math.PI / 180) -
-      Math.sin(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.cos((b.lng - a.lng) * Math.PI / 180);
-    return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
-  }
-
-  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
-
-  // The 3D camera to [cam] over [ms]; done when it arrives (or a little after it should have).
-  function fly(cam, ms) {
-    return new Promise(function (done) {
-      var over = false;
-      function end() { if (over) return; over = true; sky3d.removeEventListener('gmp-animationend', end); done(); }
-      sky3d.addEventListener('gmp-animationend', end);
-      sky3d.flyCameraTo({ endCamera: { center: { lat: cam.lat, lng: cam.lng, altitude: 0 }, range: cam.range, tilt: cam.tilt, heading: cam.heading }, durationMillis: ms });
-      setTimeout(end, ms + 1500);
-    });
-  }
-
-  // The street photo nearest [at] (within about 50 m), or false when there is none.
-  function streetAt(at) {
-    return new Promise(function (done) {
-      var over = false;
-      function end(ok) { if (over) return; over = true; google.maps.event.clearListeners(pano, 'status_changed'); done(ok); }
-      google.maps.event.addListenerOnce(pano, 'status_changed', function () { end(pano.getStatus() === 'OK'); });
-      pano.setPosition(at);
-      setTimeout(function () { end(false); }, 3000);
-    });
-  }
-
-  function tour() {
-    var to = target(), from = car;
-    if (!inRegion(to) || !inRegion(from)) { draw(true); return; }
-    var mine = ++touring;
-    function still() { return mine === touring && shown && !held; }
-    var heading = bearing(from, to);
-    var skyDiv = document.getElementById('sky'), streetDiv = document.getElementById('street');
-    google.maps.importLibrary('maps3d').then(function (lib) {
-      if (!still()) return;
-      if (!sky3d) {
-        sky3d = new lib.Map3DElement({ center: { lat: from.lat, lng: from.lng, altitude: 0 }, range: 600, tilt: 55, heading: heading, mode: 'HYBRID' });
-        sky3d.style.width = '100%';
-        sky3d.style.height = '100%';
-        skyDiv.appendChild(sky3d);
-      } else {
-        sky3d.center = { lat: from.lat, lng: from.lng, altitude: 0 };
-        sky3d.range = 600;
-        sky3d.tilt = 55;
-        sky3d.heading = heading;
-      }
-      skyDiv.classList.add('on');
-      var mid = { lat: (from.lat + to.lat) / 2, lng: (from.lng + to.lng) / 2 };
-      return wait(800)
-        .then(function () { if (still()) return fly({ lat: from.lat, lng: from.lng, range: 4000, tilt: 15, heading: heading }, 3000); })
-        .then(function () { if (still()) return fly({ lat: mid.lat, lng: mid.lng, range: 4500, tilt: 25, heading: heading }, 5000); })
-        .then(function () { if (still()) return fly({ lat: to.lat, lng: to.lng, range: 350, tilt: 65, heading: heading }, 4000); })
-        .then(function () {
-          if (!still()) return;
-          if (!pano) pano = new google.maps.StreetViewPanorama(streetDiv, { visible: true, disableDefaultUI: true, clickToGo: false, linksControl: false, motionTracking: false, showRoadLabels: false });
-          return streetAt(to).then(function (ok) {
-            if (!ok || !still()) return;
-            streetDiv.classList.add('on');
-            // Turning round where the stop is.
-            var start = performance.now();
-            return new Promise(function (done) {
-              function turn(t) {
-                if (!still()) { done(); return; }
-                var f = (t - start) / LOOK_ROUND_MS;
-                pano.setPov({ heading: (heading + 360 * f) % 360, pitch: 4 });
-                if (f < 1) requestAnimationFrame(turn); else done();
-              }
-              requestAnimationFrame(turn);
-            }).then(function () { streetDiv.classList.remove('on'); return wait(500); });
-          });
-        })
-        .then(function () { if (still()) return fly({ lat: to.lat, lng: to.lng, range: 5000, tilt: 10, heading: heading }, 3000); })
-        .then(function () {
-          skyDiv.classList.remove('on');
-          if (still()) draw(true);
-        });
-    }).catch(function () {
-      // No 3D here (the key's rights, the device): the map stays.
-      skyDiv.classList.remove('on');
-      streetDiv.classList.remove('on');
-      if (still()) draw(true);
-    });
   }
 
   // The way: {stops: [[lat, lng] or null…], focus: n, legs: [[[lat, lng]…]…] or null (not yet)}.
@@ -602,8 +453,6 @@
 
   // Opened (true) by the driver's tap, or closed: the map takes his touches while it is his.
   function hold(on) {
-    // His map is the map alone: a flight under way stops.
-    if (on) endTour();
     held = on;
     document.body.classList.toggle('held', on);
     if (map) map.setOptions({ gestureHandling: on ? 'greedy' : 'none' });

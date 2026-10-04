@@ -17,6 +17,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import se.eldebosh.nastastopp.settings.SettingsStore
 import se.eldebosh.nastastopp.util.DebugLog
+import se.eldebosh.nastastopp.util.writeWhole
 import java.io.File
 
 /**
@@ -99,12 +100,7 @@ class TripHistory(
                 if (snapshot.entries.isEmpty()) {
                     file.delete()
                 } else {
-                    val tmp = File(file.parentFile, "$FILE_NAME.tmp")
-                    tmp.writeText(json.encodeToString(HistoryFile.serializer(), snapshot))
-                    if (!tmp.renameTo(file)) {
-                        file.delete()
-                        tmp.renameTo(file)
-                    }
+                    writeWhole(file, json.encodeToString(HistoryFile.serializer(), snapshot))
                 }
             } catch (e: Exception) {
                 DebugLog.w(e) { "history write failed" }
