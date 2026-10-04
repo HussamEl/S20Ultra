@@ -103,7 +103,8 @@ object GeoLogic {
      * The only text that is ever spoken for a stop: an area/town name, never a street, number,
      * person or facility. subLocality if present and different from locality, otherwise
      * locality, otherwise the parsed town (only if it is a known locality), otherwise
-     * "nästa adress".
+     * "nästa adress". An [official] district (Karlstad's own, [Districts]) is taken as it is
+     * written, even one named after a street ("Edsgatan").
      */
     fun spokenName(
         subLocality: String?,
@@ -113,10 +114,12 @@ object GeoLogic {
         detail: AnnouncementDetail,
         thoroughfare: String? = null,
         isKnownLocality: (String) -> Boolean = { false },
+        official: Boolean = false,
     ): String {
         val loc = locality?.trim()?.takeIf { isSafeAreaName(it, thoroughfare, strict = false) }
         val sub = subLocality?.trim()?.takeIf {
-            isKnownLocality(it) && isSafeAreaName(it, thoroughfare, strict = false) ||
+            official && isSafeAreaName(it, null, strict = false) ||
+                isKnownLocality(it) && isSafeAreaName(it, thoroughfare, strict = false) ||
                 isSafeAreaName(it, thoroughfare, strict = true)
         }
         if (detail != AnnouncementDetail.TOWN_ONLY && sub != null &&

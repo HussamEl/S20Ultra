@@ -12,6 +12,7 @@ import se.eldebosh.nastastopp.nav.MapsNavigation
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableStateFlow
+import se.eldebosh.nastastopp.core.geo.Districts
 import se.eldebosh.nastastopp.core.parse.AddressExtractor
 import se.eldebosh.nastastopp.core.parse.Localities
 import se.eldebosh.nastastopp.geo.CurrentStreet
@@ -47,13 +48,15 @@ class AppGraph(app: Application) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     val settings = SettingsStore(app)
     val localities: Localities = app.assets.open("localities_se.txt").bufferedReader().use { Localities.parse(it.readText()) }
+    /** Karlstad's own districts and their streets, so a district is never the geocoder's guess. */
+    val districts: Districts = app.assets.open(Districts.ASSET).bufferedReader().use { Districts.parse(it.readText()) }
     val extractor = AddressExtractor(localities)
     val announcer = Announcer(app, settings)
     val maps = MapsLauncher(app)
     val repository = RouteRepository(app)
     val geocoding = Geocoding(app)
     val history = TripHistory(app, settings, scope)
-    val controller = RouteController(app, scope, repository, settings, geocoding, announcer, maps, localities, extractor, history, StoredPlaceMemory(app), StoredEntrances(app))
+    val controller = RouteController(app, scope, repository, settings, geocoding, announcer, maps, localities, extractor, history, StoredPlaceMemory(app), StoredEntrances(app), districts)
     val notifier = RouteNotifier(app, controller, settings, scope)
 
     /** The addresses the routes went to (never a name), for the driver to share (Settings 302). */
@@ -68,7 +71,7 @@ class AppGraph(app: Application) {
     }
 
     /** The street the vehicle is on now (floating button and route screen). */
-    val street = CurrentStreet(scope, lookup = geocoding::reverse)
+    val street = CurrentStreet(scope, lookup = geocoding::reverse, districts = districts)
 
     /** The offline street map (downloaded in Settings), for exact street names. */
     val streetMap = StreetMapStore(app, street, scope)

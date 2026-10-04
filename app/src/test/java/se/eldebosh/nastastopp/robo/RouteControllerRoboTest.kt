@@ -341,10 +341,12 @@ class RouteControllerRoboTest {
         graph.controller.addManual("Kungsgatan 5, 65225 Karlstad")
         graph.controller.addManual("Kungsgatan 5, 65225 Karlstad")
         idleUntil { graph.controller.route.value!!.stops.none { it.geoStatus == GeoStatus.PENDING } }
-        // Pretend the geocoder located the stops (Robolectric has no geocoding backend).
+        // Pretend the geocoder located the stops (Robolectric has no geocoding backend), in Herrhagen
+        // and Kronoparken, with the geocoder's districts wrong: Karlstad's own are said.
         val r = graph.controller.route.value!!
         val located = r.stops.mapIndexed { i, s ->
-            s.copy(geoStatus = GeoStatus.LOCATED, geo = GeoPoint(59.38 + (if (i == 0) 0.0 else 0.01), 13.50, "addr $i", locality = "Karlstad", subLocality = if (i == 0) "Herrhagen" else "Kronoparken"))
+            val point = if (i == 0) 59.3759 to 13.51737 else 59.40938 to 13.58347
+            s.copy(geoStatus = GeoStatus.LOCATED, geo = GeoPoint(point.first, point.second, "addr $i", locality = "Karlstad", subLocality = if (i == 0) "Lamberget" else "Herrhagen"))
         }
         graph.controller.restoreStops(located)
         graph.controller.start()

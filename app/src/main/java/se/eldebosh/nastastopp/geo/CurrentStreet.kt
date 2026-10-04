@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import se.eldebosh.nastastopp.core.geo.GeoLogic
+import se.eldebosh.nastastopp.core.geo.Districts
 import se.eldebosh.nastastopp.core.geo.GeoResult
 import se.eldebosh.nastastopp.core.geo.StreetInfo
 import se.eldebosh.nastastopp.core.geo.StreetLookup
@@ -28,11 +29,13 @@ import kotlin.math.roundToInt
  *   ([StreetLookup.pickNear]); lookups are throttled and run only while something shows the
  *   street (the floating button or the route screen);
  * - either way a new street is taken only after two readings agree ([StreetTracker]).
- * The area (district) comes from the geocoder in both cases.
+ * The area (district) is Karlstad's own where the position lies in one of its districts
+ * ([Districts]), else the geocoder's.
  */
 class CurrentStreet(
     private val scope: CoroutineScope,
     private val clockMs: () -> Long = System::currentTimeMillis,
+    private val districts: Districts = Districts.EMPTY,
     private val lookup: suspend (Double, Double) -> List<GeoResult>?,
 ) {
     private val _state = MutableStateFlow<StreetInfo?>(null)
@@ -84,7 +87,7 @@ class CurrentStreet(
             }
             lastFailed = info == null
             if (info == null) return@launch
-            area = info.area ?: area
+            area = districts.at(fix.lat, fix.lng) ?: info.area ?: area
             // Without the map, the geocoder's street (if its address is close enough) is the reading.
             publish(if (map == null) tracker.onReading(info.street, clockMs()) else tracker.current)
         }

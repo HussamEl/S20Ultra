@@ -25,6 +25,7 @@ import se.eldebosh.nastastopp.core.display.DisplaySnapshot
 import se.eldebosh.nastastopp.core.nav.DisplayEta
 import se.eldebosh.nastastopp.core.weather.DisplayWeather
 import se.eldebosh.nastastopp.core.geo.AnnouncementDetail
+import se.eldebosh.nastastopp.core.geo.Districts
 import se.eldebosh.nastastopp.core.geo.GeoLogic
 import se.eldebosh.nastastopp.core.geo.StreetInfo
 import se.eldebosh.nastastopp.core.parse.AddressExtractor
@@ -68,6 +69,7 @@ class RouteController(
     private val history: TripHistory,
     private val places: PlaceMemory = PlaceMemory.None,
     private val entrances: Entrances = Entrances.None(),
+    private val districts: Districts = Districts.EMPTY,
 ) {
     private val _route = MutableStateFlow(repo.load())
     val route: StateFlow<RouteData?> = _route.asStateFlow()
@@ -107,15 +109,7 @@ class RouteController(
     // Queries
 
     /** Area/town name that may be spoken for [stop] — never a street, number or name. */
-    fun spokenName(stop: Stop): String = GeoLogic.spokenName(
-        subLocality = stop.geo?.subLocality,
-        locality = stop.geo?.locality,
-        parsedTown = stop.parsedTown,
-        parsedTownKnown = stop.parsedTownKnown,
-        detail = settings.current.detail,
-        thoroughfare = stop.geo?.thoroughfare,
-        isKnownLocality = localities::contains,
-    )
+    fun spokenName(stop: Stop): String = spokenName(stop, settings.current.detail)
 
     val isActive: Boolean get() = _route.value?.active == true
 
@@ -190,15 +184,21 @@ class RouteController(
         return Places.written(street)
     }
 
-    private fun spokenName(stop: Stop, detail: AnnouncementDetail): String = GeoLogic.spokenName(
-        subLocality = stop.geo?.subLocality,
-        locality = stop.geo?.locality,
-        parsedTown = stop.parsedTown,
-        parsedTownKnown = stop.parsedTownKnown,
-        detail = detail,
-        thoroughfare = stop.geo?.thoroughfare,
-        isKnownLocality = localities::contains,
-    )
+    private fun spokenName(stop: Stop, detail: AnnouncementDetail): String {
+        val geo = stop.geo
+        // Inside Karlstad the district is the municipality's own ([Districts]), never the geocoder's.
+        val district = geo?.let { districts.district(it.lat, it.lng, it.thoroughfare, it.locality, it.subLocality) }
+        return GeoLogic.spokenName(
+            subLocality = district,
+            locality = geo?.locality,
+            parsedTown = stop.parsedTown,
+            parsedTownKnown = stop.parsedTownKnown,
+            detail = detail,
+            thoroughfare = geo?.thoroughfare,
+            isKnownLocality = localities::contains,
+            official = district != null && districts.isOfficial(district),
+        )
+    }
 
     /** The stop after the next one: its street and number (or place of care), then its district (or town). */
     fun thenSpokenName(stop: Stop): String = GeoLogic.fullSpokenName(
