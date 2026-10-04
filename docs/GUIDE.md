@@ -104,6 +104,8 @@
 (`core/route/Announcements` + `RouteController.announcementFor` + `core/geo/GeoLogic`)
 
 - **الكامل** (الافتراضي، الإعداد 136): «Nästa stopp: Storgatan 14, Herrhagen, Karlstad. Klockan 9 och 8 minuter. Därefter: Kungsgatan 5, Kronoparken. Klockan 9 och 30 minuter.» (كل محطة بوقت رحلتها بعد عنوانها، `RouteController.announcementFor` → `Announcements.nextStops`).
+- **مكان يُكتب ببلدته أولاً بلا رقم** («Edsvalla centrum»): `AddressExtractor.inNamedTown` يجعل البلدة المكتوبة بلدته، ويسأل المكان فيها ثم البلدة نفسها. `Geocoding.locate` يتابع المرشح التالي حين لا يجيب الـ geocoder، ويرمي `GeocoderFailed` إن لم يجد شيئاً وفشل سؤال، فيعيد `RouteController` المحطة حتى `GEO_TRIES` مرات (`GEO_RETRY_MS` × المحاولة) قبل «لم يوجد».
+- **بطاقة الرحلة على الجوال** (`TripCardDialog`، 300): ضغطة ☰ في المراجعة؛ ضغطة مطوّلة على ☰ تسحب (`detectDragGesturesAfterLongPress`). الوقت الثاني باسم YouDrive (`TripCardText.secondLabel`).
 - **الوقت يُقرأ دائماً بلا صفر في أوله وبعدّ الدقائق** (`Announcements.spokenTime`/`clock`/`at`): 09:08 «Klockan 9 och 8 minuter»، 09:01 «… och 1 minut»، 09:00 «Klockan 9».
 - **إعلان المحطة التالية يُنطق جزأين** (`Announcements.parts`): `Announcer.speak` يضع صمتاً `LEAD_MS` (ثانية، `playSilentUtterance`) ثم «Nästa stopp …» ثم صمتاً `GAP_MS` (2.2 ثانية) ثم «Därefter …»، وكل جهاز ينطقه بالصمت نفسه فيبقى الجوال والتابلت معاً. عند انتهاء كل جزء يصدر `Announcer.said` رقمه (0 أو 1، فقط لإعلان المحطة الحالي) لتتبعه شاشة الركاب على الجهاز نفسه.
   - المحطة التالية: الشارع ورقمه، ثم الحي، ثم المدينة (`fullSpokenName`).

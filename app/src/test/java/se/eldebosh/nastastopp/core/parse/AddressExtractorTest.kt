@@ -24,6 +24,20 @@ class AddressExtractorTest {
     }
 
     @Test
+    fun aPlaceNamedByItsTownIsLookedForInThatTown() {
+        // A meeting point with no address: the town written first is its town, and the town's
+        // centre is asked last.
+        val centre = extractor.fromManualText("Edsvalla centrum")!!
+        assertEquals("Edsvalla", centre.parsedTown)
+        assertEquals(listOf("Edsvalla Centrum, Edsvalla", "Edsvalla"), centre.candidates)
+        // A street with a number, or a name that does not start with a town, is left as it is.
+        assertEquals(null, extractor.fromManualText("Edsvalla centrum 4")?.parsedTown)
+        assertEquals(null, extractor.fromManualText("Sjukhuset huvudentrén")?.parsedTown)
+        // A town already written is kept.
+        assertEquals("Vålberg", extractor.fromManualText("Norsplan, Vålberg")?.parsedTown)
+    }
+
+    @Test
     fun leadingSurnameStrongAddress() {
         val stop = single("ANDERSSON STORGATAN 14, 65224 KARLSTAD")
         assertEquals("652 24", stop.parsedPostalCode)

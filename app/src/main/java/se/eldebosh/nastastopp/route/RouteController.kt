@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -36,6 +37,7 @@ import se.eldebosh.nastastopp.core.parse.TripTimes
 import se.eldebosh.nastastopp.core.route.Announcement
 import se.eldebosh.nastastopp.core.route.Announcements
 import se.eldebosh.nastastopp.core.route.MapsUrlBuilder
+import se.eldebosh.nastastopp.geo.GeocoderFailed
 import se.eldebosh.nastastopp.geo.Geocoding
 import se.eldebosh.nastastopp.geo.LocateResult
 import se.eldebosh.nastastopp.maps.MapsLauncher
@@ -91,6 +93,8 @@ class RouteController(
 
     private val persistDispatcher = Dispatchers.IO.limitedParallelism(1)
     private var geocodeJob: Job? = null
+    /** How often the geocoder failed to answer for a stop, by its id (in memory only). */
+    private val geoTries = HashMap<Long, Int>()
     /** The stops of an active route as the review screen opened, each with where Maps goes for it. */
     private var editBaseline: List<Pair<Long, String>>? = null
 
@@ -816,9 +820,20 @@ class RouteController(
                     geocoding.locate(stop.candidates, stop.parsedPostalCode, stop.parsedTown)
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
+                } catch (_: GeocoderFailed) {
+                    // The geocoder did not answer: asked again a little later, a few times, before
+                    // the stop is given up as not found.
+                    val tries = (geoTries[stop.id] ?: 0) + 1
+                    geoTries[stop.id] = tries
+                    if (tries < GEO_TRIES) {
+                        delay(GEO_RETRY_MS * tries)
+                        continue
+                    }
+                    null
                 } catch (_: Exception) {
                     null
                 }
+                geoTries.remove(stop.id)
                 update { r ->
                     r.copy(
                         stops = r.stops.map { s ->
@@ -876,5 +891,9 @@ class RouteController(
     companion object {
         /** Two readings of one YouDrive trip are at most this many minutes apart (see [sameTrip]). */
         const val SAME_TRIP_MIN = 45
+
+        /** A stop is asked this many times while the geocoder fails, waiting longer each time. */
+        private const val GEO_TRIES = 3
+        private const val GEO_RETRY_MS = 3_000L
     }
 }

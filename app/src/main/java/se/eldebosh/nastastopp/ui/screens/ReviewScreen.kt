@@ -4,7 +4,8 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -50,6 +51,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDirection
@@ -102,6 +104,7 @@ fun ReviewScreen(
     val stops = route?.stops.orEmpty()
     val active = route?.active == true
     var editing by remember { mutableStateOf<Stop?>(null) }
+    var carded by remember { mutableStateOf<Stop?>(null) }
     var adding by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val move by rememberUpdatedState(onMove)
@@ -151,6 +154,7 @@ fun ReviewScreen(
                             dragging = dragging,
                             reorder = reorder,
                             onClick = { editing = stop },
+                            onCard = { carded = stop },
                             onDelete = { onDelete(stop) },
                             onDeleteAbove = { onDeleteAbove(stop) },
                             onRetry = { onRetry(stop) },
@@ -196,6 +200,7 @@ fun ReviewScreen(
             ),
         )
     }
+    carded?.let { stop -> TripCardDialog(stop, onDismiss = { carded = null }) }
     if (adding) {
         AddressDialog(
             title = stringResource(R.string.dialog_add_title),
@@ -217,6 +222,7 @@ private fun SwipeableStopRow(
     dragging: Boolean,
     reorder: ReorderState,
     onClick: () -> Unit,
+    onCard: () -> Unit,
     onDelete: () -> Unit,
     onDeleteAbove: () -> Unit,
     onRetry: () -> Unit,
@@ -245,13 +251,18 @@ private fun SwipeableStopRow(
         // A card being dragged lifts like the current trip.
         TripSurface(stop.kind, Modifier.fillMaxWidth(), current = dragging, shape = shape) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.heightIn(min = 72.dp)) {
-                // Drag handle. Its number sits on the icon: at the card's edge it would be cut off.
+                // The handle: a tap opens the trip's whole card, as YouDrive's details window; a long
+                // press lifts the trip to move it. Its number sits on the icon: at the card's edge it
+                // would be cut off.
+                val openCard = stringResource(R.string.review_open_card)
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
                         .size(width = 44.dp, height = 72.dp)
+                        .semantics { onClick(label = openCard) { onCard(); true } }
+                        .pointerInput(stop.id) { detectTapGestures(onTap = { onCard() }) }
                         .pointerInput(stop.id) {
-                            detectDragGestures(
+                            detectDragGesturesAfterLongPress(
                                 onDragStart = {
                                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                     reorder.start(stop.id)

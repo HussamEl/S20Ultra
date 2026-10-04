@@ -38,7 +38,8 @@
     <string name="confirm_clear_text">Adresslistan raderas permanent.</string>
 
     <string name="review_title">Granska stopp</string>
-    <string name="review_hint">Dra i ☰ för att flytta • svep för att ta bort • tryck för att redigera • håll inne för fler val</string>
+    <string name="review_open_card">Öppna resans kort</string>
+    <string name="review_hint">Tryck på ☰ för resans kort • håll inne ☰ och dra för att flytta • svep för att ta bort • tryck för att redigera • håll inne för fler val</string>
     <string name="review_empty">Inga adresser ännu.</string>
     <string name="review_add_manual">Lägg till adress manuellt</string>
     <string name="review_add_screens">Lägg till från en till skärmdump</string>
@@ -48,7 +49,7 @@
     <string name="menu_delete_above">Ta bort alla ovanför</string>
     <string name="menu_retry">Sök platsen igen</string>
     <string name="stop_located">Hittad på kartan</string>
-    <string name="stop_not_located">Ej hittad – endast manuell växling</string>
+    <string name="stop_not_located">Hittades inte på kartan – tryck på stoppet för att rätta, eller håll in → Försök igen</string>
     <string name="stop_town_unknown">Okänd ort – tryck på stoppet och lägg till orten (appen minns platsen)</string>
     <string name="stop_locating">Söker…</string>
     <string name="spoken_label">Utrop: %1$s</string>

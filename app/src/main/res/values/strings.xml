@@ -39,7 +39,8 @@
     <string name="confirm_clear_text">سيتم حذف قائمة العناوين نهائياً.</string>
 
     <string name="review_title">مراجعة المحطات</string>
-    <string name="review_hint">اسحب ☰ لتغيير الترتيب • اسحب الصف جانباً للحذف • اضغط للتعديل • اضغط مطولاً لخيارات أكثر</string>
+    <string name="review_open_card">افتح بطاقة الرحلة</string>
+    <string name="review_hint">اضغط ☰ لفتح بطاقة الرحلة • اضغط ☰ مطولاً ثم اسحب لتغيير الترتيب • اسحب الصف جانباً للحذف • اضغط للتعديل • اضغط مطولاً لخيارات أكثر</string>
     <string name="review_empty">لا توجد عناوين بعد.</string>
     <string name="review_add_manual">إضافة عنوان يدوياً</string>
     <string name="review_add_screens">إضافة من لقطة شاشة أخرى</string>
@@ -49,7 +50,7 @@
     <string name="menu_delete_above">حذف كل ما فوقه</string>
     <string name="menu_retry">إعادة تحديد الموقع</string>
     <string name="stop_located">تم تحديد الموقع</string>
-    <string name="stop_not_located">لم يُحدَّد الموقع — التقدم يدوي فقط</string>
+    <string name="stop_not_located">لم يوجد على الخريطة — اضغط المحطة لتصحيحه، أو اضغط مطوّلاً ← إعادة المحاولة</string>
     <string name="stop_town_unknown">المدينة غير معروفة — اضغط المحطة وأضف المدينة (يتذكر البرنامج هذا المكان)</string>
     <string name="stop_locating">جارٍ تحديد الموقع…</string>
     <string name="spoken_label">يُعلَن: %1$s</string>

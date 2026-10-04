@@ -37,7 +37,7 @@ class TripCardTextTest {
             listOf(
                 Row("Address", "STRANDVÄGEN 3 LGH 1001, 66530 KIL"),
                 Row("Phone number", "0700000006"),
-                Row("Space Type(s)", "Sittande passagerare 1, Fram 1, Rollator fällbar 1"),
+                Row("Space Type(s)", "Sittande passagerare, Fram 1, Rollator fällbar 1"),
                 Row("Mobility Aids", "Hämtas/Lämnas inne"),
                 Row("Fare amount", "0 KR"),
                 Row("Compensation", "13.73 KR"),

@@ -109,11 +109,29 @@ class AddressExtractor(private val localities: Localities) {
      */
     fun fromManualText(text: String, order: Int = 0): ExtractedStop? {
         val parsed = parse(text, manual = true)
-        if (parsed != null) return parsed.toStop(order)
+        if (parsed != null) return inNamedTown(parsed.toStop(order))
         val cleaned = clean(text) ?: return null
         if (TextNorm.letterCount(cleaned) + cleaned.count { it.isDigit() } < 2) return null
         val display = TitleCase.apply(cleaned)
-        return ExtractedStop(display, listOf(display), null, null, order)
+        return inNamedTown(ExtractedStop(display, listOf(display), null, null, order))
+    }
+
+    /**
+     * A place named by its town first, with no street number ("Edsvalla centrum", "Kil
+     * busstation"): the town is the one written, so the place is looked for there, and else the
+     * town itself (a meeting point in the town's centre). Any other stop as it is.
+     */
+    internal fun inNamedTown(stop: ExtractedStop): ExtractedStop {
+        if (stop.parsedTown != null || stop.parsedPostalCode != null) return stop
+        val text = stop.displayText
+        if (text.any { it.isDigit() }) return stop
+        val n = localities.prefixWords(text)
+        if (n == 0) return stop
+        val words = text.trim().split(Regex("[\\s,]+")).filter { it.isNotEmpty() }
+        if (words.size - n > PLACE_WORDS) return stop
+        val town = localities.canonical(words.take(n).joinToString(" ")) ?: return stop
+        val candidates = (stop.candidates.map { if (words.size > n) "$it, $town" else it } + town).distinct()
+        return stop.copy(candidates = candidates, parsedTown = town, parsedTownKnown = true)
     }
 
     /** True if two stops are the same address (used to merge consecutive duplicates). */
@@ -591,6 +609,9 @@ class AddressExtractor(private val localities: Localities) {
             "start", "pull", "pick", "drop", "tel", "mobil", "resor", "idag", "korningar", "utford", "avgatt",
             "no", "not", "show", "stop", "cancelled", "waiting", "min", "summary", "total",
         )
+
+        /** At most this many words after a town make a place in it ("Edsvalla centrum", "Rud bytespunkt"). */
+        private const val PLACE_WORDS = 2
 
         /** A line with this many lower-case words is a sentence (a note), not an address. */
         private const val PROSE_WORDS = 4

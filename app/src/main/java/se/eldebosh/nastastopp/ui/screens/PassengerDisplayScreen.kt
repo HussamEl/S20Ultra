@@ -3142,7 +3142,7 @@ private fun TripCard(item: DisplayItem, landscape: Boolean, place: WindowState, 
                         CardLine(R.drawable.ic_schedule, size) {
                             Column {
                                 card.estimated?.let { Text(withDigitFont("Estimated time $it"), style = words) }
-                                card.negotiated?.let { Text(withDigitFont("Client's negotiated time: $it"), style = words.copy(color = colors.textMuted)) }
+                                card.negotiated?.let { Text(withDigitFont("${card.secondLabel}: $it"), style = words.copy(color = colors.textMuted)) }
                             }
                         }
                     }

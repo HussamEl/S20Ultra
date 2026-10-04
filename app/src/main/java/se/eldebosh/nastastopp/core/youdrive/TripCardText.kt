@@ -1,6 +1,7 @@
 package se.eldebosh.nastastopp.core.youdrive
 
 import se.eldebosh.nastastopp.core.parse.TextNorm
+import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.core.parse.TripKinds
 import se.eldebosh.nastastopp.core.parse.TripTimes
 
@@ -24,6 +25,13 @@ data class TripCardText(
     val status: String?,
     val rows: List<Row>,
 ) {
+    /**
+     * What YouDrive calls the second time: on a drop-off the latest time asked for (its lock),
+     * on a pick-up the time agreed with the passenger (its handshake).
+     */
+    val secondLabel: String
+        get() = if (kind?.let { TripKinds.labelIn(it) } == TripKind.DROP_OFF) "Requested late time" else "Client's negotiated time"
+
     /** One line of the card: [label] (as YouDrive names it) and [value], or a line of its own. */
     data class Row(val label: String?, val value: String)
 
@@ -127,7 +135,9 @@ data class TripCardText(
         private fun written(code: String, table: Map<String, String>): String? {
             val letters = code.trimEnd { it.isDigit() }
             val meaning = table[letters] ?: return null
-            return listOf(meaning, code.substring(letters.length)).filter { it.isNotEmpty() }.joinToString(" ")
+            // One seated passenger is written without its count, as YouDrive's details write it.
+            val count = code.substring(letters.length).takeUnless { letters == "SP" && it == "1" }.orEmpty()
+            return listOf(meaning, count).filter { it.isNotEmpty() }.joinToString(" ")
         }
 
         /**

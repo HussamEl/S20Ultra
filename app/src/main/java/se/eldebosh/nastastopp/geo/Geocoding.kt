@@ -15,6 +15,9 @@ import se.eldebosh.nastastopp.util.DebugLog
 import java.util.Locale
 import kotlin.coroutines.resume
 
+/** The geocoder could not answer one of the questions (offline, busy): the stop is asked again later. */
+class GeocoderFailed : Exception("geocoder failed")
+
 /** Outcome of locating a stop: the chosen result and the candidate string that produced it. */
 data class LocateResult(val result: GeoResult, val candidate: String)
 
@@ -39,8 +42,14 @@ class Geocoding(context: Context) {
     suspend fun locate(candidates: List<String>, parsedPostal: String?, parsedTown: String?): LocateResult? {
         if (!isAvailable) return null
         val unplaced = parsedPostal == null && parsedTown == null
+        var failed = false
         for (candidate in candidates.take(MAX_CANDIDATES)) {
-            val results = lookup(candidate, unplaced) ?: return null // geocoder failed (e.g. offline)
+            // A failed question (offline, busy) does not end the search: the next candidate is asked.
+            val results = lookup(candidate, unplaced)
+            if (results == null) {
+                failed = true
+                continue
+            }
             if (results.isEmpty()) continue
             if (unplaced) {
                 val one = GeoLogic.inOneTown(results) ?: continue
@@ -48,6 +57,7 @@ class Geocoding(context: Context) {
             }
             GeoLogic.choose(results, parsedPostal, parsedTown)?.let { return LocateResult(it, candidate) }
         }
+        if (failed) throw GeocoderFailed()
         return null
     }
 
