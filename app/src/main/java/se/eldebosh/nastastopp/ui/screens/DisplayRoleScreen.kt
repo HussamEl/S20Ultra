@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.Flow
 import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.core.display.DisplaySnapshot
+import se.eldebosh.nastastopp.core.display.MotionStyle
 import se.eldebosh.nastastopp.core.link.LinkMessage
 import se.eldebosh.nastastopp.core.nav.MapmapApi
 import se.eldebosh.nastastopp.core.nav.RoutesApi
@@ -121,9 +122,12 @@ fun DisplayRoleScreen(
     /** The controls the driver used on the phone's floating panel, and what this display's map shows, for it. */
     remote: Flow<LinkMessage.Remote>? = null,
     onMapView: ((LinkMessage.MapView) -> Unit)? = null,
-    /** The car moved in the last two minutes, and how much it shakes now (the display's motion sign). */
+    /** The car moved in the last two minutes, how much it shakes now and how fast it goes (the display's motion band). */
     awake: Boolean = true,
     motion: (() -> Float)? = null,
+    speed: () -> Float? = { null },
+    /** The motion band's look was switched by a long press on the display's top line. */
+    onMotionStyle: ((MotionStyle) -> Unit)? = null,
 ) {
     var showSetup by remember { mutableStateOf(false) }
     val blocked = !bluetoothReady || paired.isEmpty() ||
@@ -160,6 +164,9 @@ fun DisplayRoleScreen(
             onMapView = onMapView,
             awake = awake,
             motion = motion,
+            speed = speed,
+            motionStyle = settings.motionStyle,
+            onMotionStyle = onMotionStyle,
         )
         return
     }

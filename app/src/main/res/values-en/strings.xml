@@ -379,6 +379,11 @@
     <string name="display_show_signs">Top line: a tap or a swipe down shows its signs</string>
     <string name="display_motion_on">Motion sensor: the car is moving</string>
     <string name="display_motion_off">Motion sensor: the car stands still, the display rests</string>
+    <string name="motion_style_trails">Light trails</string>
+    <string name="motion_style_wave">Wave</string>
+    <string name="motion_style_stars">Stars</string>
+    <string name="motion_style_lane">Lane line</string>
+    <string name="motion_style_pulse">Pulse</string>
     <string name="settings_address_log">Address log</string>
     <string name="address_log_count">Addresses kept, no names: %d</string>
     <string name="address_log_share">Tap to share them</string>

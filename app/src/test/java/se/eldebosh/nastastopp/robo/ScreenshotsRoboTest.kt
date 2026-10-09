@@ -80,6 +80,7 @@ import org.robolectric.shadows.ShadowWindowManagerImpl
 import se.eldebosh.nastastopp.App
 import se.eldebosh.nastastopp.core.display.DisplayItem
 import se.eldebosh.nastastopp.core.display.DisplaySnapshot
+import se.eldebosh.nastastopp.core.display.MotionStyle
 import se.eldebosh.nastastopp.core.geo.Fix
 import se.eldebosh.nastastopp.core.geo.GeoResult
 import se.eldebosh.nastastopp.core.link.LinkMessage
@@ -1253,6 +1254,41 @@ class ScreenshotsRoboTest {
         awake = true
         assertTrue("the moments again once it moves", waitFor(150) { compose.onAllNodesWithTag("ref_204").fetchSemanticsNodes().isNotEmpty() })
         compose.onNodeWithContentDescription("Motion sensor: the car is moving").assertExists()
+        compose.mainClock.autoAdvance = true
+    }
+
+    /**
+     * The motion band (297) runs across the top line in each of its five looks, at a highway's speed
+     * and shaking, above an address it never moves; a long press on the line switches the look and
+     * names it for a moment.
+     */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun theMotionBandFlowsWithTheCar() {
+        var style by mutableStateOf(MotionStyle.TRAILS)
+        compose.setContent {
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(
+                    tabletSnapshot, status = "Galaxy S20", connected = true, onSpeak = {}, onExit = {},
+                    time = { LocalTime.of(8, 11, 5) }, motion = { 0.5f }, speed = { 28f },
+                    motionStyle = style, onMotionStyle = { style = it },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.mainClock.autoAdvance = false
+        MotionStyle.entries.forEachIndexed { i, look ->
+            assertEquals(look, style)
+            compose.mainClock.advanceTimeBy(1_500)
+            compose.onNodeWithTag("ref_297").assertIsDisplayed()
+            save("display_motion_${i + 1}_${look.name.lowercase()}", compose.onRoot().captureToImage().asAndroidBitmap())
+            compose.onNodeWithTag("ref_298").performTouchInput { longClick(Offset(width / 2f, height / 2f)) }
+            compose.mainClock.advanceTimeBy(800)
+        }
+        assertEquals("round again to the first look", MotionStyle.TRAILS, style)
+        compose.onNodeWithText("Light trails").assertExists()
+        compose.mainClock.advanceTimeBy(3_000)
+        compose.onNodeWithText("Light trails").assertDoesNotExist()
         compose.mainClock.autoAdvance = true
     }
 

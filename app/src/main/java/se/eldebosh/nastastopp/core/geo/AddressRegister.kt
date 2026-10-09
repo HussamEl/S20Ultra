@@ -7,13 +7,16 @@ import se.eldebosh.nastastopp.core.parse.TextNorm
  * driver brought (Värmland's and Örebro's) (`assets/addresses.txt`, made by `tools/make-addresses.py`): every address in
  * force or reserved for a new building, with its point, and the places' popular names (a farm, a
  * school, a church), on the phone. It is asked before Android's geocoder and knows the addresses
- * the geocoder does not (village addresses, new streets). An address is taken only when its
- * written postcode or town is the register's (the post town or the municipality): a town is never
- * guessed.
+ * the geocoder does not (village addresses, new streets). With it, Lantmäteriet's place names
+ * ("Ortnamn", CC BY 4.0, `assets/places.txt`, made by `tools/make-places.py`): the villages, farms,
+ * towns, churches and facilities of the same municipalities, for a place written by its name only
+ * ("Glava, Arvika"). An address or a place is taken only when its written postcode or town is the
+ * register's (the post town or the municipality): a town is never guessed.
  */
 class AddressRegister private constructor(
     private val streets: Map<String, List<Street>>,
     private val named: Map<String, List<Named>> = emptyMap(),
+    private val places: Map<String, List<Place>> = emptyMap(),
 ) {
 
     /**
@@ -47,6 +50,9 @@ class AddressRegister private constructor(
     /** A popular name ([name]) of a post town, at one address or a few side by side ([spots]: point and address). */
     private class Named(val name: String, val town: String, val postcode: String, val municipality: String, val spots: List<Triple<Double, Double, String>>)
 
+    /** A place's name ([name]: a village, a farm, a town, a church) in a municipality, at one point. */
+    private class Place(val name: String, val municipality: String, val lat: Double, val lng: Double)
+
     /** The post towns' keys: a municipality named as one of them (Karlstad) is read as the post town. */
     private val towns: Set<String> = streets.values.flatten().mapTo(HashSet()) { TextNorm.key(it.town) }
 
@@ -54,6 +60,23 @@ class AddressRegister private constructor(
 
     /** Popular names known, in all their post towns. */
     val names: Int get() = named.values.sumOf { it.size }
+
+    /** Place names known, in all their municipalities. */
+    val placeNames: Int get() = places.values.sumOf { it.size }
+
+    /** The same register with Lantmäteriet's place names read from [text] (`assets/places.txt`). */
+    fun withPlaces(text: String): AddressRegister {
+        val read = HashMap<String, MutableList<Place>>()
+        text.lineSequence().forEach { line ->
+            if (line.isBlank() || line.startsWith("#")) return@forEach
+            val parts = line.split('|')
+            if (parts.size < 3) return@forEach
+            val lat = parts[2].substringBefore(':').toDoubleOrNull() ?: return@forEach
+            val lng = parts[2].substringAfter(':').toDoubleOrNull() ?: return@forEach
+            read.getOrPut(TextNorm.key(parts[0])) { mutableListOf() } += Place(parts[0], parts[1], lat, lng)
+        }
+        return AddressRegister(streets, named, read)
+    }
 
     /**
      * The address [candidate] ("Storgatan 14 B, 652 24 Karlstad": its street and number before
@@ -94,7 +117,7 @@ class AddressRegister private constructor(
     private fun named(candidate: String, digits: String?, place: String?): GeoResult? {
         val written = candidate.substringBefore(',').trim()
         val found = inTown(named[TextNorm.key(written)].orEmpty(), digits, place, { it.postcode }, { it.town }, { it.municipality })
-            .singleOrNull() ?: return null
+            .singleOrNull() ?: return placed(written, digits, place)
         val (lat, lng, address) = found.spots.first()
         if (found.spots.any { (la, ln) -> GeoLogic.distanceMeters(lat, lng, la, ln) > SAME_PLACE_M }) return null
         return GeoResult(
@@ -103,6 +126,37 @@ class AddressRegister private constructor(
             addressLine = "${found.name}, $address, ${found.postcode.chunked(3).joinToString(" ")} ${found.town}".trim(),
             postalCode = found.postcode,
             locality = found.town.ifEmpty { null },
+            subLocality = null,
+            thoroughfare = null,
+        )
+    }
+
+    /**
+     * A place written by its name ("Glava, Arvika", "Ölme kyrka, 681 94 Kristinehamn") in
+     * Lantmäteriet's place names: taken only when it is one place in the municipalities the written
+     * postcode [digits] or town [place] lies in (the address register says which), and said in the
+     * written town (the postcode's post town).
+     */
+    private fun placed(written: String, digits: String?, place: String?): GeoResult? {
+        val all = places[TextNorm.key(written)] ?: return null
+        val (municipalities, town) = when {
+            digits != null -> {
+                val there = streets.values.flatten().filter { it.postcode == digits }
+                there.mapTo(HashSet()) { TextNorm.key(it.municipality) } to there.firstOrNull()?.town
+            }
+            else -> {
+                val there = streets.values.flatten().filter { TextNorm.key(it.town) == place }
+                val named = there.firstOrNull()?.town ?: all.firstOrNull { TextNorm.key(it.municipality) == place }?.municipality
+                (there.mapTo(HashSet()) { TextNorm.key(it.municipality) } + listOfNotNull(place.takeIf { it !in towns })) to named
+            }
+        }
+        val found = all.filter { TextNorm.key(it.municipality) in municipalities }.singleOrNull() ?: return null
+        return GeoResult(
+            lat = found.lat,
+            lng = found.lng,
+            addressLine = listOfNotNull(found.name, town).joinToString(", "),
+            postalCode = digits,
+            locality = town,
             subLocality = null,
             thoroughfare = null,
         )
@@ -121,6 +175,7 @@ class AddressRegister private constructor(
 
     companion object {
         const val ASSET = "addresses.txt"
+        const val PLACES_ASSET = "places.txt"
 
         /** The addresses of one popular name lie this near each other to be one place. */
         private const val SAME_PLACE_M = 250.0

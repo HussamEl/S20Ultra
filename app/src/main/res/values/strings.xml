@@ -380,6 +380,11 @@
     <string name="display_show_signs">السطر الأعلى: ضغطة أو سحب للأسفل يُظهر الرموز</string>
     <string name="display_motion_on">حساس الحركة: السيارة تتحرك</string>
     <string name="display_motion_off">حساس الحركة: السيارة واقفة، الشاشة ترتاح</string>
+    <string name="motion_style_trails">خطوط الضوء</string>
+    <string name="motion_style_wave">الموجة</string>
+    <string name="motion_style_stars">النجوم</string>
+    <string name="motion_style_lane">خط الطريق</string>
+    <string name="motion_style_pulse">النبض</string>
     <string name="settings_address_log">سجل العناوين</string>
     <string name="address_log_count">العناوين المحفوظة، بلا أسماء: %d</string>
     <string name="address_log_share">اضغط لمشاركتها</string>

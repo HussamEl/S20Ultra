@@ -205,6 +205,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.core.display.DisplayItem
 import se.eldebosh.nastastopp.core.display.DisplaySnapshot
+import se.eldebosh.nastastopp.core.display.MotionStyle
 import se.eldebosh.nastastopp.core.display.TimeStatus
 import se.eldebosh.nastastopp.core.geo.GeoLogic
 import se.eldebosh.nastastopp.core.link.LinkMessage
@@ -290,8 +291,13 @@ fun PassengerDisplayScreen(
     onMapView: ((LinkMessage.MapView) -> Unit)? = null,
     /** The car moved in the last two minutes (the tablet's motion): the moments and the map's flights come only then. */
     awake: Boolean = true,
-    /** How much the car shakes now (0–1), for the motion sign on the top line; null without a sensor. */
+    /** How much the car shakes now (0–1), for the motion band on the top line; null without a sensor. */
     motion: (() -> Float)? = null,
+    /** The tablet's GPS speed now (m/s), for the motion band; null while there is none. */
+    speed: () -> Float? = { null },
+    /** The motion band's look (297), and the driver's long press on the top line that switches it. */
+    motionStyle: MotionStyle = MotionStyle.TRAILS,
+    onMotionStyle: ((MotionStyle) -> Unit)? = null,
     /**
      * Each part of a next-stop announcement once this device's voice has said it
      * ([se.eldebosh.nastastopp.tts.Announcer.said]); null when this device does not say it (the
@@ -590,7 +596,8 @@ fun PassengerDisplayScreen(
         ) {
             // The top line, small and quiet: the connection at the left, the signs and the battery
             // at the right, hidden until a tap or a swipe down on the line (298) shows them for a
-            // while; the motion sign (297) always at the far right. The address starts just under it.
+            // while; the motion band (297) always across it, behind them, and a long press switches
+            // its look. The address starts just under it.
             var topShown by remember { mutableStateOf(false) }
             var topCalls by remember { mutableIntStateOf(0) }
             LaunchedEffect(topShown, topCalls) {
@@ -603,12 +610,39 @@ fun PassengerDisplayScreen(
                 topCalls++
             }
             val reveal = stringResource(R.string.display_show_signs)
+            // The look just chosen by a long press, named on the line for a moment.
+            var styleNamed by remember { mutableStateOf(false) }
+            var styleCalls by remember { mutableIntStateOf(0) }
+            LaunchedEffect(styleCalls) {
+                if (styleCalls == 0) return@LaunchedEffect
+                styleNamed = true
+                delay(STYLE_NAMED_MS)
+                styleNamed = false
+            }
+            val nextStyle by rememberUpdatedState(onMotionStyle?.takeIf { motion != null }?.let { set ->
+                {
+                    set(MotionStyle.entries[(motionStyle.ordinal + 1) % MotionStyle.entries.size])
+                    styleCalls++
+                }
+            })
+            Box(Modifier.fillMaxWidth()) {
+            if (motion != null) {
+                MotionBand(motionStyle, motion, speed, awake, dim = topShown, modifier = Modifier.matchParentSize().refCorner(297))
+            }
+            if (styleNamed) {
+                Text(
+                    stringResource(motionStyle.label),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = AppTheme.colors.text,
+                    modifier = Modifier.align(Alignment.Center),
+                )
+            }
             Row(
                 Modifier
                     .ref(298)
                     .fillMaxWidth()
                     .heightIn(min = TouchTarget)
-                    .pointerInput(Unit) { detectTapGestures { showTop() } }
+                    .pointerInput(Unit) { detectTapGestures(onLongPress = { nextStyle?.invoke() }) { showTop() } }
                     .pointerInput(Unit) { detectVerticalDragGestures { _, dy -> if (dy > 0) showTop() } }
                     .semantics { contentDescription = reveal },
                 verticalAlignment = Alignment.CenterVertically,
@@ -644,7 +678,7 @@ fun PassengerDisplayScreen(
                         )
                     }
                 }
-                if (motion != null) MotionSign(motion, awake)
+            }
             }
             val lineHeight = with(density) { clockLine.height.toDp() }
 
@@ -1934,49 +1968,6 @@ private fun Modifier.ink(size: TextUnit): Modifier = layout { measurable, constr
     // Something smaller than a line of digits (the done marks alone) keeps its own size.
     if (placeable.height <= above + below) return@layout layout(placeable.width, placeable.height) { placeable.place(0, 0) }
     layout(placeable.width, placeable.height - above - below) { placeable.place(0, -above) }
-}
-
-/**
- * The motion sign (297), always at the top line's far right: a short upright line that waves like a
- * snake as the car shakes (the tablet's accelerometer, [level] 0–1), so the sensor is seen working;
- * calm and grey once the car has stood still two minutes ([awake] false: the moments rest).
- */
-@Composable
-private fun MotionSign(level: () -> Float, awake: Boolean) {
-    val phase = remember { mutableFloatStateOf(0f) }
-    val shake = remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(Unit) {
-        var last = 0L
-        while (true) {
-            withInfiniteAnimationFrameMillis { t ->
-                val dt = if (last == 0L) 0L else t - last
-                last = t
-                // Smoothed, and the waves run faster the more it shakes.
-                shake.floatValue += (level() - shake.floatValue) * 0.1f
-                phase.floatValue = (phase.floatValue + dt / 1000f * (MOTION_SPEED_REST + MOTION_SPEED_SHAKE * shake.floatValue)) % 1f
-            }
-        }
-    }
-    val color = if (awake) AppTheme.colors.highlight else AppTheme.colors.textMuted
-    val description = stringResource(if (awake) R.string.display_motion_on else R.string.display_motion_off)
-    Canvas(
-        Modifier
-            .refCorner(297)
-            .padding(start = 8.dp)
-            .size(MOTION_WIDTH, MOTION_HEIGHT)
-            .semantics { contentDescription = description },
-    ) {
-        val path = Path()
-        val steps = 24
-        val amp = MOTION_REST_AMP.toPx() + (size.width / 2f - MOTION_REST_AMP.toPx() - 2.dp.toPx()) * shake.floatValue
-        for (i in 0..steps) {
-            val f = i / steps.toFloat()
-            val x = size.width / 2f + amp * sin(2f * PI.toFloat() * (MOTION_WAVES * f - phase.floatValue))
-            val y = f * size.height
-            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
-        }
-        drawPath(path, color, style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
-    }
 }
 
 /**
@@ -3539,13 +3530,8 @@ private const val HOME_BEAT_MS = 700
 /** The top line's signs show this long after a tap or a swipe down on it. */
 private const val TOP_SHOWN_MS = 10_000L
 
-/** The motion sign: its size, its waves, how far it sways at rest, how fast its waves run (at rest, and more with the shaking). */
-private val MOTION_WIDTH = 16.dp
-private val MOTION_HEIGHT = 34.dp
-private const val MOTION_WAVES = 1.5f
-private val MOTION_REST_AMP = 1.dp
-private const val MOTION_SPEED_REST = 0.15f
-private const val MOTION_SPEED_SHAKE = 2.5f
+/** The motion band's look stays named on the top line this long after a long press switches it. */
+private const val STYLE_NAMED_MS = 2_500L
 
 /** The battery sign: its size, and the percent at which it turns red. */
 private val BATTERY_WIDTH = 24.dp

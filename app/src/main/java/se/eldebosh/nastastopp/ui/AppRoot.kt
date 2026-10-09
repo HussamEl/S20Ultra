@@ -454,6 +454,8 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 onMapView = { client.mapView(it) },
                                 awake = carAwake,
                                 motion = if (carMotion.available) ({ carMotion.level.value }) else null,
+                                speed = { carMotion.speed.value },
+                                onMotionStyle = { style -> graph.settings.update { it.copy(motionStyle = style) } },
                                 places = graph.settings,
                                 panelAllowed = remember(resumeTick) { graph.tabletPanel.canShow },
                                 onAllowPanel = { SystemIntents.openOverlaySettings(context) },

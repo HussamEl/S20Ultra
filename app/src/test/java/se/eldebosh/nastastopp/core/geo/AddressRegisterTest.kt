@@ -89,6 +89,39 @@ class AddressRegisterTest {
         assertNull(sample.find("Nybyggevägen 3", null, "Karlstad"))
     }
 
+    // Invented place names, laid out as tools/make-places.py writes them.
+    private val placed = sample.withPlaces(
+        """
+        # name|municipality|lat:lng
+        Provby|Karlstad|59.70:13.60
+        Exempelby|Hammarö|59.31:13.45
+        Tvåby|Karlstad|59.50:13.40
+        Tvåby|Hammarö|59.30:13.44
+        Provgårdens skola|Karlstad|59.99:13.99
+        """.trimIndent(),
+    )
+
+    /** A place written by its name only is found in the municipality its written town or postcode lies in. */
+    @Test
+    fun aPlaceIsFoundByItsNameWhereItIsWritten() {
+        val found = placed.find("Provby, Molkom", null, "Molkom")!!
+        assertEquals(59.70, found.lat, 1e-9)
+        assertEquals("Molkom", found.locality)
+        assertEquals("Provby, Molkom", found.addressLine)
+        assertEquals(59.70, placed.find("Provby", "655 60", null)!!.lat, 1e-9)
+        // A municipality that is no post town's name.
+        assertEquals(59.31, placed.find("Exempelby", null, "Hammarö")!!.lat, 1e-9)
+        // Each namesake where it is written, never the other one.
+        assertEquals(59.50, placed.find("Tvåby", null, "Karlstad")!!.lat, 1e-9)
+        assertEquals(59.30, placed.find("Tvåby", null, "Skoghall")!!.lat, 1e-9)
+        // Neither town nor postcode, or a town of another municipality: none.
+        assertNull(placed.find("Provby", null, null))
+        assertNull(placed.find("Provby", null, "Skoghall"))
+        assertNull(placed.find("Provby", null, "Kil"))
+        // The address register's popular name comes first.
+        assertEquals(59.61, placed.find("Provgårdens skola", null, "Molkom")!!.lat, 1e-9)
+    }
+
     @Test
     fun theDriversRegisterIsBundled() {
         val text = listOf(File("src/main/assets/${AddressRegister.ASSET}"), File("app/src/main/assets/${AddressRegister.ASSET}")).first { it.exists() }.readText()
@@ -112,5 +145,21 @@ class AddressRegisterTest {
         assertEquals(register.find("Andstigen 1", null, "Kopparberg")!!.lat, register.find("Andstigen 1", null, "Ljusnarsberg")!!.lat, 1e-9)
         assertNotNull(register.find("Apelstigen 1", null, "Skoghall"))
         assertNull(register.find("Apelstigen 1", null, "Hammarö"))
+    }
+
+    @Test
+    fun theDriversPlaceNamesAreBundled() {
+        fun asset(name: String) = listOf(File("src/main/assets/$name"), File("app/src/main/assets/$name")).first { it.exists() }.readText()
+        val register = AddressRegister.parse(asset(AddressRegister.ASSET)).withPlaces(asset(AddressRegister.PLACES_ASSET))
+        assertTrue(register.placeNames > 15_000)
+        // Villages and churches the address register does not name, each in its municipality.
+        assertNotNull(register.find("Glava", null, "Arvika"))
+        assertNotNull(register.find("Visnum", null, "Kristinehamn"))
+        assertNotNull(register.find("Ölme kyrka", null, "Kristinehamn"))
+        assertNotNull(register.find("Glanshammar", null, "Örebro"))
+        // A town's name is the town, not a farm of the same name beside it.
+        assertEquals(59.597, register.find("Molkom", null, "Karlstad")!!.lat, 1e-3)
+        // Never a namesake of another municipality.
+        assertNull(register.find("Glava", null, "Örebro"))
     }
 }

@@ -379,6 +379,11 @@
     <string name="display_show_signs">Översta raden: tryck eller svep nedåt för att visa symbolerna</string>
     <string name="display_motion_on">Rörelsesensor: bilen rör sig</string>
     <string name="display_motion_off">Rörelsesensor: bilen står still, skärmen vilar</string>
+    <string name="motion_style_trails">Ljusspår</string>
+    <string name="motion_style_wave">Våg</string>
+    <string name="motion_style_stars">Stjärnor</string>
+    <string name="motion_style_lane">Vägmarkering</string>
+    <string name="motion_style_pulse">Puls</string>
     <string name="settings_address_log">Adresslogg</string>
     <string name="address_log_count">Sparade adresser, inga namn: %d</string>
     <string name="address_log_share">Tryck för att dela dem</string>

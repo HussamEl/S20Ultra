@@ -6,6 +6,7 @@ import androidx.core.content.edit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import se.eldebosh.nastastopp.core.display.MotionStyle
 import se.eldebosh.nastastopp.core.geo.AnnouncementDetail
 import se.eldebosh.nastastopp.core.nav.WaySource
 
@@ -43,6 +44,8 @@ data class AppSettings(
     val tabletPanel: Boolean = false,
     /** The passenger display on this device is black (on) or light (223). */
     val displayDark: Boolean = true,
+    /** Display role: the look of the motion band on the top line (297), switched by a long press there. */
+    val motionStyle: MotionStyle = MotionStyle.TRAILS,
     /** Display role: the driver's own Google Maps key for the map on this tablet, or null. */
     val mapsKey: String? = null,
     /** Display role: who gives this tablet's map its ways and travel times (304). */
@@ -90,6 +93,7 @@ class SettingsStore(context: Context) : WindowPlaces {
             putBoolean(K_DISPLAY_SPEAKS, next.displaySpeaks)
             putBoolean(K_TABLET_PANEL, next.tabletPanel)
             putBoolean(K_DISPLAY_DARK, next.displayDark)
+            putString(K_MOTION_STYLE, next.motionStyle.name)
             putString(K_MAPS_KEY, next.mapsKey)
             putString(K_WAY_SOURCE, next.waySource.name)
             putString(K_MAPMAP_KEY, next.mapmapKey)
@@ -159,6 +163,7 @@ class SettingsStore(context: Context) : WindowPlaces {
         displaySpeaks = prefs.getBoolean(K_DISPLAY_SPEAKS, true),
         tabletPanel = prefs.getBoolean(K_TABLET_PANEL, false),
         displayDark = prefs.getBoolean(K_DISPLAY_DARK, true),
+        motionStyle = runCatching { MotionStyle.valueOf(prefs.getString(K_MOTION_STYLE, null) ?: "") }.getOrDefault(MotionStyle.TRAILS),
         mapsKey = prefs.getString(K_MAPS_KEY, null),
         waySource = runCatching { WaySource.valueOf(prefs.getString(K_WAY_SOURCE, null) ?: "") }.getOrDefault(WaySource.GOOGLE),
         mapmapKey = prefs.getString(K_MAPMAP_KEY, null),
@@ -185,6 +190,7 @@ class SettingsStore(context: Context) : WindowPlaces {
         private const val K_DISPLAY_DARK = "display_dark"
         private const val K_MAPS_KEY = "tablet_maps_key"
         private const val K_WAY_SOURCE = "tablet_way_source"
+        private const val K_MOTION_STYLE = "tablet_motion_style"
         private const val K_MAPMAP_KEY = "tablet_mapmap_key"
         private const val K_WEATHER_WIDGET = "tablet_weather_widget"
         private const val K_CONTROLLER = "display_controller_address"

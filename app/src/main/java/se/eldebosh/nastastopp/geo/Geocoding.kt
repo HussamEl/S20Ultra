@@ -186,13 +186,18 @@ class Geocoding(context: Context) {
         private var loaded: AddressRegister? = null
 
         /**
-         * Lantmäteriet's addresses, read from the app's assets the first time they are wanted
-         * (off the main thread: the app starts reading them at its start, [App]).
+         * Lantmäteriet's addresses and place names, read from the app's assets the first time they
+         * are wanted (off the main thread: the app starts reading them at its start, [App]).
          */
         fun register(context: Context): AddressRegister = loaded ?: synchronized(this) {
             loaded ?: runCatching { context.assets.open(AddressRegister.ASSET).bufferedReader().use { AddressRegister.parse(it.readText()) } }
                 .onFailure { DebugLog.w(it) { "address register not read" } }
                 .getOrDefault(AddressRegister.EMPTY)
+                .let { register ->
+                    runCatching { context.assets.open(AddressRegister.PLACES_ASSET).bufferedReader().use { register.withPlaces(it.readText()) } }
+                        .onFailure { DebugLog.w(it) { "place names not read" } }
+                        .getOrDefault(register)
+                }
                 .also { loaded = it }
         }
 
