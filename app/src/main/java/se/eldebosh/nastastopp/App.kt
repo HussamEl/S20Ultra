@@ -54,7 +54,8 @@ class AppGraph(app: Application) {
     val announcer = Announcer(app, settings)
     val maps = MapsLauncher(app)
     val repository = RouteRepository(app)
-    val geocoding = Geocoding(app)
+    /** Finds the stops' points; Lantmäteriet's addresses are read in the background at the start, ready for the first route. */
+    val geocoding = Geocoding(app).also { scope.launch(Dispatchers.IO) { Geocoding.register(app) } }
     val history = TripHistory(app, settings, scope)
     val controller = RouteController(app, scope, repository, settings, geocoding, announcer, maps, localities, extractor, history, StoredPlaceMemory(app), StoredEntrances(app), districts)
     val notifier = RouteNotifier(app, controller, settings, scope)

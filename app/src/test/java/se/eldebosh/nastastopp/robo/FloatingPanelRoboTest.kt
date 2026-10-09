@@ -53,6 +53,7 @@ import se.eldebosh.nastastopp.core.geo.StreetInfo
 import se.eldebosh.nastastopp.core.geo.StreetMapBuilder
 import se.eldebosh.nastastopp.core.link.LinkMessage
 import se.eldebosh.nastastopp.geo.CurrentStreet
+import se.eldebosh.nastastopp.geo.Geocoding
 import se.eldebosh.nastastopp.geo.StreetCaller
 import se.eldebosh.nastastopp.overlay.FloatingPanel
 import se.eldebosh.nastastopp.overlay.PanelActions
@@ -75,6 +76,7 @@ class FloatingPanelRoboTest {
     @Before
     fun setUp() {
         app = ApplicationProvider.getApplicationContext()
+        Geocoding.register(app) // read before the stops are looked for, so they wait only in the test's own time
         graph = app.graph
         graph.controller.clear()
         graph.history.clear()
@@ -127,7 +129,7 @@ class FloatingPanelRoboTest {
         assertTrue(r.completed.isEmpty())
         assertEquals(listOf("12:30", "12:45", "13:40"), r.stops.map { it.time })
         assertTrue("history entry removed", graph.history.entries.value.isEmpty())
-        assertEquals("Nästa stopp: Klockan tolv trettio. Storgatan 14, Karlstad. Därefter: Klockan tolv fyrtiofem. Järnvägsgatan 3B, Storfors.", tts.lastAnnouncement)
+        assertEquals("Nästa stopp: Klockan tolv trettio. Storgatan 14, Karlstad. Klockan tolv fyrtiofem. Järnvägsgatan 3B, Storfors.", tts.lastAnnouncement)
         assertNull("Maps already has this stop (mid-batch)", shadowOf(app).nextStartedActivity)
         c.end()
     }

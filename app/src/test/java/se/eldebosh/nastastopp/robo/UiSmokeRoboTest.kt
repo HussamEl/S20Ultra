@@ -34,6 +34,7 @@ import se.eldebosh.nastastopp.BuildConfig
 import se.eldebosh.nastastopp.MainActivity
 import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.core.geo.AnnouncementDetail
+import se.eldebosh.nastastopp.geo.Geocoding
 import se.eldebosh.nastastopp.settings.SettingsStore
 
 /**
@@ -54,6 +55,7 @@ class UiSmokeRoboTest {
     @Before
     fun setUp() {
         app = ApplicationProvider.getApplicationContext()
+        Geocoding.register(app) // read before the stops are looked for, so they wait only in the test's own time
         app.graph.controller.clear()
         shadowOf(Looper.getMainLooper()).idle()
     }

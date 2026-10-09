@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import se.eldebosh.nastastopp.core.geo.AddressRegister
 import se.eldebosh.nastastopp.core.geo.GeoLogic
 import se.eldebosh.nastastopp.core.geo.GeoResult
 import se.eldebosh.nastastopp.core.parse.TextNorm
@@ -22,8 +23,10 @@ class GeocoderFailed : Exception("geocoder failed")
 data class LocateResult(val result: GeoResult, val candidate: String)
 
 /**
- * android.location.Geocoder wrapper (served by the system / Play Services process — this app has
- * no INTERNET permission). Swedish locale, Sweden bounding box, max 5 results, session cache.
+ * Finds a stop's point: first in Lantmäteriet's address register on the phone ([AddressRegister],
+ * where the written postcode or town is the register's), then with android.location.Geocoder
+ * (served by the system / Play Services process). Swedish locale, Sweden bounding box, max 5
+ * results, session cache.
  */
 class Geocoding(context: Context) {
 
@@ -34,12 +37,17 @@ class Geocoding(context: Context) {
     val isAvailable: Boolean get() = Geocoder.isPresent()
 
     /**
-     * Tries [candidates] in order. A result matching the written postal code or town wins
+     * Tries [candidates] in order, in Lantmäteriet's register, then with the geocoder. A result matching the written postal code or town wins
      * ([GeoLogic.choose]); an answer in another place is never used, and the next candidate is
      * tried. Without a postal code or town the stop is looked for in Värmland only, and taken
      * only when it is in one town ([GeoLogic.inOneTown]): a town is never guessed.
      */
     suspend fun locate(candidates: List<String>, parsedPostal: String?, parsedTown: String?): LocateResult? {
+        // Lantmäteriet's register first: on the phone, and it knows addresses the geocoder does not.
+        val known = loaded ?: withContext(Dispatchers.IO) { register(appContext) }
+        for (candidate in candidates.take(MAX_CANDIDATES)) {
+            known.find(candidate, parsedPostal, parsedTown)?.let { return LocateResult(it, candidate) }
+        }
         if (!isAvailable) return null
         val unplaced = parsedPostal == null && parsedTown == null
         var failed = false
@@ -173,6 +181,21 @@ class Geocoding(context: Context) {
     }
 
     companion object {
+        /** Lantmäteriet's addresses, read once for the app's life ([register]). */
+        @Volatile
+        private var loaded: AddressRegister? = null
+
+        /**
+         * Lantmäteriet's addresses, read from the app's assets the first time they are wanted
+         * (off the main thread: the app starts reading them at its start, [App]).
+         */
+        fun register(context: Context): AddressRegister = loaded ?: synchronized(this) {
+            loaded ?: runCatching { context.assets.open(AddressRegister.ASSET).bufferedReader().use { AddressRegister.parse(it.readText()) } }
+                .onFailure { DebugLog.w(it) { "address register not read" } }
+                .getOrDefault(AddressRegister.EMPTY)
+                .also { loaded = it }
+        }
+
         private const val MAX_RESULTS = 5
         private const val MAX_CANDIDATES = 6
         private const val TIMEOUT_MS = 15_000L

@@ -1,0 +1,7 @@
+addresses.txt
+
+Addresses: Lantmäteriet, Belägenhetsadresser (Nedladdning, vektor), CC BY 4.0
+(https://creativecommons.org/licenses/by/4.0/).
+
+Only addresses in force: street or address area, number and letter, postcode, post town,
+municipality and point (converted from SWEREF 99 TM to WGS 84). No names of people.

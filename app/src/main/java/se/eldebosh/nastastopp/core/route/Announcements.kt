@@ -14,21 +14,21 @@ data class Announcement(val swedish: String, val english: String?)
 object Announcements {
 
     /**
-     * "Nästa stopp: Klockan åtta noll två. [a]. Därefter: Klockan nio trettio. [b]." Each stop's
-     * trip time ([aTime], [bTime], "08:02") comes first, as the display shows it first; left out
-     * when unknown.
+     * "Nästa stopp: Klockan åtta noll två. [a]. Klockan nio trettio. [b]." Each stop's trip time
+     * ([aTime], [bTime], "08:02") comes first, as the display shows it first; left out when
+     * unknown. The stop after the next one is said by its time alone, with no word before it.
      */
     fun nextStops(a: String, b: String?, withEnglish: Boolean, aTime: String? = null, bTime: String? = null): Announcement {
         val sv = buildString {
-            append(said(NEXT, aTime, a))
-            if (b != null) append(" ").append(said(THEN, bTime, b)) else append(" Det är sista stoppet.")
+            append("$NEXT: ").append(said(aTime, a))
+            if (b != null) append(" ").append(said(bTime, b)) else append(" Det är sista stoppet.")
         }
         val en = if (!withEnglish) null else buildString {
             append("Next stop: ")
             englishTime(aTime)?.let { append("$it, ") }
             append("$a.")
             if (b != null) {
-                append(" Then: ")
+                append(" ")
                 englishTime(bTime)?.let { append("$it, ") }
                 append("$b.")
             } else {
@@ -38,24 +38,25 @@ object Announcements {
         return Announcement(sv, en)
     }
 
-    /** "[word]: Klockan åtta noll två. [name]." (no time: "[word]: [name].") */
-    private fun said(word: String, time: String?, name: String): String =
-        spokenTime(time)?.let { "$word: $it. $name." } ?: "$word: $name."
+    /** "Klockan åtta noll två. [name]." (no time: "[name].") */
+    private fun said(time: String?, name: String): String = spokenTime(time)?.let { "$it. $name." } ?: "$name."
 
     fun finished(withEnglish: Boolean) = Announcement("Rutten är klar.", if (withEnglish) "The route is finished." else null)
 
     /**
-     * A trip tapped: its time, then its place. A coming trip shown under its [word] ("Därefter",
-     * "Sen") is said like the announcement: "Sen: Klockan åtta noll fem. Hamngatan 7, Skoghall."; a
-     * trip done, its time and its place: "Klockan sju trettio. Järnvägsgatan 3B, Storfors." A
-     * coming trip without a word (the phone's panel) says where the car is going: "Klockan åtta
-     * noll fem ska vi till Hamngatan 7, Skoghall." Never "Nästa", so it is not taken for the next stop.
+     * A trip tapped on the passenger display, coming or done: its time, then its place, said as
+     * the display shows them: "Klockan åtta noll fem. Hamngatan 7, Skoghall." Never "Nästa", so
+     * it is not taken for the next stop.
      */
-    fun at(time: String?, name: String, coming: Boolean, word: String? = null): Announcement {
-        // A coming trip shown with its word ("Därefter", "Sen"): said like the announcement.
-        if (coming && word != null) {
-            return Announcement(said(word, time, name), listOfNotNull(englishTime(time), name).joinToString(", ") + ".")
-        }
+    fun shown(time: String?, name: String): Announcement =
+        Announcement(said(time, name), listOfNotNull(englishTime(time), name).joinToString(", ") + ".")
+
+    /**
+     * A trip tapped on the phone's floating panel: its time, then its place. A trip still [coming]
+     * says where the car is going ("Klockan åtta noll fem ska vi till Hamngatan 7, Skoghall"); a
+     * trip done, its time and place ("Klockan sju trettio. Järnvägsgatan 3B, Storfors.").
+     */
+    fun at(time: String?, name: String, coming: Boolean): Announcement {
         val at = spokenTime(time)
         val atEn = englishTime(time)?.let { "At $it" }
         if (at == null || atEn == null) {
@@ -83,29 +84,31 @@ object Announcements {
     /**
      * One step of what a passenger display shows large while it is said ([steps]): a trip's
      * [time] ("Nästa stopp: Klockan åtta noll två."), or its address; [stop] counts the trips said
-     * (0 the first, 1 "Därefter").
+     * (0 the next stop, 1 the one after it).
      */
     data class Step(val text: String, val time: Boolean, val stop: Int)
 
     /**
      * How an announcement the display shows ([isShow]: the next stops, a tapped trip) is said, in
-     * step with it: each trip's time, then its address, apart. [silenceBefore] gives the silence
-     * before each while the display moves on. Anything else is one step, said at once.
+     * step with it: each trip's time, then its address, apart. A trip begins at its time ("Klockan
+     * … ."), the first also at the head of the text. [silenceBefore] gives the silence before each
+     * step while the display moves on. Anything else is one step, said at once.
      */
     fun steps(swedish: String): List<Step> {
         if (!isShow(swedish)) return listOf(Step(swedish, time = false, stop = 0))
-        // Where each trip begins: the first at once, the others at their word.
-        val starts = sortedSetOf(0)
-        for (word in listOf(THEN, LATER)) {
-            var i = swedish.indexOf(" $word: ")
+        // Where each trip's time begins: at the head, and at each time after a full stop.
+        val times = buildList {
+            if (timeEnd(swedish) != null) add(0)
+            var i = swedish.indexOf(". $CLOCK ")
             while (i >= 0) {
-                starts += i + 1
-                i = swedish.indexOf(" $word: ", i + 1)
+                if (timeEnd(swedish.substring(i + 2)) != null) add(i + 2)
+                i = swedish.indexOf(". $CLOCK ", i + 1)
             }
         }
-        val begins = starts.toList()
+        // The trips: the first from the head, each other from its time.
+        val begins = (listOf(0) + times).distinct().sorted()
         return begins.flatMapIndexed { n, from ->
-            val trip = swedish.substring(from, begins.getOrNull(n + 1)?.let { it - 1 } ?: swedish.length).trim()
+            val trip = swedish.substring(from, begins.getOrNull(n + 1) ?: swedish.length).trim()
             val end = timeEnd(trip)
             val address = end?.let { trip.substring(it).trim() }
             when {
@@ -136,20 +139,17 @@ object Announcements {
 
     /**
      * Whether the passenger display shows [swedish] as it is said, step by step ([steps]): the next
-     * stops, or a trip tapped ("Därefter: …", "Sen: …", a trip done "Klockan sju trettio. …").
+     * stops, or a trip tapped ("Klockan sju trettio. …").
      */
-    fun isShow(swedish: String?): Boolean {
-        if (swedish == null) return false
-        return swedish.startsWith("$NEXT: ") || swedish.startsWith("$THEN: ") || swedish.startsWith("$LATER: ") || timeEnd(swedish) != null
-    }
+    fun isShow(swedish: String?): Boolean = swedish != null && (swedish.startsWith("$NEXT: ") || timeEnd(swedish) != null)
 
     /**
-     * Where the time at the head of a trip's text ends ("Därefter: Klockan åtta noll två." or
+     * Where the time at the head of a trip's text ends ("Nästa stopp: Klockan åtta noll två." or
      * "Klockan sju trettio."), just after its full stop; null when the trip starts with no time.
      * The time's words are only numbers, so an address or "Klockan är …" is never taken for one.
      */
     private fun timeEnd(trip: String): Int? {
-        val head = listOf(NEXT, THEN, LATER).firstOrNull { trip.startsWith("$it: ") }?.let { it.length + 2 } ?: 0
+        val head = if (trip.startsWith("$NEXT: ")) NEXT.length + 2 else 0
         if (!trip.startsWith("$CLOCK ", head)) return null
         val stop = trip.indexOf('.', head)
         if (stop < 0) return null
@@ -163,12 +163,10 @@ object Announcements {
     /** Silence between a trip's time and its address: the time stays a moment, goes, and the address starts to grow. */
     const val TO_ADDRESS_MS = 2_100L
 
-    /** Silence between a trip's address and the next trip: the address stays two seconds, swells, turns away, the next trip comes and its time starts to grow. */
-    const val TO_NEXT_MS = 5_300L
+    /** Silence between a trip's address and the next trip: the address stays two seconds, shrinks away, the next trip comes and its time starts to grow. */
+    const val TO_NEXT_MS = 4_600L
 
     private const val NEXT = "Nästa stopp"
-    private const val THEN = "Därefter"
-    private const val LATER = "Sen"
     private const val CLOCK = "Klockan"
 
     private val ONES = listOf(

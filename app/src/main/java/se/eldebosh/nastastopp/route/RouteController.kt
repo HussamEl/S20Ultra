@@ -213,10 +213,10 @@ class RouteController(
     private fun lastNameOf(name: String?): String? = name?.trim()?.substringAfterLast(' ')?.takeIf { it.isNotBlank() }
 
     /**
-     * "Nästa stopp: …. Klockan …. Därefter: …. Klockan …." With the full announcement (the
+     * "Nästa stopp: Klockan … . …. Klockan … . …." With the full announcement (the
      * default) the next stop is said with its street and number, district and town, and the one
      * after it with its street and number and district. Otherwise both by district or town only.
-     * Each with its trip's time after it.
+     * Each with its trip's time before it.
      */
     fun announcementFor(stops: List<Stop>): Announcement {
         val first = stops.firstOrNull() ?: return Announcements.finished(settings.current.englishRepeat)

@@ -12,8 +12,6 @@
     <!-- The passenger display speaks to the passengers in Swedish, like the announcements. -->
     <string name="passenger_next_stop" translatable="false">Nästa stopp</string>
     <string name="passenger_next" translatable="false">Nästa</string>
-    <string name="passenger_then" translatable="false">Därefter</string>
-    <string name="passenger_later" translatable="false">Sen</string>
     <string name="passenger_to_next_stop" translatable="false">till nästa stopp</string>
     <string name="passenger_waiting" translatable="false">Rutten har inte börjat än</string>
     <string name="passenger_finding_position" translatable="false">Söker bilens position…</string>

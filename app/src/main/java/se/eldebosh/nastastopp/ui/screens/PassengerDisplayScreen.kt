@@ -131,7 +131,6 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
@@ -160,10 +159,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.text
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.LineHeightStyle
@@ -236,16 +233,16 @@ import se.eldebosh.nastastopp.ui.theme.DisplayTheme
 /**
  * Passenger display: made to be read by the passengers from their seats, while the driver works
  * it from the phone. The next stop starts at the top; at the bottom the clock stands in the left
- * corner with the next stop's time beside it, then "Därefter" and the trip after it, in short.
+ * corner with the next stop's time beside it, then the times of the trips after it.
  * Everything is only what it shows: no frames. The words for the passengers are Swedish,
  * like the announcements; the connection line (for the driver) follows the app's language.
  *
  * It moves with the route:
  * - when an announcement is spoken ([spoken] goes up by one each time, and a tap on the next stop
  *   counts too), the screen before goes completely; the next stop pops in alone and is said with
- *   its time; it stays a moment and fades away; then "Därefter" pops in its place and is said;
+ *   its time; it stays a moment and goes; then the trip after it comes in its place and is said;
  *   then the whole screen comes back (the voice keeps silent while the screen changes, [voice]);
- * - a tap on "Därefter", the trip after it or a trip in the strip a swipe along the bottom line
+ * - a tap on a time in the bottom line or a trip in the strip a swipe along the bottom line
  *   brings out says it and shows it the same way for a few seconds;
  * - a tap on the clock says the time;
  * - when the minute changes, the time grows into the middle of the screen over five seconds,
@@ -448,7 +445,7 @@ fun PassengerDisplayScreen(
     val ground = remember { Animatable(0f) }
     val reported = live?.current?.let { next -> shownTrip?.takeIf { it.first == next.trip } }
     val tripShown = reported?.second ?: live?.current
-    // Focused (a trip tapped, or the next stop and then "Därefter" while the announcement says
+    // Focused (a trip tapped, or the next stop and then the trip after it while the announcement says
     // them): only that trip is shown, its address at the top and its time large under it; the
     // bottom line, the dots and the top line's signs fade away.
     val focus = reported?.third == true
@@ -814,7 +811,7 @@ fun PassengerDisplayScreen(
 /**
  * The strip of all the trips, done and coming, out at the bottom in the clock's line while the
  * passengers look through it ([open]): a swipe along the bottom line (the clock, the next stop's
- * time, "Därefter") brings it out and scrolls it, the trip in its middle shown at the top; it goes
+ * times) brings it out and scrolls it, the trip in its middle shown at the top; it goes
  * a few seconds after the last swipe.
  */
 @Stable
@@ -1128,7 +1125,7 @@ private fun InfoMoment(
                             autoSize = TextAutoSize.StepBased(minFontSize = MIN_TITLE_SP.sp, maxFontSize = if (landscape) NAME_SP_WIDE else NAME_SP_NARROW, stepSize = 2.sp),
                         )
                         Text(
-                            next.title,
+                            shownAddress(next.title),
                             fontFamily = DisplayFont,
                             fontWeight = FontWeight.Medium,
                             fontSize = if (landscape) 44.sp else 28.sp,
@@ -1386,15 +1383,15 @@ private fun RouteGlyph(color: Color, modifier: Modifier = Modifier) {
 
 /**
  * The next stop and the trips around it, changing together: the new next stop grows out of
- * "Därefter". A spotlight follows what is said.
+ * the trip after it. A spotlight follows what is said.
  *
  * The next stop's address starts at the top. On the bottom line, after the clock and the next
- * stop's time ([besideClock] in), come "Därefter" and the trip after it, small: their time and the
+ * stop's time ([besideClock] in), come the trips after it, small: their time and the
  * start of their street. The passengers can look around without moving the route: at the top they
  * page from the next stop on to the following trips and back to the ones done, each with its time
  * under its address; a swipe along the bottom line brings out the strip of all the trips in the
  * line's place ([browse]), the top following the trip in its middle. The dots at the very bottom
- * say where the top is. A tap on "Därefter", the trip after it or a trip in the strip says it and
+ * say where the top is. A tap on a time in the bottom line or a trip in the strip says it and
  * shows it for a few seconds. Home ([homeCalls]), an announcement and half a minute left alone
  * bring the next stop back. A tap on the address says it: the next stop's announcement
  * ([onSpeakNext]), or another trip's time and place.
@@ -1458,7 +1455,7 @@ private fun Stage(
             val pop = remember { Animatable(0f) }
             val earlier = shown.earlier
             val upcoming = shown.upcoming
-            // The trips done, then the coming ones ("cards"); card [home] is "Därefter". The pages
+            // The trips done, then the coming ones ("cards"); card [home] is the trip after the next stop. The pages
             // at the top (and the strip) are the same with the next stop between them, at [home].
             val home = earlier.size
             val cardCount = earlier.size + upcoming.size
@@ -1470,15 +1467,10 @@ private fun Stage(
             val away = pager.currentPage != home
             // The trip at the top, for the focused time.
             val inMiddle = pageItem(pager.currentPage)
-            // A trip still coming says where the car is going; a trip done, its time and place.
-            // Each name once ("Centralsjukhuset, huvudentrén, Karlstad", never "… Karlstad, Karlstad").
-            // A coming trip's word, over its time and in what is said: "Därefter" for the trip after
-            // the next stop, "Sen" for the later ones.
-            val thenWord = stringResource(R.string.passenger_then)
-            val laterWord = stringResource(R.string.passenger_later)
-            val wordOf = { page: Int -> if (page == home + 1) thenWord else if (page > home + 1) laterWord else null }
-            val sayingOf = { item: DisplayItem, coming: Boolean, word: String? -> Announcements.at(item.time, GeoLogic.fullSpokenName(item.said ?: item.title, item.subtitle, null), coming, word) }
-            // The trip shown large: one show, the same everywhere (M1–M11, [Show]).
+            // A trip tapped, coming or done, is said as it is shown: its time, then its place, each
+            // name once ("Centralsjukhuset, huvudentrén, Karlstad", never "… Karlstad, Karlstad").
+            val sayingOf = { item: DisplayItem -> Announcements.shown(item.time, GeoLogic.fullSpokenName(item.said ?: item.title, item.subtitle, null)) }
+            // The trip shown large: one show, the same everywhere (M1–M8, [Show]).
             val show = remember { Show() }
             // Where each page's time and address stand.
             val spotsOf = remember { HashMap<Int, HeroSpots>() }
@@ -1492,7 +1484,7 @@ private fun Stage(
                     withTimeoutOrNull(estimate + VOICE_SLACK_MS) { heard.first { it == step } }
                 }
             }
-            // M2–M10 on [page]: its time grows, stays and goes, then its address. [steps] are what
+            // M2–M7 on [page]: its time grows, stays and goes, then its address. [steps] are what
             // is said with it (its time, its address), their places [timeAt] and [addressAt] in it.
             val perform: suspend (Int, DisplayItem, List<Announcements.Step>, Int?, Int?, Flow<Int>?) -> Unit = { page, item, steps, timeAt, addressAt, heard ->
                 coroutineScope {
@@ -1513,8 +1505,13 @@ private fun Stage(
                         delay(SAY_AFTER_MS)
                         val timeSaid = async { said(timeAt, steps.getOrNull(timeAt ?: -1)?.text ?: item.time, heard) }
                         grown.await()
-                        // M3: settled on black, one beat; it stays while it is said, and M3_HOLD_MS at least.
-                        launch { show.beat.animateTo(1f, tween(M3_BEAT_MS)) }
+                        // M3: settled on black, its word grows large and comes back; it stays
+                        // while it is said, and M3_HOLD_MS at least.
+                        launch {
+                            show.word.animateTo(M3_WORD, tween(M3_WORD_UP_MS, easing = FastOutSlowInEasing))
+                            delay(M3_WORD_HOLD_MS)
+                            show.word.animateTo(1f, tween(M3_WORD_BACK_MS, easing = M3_WORD_BACK))
+                        }
                         coroutineScope {
                             launch { delay(M3_HOLD_MS) }
                             launch {
@@ -1527,33 +1524,16 @@ private fun Stage(
                     } else {
                         launch { ground.animateTo(1f, tween(M2_MS)) }
                     }
-                    // M5: the address turns over into view from its place and fills the screen.
+                    // M5: the address grows smoothly from its place to fill the screen.
                     show.addressTo = growthOf(spots?.address, show.screen, M5_FILL_W, M5_FILL_H, M5_MOST)
                     show.phase = SHOW_ADDRESS
-                    val ticking = launch {
-                        val start = withInfiniteAnimationFrameMillis { it }
-                        while (true) withInfiniteAnimationFrameMillis { show.ms.longValue = it - start }
-                    }
                     launch { show.address.animateTo(1f, tween(M5_MS, easing = M5_EASE)) }
                     delay(SAY_AFTER_MS)
-                    val text = steps.getOrNull(addressAt ?: -1)?.text ?: item.title
-                    val addressSaid = async { said(addressAt, text, heard) }
-                    // M6: each line swells as it is read, the street, then its number; then M7, a slow beat.
-                    val lines = addressLines(item.title)
-                    lines.forEachIndexed { k, line ->
-                        show.lineAt = k
-                        show.line.animateTo(1f, tween(M6_IN_MS, easing = FastOutSlowInEasing))
-                        delay((line.length * MS_PER_CHAR).coerceAtLeast(M6_MIN_MS))
-                        show.line.animateTo(0f, tween(M6_OUT_MS, easing = FastOutSlowInEasing))
-                    }
-                    show.lineAt = -1
-                    show.pulsing = true
-                    addressSaid.await()
-                    delay(M7_HOLD_MS)
-                    // M9: it swells once more; M10: it turns away upwards and goes.
-                    show.swell.animateTo(1f, tween(M9_MS, easing = FastOutSlowInEasing))
-                    show.addressGone.animateTo(1f, tween(M10_MS, easing = M10_EASE))
-                    ticking.cancel()
+                    // M6: it stays, still, while it is said (its number too) and M6_HOLD_MS more.
+                    said(addressAt, steps.getOrNull(addressAt ?: -1)?.text ?: item.title, heard)
+                    delay(M6_HOLD_MS)
+                    // M7: it shrinks calmly and goes.
+                    show.addressGone.animateTo(1f, tween(M7_MS, easing = M4_EASE))
                 }
             }
             // M1: the screen before goes completely and the trip on [page] comes in (popping in).
@@ -1563,7 +1543,7 @@ private fun Stage(
                 pager.scrollToPage(page)
                 pop.animateTo(1f, POP_IN)
             }
-            // The trip shown goes for good, out of sight: the next one (or home, M11) comes in its place.
+            // The trip shown goes for good, out of sight: the next one (or home, M8) comes in its place.
             val clearAway: suspend () -> Unit = {
                 pop.snapTo(0f)
                 show.reset()
@@ -1574,7 +1554,7 @@ private fun Stage(
                 steps.indexOfFirst { it.stop == stop && it.time }.takeIf { it >= 0 } to steps.indexOfFirst { it.stop == stop && !it.time }.takeIf { it >= 0 }
             }
             // The announcement (Next, a tap on the next stop): the next stop shown and said, then
-            // "Därefter", then home again. The voice keeps silent while the screen moves
+            // the trip after it, then home again. The voice keeps silent while the screen moves
             // ([Announcements.silenceBefore]); on the device that speaks the display moves on as
             // each step has been said ([voice]), elsewhere by the text's length.
             LaunchedEffect(cue) {
@@ -1597,7 +1577,7 @@ private fun Stage(
                     pager.scrollToPage(home)
                 }
             }
-            // Nothing shown: the trip at the top comes into view (M11: a new stop once the one
+            // Nothing shown: the trip at the top comes into view (M8: a new stop once the one
             // before has gone, home after a show) and the ground clears.
             LaunchedEffect(spotlight.playing) {
                 if (spotlight.playing) return@LaunchedEffect
@@ -1622,9 +1602,9 @@ private fun Stage(
                 spotlight.stop()
                 goHome()
             }
-            // A tapped trip: said and shown the same way (M1–M10), then home again.
+            // A tapped trip: said and shown the same way (M1–M7), then home again.
             val showCard = { k: Int ->
-                val saying = sayingOf(cardItem(k), k >= home, wordOf(pageOfCard(k)))
+                val saying = sayingOf(cardItem(k))
                 val steps = Announcements.steps(saying.swedish)
                 // Said here, with its silences, as the screen moves.
                 onSay(saying)
@@ -1651,7 +1631,7 @@ private fun Stage(
                     waited += IDLE_TICK_MS
                     if (waited < IDLE_REST_MS) continue
                     waited = 0L
-                    val steps = Announcements.steps(sayingOf(current, true, NEXT_WORD).swedish)
+                    val steps = Announcements.steps(NEXT_WORD + sayingOf(current).swedish)
                     spotlight.play(quiet = true) {
                         on = NEXT_STOP
                         val (t, a) = stepsOf(steps, 0)
@@ -1708,7 +1688,7 @@ private fun Stage(
                 }
             }
             val dotsShown by animateFloatAsState(if (focus) 0f else 1f, tween(if (focus) CLOCK_FADE_MS else CLOCK_BACK_MS), label = "dots")
-            // A swipe on "Därefter" or the trip after it brings out the strip like one on the clock.
+            // A swipe along the bottom line brings out the strip like one on the clock.
             val swipe = if (focus) Modifier else Modifier.scrollable(list, Orientation.Horizontal, reverseDirection = true, flingBehavior = snap, interactionSource = browse.drags)
             Box(Modifier.fillMaxSize()) {
                 Column(Modifier.fillMaxSize()) {
@@ -1727,9 +1707,9 @@ private fun Stage(
                             timeSize = clockSize * HERO_TIME_OF_CLOCK,
                             show = show.takeIf { it.page == index },
                             spots = spotsOf.getOrPut(index) { HeroSpots() },
-                            // The trip's word over its time: only the next stop is "Nästa", the one after it "Därefter".
-                            label = if (index == home) stringResource(R.string.passenger_next) else wordOf(index),
-                            onClick = if (index == home) onSpeakNext else { { onSay(sayingOf(item, index > home, wordOf(index))) } },
+                            // The trip's word over its time: only the next stop is "Nästa".
+                            label = if (index == home) stringResource(R.string.passenger_next) else null,
+                            onClick = if (index == home) onSpeakNext else { { onSay(sayingOf(item)) } },
                             onLongClick = showWay?.let { { it(item, index == home) } },
                             // Only the next stop's name is shown (beside its figure) and said.
                             onName = if (index == home) item.lastName?.let { name -> { onName(name) } } else null,
@@ -1885,7 +1865,7 @@ private fun rememberSpotlight(): Spotlight {
 }
 
 /**
- * The rest of the bottom line, [content] (the coming trips, "Därefter" first): right after the
+ * The rest of the bottom line, [content] (the coming trips' times): right after the
  * clock's line ([besideClock] wide), in the width left beside it, level with its middle (it is
  * [line] tall).
  */
@@ -1901,7 +1881,7 @@ private fun ThenLine(besideClock: Int, line: Dp, content: @Composable () -> Unit
 
 /**
  * Two small chevrons pointing right, in bright yellow, lighting up one after another, over and
- * over, so the eye flows from the clock to the next stop's time beside it, on to "Därefter" and
+ * over, so the eye flows from the clock to the next stop's time beside it, on to the trips after it and
  * to the trip after it. The three arrows go by one light over their six chevrons: this one's are
  * chevrons [first] and [first] + 1.
  */
@@ -2169,7 +2149,7 @@ private enum class HeroRole { EARLIER, NEXT, LATER }
  * height. The time and the address never move toward each other.
  *
  * While it is the trip being shown ([show], the same everywhere: at home now and then, tapped,
- * announced) its time, then its address, grow to fill the screen (M2–M10, [Show]). A tap says it
+ * announced) its time, then its address, grow to fill the screen (M2–M7, [Show]). A tap says it
  * ([onClick]).
  */
 @Composable
@@ -2246,9 +2226,9 @@ private fun StopHero(
                             .align(Alignment.TopCenter)
                             .onPlaced { spots.address = it }
                             .graphicsLayer { show?.let { addressMotion(it) } }
-                            .clearAndSetSemantics { text = AnnotatedString(current.title) },
+                            .clearAndSetSemantics { text = AnnotatedString(lines.joinToString(" ")) },
                     ) {
-                        lines.forEachIndexed { k, line -> AddressLine(line, k, style.copy(fontSize = titleSp.sp), ink, show) }
+                        lines.forEach { line -> AddressLine(line, style.copy(fontSize = titleSp.sp), ink, show) }
                     }
                 }
             },
@@ -2269,61 +2249,30 @@ private fun StopHero(
 }
 
 /**
- * The lines a large address is written on, so it can grow as large as it can: the street, then
- * its number (and letter) under it ("Viken" / "12 A"); without a number its first word, then the
- * rest ("C-Sjukhuset" / "Dialysentrén"); one word alone.
+ * The lines a large address is written on, without its house number (the number is only said),
+ * so it can grow as large as it can: the street's first word, then the rest under it
+ * ("Södra" / "Kyrkogatan", "C-Sjukhuset" / "Dialysentrén"); one word alone.
  */
 internal fun addressLines(title: String): List<String> {
     val text = title.trim()
-    NUMBER_AT_END.find(text)?.let { number ->
-        val street = text.substring(0, number.range.first).trim()
-        if (street.isNotEmpty()) return listOf(street, number.groupValues[1].trim())
-    }
-    val rest = text.substringAfter(' ', "").trim()
-    return if (rest.isEmpty()) listOf(text) else listOf(text.substringBefore(' '), rest)
+    val street = NUMBER_AT_END.find(text)?.let { text.substring(0, it.range.first).trim() }?.takeIf { it.isNotEmpty() } ?: text
+    val rest = street.substringAfter(' ', "").trim()
+    return if (rest.isEmpty()) listOf(street) else listOf(street.substringBefore(' '), rest)
 }
 
-/**
- * One line of a large address. While the address is shown (M5–M10) it turns from white to yellow,
- * swells as it is read ([Show.lineAt], M6), and a flame runs along its letters' edges (M8): a
- * sharp stroke in the flame's colours drawn under the letters, so their ink stays clear.
- */
+/** An address as the passenger display writes it on one line: without its house number. */
+internal fun shownAddress(title: String): String = addressLines(title).joinToString(" ")
+
+/** One line of a large address: white, turning yellow as it grows to fill the screen (M5). */
 @Composable
-private fun AddressLine(text: String, k: Int, style: TextStyle, ink: Color, show: Show?) {
+private fun AddressLine(text: String, style: TextStyle, ink: Color, show: Show?) {
     val star = DisplayColors.swell
-    val flame = DisplayColors.flame
-    val laid = remember { arrayOfNulls<TextLayoutResult>(1) }
     BasicText(
         text,
         style = style,
         color = { if (show != null && show.phase == SHOW_ADDRESS) lerp(ink, star, show.address.value.coerceIn(0f, 1f)) else ink },
         // Its letters' feet may reach past its line.
         overflow = TextOverflow.Visible,
-        onTextLayout = { laid[0] = it },
-        modifier = Modifier
-            .graphicsLayer {
-                val s = show ?: return@graphicsLayer
-                if (s.phase == SHOW_ADDRESS && s.lineAt == k) {
-                    val e = 1f + M6_SWELL * s.line.value
-                    scaleX = e
-                    scaleY = e
-                }
-            }
-            .drawBehind {
-                val s = show ?: return@drawBehind
-                val layout = laid[0] ?: return@drawBehind
-                if (s.phase != SHOW_ADDRESS) return@drawBehind
-                val on = ((s.address.value - M8_FROM) / (1f - M8_FROM)).coerceIn(0f, 1f) * (1f - s.addressGone.value)
-                if (on <= 0f) return@drawBehind
-                val t = s.ms.longValue
-                val shift = size.width * 2f * ((t % M8_RUN_MS).toFloat() / M8_RUN_MS)
-                drawText(
-                    layout,
-                    brush = Brush.linearGradient(flame, start = Offset(shift - size.width, 0f), end = Offset(shift, size.height * M8_SLANT), tileMode = TileMode.Mirror),
-                    alpha = on * (M8_LOW + (1f - M8_LOW) * wave(t, M7_PERIOD_MS)),
-                    drawStyle = Stroke(width = layout.layoutInput.style.fontSize.toPx() * M8_WIDTH, join = StrokeJoin.Round),
-                )
-            },
     )
 }
 
@@ -2348,23 +2297,19 @@ private fun growthOf(at: LayoutCoordinates?, screen: Rect, w: Float, h: Float, m
     return Growth(screen.center.x - box.center.x, screen.center.y - box.center.y, s)
 }
 
-/** 0 → 1 → 0 once every [period] ms, smoothly. */
-private fun wave(ms: Long, period: Long): Float = (0.5 - 0.5 * cos(2.0 * PI * (ms % period) / period)).toFloat()
-
 /**
  * One trip shown large, the same everywhere: at home now and then (silent), a trip tapped, the
  * next stops announced. Each motion has its number (README "الحركة الموحّدة"), so it can be named:
- * - M1 the trip comes in ([Stage]'s pop); M11 home comes back the same way;
- * - M2 its time grows from its place to fill the screen ([clock]), its word over it, in a colour of
- *   its own, while the figure, the area and the address go ([others]) and the ground turns black;
- * - M3 settled, it beats once ([beat]) and stays [M3_HOLD_MS] at least;
+ * - M1 the trip comes in ([Stage]'s pop); M8 home comes back the same way;
+ * - M2 its time grows from its place to fill the screen ([clock]), the next stop's word "NÄSTA"
+ *   over it, in a colour of its own, while the figure, the area and the address go ([others])
+ *   and the ground turns black;
+ * - M3 settled, its word grows large and comes back ([word]); it stays [M3_HOLD_MS] at least;
  * - M4 it shrinks calmly and goes ([clockGone]);
- * - M5 the address turns over into view like a departure board's flap, from its place to fill
- *   the screen, white to yellow ([address]);
- * - M6 each of its lines swells as it is read ([lineAt], [line]): the street, then the number;
- * - M7 it then beats slowly while it stays ([pulsing]);
- * - M8 a flame runs along its letters' edges ([AddressLine]);
- * - M9 it swells once more ([swell]); M10 it turns away upwards and goes ([addressGone]).
+ * - M5 the address (its street, without the number) grows smoothly from its place to fill the
+ *   screen, white to yellow ([address]);
+ * - M6 it stays, still, while it is said and [M6_HOLD_MS] more;
+ * - M7 it shrinks calmly and goes ([addressGone]).
  */
 @Stable
 private class Show {
@@ -2373,17 +2318,10 @@ private class Show {
     var phase by mutableIntStateOf(SHOW_NONE)
     val others = Animatable(0f)
     val clock = Animatable(0f)
-    val beat = Animatable(0f)
+    val word = Animatable(1f)
     val clockGone = Animatable(0f)
     val address = Animatable(0f)
-    var lineAt by mutableIntStateOf(-1)
-    val line = Animatable(0f)
-    var pulsing by mutableStateOf(false)
-    val swell = Animatable(0f)
     val addressGone = Animatable(0f)
-
-    /** Time since the address came (ms): its slow beat and its flame. */
-    val ms = mutableLongStateOf(0L)
     var hue by mutableIntStateOf(0)
     var screen = Rect.Zero
     var clockTo = Growth.NONE
@@ -2391,10 +2329,8 @@ private class Show {
 
     suspend fun reset() {
         phase = SHOW_NONE
-        lineAt = -1
-        pulsing = false
-        ms.longValue = 0L
-        for (a in listOf(others, clock, beat, clockGone, address, line, swell, addressGone)) a.snapTo(0f)
+        word.snapTo(1f)
+        for (a in listOf(others, clock, clockGone, address, addressGone)) a.snapTo(0f)
     }
 }
 
@@ -2406,7 +2342,7 @@ private fun GraphicsLayerScope.clockMotion(s: Show) {
             val g = s.clockTo
             translationX = g.dx * p
             translationY = g.dy * p
-            val k = (1f + (g.scale - 1f) * p) * (1f + M3_BEAT * sin(PI * s.beat.value).toFloat()) * (1f - M4_SHRINK * s.clockGone.value)
+            val k = (1f + (g.scale - 1f) * p) * (1f - M4_SHRINK * s.clockGone.value)
             scaleX = k
             scaleY = k
             alpha = 1f - s.clockGone.value
@@ -2415,7 +2351,7 @@ private fun GraphicsLayerScope.clockMotion(s: Show) {
     }
 }
 
-/** M5–M10: the address turning over into view to fill the screen, beating, swelling and turning away. */
+/** M5–M7: the address growing smoothly to fill the screen, staying still, and shrinking away calmly. */
 private fun GraphicsLayerScope.addressMotion(s: Show) {
     when (s.phase) {
         SHOW_TIME -> alpha = 1f - s.others.value
@@ -2424,13 +2360,10 @@ private fun GraphicsLayerScope.addressMotion(s: Show) {
             val gone = s.addressGone.value
             val g = s.addressTo
             translationX = g.dx * p
-            translationY = g.dy * p - gone * M10_RISE * s.screen.height
-            val beat = if (s.pulsing) 1f + M7_PULSE * wave(s.ms.longValue, M7_PERIOD_MS) else 1f
-            val k = (1f + (g.scale - 1f) * p) * beat * (1f + M9_SWELL * s.swell.value)
+            translationY = g.dy * p
+            val k = (1f + (g.scale - 1f) * p) * (1f - M7_SHRINK * gone)
             scaleX = k
             scaleY = k
-            rotationX = M5_TURN * (1f - p) - M10_TURN * gone
-            cameraDistance = M5_CAMERA * density
             alpha = (p / M5_SEEN_BY).coerceIn(0f, 1f) * (1f - gone)
         }
     }
@@ -2567,8 +2500,9 @@ private fun HeroLine(
 }
 
 /**
- * The trip's word over its time ("NÄSTA", "DÄREFTER", "SEN"), in the accent yellow: it comes as
- * the time grows (M2) and goes with it. Its line stays, empty, the rest of the time.
+ * The next stop's word over its time ("NÄSTA"), in the accent yellow: it comes as the time grows
+ * (M2), grows large and comes back once the time is settled (M3), and goes with it. Its line
+ * stays, empty, the rest of the time.
  */
 @Composable
 private fun TimeWord(word: String, size: TextUnit, show: Show?) {
@@ -2583,12 +2517,17 @@ private fun TimeWord(word: String, size: TextUnit, show: Show?) {
         softWrap = false,
         modifier = Modifier.graphicsLayer {
             alpha = if (show != null && show.phase == SHOW_TIME) ((show.clock.value - M2_WORD_FROM) / (1f - M2_WORD_FROM)).coerceIn(0f, 1f) else 0f
+            val k = show?.word?.value ?: 1f
+            scaleX = k
+            scaleY = k
+            // It grows up and out from over the digits.
+            transformOrigin = TransformOrigin(0.5f, 1f)
         },
     )
 }
 
 @Composable
-internal fun ThenLabel(modifier: Modifier = Modifier, text: String = stringResource(R.string.passenger_then), color: Color = AppTheme.colors.textMuted, size: TextUnit = 13.sp) {
+internal fun ThenLabel(text: String, modifier: Modifier = Modifier, color: Color = AppTheme.colors.textMuted, size: TextUnit = 13.sp) {
     Text(
         text.uppercase(),
         fontFamily = DisplayFont,
@@ -2643,12 +2582,10 @@ private fun ComingTrip(
             .padding(horizontal = 6.dp, vertical = 2.dp),
     ) {
         if (item.time != null) {
-            // In the clock's style: the hours smaller, blue running into yellow; the colon's
-            // yellow dots; the minutes white.
-            TimeFace(item.time, size, breathing = false, hours = Brush.horizontalGradient(listOf(AppTheme.colors.highlight, AppTheme.colors.accent)))
+            LineTime(item.time, size)
         } else {
             Text(
-                item.title,
+                shownAddress(item.title),
                 fontFamily = DisplayFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = size * 0.6f,
@@ -2668,6 +2605,27 @@ private fun ComingTrip(
                 DoneMarks(youDrive = item.doneInYouDrive, here = item.doneHere, size = 8.dp)
             }
         }
+    }
+}
+
+/**
+ * A trip's time on the bottom line: the hours a little larger than the minutes ([LINE_MINUTE_SHARE]),
+ * blue running into yellow; the colon's yellow dots; the minutes white; neither bold.
+ */
+@Composable
+private fun LineTime(time: String, size: TextUnit) {
+    val style = TextStyle(
+        fontFamily = DigitFont,
+        fontWeight = FontWeight.Normal,
+        color = AppTheme.colors.text,
+        lineHeight = 1.0.em,
+        lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
+    )
+    val hours = Brush.horizontalGradient(listOf(AppTheme.colors.highlight, AppTheme.colors.accent))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        BasicText(time.substringBefore(':'), style = style.copy(fontSize = size, brush = hours))
+        Colon(size * LINE_MINUTE_SHARE, status = null, second = null)
+        BasicText(time.substringAfter(':', ""), style = style.copy(fontSize = size * LINE_MINUTE_SHARE))
     }
 }
 
@@ -2691,7 +2649,7 @@ private fun PersonSign(onClick: () -> Unit, textSize: TextUnit, color: Color, bo
  * the passengers look through them ([Browse]); [count] of them, the next stop at [home]. Each is as
  * wide, and the strip can bring any of them to its middle, where it settles; the trip in the
  * [middle] is lit (and shown at the top). Each shows its time, its street and number and its area;
- * the next stop and "Därefter" are marked, the trips done are quieter. A tap on one says it and
+ * the next stop is marked, the trips done are quieter. A tap on one says it and
  * shows it ([onPick]); a long press asks for the way to it ([onLongPick]).
  */
 @Composable
@@ -2722,7 +2680,6 @@ private fun TripStrip(
                     item(p),
                     label = when (p) {
                         home -> stringResource(R.string.passenger_next_stop)
-                        home + 1 -> stringResource(R.string.passenger_then)
                         else -> null
                     },
                     next = p == home,
@@ -2738,7 +2695,7 @@ private fun TripStrip(
     }
 }
 
-/** A trip in the strip ([TripStrip]): its [label] (next stop, "Därefter") over its time, street and area; [lit] in the middle. */
+/** A trip in the strip ([TripStrip]): its [label] (the next stop's) over its time, street and area; [lit] in the middle. */
 @Composable
 private fun StripTrip(
     item: DisplayItem,
@@ -2793,7 +2750,7 @@ private fun StripTrip(
             if (onCard != null) PersonSign(onCard, STRIP_TIME_SP, AppTheme.colors.textMuted, box = SMALL_TOUCH)
         }
         Text(
-            item.title,
+            shownAddress(item.title),
             fontFamily = DisplayFont,
             fontWeight = if (next) FontWeight.Bold else FontWeight.SemiBold,
             fontSize = STRIP_STREET_SP,
@@ -3096,11 +3053,10 @@ internal fun statusColor(status: TimeStatus): Color = when (status) {
  * A trip's time ("08:00") in the clock's style: the hours medium and level with the middle of the
  * minutes, the colon in the accent yellow a step apart from both; the digits breathe slowly around
  * the colon unless it is still ([breathing] off). Its digits in [ink] when given (a trip's time
- * growing to fill the screen takes a colour of its own); its hours painted with [hours] when given
- * (the bottom line's blue running into yellow).
+ * growing to fill the screen takes a colour of its own).
  */
 @Composable
-internal fun TimeFace(time: String, minuteSize: TextUnit, modifier: Modifier = Modifier, breathing: Boolean = true, ink: (() -> Color)? = null, hours: Brush? = null) {
+internal fun TimeFace(time: String, minuteSize: TextUnit, modifier: Modifier = Modifier, breathing: Boolean = true, ink: (() -> Color)? = null) {
     val hour = time.substringBefore(':')
     val minute = time.substringAfter(':', "")
     // The breath runs only while it breathes: a still time asks for no frames.
@@ -3126,7 +3082,7 @@ internal fun TimeFace(time: String, minuteSize: TextUnit, modifier: Modifier = M
         verticalAlignment = Alignment.CenterVertically,
         modifier = if (scale != null) modifier.breathe(rest = 1f / BREATH_SCALE) { scale.value } else modifier,
     ) {
-        BasicText(hour, style = if (hours != null) style.copy(fontSize = size * HOUR_SHARE, brush = hours) else style.copy(fontSize = size * HOUR_SHARE), color = color)
+        BasicText(hour, style = style.copy(fontSize = size * HOUR_SHARE), color = color)
         Colon(size * HOUR_SHARE, status = null, second = null)
         // Its digits' edge may reach past their box; never cut.
         BasicText(minute, style = style.copy(fontSize = size), color = color, overflow = TextOverflow.Visible, softWrap = false)
@@ -3475,7 +3431,7 @@ private fun msToSayPart(text: String): Long = text.length.coerceAtLeast(12) * MS
 private fun msToSay(text: String?): Long {
     if (text == null || !Announcements.isShow(text)) return SAY_START_MS + (text?.length ?: 0).coerceAtLeast(30) * MS_PER_CHAR
     val steps = Announcements.steps(text)
-    return steps.indices.sumOf { k -> Announcements.silenceBefore(steps, k) + msToSayPart(steps[k].text) } + M7_HOLD_MS + M9_MS + M10_MS
+    return steps.indices.sumOf { k -> Announcements.silenceBefore(steps, k) + msToSayPart(steps[k].text) } + M6_HOLD_MS + M7_MS
 }
 
 private const val MIN_TITLE_SP = 32f
@@ -3495,60 +3451,43 @@ private const val HERO_TIME_OF_CLOCK = 0.85f
  * "الحركة الموحّدة"). The voice's silences fit them ([Announcements.silenceBefore]):
  * [Announcements.LEAD_MS] = [OUT_MS] + [POP_MS] + [SAY_AFTER_MS] (M1, then the time starts to be
  * said); [Announcements.TO_ADDRESS_MS] = [M3_AFTER_SAID_MS] + [M4_MS] + [SAY_AFTER_MS];
- * [Announcements.TO_NEXT_MS] = [M7_HOLD_MS] + [M9_MS] + [M10_MS] + [POP_MS] + [SAY_AFTER_MS].
+ * [Announcements.TO_NEXT_MS] = [M6_HOLD_MS] + [M7_MS] + [POP_MS] + [SAY_AFTER_MS].
  */
 // M2: the time grows to fill the screen (its share of the screen's width and height, at most
-// M2_MOST times), in a colour of its own, its word coming from M2_WORD_FROM of the way; the rest
-// goes in M2_OTHERS_MS.
+// M2_MOST times; room left over it for its word to grow), in a colour of its own, its word
+// coming from M2_WORD_FROM of the way; the rest goes in M2_OTHERS_MS.
 private const val M2_MS = 1_600
 private val M2_EASE = CubicBezierEasing(0.2f, 1.1f, 0.3f, 1f)
 private const val M2_FILL_W = 0.9f
-private const val M2_FILL_H = 0.8f
+private const val M2_FILL_H = 0.7f
 private const val M2_MOST = 8f
 private const val M2_OTHERS_MS = 900
 private const val M2_WORD_FROM = 0.2f
-// M3: one beat once settled; it stays M3_HOLD_MS at least on black, and M3_AFTER_SAID_MS after it is said.
-private const val M3_BEAT = 0.05f
-private const val M3_BEAT_MS = 800
+// M3: its word grows to M3_WORD times and comes back, softly past its size; the time stays
+// M3_HOLD_MS at least on black, and M3_AFTER_SAID_MS after it is said.
+private const val M3_WORD = 1.8f
+private const val M3_WORD_UP_MS = 700
+private const val M3_WORD_HOLD_MS = 300L
+private const val M3_WORD_BACK_MS = 1_000
+private val M3_WORD_BACK = CubicBezierEasing(0.34f, 1.35f, 0.64f, 1f)
 private const val M3_HOLD_MS = 1_500L
 private const val M3_AFTER_SAID_MS = 400L
 // M4: it shrinks calmly to M4_SHRINK less and goes.
 private const val M4_MS = 900
 private val M4_EASE = CubicBezierEasing(0.45f, 0f, 0.55f, 1f)
 private const val M4_SHRINK = 0.55f
-// M5: the address turns over from M5_TURN degrees, seen from M5_CAMERA, from its place to fill
-// the screen; fully seen by M5_SEEN_BY of the way.
-private const val M5_MS = 1_000
-private val M5_EASE = CubicBezierEasing(0.2f, 0.9f, 0.3f, 1f)
-private const val M5_FILL_W = 0.84f
-private const val M5_FILL_H = 0.72f
+// M5: the address grows smoothly from its place to fill the screen (its share of the screen's
+// width and height, at most M5_MOST times); fully seen by M5_SEEN_BY of the way.
+private const val M5_MS = 1_600
+private val M5_EASE = FastOutSlowInEasing
+private const val M5_FILL_W = 0.86f
+private const val M5_FILL_H = 0.74f
 private const val M5_MOST = 8f
-private const val M5_TURN = 80f
-private const val M5_CAMERA = 16f
-private const val M5_SEEN_BY = 0.35f
-// M6: the line being read swells M6_SWELL, at least M6_MIN_MS.
-private const val M6_SWELL = 0.12f
-private const val M6_IN_MS = 450
-private const val M6_OUT_MS = 450
-private const val M6_MIN_MS = 500L
-// M7: a slow beat while it stays (M7_HOLD_MS after it is said).
-private const val M7_PULSE = 0.04f
-private const val M7_PERIOD_MS = 1_800L
-private const val M7_HOLD_MS = 2_000L
-// M8: the flame along the letters' edges: its stroke's width (a share of the letters' size), how it
-// slants, how fast it runs, how faint it gets between beats, and when it comes (share of M5).
-private const val M8_WIDTH = 0.055f
-private const val M8_SLANT = 0.6f
-private const val M8_RUN_MS = 2_400L
-private const val M8_LOW = 0.45f
-private const val M8_FROM = 0.7f
-// M9: it swells once more; M10: it turns away upwards (M10_TURN degrees, rising M10_RISE of the screen) and goes.
-private const val M9_SWELL = 0.12f
-private const val M9_MS = 600
-private const val M10_MS = 1_000
-private val M10_EASE = CubicBezierEasing(0.5f, 0f, 0.75f, 0f)
-private const val M10_TURN = 75f
-private const val M10_RISE = 0.06f
+private const val M5_SEEN_BY = 0.3f
+// M6: it stays this long after it is said. M7: it shrinks calmly to M7_SHRINK less and goes.
+private const val M6_HOLD_MS = 2_000L
+private const val M7_MS = 900
+private const val M7_SHRINK = 0.55f
 /** Each part is said this long after its time or address starts to grow. */
 private const val SAY_AFTER_MS = 800L
 /** The next stop at home, shown now and then: first this long after it comes, then this long after anything shown has gone. */
@@ -3562,7 +3501,7 @@ private const val SHOW_NONE = 0
 private const val SHOW_TIME = 1
 private const val SHOW_ADDRESS = 2
 /** The next stop's word in what would be said for it at home ([Announcements.at]): only for how long its silent show takes. */
-private const val NEXT_WORD = "Nästa stopp"
+private const val NEXT_WORD = "Nästa stopp: "
 
 /** The trip's word over the time is this share of the line's size. */
 private const val TIME_WORD_SHARE = 0.55f
@@ -3582,6 +3521,8 @@ private val COMING_SP = 18.sp
 private val COMING_SP_NARROW = 14.sp
 private const val COMING_TIME_SHARE = 1.45f
 private const val COMING_LATER = 0.8f
+/** On the bottom line the minutes are this share of the hours' size. */
+private const val LINE_MINUTE_SHARE = 0.85f
 private const val FIRST_ARROW = 1.4f
 private val COMING_BAR_WIDTH = 28.dp
 private val COMING_BAR_HEIGHT = 4.dp

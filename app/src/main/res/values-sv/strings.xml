@@ -60,7 +60,7 @@
     <string name="deleted_many">Borttagna stopp: %1$d</string>
 
     <string name="active_next_label">Nästa stopp</string>
-    <string name="active_then_label">Därefter</string>
+    <string name="active_then_label">Sedan</string>
     <string name="active_counts">Klara: %1$d · Kvar: %2$d</string>
     <string name="btn_next">Nästa</string>
     <string name="btn_repeat">Upprepa</string>
@@ -109,12 +109,12 @@
     <string name="help_overlay_title">Flytande knapp</string>
     <string name="help_overlay_body">Om du tillåter \"visa ovanpå andra appar\" visas under rutten ett fönster i passagerarskärmens stil ovanpå Google Maps:\n• Överst: den anslutna passagerarskärmen, klockan (tryck så sägs tiden, på passagerarskärmen när en är ansluten), resans nummer, \"–\" för att göra det till en kapsel och \"×\" för att stänga.\n• Gatan du kör på (tryck för att höra den; högtalaren slår på och av att varje ny gata sägs) och hastigheten i sin cirkel.\n• Resan: tiden i klockans stil, ort och område, sedan adressen stort (tryck för att höra den; ett långt tryck öppnar passagerarskärmens karta för den), passageraren och om det är tidigt eller sent.\n• Raden med resor: svep eller tryck på en resa så visas den här och på passagerarskärmen.\n• \"Next\" = nästa stopp + utrop (långt tryck = upprepa), \"Back\" = ångra.\n• Medan passagerarskärmens karta är öppen finns dess knappar och vägens lista här, och varje tryck ändrar surfplattan direkt.\n• Dra i den översta raden för att flytta fönstret och i en kant för att ändra bredd eller höjd.\nUtan det fungerar allt från aviseringen.</string>
     <string name="help_how_title">Så fungerar utropen</string>
-    <string name="help_how_body">När du trycker på Nästa (i appen, på den flytande knappen eller i aviseringen) ropar appen ut nästa stopp och stoppet därefter, t.ex. \"Nästa stopp: Storgatan 14, Skoghall, Hammarö. Därefter: Kungsgatan 5, Kil.\"\nNästa stopp sägs med gata och nummer, sedan stadsdel och ort; stoppet därefter med gata, nummer och stadsdel (Inställningar kan korta båda). En passagerares namn sägs aldrig.\nOm du tillåter platsen använder appen den bara för att säga gatan du kör på; YouDrive-sidan får den aldrig.</string>
+    <string name="help_how_body">När du trycker på Nästa (i appen, på den flytande knappen eller i aviseringen) ropar appen ut nästa stopp och stoppet efter det, var och en med sin tid, t.ex. \"Nästa stopp: Klockan åtta noll två. Storgatan 14, Skoghall, Hammarö. Klockan åtta trettio. Kungsgatan 5, Kil.\"\nNästa stopp sägs med gata och nummer, sedan stadsdel och ort; stoppet efter det med gata, nummer och stadsdel (Inställningar kan korta båda). En passagerares namn sägs aldrig.\nOm du tillåter platsen använder appen den bara för att säga gatan du kör på; YouDrive-sidan får den aldrig.</string>
     <string name="help_privacy_title">Integritet</string>
 
     <string name="onb_step">Steg %1$d av %2$d</string>
     <string name="onb_welcome_title">Välkommen till Nästa Stopp</string>
-    <string name="onb_welcome_body">Appen läser adresser från skärmdumpar – bara i telefonen – bygger en lista med stopp, öppnar Google Maps och ropar ut nästa stopp och stoppet därefter på svenska så att passagerarna vet ordningen.\n\nAppen använder inte internet, sparar inga bilder och raderar adresserna när rutten är klar.\n\nNu ber vi om behörigheterna en i taget.</string>
+    <string name="onb_welcome_body">Appen läser adresser från skärmdumpar – bara i telefonen – bygger en lista med stopp, öppnar Google Maps och ropar ut nästa stopp och stoppet efter det på svenska så att passagerarna vet ordningen.\n\nAppen använder inte internet, sparar inga bilder och raderar adresserna när rutten är klar.\n\nNu ber vi om behörigheterna en i taget.</string>
     <string name="onb_notif_title">Aviseringar</string>
     <string name="onb_notif_body">Under rutten visas en avisering med nästa stopp och knapparna Nästa, Upprepa och Avsluta som du kan använda inifrån Google Maps.</string>
     <string name="onb_battery_title">Batteri</string>

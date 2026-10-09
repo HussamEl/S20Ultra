@@ -23,7 +23,7 @@ class LinkProtocolTest {
         upcoming = listOf(DisplayItem("13:05", "Kil"), DisplayItem(null, "Grums")),
         remaining = 3,
         completed = 1,
-        announcementSv = "Nästa stopp: Herrhagen. Därefter: Kil.",
+        announcementSv = "Nästa stopp: Herrhagen. Kil.",
     )
 
     @Test
@@ -103,12 +103,12 @@ class LinkProtocolTest {
         }
         controller.send(LinkMessage.Hello(LinkProtocol.VERSION, LinkProtocol.ROLE_CONTROLLER))
         controller.send(LinkMessage.State(snapshot))
-        controller.send(LinkMessage.Announce("Nästa stopp: Herrhagen. Därefter: Kil."))
+        controller.send(LinkMessage.Announce("Nästa stopp: Herrhagen. Kil."))
         controllerOut.close()
         reader.join(5_000)
         assertEquals(3, received.size)
         assertEquals(snapshot, (received[1] as LinkMessage.State).snapshot)
-        assertEquals("Nästa stopp: Herrhagen. Därefter: Kil.", (received[2] as LinkMessage.Announce).sv)
+        assertEquals("Nästa stopp: Herrhagen. Kil.", (received[2] as LinkMessage.Announce).sv)
     }
 
     /** The phone sends its trips only to a passenger display of this protocol that says so first; the phone answers as a controller. */

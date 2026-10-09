@@ -529,7 +529,6 @@ private fun ComingRow(all: List<DisplayItem>, home: Int, shown: DisplayItem, now
                     .graphicsLayer { alpha = if (i < home) DONE_ALPHA else 1f }
                     .padding(horizontal = 6.dp, vertical = 4.dp),
             ) {
-                if (i == home + 1) ThenLabel(size = 9.sp)
                 if (i == home) ThenLabel(text = stringResource(R.string.passenger_next_stop), color = colors.highlight, size = 9.sp)
                 Text(t.title, fontFamily = DisplayFont, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = colors.text, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                 if (t.time != null) Text(t.time, fontFamily = DigitFont, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = colors.highlight, maxLines = 1)

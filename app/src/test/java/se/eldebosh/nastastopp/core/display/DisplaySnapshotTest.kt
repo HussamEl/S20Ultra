@@ -40,7 +40,7 @@ class DisplaySnapshotTest {
     fun sevenDoneTheNextAndSevenUpcoming() {
         val done = (0 until 9).map { Trip("11:0$it", "done$it") }
         val left = listOf(Trip("12:30", "C"), Trip("12:45", "D"), Trip(null, "E")) + (0 until 8).map { Trip("13:0$it", "later$it") }
-        val s = DisplaySnapshot.build(true, done, left, ::item, Announcement("Nästa stopp: C. Därefter: D.", null))
+        val s = DisplaySnapshot.build(true, done, left, ::item, Announcement("Nästa stopp: C. D.", null))
         assertEquals(DisplayItem("11:08", "done8", doneHere = true), s.previous)
         assertEquals((2 until 9).map { "done$it" }, s.earlier.map { it.title })
         assertTrue(s.earlier.all { it.doneHere })
@@ -48,7 +48,7 @@ class DisplaySnapshotTest {
         assertEquals(listOf("D", "E", "later0", "later1", "later2", "later3", "later4"), s.upcoming.map { it.title })
         assertEquals(11, s.remaining)
         assertEquals(9, s.completed)
-        assertEquals("Nästa stopp: C. Därefter: D.", s.announcement?.swedish)
+        assertEquals("Nästa stopp: C. D.", s.announcement?.swedish)
     }
 
     @Test

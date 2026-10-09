@@ -72,8 +72,6 @@ data class AppColors(
     val wayStops: List<Color> = WayStops,
     /** A large address on the passenger display as the star: a bright yellow (a dark gold by day). */
     val swell: Color = Palette.Sun,
-    /** The flame that runs along a large address's letter edges on the passenger display (M8): red, orange, yellow. */
-    val flame: List<Color> = Flame,
     // Reference numbers.
     val refText: Color,
     val refPill: Color,
@@ -184,9 +182,6 @@ val NightPanel = DayPanel.copy(
 private val WayStops = listOf(Palette.Blue700, Palette.Emerald700, Palette.Ember700, Palette.Violet700, Palette.Teal700, Palette.Fuchsia700, Palette.Brown700)
 
 /** The same stops by night: light, so the way stands out on the dark map. */
-/** A flame's colours, from its root to its tips, then back (it runs along the edges as a mirrored band). */
-private val Flame = listOf(Palette.Red400, Palette.Ember400, Palette.Sun, Palette.Ember400, Palette.Red400)
-
 private val NightWayStops = listOf(Palette.Sky, Palette.Emerald400, Palette.Ember400, Palette.Violet400, Palette.Teal400, Palette.Fuchsia400, Palette.Amber400)
 
 val DayColors = AppColors(

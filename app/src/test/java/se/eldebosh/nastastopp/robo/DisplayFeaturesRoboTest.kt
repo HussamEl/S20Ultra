@@ -19,6 +19,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowSettings
 import se.eldebosh.nastastopp.App
 import se.eldebosh.nastastopp.core.route.Announcement
+import se.eldebosh.nastastopp.geo.Geocoding
 import se.eldebosh.nastastopp.route.model.GeoStatus
 import java.time.Duration
 
@@ -32,6 +33,7 @@ class DisplayFeaturesRoboTest {
     @Before
     fun setUp() {
         app = ApplicationProvider.getApplicationContext()
+        Geocoding.register(app) // read before the stops are looked for, so they wait only in the test's own time
         app.graph.controller.clear()
         idle()
     }
@@ -70,7 +72,7 @@ class DisplayFeaturesRoboTest {
         assertEquals("Karlstad", d.current?.subtitle)
         assertEquals(listOf("Järnvägsgatan 3B", "Björkvägen 7", "Kungsgatan 5", "Lindvägen 9"), d.upcoming.map { it.title })
         assertEquals(listOf("Storfors", "Hammarö", "Kil"), d.upcoming.take(3).map { it.subtitle })
-        assertEquals("Nästa stopp: Klockan tolv trettio. Storgatan 14, Karlstad. Därefter: Klockan tolv fyrtiofem. Järnvägsgatan 3B, Storfors.", d.announcementSv)
+        assertEquals("Nästa stopp: Klockan tolv trettio. Storgatan 14, Karlstad. Klockan tolv fyrtiofem. Järnvägsgatan 3B, Storfors.", d.announcementSv)
 
         c.next()
         idle()
@@ -104,9 +106,9 @@ class DisplayFeaturesRoboTest {
         idle()
         assertEquals(
             listOf(
-                "Nästa stopp: Klockan tolv trettio. Storgatan 14, Karlstad. Därefter: Klockan tolv fyrtiofem. Järnvägsgatan 3B, Storfors.",
-                "Nästa stopp: Klockan tolv fyrtiofem. Järnvägsgatan 3B, Storfors. Därefter: Klockan tretton noll fem. Björkvägen 7, Hammarö.",
-                "Nästa stopp: Klockan tolv fyrtiofem. Järnvägsgatan 3B, Storfors. Därefter: Klockan tretton noll fem. Björkvägen 7, Hammarö.",
+                "Nästa stopp: Klockan tolv trettio. Storgatan 14, Karlstad. Klockan tolv fyrtiofem. Järnvägsgatan 3B, Storfors.",
+                "Nästa stopp: Klockan tolv fyrtiofem. Järnvägsgatan 3B, Storfors. Klockan tretton noll fem. Björkvägen 7, Hammarö.",
+                "Nästa stopp: Klockan tolv fyrtiofem. Järnvägsgatan 3B, Storfors. Klockan tretton noll fem. Björkvägen 7, Hammarö.",
             ),
             got.map { it.swedish },
         )

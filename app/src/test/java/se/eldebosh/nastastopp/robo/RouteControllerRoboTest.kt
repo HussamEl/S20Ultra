@@ -22,6 +22,7 @@ import se.eldebosh.nastastopp.AppGraph
 import se.eldebosh.nastastopp.core.geo.AnnouncementDetail
 import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.core.youdrive.YouDriveCards
+import se.eldebosh.nastastopp.geo.Geocoding
 import se.eldebosh.nastastopp.route.RouteController
 import se.eldebosh.nastastopp.route.RouteRepository
 import se.eldebosh.nastastopp.route.model.GeoPoint
@@ -43,6 +44,7 @@ class RouteControllerRoboTest {
     @Before
     fun setUp() {
         app = ApplicationProvider.getApplicationContext()
+        Geocoding.register(app) // read before the stops are looked for, so they wait only in the test's own time
         graph = app.graph
         graph.controller.clear()
         idle()
@@ -134,7 +136,7 @@ class RouteControllerRoboTest {
 
         assertTrue(c.start())
         idle()
-        assertEquals("Nästa stopp: Klockan sex femtiofem. Storgatan 14, Karlstad. Därefter: Klockan sju noll nio. Järnvägsgatan 3B, Storfors.", tts.lastAnnouncement)
+        assertEquals("Nästa stopp: Klockan sex femtiofem. Storgatan 14, Karlstad. Klockan sju noll nio. Järnvägsgatan 3B, Storfors.", tts.lastAnnouncement)
         // The address log keeps the address, never the passenger's name.
         val logged = c.route.value!!.stops.mapNotNull(c::logLine)
         assertTrue(logged.toString(), logged.first().startsWith("Storgatan 14"))
@@ -263,7 +265,7 @@ class RouteControllerRoboTest {
         assertTrue(graph.controller.start())
         idle()
         // The next stop in full (the default), but never the surname before the street.
-        assertEquals("Nästa stopp: Storgatan 14, Karlstad. Därefter: Järnvägsgatan 3B, Storfors.", tts.lastAnnouncement)
+        assertEquals("Nästa stopp: Storgatan 14, Karlstad. Järnvägsgatan 3B, Storfors.", tts.lastAnnouncement)
 
         val maps = shadowOf(app).nextStartedActivity
         assertNotNull(maps)
@@ -275,13 +277,13 @@ class RouteControllerRoboTest {
         assertTrue(url, url.endsWith("&travelmode=driving&dir_action=navigate"))
 
         graph.controller.next()
-        assertEquals("Nästa stopp: Järnvägsgatan 3B, Storfors. Därefter: Björkvägen 7, Hammarö.", tts.lastAnnouncement)
+        assertEquals("Nästa stopp: Järnvägsgatan 3B, Storfors. Björkvägen 7, Hammarö.", tts.lastAnnouncement)
         graph.controller.repeat()
-        assertEquals("Nästa stopp: Järnvägsgatan 3B, Storfors. Därefter: Björkvägen 7, Hammarö.", tts.lastAnnouncement)
+        assertEquals("Nästa stopp: Järnvägsgatan 3B, Storfors. Björkvägen 7, Hammarö.", tts.lastAnnouncement)
         // The driver's other choices: district or town only.
         graph.settings.update { it.copy(detail = AnnouncementDetail.DISTRICT) }
         graph.controller.repeat()
-        assertEquals("Nästa stopp: Storfors. Därefter: Hammarö.", tts.lastAnnouncement)
+        assertEquals("Nästa stopp: Storfors. Hammarö.", tts.lastAnnouncement)
         graph.settings.update { it.copy(detail = AnnouncementDetail.FULL) }
         graph.controller.next()
         // The apartment number is not said.
@@ -306,7 +308,7 @@ class RouteControllerRoboTest {
         idleUntil { graph.controller.route.value!!.stops.none { it.geoStatus == GeoStatus.PENDING } }
         graph.controller.start()
         idle()
-        assertEquals("Next stop: Storgatan 14, Karlstad. Then: Kungsgatan 5, Kil.", tts.lastAnnouncement)
+        assertEquals("Next stop: Storgatan 14, Karlstad. Kungsgatan 5, Kil.", tts.lastAnnouncement)
         assertEquals(TextToSpeech.QUEUE_ADD, tts.queueMode)
         graph.settings.update { it.copy(englishRepeat = false) }
         graph.controller.end()
@@ -351,11 +353,11 @@ class RouteControllerRoboTest {
         graph.controller.restoreStops(located)
         graph.controller.start()
         idle()
-        assertEquals("Nästa stopp: Storgatan 14, Herrhagen, Karlstad. Därefter: Kungsgatan 5, Kronoparken.", tts.lastAnnouncement)
+        assertEquals("Nästa stopp: Storgatan 14, Herrhagen, Karlstad. Kungsgatan 5, Kronoparken.", tts.lastAnnouncement)
         // Only the driver's "Nästa" moves the route on (positions never do, see StreetServiceRoboTest).
         graph.controller.next()
         idle()
-        assertEquals("Nästa stopp: Kungsgatan 5, Kronoparken, Karlstad. Därefter: Kungsgatan 5, Kronoparken.", tts.lastAnnouncement)
+        assertEquals("Nästa stopp: Kungsgatan 5, Kronoparken, Karlstad. Kungsgatan 5, Kronoparken.", tts.lastAnnouncement)
         graph.controller.end()
         idle()
         assertNull(graph.controller.route.value)
@@ -381,7 +383,7 @@ class RouteControllerRoboTest {
         assertEquals("Provby Äldreboende · Strandvägen 3, 665 30 Kil", c.route.value!!.stops.first().shownAddress)
         assertTrue(c.start())
         idle()
-        assertEquals("Nästa stopp: Klockan åtta. Strandvägen 3, Kil. Därefter: Klockan åtta trettio. Centralsjukhuset, huvudentrén.", tts.lastAnnouncement)
+        assertEquals("Nästa stopp: Klockan åtta. Strandvägen 3, Kil. Klockan åtta trettio. Centralsjukhuset, huvudentrén.", tts.lastAnnouncement)
         val display = c.display.value
         assertEquals("Strandvägen 3", display.current?.title)
         assertEquals(listOf("C-Sjukhuset Huvudentrén", "Provby Vårdcentral"), display.upcoming.map { it.title })
@@ -391,7 +393,7 @@ class RouteControllerRoboTest {
         assertFalse("passenger display", (shown + display.announcementSv.orEmpty()).any { it.contains("Äldreboende") })
         c.next()
         idle()
-        assertEquals("Nästa stopp: Klockan åtta trettio. Centralsjukhuset, huvudentrén, Karlstad. Därefter: Klockan nio. Provby Vårdcentral, Skolgatan 5, Kil.", tts.lastAnnouncement)
+        assertEquals("Nästa stopp: Klockan åtta trettio. Centralsjukhuset, huvudentrén, Karlstad. Klockan nio. Provby Vårdcentral, Skolgatan 5, Kil.", tts.lastAnnouncement)
         c.end()
     }
 
@@ -523,7 +525,7 @@ class RouteControllerRoboTest {
         idleUntil { c.route.value!!.stops.none { it.geoStatus == GeoStatus.PENDING } }
         assertTrue(c.start())
         idle()
-        assertEquals("Nästa stopp: Klockan tretton trettiotre. Centralsjukhuset, Karlstad. Därefter: Klockan fjorton. Storgatan 14, Karlstad.", tts.lastAnnouncement)
+        assertEquals("Nästa stopp: Klockan tretton trettiotre. Centralsjukhuset, Karlstad. Klockan fjorton. Storgatan 14, Karlstad.", tts.lastAnnouncement)
         assertEquals("C-Sjukhuset", c.display.value.current?.title)
         assertEquals("C-Sjukhuset Karlstad", c.route.value!!.stops.first().shownAddress)
         c.end()

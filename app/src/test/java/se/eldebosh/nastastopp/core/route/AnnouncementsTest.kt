@@ -9,7 +9,7 @@ import org.junit.Test
 class AnnouncementsTest {
     @Test
     fun phrases() {
-        assertEquals("Nästa stopp: Skoghall. Därefter: Kil.", Announcements.nextStops("Skoghall", "Kil", false).swedish)
+        assertEquals("Nästa stopp: Skoghall. Kil.", Announcements.nextStops("Skoghall", "Kil", false).swedish)
         assertEquals("Nästa stopp: Kil. Det är sista stoppet.", Announcements.nextStops("Kil", null, false).swedish)
         assertEquals("Rutten är klar.", Announcements.finished(false).swedish)
         assertNull(Announcements.finished(false).english)
@@ -17,21 +17,33 @@ class AnnouncementsTest {
 
     @Test
     fun englishRepeat() {
-        assertEquals("Next stop: Skoghall. Then: Kil.", Announcements.nextStops("Skoghall", "Kil", true).english)
+        assertEquals("Next stop: Skoghall. Kil.", Announcements.nextStops("Skoghall", "Kil", true).english)
         assertEquals("Next stop: Kil. This is the last stop.", Announcements.nextStops("Kil", null, true).english)
         assertEquals("The route is finished.", Announcements.finished(true).english)
     }
 
+    /** The stop after the next one is said by its time alone: no word before it. */
     @Test
     fun eachStopIsSaidWithItsTimeFirst() {
         assertEquals(
-            "Nästa stopp: Klockan nio noll åtta. Hamngatan 7, Skoghall. Därefter: Klockan nio trettio. Storgatan 14, Karlstad.",
+            "Nästa stopp: Klockan nio noll åtta. Hamngatan 7, Skoghall. Klockan nio trettio. Storgatan 14, Karlstad.",
             Announcements.nextStops("Hamngatan 7, Skoghall", "Storgatan 14, Karlstad", false, "09:08", "09:30").swedish,
         )
         assertEquals("Nästa stopp: Klockan tio. Kil. Det är sista stoppet.", Announcements.nextStops("Kil", null, false, "10:00").swedish)
-        assertEquals("Next stop: 9:08, Kil. Then: 9:30, Skoghall.", Announcements.nextStops("Kil", "Skoghall", true, "09:08", "09:30").english)
+        assertEquals("Next stop: 9:08, Kil. 9:30, Skoghall.", Announcements.nextStops("Kil", "Skoghall", true, "09:08", "09:30").english)
         // A stop without a time is said without one.
-        assertEquals("Nästa stopp: Kil. Därefter: Klockan nio trettio. Skoghall.", Announcements.nextStops("Kil", "Skoghall", false, null, "09:30").swedish)
+        assertEquals("Nästa stopp: Kil. Klockan nio trettio. Skoghall.", Announcements.nextStops("Kil", "Skoghall", false, null, "09:30").swedish)
+    }
+
+    @Test
+    fun noWordIsSaidBeforeTheStopAfterTheNext() {
+        for (b in listOf(null, "Kil")) for (time in listOf(null, "09:30")) {
+            val said = Announcements.nextStops("Hamngatan 7, Skoghall", b, true, "09:08", time)
+            for (word in listOf("Därefter", "Sen:", "Sedan", "Then")) {
+                assertFalse(said.swedish.contains(word))
+                assertFalse(said.english!!.contains(word))
+            }
+        }
     }
 
     /** As a clock shows it, in words: the hour without a leading zero, the minutes as digits are read, never "minuter". */
@@ -57,7 +69,7 @@ class AnnouncementsTest {
         val text = Announcements.nextStops("Hamngatan 7, Skoghall", "Kil", false, "09:08", "09:30").swedish
         val steps = Announcements.steps(text)
         assertEquals(
-            listOf("Nästa stopp: Klockan nio noll åtta.", "Hamngatan 7, Skoghall.", "Därefter: Klockan nio trettio.", "Kil."),
+            listOf("Nästa stopp: Klockan nio noll åtta.", "Hamngatan 7, Skoghall.", "Klockan nio trettio.", "Kil."),
             steps.map { it.text },
         )
         assertEquals(listOf(true, false, true, false), steps.map { it.time })
@@ -65,6 +77,11 @@ class AnnouncementsTest {
         assertEquals(
             listOf(Announcements.LEAD_MS, Announcements.TO_ADDRESS_MS, Announcements.TO_NEXT_MS, Announcements.TO_ADDRESS_MS),
             steps.indices.map { Announcements.silenceBefore(steps, it) },
+        )
+        // The next stop without a time: its address alone, then the stop after it from its time.
+        assertEquals(
+            listOf("Nästa stopp: Kil.", "Klockan nio trettio.", "Skoghall."),
+            Announcements.parts(Announcements.nextStops("Kil", "Skoghall", false, null, "09:30").swedish),
         )
         // Without a time, the address alone; the last stop says so after its address.
         assertEquals(listOf("Nästa stopp: Kil. Det är sista stoppet."), Announcements.parts(Announcements.nextStops("Kil", null, false).swedish))
@@ -78,22 +95,24 @@ class AnnouncementsTest {
         assertFalse(Announcements.isShow(Announcements.at("09:08", "Kil", coming = true).swedish))
     }
 
+    /** A trip tapped on the passenger display, coming or done: its time, then its place, with no word before them. */
     @Test
     fun aTappedTripIsShownAndSaidLikeTheAnnouncement() {
-        val later = Announcements.at("08:05", "Hamngatan 7, Skoghall", coming = true, word = "Sen").swedish
-        assertEquals("Sen: Klockan åtta noll fem. Hamngatan 7, Skoghall.", later)
-        assertTrue(Announcements.isShow(later))
-        assertEquals(listOf("Sen: Klockan åtta noll fem.", "Hamngatan 7, Skoghall."), Announcements.parts(later))
-        assertEquals("Därefter: Hamngatan 7.", Announcements.at(null, "Hamngatan 7", coming = true, word = "Därefter").swedish)
-        // A trip done: its time, then its place.
-        val done = Announcements.at("07:30", "Järnvägsgatan 3B, Storfors", coming = false).swedish
+        val later = Announcements.shown("08:05", "Hamngatan 7, Skoghall")
+        assertEquals("Klockan åtta noll fem. Hamngatan 7, Skoghall.", later.swedish)
+        assertEquals("8:05, Hamngatan 7, Skoghall.", later.english)
+        assertTrue(Announcements.isShow(later.swedish))
+        assertFalse(Announcements.isNextStops(later.swedish))
+        assertEquals(listOf("Klockan åtta noll fem.", "Hamngatan 7, Skoghall."), Announcements.parts(later.swedish))
+        assertEquals("Hamngatan 7.", Announcements.shown(null, "Hamngatan 7").swedish)
+        val done = Announcements.shown("07:30", "Järnvägsgatan 3B, Storfors").swedish
         assertEquals("Klockan sju trettio. Järnvägsgatan 3B, Storfors.", done)
         assertEquals(listOf("Klockan sju trettio.", "Järnvägsgatan 3B, Storfors."), Announcements.parts(done))
     }
 
     @Test
     fun sameAreaIsStillSaidTwice() {
-        assertEquals("Nästa stopp: Karlstad. Därefter: Karlstad.", Announcements.nextStops("Karlstad", "Karlstad", false).swedish)
+        assertEquals("Nästa stopp: Karlstad. Karlstad.", Announcements.nextStops("Karlstad", "Karlstad", false).swedish)
     }
 
     @Test
@@ -104,6 +123,7 @@ class AnnouncementsTest {
         assertEquals("At 8:05 we are going to Hamngatan 7, Skoghall.", Announcements.at("08:05", "Hamngatan 7, Skoghall", coming = true).english)
         assertEquals("Vi ska till Hamngatan 7, Skoghall.", Announcements.at(null, "Hamngatan 7, Skoghall", coming = true).swedish)
         assertEquals("Järnvägsgatan 3B, Storfors.", Announcements.at(null, "Järnvägsgatan 3B, Storfors", coming = false).swedish)
+        assertEquals("Klockan sju trettio. Järnvägsgatan 3B, Storfors.", Announcements.at("07:30", "Järnvägsgatan 3B, Storfors", coming = false).swedish)
         for (coming in listOf(true, false)) assertEquals(false, Announcements.at("08:05", "Hamngatan 7", coming).swedish.contains("Nästa"))
     }
 }

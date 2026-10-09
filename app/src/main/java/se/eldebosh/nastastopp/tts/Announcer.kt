@@ -51,7 +51,7 @@ class Announcer(context: Context, private val settings: SettingsStore) {
 
     /**
      * Each step of an announcement the passenger display shows once it has been said, by its place
-     * in [Announcements.steps] (0 the next stop's time, 1 its address, 2 "Därefter" and its time …),
+     * in [Announcements.steps] (0 the next stop's time, 1 its address, 2 the next trip's time …),
      * so a passenger display on this device moves on with the voice.
      */
     val said: SharedFlow<Int> = _said.asSharedFlow()

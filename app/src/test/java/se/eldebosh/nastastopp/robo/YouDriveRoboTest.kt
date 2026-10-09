@@ -15,6 +15,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.fakes.RoboWebSettings
 import se.eldebosh.nastastopp.App
 import se.eldebosh.nastastopp.AppGraph
+import se.eldebosh.nastastopp.geo.Geocoding
 import se.eldebosh.nastastopp.route.model.GeoStatus
 import se.eldebosh.nastastopp.service.Notifications
 import se.eldebosh.nastastopp.youdrive.YouDriveWatcher
@@ -32,6 +33,7 @@ class YouDriveRoboTest {
     @Before
     fun setUp() {
         app = ApplicationProvider.getApplicationContext()
+        Geocoding.register(app) // read before the stops are looked for, so they wait only in the test's own time
         graph = app.graph
         graph.controller.clear()
         idle()

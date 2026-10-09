@@ -46,7 +46,7 @@ data class DisplayItem(
 ) {
     /**
      * The same trip whatever its done marks or name: it keeps its place on the display when marked,
-     * and "Därefter" grows into the next stop.
+     * and the trip after it grows into the next stop.
      */
     val trip: DisplayItem get() = if (doneInYouDrive || doneHere || lastName != null || card != null) copy(doneInYouDrive = false, doneHere = false, lastName = null, card = null) else this
 

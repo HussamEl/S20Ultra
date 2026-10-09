@@ -538,9 +538,9 @@ class ScreenshotsRoboTest {
     }
 
     /**
-     * Next on the phone: the stop left goes, the new next stop pops in and is said, fades, and
-     * "Därefter" pops in its place. Frames during the move are saved for a look; the end state is
-     * checked.
+     * Next on the phone: the stop left goes, the new next stop's time and street are shown large as
+     * they are said, then the stop after it. Frames during the move are saved for a look; the end
+     * state is checked.
      */
     @Test
     @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
@@ -549,14 +549,14 @@ class ScreenshotsRoboTest {
             active = true,
             current = DisplayItem("07:36", "Västra Torggatan 12", "Karlstad"),
             upcoming = listOf(DisplayItem("08:00", "Hamngatan 7", "Skoghall"), DisplayItem("08:25", "Storgatan 14", "Karlstad")),
-            announcementSv = "Nästa stopp: Klockan sju trettiosex. Västra Torggatan 12, Karlstad. Därefter: Klockan åtta. Hamngatan 7, Skoghall.",
+            announcementSv = "Nästa stopp: Klockan sju trettiosex. Västra Torggatan 12, Karlstad. Klockan åtta. Hamngatan 7, Skoghall.",
         )
         val next = DisplaySnapshot(
             active = true,
             previous = first.current,
             current = first.upcoming[0],
             upcoming = listOf(first.upcoming[1]),
-            announcementSv = "Nästa stopp: Klockan åtta. Hamngatan 7, Skoghall. Därefter: Klockan åtta tjugofem. Storgatan 14, Karlstad.",
+            announcementSv = "Nästa stopp: Klockan åtta. Hamngatan 7, Skoghall. Klockan åtta tjugofem. Storgatan 14, Karlstad.",
         )
         var snapshot by mutableStateOf(first)
         var spoken by mutableIntStateOf(0)
@@ -569,20 +569,19 @@ class ScreenshotsRoboTest {
         compose.mainClock.autoAdvance = false
         snapshot = next
         spoken++
-        // 0–400 ms: the stop left goes; 400–1300: the new one pops in; then it is said, its words
-        // become stars, it stays, fades, and "Därefter" pops in its place.
+        // The stop left goes, the new one comes; its time grows, then its street (M1–M7).
         for (ms in listOf(200L, 700L, 1_100L, 1_500L, 1_500L, 2_500L, 2_500L)) {
             compose.mainClock.advanceTimeBy(ms)
             save("display_move_${compose.mainClock.currentTime}", compose.onRoot().captureToImage().asAndroidBitmap())
         }
-        // Said, "Därefter" said in turn, and back (the steps are slow).
+        // Said, the stop after it in turn, and back (the steps are slow).
         compose.mainClock.advanceTimeBy(30_000)
         compose.mainClock.autoAdvance = true
         compose.waitForIdle()
-        hero("Hamngatan 7").assertExists()
-        // The bottom line by times only: the next stop's (08:00), then "Därefter"'s (08:25).
+        hero("Hamngatan").assertExists()
+        // The bottom line by times only: the next stop's (08:00), then the one after it (08:25).
         compose.onNode(hasTestTag("ref_299") and hasText("00")).assertExists()
-        compose.onNodeWithText("Västra Torggatan 12").assertDoesNotExist()
+        compose.onNodeWithText("Västra Torggatan").assertDoesNotExist()
         compose.onNode(hasTestTag("ref_94") and hasText("25")).assertExists()
     }
 
@@ -618,7 +617,7 @@ class ScreenshotsRoboTest {
         compose.onNodeWithTag("ref_88").performClick()
         compose.mainClock.advanceTimeBy(1_000)
         compose.mainClock.autoAdvance = true
-        assertEquals(listOf("Därefter: Klockan åtta. Hamngatan 7, Skoghall.", "Klockan är åtta elva."), said)
+        assertEquals(listOf("Klockan åtta. Hamngatan 7, Skoghall.", "Klockan är åtta elva."), said)
     }
 
     /**
@@ -652,10 +651,10 @@ class ScreenshotsRoboTest {
         assertEquals(listOf("Klockan är åtta elva."), said)
         // While the time fills the screen a tap anywhere only brings the screen back; after that
         // the address takes taps again.
-        hero("Västra Torggatan 12").performClick()
+        hero("Västra Torggatan").performClick()
         compose.mainClock.advanceTimeBy(800)
         assertEquals(0, repeats)
-        hero("Västra Torggatan 12").performClick()
+        hero("Västra Torggatan").performClick()
         compose.mainClock.advanceTimeBy(800)
         assertEquals(1, repeats)
         compose.mainClock.autoAdvance = true
@@ -681,7 +680,7 @@ class ScreenshotsRoboTest {
             save("display_minute_${compose.mainClock.currentTime}", compose.onRoot().captureToImage().asAndroidBitmap())
         }
         compose.mainClock.autoAdvance = true
-        hero("Västra Torggatan 12").assertExists()
+        hero("Västra Torggatan").assertExists()
     }
 
     /**
@@ -706,21 +705,21 @@ class ScreenshotsRoboTest {
             compose.mainClock.advanceTimeBy(1_500)
         }
         save("display_paged", compose.onRoot().captureToImage().asAndroidBitmap())
-        // The stop after "Därefter", large at the top with its time over it (the bottom line shows
-        // times only).
-        compose.onAllNodesWithText("Storgatan 14").assertCountEquals(1)
+        // The third stop, large at the top with its time over it, its street without its number
+        // (the bottom line shows times only).
+        compose.onAllNodesWithText("Storgatan").assertCountEquals(1)
         compose.onAllNodesWithTag("ref_230", useUnmergedTree = true).filterToOne(hasAnyDescendant(hasText("08")) and hasAnyDescendant(hasText("25"))).assertIsDisplayed()
-        hero("Västra Torggatan 12").assertDoesNotExist()
+        hero("Västra Torggatan").assertDoesNotExist()
         compose.onNodeWithTag("ref_200").performClick()
         compose.mainClock.advanceTimeBy(3_000)
         save("display_paged_home", compose.onRoot().captureToImage().asAndroidBitmap())
-        hero("Västra Torggatan 12").assertIsDisplayed()
+        hero("Västra Torggatan").assertIsDisplayed()
         compose.onNodeWithTag("ref_200").assertDoesNotExist()
         // The other way: the trips done.
         compose.onRoot().performTouchInput { swipeRight() }
         compose.mainClock.advanceTimeBy(1_500)
         save("display_paged_back", compose.onRoot().captureToImage().asAndroidBitmap())
-        compose.onAllNodesWithText("Järnvägsgatan 3B").onFirst().assertExists()
+        compose.onAllNodesWithText("Järnvägsgatan").onFirst().assertExists()
         compose.onNodeWithTag("ref_200").assertExists()
         compose.mainClock.autoAdvance = true
     }
@@ -757,16 +756,16 @@ class ScreenshotsRoboTest {
         compose.onNodeWithTag("ref_200").assertExists()
         compose.mainClock.advanceTimeBy(4_000)
         compose.onAllNodesWithTag("ref_226").assertCountEquals(0)
-        hero("Västra Torggatan 12").assertIsDisplayed()
+        hero("Västra Torggatan").assertIsDisplayed()
         // Out again from the clock; a tap on a coming trip in the strip says it and shows it.
         compose.onNodeWithTag("ref_88").performTouchInput { swipeLeft() }
         compose.mainClock.advanceTimeBy(1_000)
-        compose.onNode(hasTestTag("ref_226") and hasText("Södra Kyrkogatan 7")).performClick()
+        compose.onNode(hasTestTag("ref_226") and hasText("Södra Kyrkogatan")).performClick()
         compose.mainClock.advanceTimeBy(2_500)
         save("display_list_pick", compose.onRoot().captureToImage().asAndroidBitmap())
         compose.onAllNodesWithTag("ref_226").assertCountEquals(0)
         compose.mainClock.autoAdvance = true
-        assertEquals(listOf("Sen: Klockan åtta femtio. Södra Kyrkogatan 7, Kristinehamn."), said)
+        assertEquals(listOf("Klockan åtta femtio. Södra Kyrkogatan 7, Kristinehamn."), said)
     }
 
     /**
@@ -1064,7 +1063,7 @@ class ScreenshotsRoboTest {
         compose.onNodeWithTag("ref_264").performClick()
         compose.waitForIdle()
         compose.onNodeWithTag("ref_235").assertDoesNotExist()
-        // "Därefter"'s page: its own figure opens its card.
+        // The page of the stop after the next: its own figure opens its card.
         compose.onRoot().performTouchInput { swipeLeft() }
         compose.waitForIdle()
         compose.onNodeWithTag("ref_234", useUnmergedTree = true).performClick()
