@@ -138,7 +138,7 @@ internal interface PanelActions {
  *     👤 07:36 Karlstad                                    the trip shown: its figure, its time in the
  *        Västra Torggatan 12                               clock's style, town and area; its street and
  *        Anna Testsson                                     number (tap: say it; long press: the display's
- *     › DÄREFTER Hamngatan 7 · Storgatan 14 · …           map for it); the passenger; the coming trips
+ *     › Hamngatan 7 · Storgatan 14 · …                    map for it); the passenger; the coming trips
  *     [⏮ Back] [══════ ⏭ Next ══════]                     (scroll, tap: shown above and on the display)
  *     the display's map, while it is open: its buttons and its list of trips, run from here
  *

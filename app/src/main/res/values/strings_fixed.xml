@@ -19,6 +19,6 @@
     <string name="passenger_map_no_script" translatable="false">Kartan kunde inte hämtas från Google</string>
     <string name="passenger_map_no_tiles" translatable="false">Kartans bilder kom inte från Google</string>
     <string name="passenger_map_stopped" translatable="false">Kartan stannade: %1$s</string>
-    <string name="passenger_way_refused" translatable="false">Vägen: Google svarade %1$d</string>
-    <string name="passenger_way_no_answer" translatable="false">Vägen: inget svar från Google</string>
+    <string name="passenger_way_refused" translatable="false">Vägen: %1$s svarade %2$d</string>
+    <string name="passenger_way_no_answer" translatable="false">Vägen: inget svar från %1$s</string>
 </resources>

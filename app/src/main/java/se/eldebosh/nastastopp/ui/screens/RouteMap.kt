@@ -81,9 +81,16 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
     var trouble by mutableStateOf<Trouble?>(null)
         private set
 
-    /** Google's answer to the last ask for the way when it gave none (an HTTP code; 0: no answer), or null. */
+    /** The answer to the last ask for the way when it gave none (an HTTP code; 0: no answer), or null; from [routeFrom]. */
     var routeAnswer by mutableStateOf<Int?>(null)
         private set
+
+    /** Who gave (or did not give) the last answer: Google or mapmap ([useWays]), for [routeAnswer]'s words. */
+    var routeFrom by mutableStateOf(WaySource.GOOGLE)
+        private set
+
+    /** Who is being asked now. */
+    @Volatile private var askedOf = WaySource.GOOGLE
 
     /**
      * The way on the map, from the vehicle through its stops in turn: the next stops, or the
@@ -485,10 +492,12 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
 
     private fun fetch(lat: Double, lng: Double, stops: List<MapWay.Stop>): RouteLine? {
         mapmap(stops)?.let { mapmapKey ->
+            askedOf = WaySource.MAPMAP
             val url = MapmapApi.routeUrl(lat, lng, stops) ?: return null
             val text = request(url, mapmapHeaders(mapmapKey), null) ?: return null
             return MapmapApi.parse(text).also { if (it == null) answered(HttpURLConnection.HTTP_OK) }
         }
+        askedOf = WaySource.GOOGLE
         val body = RoutesApi.body(lat, lng, stops) ?: return null
         val text = request(RoutesApi.URL, googleHeaders(RoutesApi.FIELDS), body) ?: return null
         return RoutesApi.parse(text).also { if (it == null) answered(HttpURLConnection.HTTP_OK) }
@@ -496,10 +505,12 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
 
     private fun fetchMatrix(lat: Double, lng: Double, stops: List<MapWay.Stop>): Array<IntArray>? {
         mapmap(stops)?.let { mapmapKey ->
+            askedOf = WaySource.MAPMAP
             val body = MapmapApi.matrixBody(lat, lng, stops) ?: return null
             val text = request(MapmapApi.MATRIX_URL, mapmapHeaders(mapmapKey), body) ?: return null
             return MapmapApi.parseMatrix(text, stops.size).also { if (it == null) answered(HttpURLConnection.HTTP_OK) }
         }
+        askedOf = WaySource.GOOGLE
         val body = RoutesApi.matrixBody(lat, lng, stops) ?: return null
         val text = request(RoutesApi.MATRIX_URL, googleHeaders(RoutesApi.MATRIX_FIELDS), body) ?: return null
         return RoutesApi.parseMatrix(text, stops.size).also { if (it == null) answered(HttpURLConnection.HTTP_OK) }
@@ -544,7 +555,11 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
 
     private fun answered(code: Int?) {
         lastCode = code
-        main.post { routeAnswer = code }
+        val from = askedOf
+        main.post {
+            routeAnswer = code
+            routeFrom = from
+        }
     }
 
     private inner class Bridge {

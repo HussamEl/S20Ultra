@@ -210,6 +210,7 @@ import se.eldebosh.nastastopp.core.geo.GeoLogic
 import se.eldebosh.nastastopp.core.link.LinkMessage
 import se.eldebosh.nastastopp.core.nav.DisplayEta
 import se.eldebosh.nastastopp.core.nav.OrderPlanner
+import se.eldebosh.nastastopp.core.nav.WaySource
 import se.eldebosh.nastastopp.core.parse.TripKinds
 import se.eldebosh.nastastopp.core.parse.TripTimes
 import se.eldebosh.nastastopp.core.route.Announcement
@@ -1282,7 +1283,8 @@ private fun mapNote(map: RouteMap): String? {
         RouteMap.Trouble.PAGE -> stringResource(R.string.passenger_map_stopped, map.troubleDetail ?: "?")
         null -> if (!map.ready) stringResource(R.string.passenger_map_loading) else null
     }
-    val way = map.routeAnswer?.let { if (it == 0) stringResource(R.string.passenger_way_no_answer) else stringResource(R.string.passenger_way_refused, it) }
+    val from = if (map.routeFrom == WaySource.MAPMAP) "mapmap.ai" else "Google"
+    val way = map.routeAnswer?.let { if (it == 0) stringResource(R.string.passenger_way_no_answer, from) else stringResource(R.string.passenger_way_refused, from, it) }
     return listOfNotNull(page, way).joinToString("  ·  ").ifEmpty { null }
 }
 

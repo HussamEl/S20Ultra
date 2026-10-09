@@ -37,7 +37,7 @@ class ThemeContrastTest {
         check(look, "a swelling word on the page", c.swell, c.background, 4.5)
         // The first card's time on the card's tint while it is said: large bold text.
         check(look, "passenger highlight on a lit card", c.highlight, c.infoSoft, 3.0)
-        check(look, "\"DÄREFTER\" on its chip", c.text, c.tonalHigh, 4.5)
+        check(look, "a chip's text", c.text, c.tonalHigh, 4.5)
         // The stops' letters and times in the driver's list: large bold text in each stop's own
         // colour, on the list's rows (the looked-at row too).
         c.wayStops.forEach {
