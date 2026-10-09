@@ -17,11 +17,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -34,13 +36,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.Flow
 import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.core.display.DisplaySnapshot
 import se.eldebosh.nastastopp.core.link.LinkMessage
+import se.eldebosh.nastastopp.core.nav.MapmapApi
 import se.eldebosh.nastastopp.core.nav.RoutesApi
+import se.eldebosh.nastastopp.core.nav.WaySource
 import se.eldebosh.nastastopp.core.route.Announcement
 import se.eldebosh.nastastopp.link.DisplayLinkClient
 import se.eldebosh.nastastopp.link.PairedDevice
@@ -94,6 +99,7 @@ fun DisplayRoleScreen(
     weatherWidget: (@Composable (Modifier) -> Unit)? = null,
     /** The Google map on the display (208): the driver's key (null removes it), whether Google refused it, the map. */
     onSaveMapsKey: (String?) -> Unit = {},
+    onSaveWays: (WaySource, String?) -> Unit = { _, _ -> },
     mapRefused: Boolean = false,
     routeMap: RouteMap? = null,
     /** The tablet knows where it is (its own GPS), for the map. */
@@ -159,6 +165,7 @@ fun DisplayRoleScreen(
     }
     var choosingWidget by remember { mutableStateOf(false) }
     var editingKey by remember { mutableStateOf(false) }
+    var choosingWays by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         TopBar(
@@ -239,6 +246,19 @@ fun DisplayRoleScreen(
                     ref = 208,
                     onClick = { editingKey = true },
                 )
+                ListRow(
+                    title = stringResource(R.string.way_source),
+                    subtitle = stringResource(
+                        when {
+                            settings.waySource == WaySource.GOOGLE -> R.string.way_source_google
+                            MapmapApi.isKey(settings.mapmapKey) -> R.string.way_source_mapmap
+                            else -> R.string.way_source_mapmap_no_key
+                        },
+                    ),
+                    help = R.string.help_way_source,
+                    ref = 304,
+                    onClick = { choosingWays = true },
+                )
             }
             Spacer(Modifier.size(8.dp))
             AppButton(stringResource(R.string.switch_to_controller), onSwitchToController, Modifier.ref(199).fillMaxWidth(), icon = R.drawable.ic_navigation, primary = false)
@@ -269,6 +289,57 @@ fun DisplayRoleScreen(
             },
             confirmButton = {},
             dismissButton = { TextButton(onClick = { choosingWidget = false }, modifier = Modifier.ref(218)) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+
+    if (choosingWays) {
+        var source by remember { mutableStateOf(settings.waySource) }
+        var text by remember { mutableStateOf(settings.mapmapKey.orEmpty()) }
+        val valid = MapmapApi.isKey(text)
+        AlertDialog(
+            onDismissRequest = { choosingWays = false },
+            title = { Text(stringResource(R.string.way_source)) },
+            text = {
+                Column {
+                    SourceRow(stringResource(R.string.way_source_google), source == WaySource.GOOGLE, 305) { source = WaySource.GOOGLE }
+                    SourceRow(stringResource(R.string.way_source_mapmap), source == WaySource.MAPMAP, 306) { source = WaySource.MAPMAP }
+                    if (source == WaySource.MAPMAP) {
+                        OutlinedTextField(
+                            value = text,
+                            onValueChange = { text = it.trim() },
+                            label = { Text(stringResource(R.string.mapmap_key_label)) },
+                            singleLine = true,
+                            isError = text.isNotEmpty() && !valid,
+                            keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Ascii),
+                            modifier = Modifier.ref(307).fillMaxWidth(),
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        choosingWays = false
+                        onSaveWays(source, text.takeIf { valid } ?: settings.mapmapKey)
+                    },
+                    enabled = source == WaySource.GOOGLE || valid,
+                    modifier = Modifier.ref(308),
+                ) { Text(stringResource(R.string.save)) }
+            },
+            dismissButton = {
+                Row {
+                    if (settings.mapmapKey != null) {
+                        TextButton(
+                            onClick = {
+                                choosingWays = false
+                                onSaveWays(WaySource.GOOGLE, null)
+                            },
+                            modifier = Modifier.ref(309),
+                        ) { Text(stringResource(R.string.delete)) }
+                    }
+                    TextButton(onClick = { choosingWays = false }, modifier = Modifier.ref(310)) { Text(stringResource(R.string.cancel)) }
+                }
+            },
         )
     }
 
@@ -314,6 +385,24 @@ fun DisplayRoleScreen(
                 }
             },
         )
+    }
+}
+
+/** One source of the ways in the window of 304: its name, picked or not. */
+@Composable
+private fun SourceRow(title: String, picked: Boolean, ref: Int, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .ref(ref)
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .selectable(selected = picked, onClick = onClick, role = Role.RadioButton)
+            .padding(horizontal = 4.dp, vertical = 6.dp),
+    ) {
+        RadioButton(selected = picked, onClick = null)
+        Spacer(Modifier.width(8.dp))
+        Text(title, style = MaterialTheme.typography.bodyLarge)
     }
 }
 

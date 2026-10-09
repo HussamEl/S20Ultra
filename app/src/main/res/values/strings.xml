@@ -176,6 +176,12 @@
     <string name="maps_key_refused">رفضت Google المفتاح</string>
     <string name="maps_key_label">مفتاح Google Maps API</string>
     <string name="help_maps_key">الخريطة تستخدم مفتاح Google الخاص بك. في Google Cloud: أنشئ مفتاح API، وفعّل «Maps JavaScript API» و«Routes API»، وقيّد المفتاح بهاتين الخدمتين وبالموقع https://nastastopp.app/* . يحسب Google كل خريطة تُصنع وكل طريق يُطلب بعد الاستخدام المجاني الشهري، ولا يُضمن أن يكفي استخدامك: ضع ميزانية وتنبيهات في Google Cloud وراقب استهلاكك هناك. التطبيق يصنع خريطة واحدة لكل شاشة ويطلب الطريق من جديد فقط حين يتغيّر، وثلاثي الأبعاد وصور الشارع يفتحان تطبيقات Google نفسها. تأخذ الخريطة موقع السيارة من GPS التابلت نفسه (الموقع ما دامت الشاشة مفتوحة، وليس في الخلفية أبداً؛ يُطلب الإذن عند أول ضغطة على زر الخريطة). هذا الموقع ومحطات الطريق (حتى سبع، بلا أي اسم) تذهب إلى Google لرسم الطريق، ولا يُحفظ ولا يُسجَّل شيء.</string>
+    <string name="way_source">الطرق وأزمنة السفر</string>
+    <string name="way_source_google">Google (Routes API، بمفتاح Google نفسه)</string>
+    <string name="way_source_mapmap">mapmap.ai (طرق OpenStreetMap، مجاني حتى 50,000 طلب في الشهر)</string>
+    <string name="way_source_mapmap_no_key">mapmap.ai مختار بلا مفتاح: تُستعمل Google</string>
+    <string name="mapmap_key_label">مفتاح mapmap.ai (snk_…)</string>
+    <string name="help_way_source">من يرسم الطريق على خريطة التابلت ويعطي دقائقه وأزمنة «اقترح». Google: واجهة Routes API بمفتاح Google نفسه (تحسبها Google بعد استعمالها المجاني). mapmap.ai: طرق OpenStreetMap، بمفتاحك الخاص من mapmap.ai/account (مجاني حتى 50,000 طلب في الشهر). يُرسل موقع التابلت ونقاط المحطات فقط، بلا أي اسم ولا عنوان. المحطة التي لا نقطة لها تُسأل عنها Google. الخريطة نفسها دائماً من Google.</string>
     <string name="display_show_way">إظهار الطريق على الخريطة</string>
     <string name="display_map_close">إغلاق الخريطة</string>
     <string name="display_battery">البطارية %1$d٪</string>

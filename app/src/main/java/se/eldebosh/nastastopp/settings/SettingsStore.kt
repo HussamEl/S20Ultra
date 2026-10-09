@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import se.eldebosh.nastastopp.core.geo.AnnouncementDetail
+import se.eldebosh.nastastopp.core.nav.WaySource
 
 /** What this device is used for. Every device can be either; the user picks it in the app. */
 enum class DeviceRole {
@@ -44,6 +45,10 @@ data class AppSettings(
     val displayDark: Boolean = true,
     /** Display role: the driver's own Google Maps key for the map on this tablet, or null. */
     val mapsKey: String? = null,
+    /** Display role: who gives this tablet's map its ways and travel times (304). */
+    val waySource: WaySource = WaySource.GOOGLE,
+    /** Display role: the driver's own mapmap.ai key for the ways on this tablet, or null. */
+    val mapmapKey: String? = null,
     /** Display role: the weather app's widget shown on this tablet's display, or -1 for SMHI's weather. */
     val weatherWidgetId: Int = -1,
     /** Display role: Bluetooth address of the controller device to connect to. */
@@ -86,6 +91,8 @@ class SettingsStore(context: Context) : WindowPlaces {
             putBoolean(K_TABLET_PANEL, next.tabletPanel)
             putBoolean(K_DISPLAY_DARK, next.displayDark)
             putString(K_MAPS_KEY, next.mapsKey)
+            putString(K_WAY_SOURCE, next.waySource.name)
+            putString(K_MAPMAP_KEY, next.mapmapKey)
             putInt(K_WEATHER_WIDGET, next.weatherWidgetId)
             putString(K_CONTROLLER, next.displayControllerAddress)
             putBoolean(K_OVERLAY_HIDDEN, next.overlayHidden)
@@ -153,6 +160,8 @@ class SettingsStore(context: Context) : WindowPlaces {
         tabletPanel = prefs.getBoolean(K_TABLET_PANEL, false),
         displayDark = prefs.getBoolean(K_DISPLAY_DARK, true),
         mapsKey = prefs.getString(K_MAPS_KEY, null),
+        waySource = runCatching { WaySource.valueOf(prefs.getString(K_WAY_SOURCE, null) ?: "") }.getOrDefault(WaySource.GOOGLE),
+        mapmapKey = prefs.getString(K_MAPMAP_KEY, null),
         weatherWidgetId = prefs.getInt(K_WEATHER_WIDGET, -1),
         displayControllerAddress = prefs.getString(K_CONTROLLER, null),
         overlayHidden = prefs.getBoolean(K_OVERLAY_HIDDEN, false),
@@ -175,6 +184,8 @@ class SettingsStore(context: Context) : WindowPlaces {
         private const val K_TABLET_PANEL = "tablet_floating_panel"
         private const val K_DISPLAY_DARK = "display_dark"
         private const val K_MAPS_KEY = "tablet_maps_key"
+        private const val K_WAY_SOURCE = "tablet_way_source"
+        private const val K_MAPMAP_KEY = "tablet_mapmap_key"
         private const val K_WEATHER_WIDGET = "tablet_weather_widget"
         private const val K_CONTROLLER = "display_controller_address"
         private const val K_OVERLAY_HIDDEN = "overlay_hidden"

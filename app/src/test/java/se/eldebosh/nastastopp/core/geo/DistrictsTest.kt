@@ -24,6 +24,8 @@ class DistrictsTest {
         assertEquals(listOf("Herrhagen"), districts.of("Fryxellsgatan"))
         assertEquals(listOf("Tingvallastaden"), districts.of("drottninggatan"))
         assertNull(districts.of("Påhittadgatan"))
+        // A street of Lantmäteriet's register that OpenStreetMap does not have yet.
+        assertEquals(listOf("Henstad"), districts.of("Henstapromenaden"))
     }
 
     @Test

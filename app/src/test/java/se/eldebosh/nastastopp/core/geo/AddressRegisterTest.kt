@@ -19,6 +19,12 @@ class AddressRegisterTest {
         Exempelvägen|Skoghall|66331|Hammarö|9:59.33:13.47
         Testallén|Karlstad|65225|Karlstad|5:59.37:13.49
         Testallén|Karlstad|65226|Karlstad|5:59.39:13.52
+        Nybyggevägen||65229|Karlstad|3:59.36:13.48
+        @Provgårdens skola|Molkom|65560|Karlstad|59.61:13.73:Provby 215
+        @Exempeltorpet|Karlstad|65224|Karlstad|59.381:13.501:S:t Provgatan 2;59.3812:13.5012:S:t Provgatan 4
+        @Gamla Skolan|Karlstad|65224|Karlstad|59.38:13.50:Provgatan 1
+        @Gamla Skolan|Karlstad|65225|Karlstad|59.45:13.42:Testallén 5
+        @Hagen|Väse|65595|Karlstad|59.35:13.75:Provby 404;59.40:13.80:Provby 900
         """.trimIndent(),
     )
 
@@ -58,6 +64,31 @@ class AddressRegisterTest {
         assertNull(sample.find("Provgatan, Karlstad", null, "Karlstad"))
     }
 
+    /** A place written by its popular name (a farm, a school, a church), where it is written to be. */
+    @Test
+    fun aPlaceIsFoundByItsPopularName() {
+        val school = sample.find("Provgårdens skola, Molkom", null, "Molkom")!!
+        assertEquals(59.61, school.lat, 1e-9)
+        assertEquals("Provgårdens skola, Provby 215, 655 60 Molkom", school.addressLine)
+        assertNotNull(sample.find("provgårdens SKOLA", "655 60", null))
+        // Two addresses side by side are one place; a street with a colon in it is kept whole.
+        assertEquals("Exempeltorpet, S:t Provgatan 2, 652 24 Karlstad", sample.find("Exempeltorpet", null, "Karlstad")!!.addressLine)
+        // Never in another town, never without a town, never one of two.
+        assertNull(sample.find("Provgårdens skola", null, "Karlstad"))
+        assertNull(sample.find("Provgårdens skola", null, null))
+        assertNull(sample.find("Gamla Skolan", null, "Karlstad"))
+        assertNotNull(sample.find("Gamla Skolan", "65225", null))
+        // One name on addresses far apart is not one place.
+        assertNull(sample.find("Hagen", null, "Väse"))
+    }
+
+    /** An address reserved for a new building has no post town yet: it is found by its postcode. */
+    @Test
+    fun aNewBuildingIsFoundByItsPostcode() {
+        assertEquals(59.36, sample.find("Nybyggevägen 3", "652 29", "Karlstad")!!.lat, 1e-9)
+        assertNull(sample.find("Nybyggevägen 3", null, "Karlstad"))
+    }
+
     @Test
     fun theDriversRegisterIsBundled() {
         val text = listOf(File("src/main/assets/${AddressRegister.ASSET}"), File("app/src/main/assets/${AddressRegister.ASSET}")).first { it.exists() }.readText()
@@ -66,5 +97,9 @@ class AddressRegisterTest {
         // A testdata address: on its street in Karlstad, not under another postcode.
         assertNotNull(register.find("Västra Torggatan 12", null, "Karlstad"))
         assertNull(register.find("Västra Torggatan 12", "652 24", "Karlstad"))
+        // A village address, and a church by its name.
+        assertNotNull(register.find("Nolby 404", null, "Väse"))
+        assertNotNull(register.find("Grava kyrka", null, "Karlstad"))
+        assertTrue(register.names > 1_000)
     }
 }

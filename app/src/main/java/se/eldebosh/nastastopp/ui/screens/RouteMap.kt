@@ -28,9 +28,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import se.eldebosh.nastastopp.core.geo.GeoLogic
 import se.eldebosh.nastastopp.core.nav.MapWay
+import se.eldebosh.nastastopp.core.nav.MapmapApi
 import se.eldebosh.nastastopp.core.nav.OrderPlanner
 import se.eldebosh.nastastopp.core.nav.RouteLine
 import se.eldebosh.nastastopp.core.nav.RoutesApi
+import se.eldebosh.nastastopp.core.nav.WaySource
 import java.net.HttpURLConnection
 import java.net.URI
 import androidx.compose.ui.graphics.toArgb
@@ -40,11 +42,12 @@ import se.eldebosh.nastastopp.ui.theme.DisplayColors
 
 /**
  * The tablet's map of the way to the next stop: Google's map in a WebView of its own, with the
- * driver's own key (entered on the tablet, 208) and the route from Google's Routes API. Only the
- * tablet's own position (from [se.eldebosh.nastastopp.geo.TabletPosition]) and the stop go to
- * Google. The page itself never gets the location; nothing is stored or logged. The page grows
- * and fades the map itself ([reveal], [conceal]): the WebView is never scaled or faded from
- * outside, so it is drawn the same on every device. What stops the map ([trouble],
+ * driver's own key (entered on the tablet, 208) and the route from Google's Routes API, or from
+ * mapmap.ai when the driver chose it (304, [useWays]). Only the tablet's own position (from
+ * [se.eldebosh.nastastopp.geo.TabletPosition]) and the stops go to them, never a name. The page
+ * itself never gets the location; nothing is stored or logged. The page grows and fades the map
+ * itself ([reveal], [conceal]): the WebView is never scaled or faded from outside, so it is drawn
+ * the same on every device. What stops the map ([trouble],
  * [routeAnswer]) is shown under it, for the driver to see why.
  *
  * One map for the display's whole life (Google counts each map made, not what it shows): only
@@ -127,7 +130,7 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
     private var asking: Job? = null
 
     /**
-     * Ways already given by Google, in memory only and for a short while ([KNOWN_MS]), from about
+     * Ways already given, in memory only and for a short while ([KNOWN_MS]), from about
      * the same place ([REUSE_M]): a stop opened again, or an order tried again, needs no new ask.
      */
     private val known = object : LinkedHashMap<String, Known>() {
@@ -140,6 +143,31 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
         SystemClock.elapsedRealtime() - it.atMs < KNOWN_MS &&
             GeoLogic.distanceMeters(it.fromLat, it.fromLng, from.lat, from.lng) < REUSE_M
     }?.line
+
+    /** Who gives the ways and travel times, and the driver's mapmap key ([useWays]). */
+    @Volatile private var waySource = WaySource.GOOGLE
+    @Volatile private var mapmapKey: String? = null
+
+    /**
+     * The ways and travel times from [source], mapmap's with the driver's own [key] (304–309).
+     * A change forgets the ways already given, so the next one comes from the source chosen.
+     */
+    fun useWays(source: WaySource, key: String?) {
+        val usable = key?.takeIf { MapmapApi.isKey(it) }
+        if (source == waySource && usable == mapmapKey) return
+        waySource = source
+        mapmapKey = usable
+        known.clear()
+        refusedFor = null
+        failedAtMs = null
+        askedFor = null
+    }
+
+    /**
+     * mapmap's key when the driver chose mapmap and has its key, and every stop of [stops] has its
+     * point (mapmap is asked by points only); null: Google is asked.
+     */
+    private fun mapmap(stops: List<MapWay.Stop>): String? = mapmapKey?.takeIf { waySource == WaySource.MAPMAP && MapmapApi.canAsk(stops) }
 
     /** The driver's way until [unfocus]: its stops in turn and the one he looks at; null for the next stops. */
     private var focused: Way? = null
@@ -396,7 +424,7 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
     }
 
     /**
-     * Asks Google for the travel times between the vehicle and the driver's [stops], and finds the
+     * Asks Google or mapmap ([useWays]) for the travel times between the vehicle and the driver's [stops], and finds the
      * best order for them ([trips], the same order; [now]: seconds of the day): [suggestion].
      */
     fun suggest(stops: List<MapWay.Stop>, trips: List<OrderPlanner.Trip>, now: Int) {
@@ -456,31 +484,53 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
     private fun js(code: String) = view.evaluateJavascript(code, null)
 
     private fun fetch(lat: Double, lng: Double, stops: List<MapWay.Stop>): RouteLine? {
+        mapmap(stops)?.let { mapmapKey ->
+            val url = MapmapApi.routeUrl(lat, lng, stops) ?: return null
+            val text = request(url, mapmapHeaders(mapmapKey), null) ?: return null
+            return MapmapApi.parse(text).also { if (it == null) answered(HttpURLConnection.HTTP_OK) }
+        }
         val body = RoutesApi.body(lat, lng, stops) ?: return null
-        val text = post(RoutesApi.URL, RoutesApi.FIELDS, body) ?: return null
+        val text = request(RoutesApi.URL, googleHeaders(RoutesApi.FIELDS), body) ?: return null
         return RoutesApi.parse(text).also { if (it == null) answered(HttpURLConnection.HTTP_OK) }
     }
 
     private fun fetchMatrix(lat: Double, lng: Double, stops: List<MapWay.Stop>): Array<IntArray>? {
+        mapmap(stops)?.let { mapmapKey ->
+            val body = MapmapApi.matrixBody(lat, lng, stops) ?: return null
+            val text = request(MapmapApi.MATRIX_URL, mapmapHeaders(mapmapKey), body) ?: return null
+            return MapmapApi.parseMatrix(text, stops.size).also { if (it == null) answered(HttpURLConnection.HTTP_OK) }
+        }
         val body = RoutesApi.matrixBody(lat, lng, stops) ?: return null
-        val text = post(RoutesApi.MATRIX_URL, RoutesApi.MATRIX_FIELDS, body) ?: return null
+        val text = request(RoutesApi.MATRIX_URL, googleHeaders(RoutesApi.MATRIX_FIELDS), body) ?: return null
         return RoutesApi.parseMatrix(text, stops.size).also { if (it == null) answered(HttpURLConnection.HTTP_OK) }
     }
 
-    /** Google's answer to [body], or null (its HTTP code, or 0 for none, goes to [routeAnswer]). */
-    private fun post(url: String, fields: String, body: String): String? = runCatching {
+    private fun googleHeaders(fields: String) = mapOf(
+        "X-Goog-Api-Key" to key,
+        "X-Goog-FieldMask" to fields,
+        // The same page address the map loads from, for a key restricted to it.
+        "Referer" to BASE,
+    )
+
+    /** The key goes in a header, never in the address. */
+    private fun mapmapHeaders(mapmapKey: String) = mapOf("Authorization" to "Bearer $mapmapKey")
+
+    /**
+     * The answer to [body] (POST), or to the address alone (GET, no [body]), or null (its HTTP
+     * code, or 0 for none, goes to [routeAnswer]).
+     */
+    private fun request(url: String, headers: Map<String, String>, body: String?): String? = runCatching {
         val conn = URI(url).toURL().openConnection() as HttpURLConnection
         try {
-            conn.requestMethod = "POST"
-            conn.doOutput = true
+            conn.requestMethod = if (body != null) "POST" else "GET"
             conn.connectTimeout = 15_000
             conn.readTimeout = 15_000
-            conn.setRequestProperty("Content-Type", "application/json")
-            conn.setRequestProperty("X-Goog-Api-Key", key)
-            conn.setRequestProperty("X-Goog-FieldMask", fields)
-            // The same page address the map loads from, for a key restricted to it.
-            conn.setRequestProperty("Referer", BASE)
-            conn.outputStream.use { it.write(body.toByteArray()) }
+            headers.forEach { (name, value) -> conn.setRequestProperty(name, value) }
+            if (body != null) {
+                conn.doOutput = true
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.outputStream.use { it.write(body.toByteArray()) }
+            }
             val code = conn.responseCode
             if (code != HttpURLConnection.HTTP_OK) {
                 answered(code)

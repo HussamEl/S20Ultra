@@ -175,6 +175,12 @@
     <string name="maps_key_refused">Google refused the key</string>
     <string name="maps_key_label">Google Maps API key</string>
     <string name="help_maps_key">The map uses your own Google key. In Google Cloud: create an API key, enable "Maps JavaScript API" and "Routes API", and restrict the key to those two APIs and the website https://nastastopp.app/* . Google bills each map made and each way asked beyond its free monthly use, and that free use is not promised to cover yours: set a budget and alerts in Google Cloud and watch your use there. The app makes one map per display and asks for the way again only when it changes; the 3D view and street photos open Google\'s own apps. The map takes the car\'s position from this tablet\'s own GPS (location while the display is open, never in the background; asked the first time the map sign is tapped). That position and the stops of the way (up to seven, never a name) go to Google for the way; nothing is stored or logged.</string>
+    <string name="way_source">Ways and travel times</string>
+    <string name="way_source_google">Google (Routes API, with the Google key)</string>
+    <string name="way_source_mapmap">mapmap.ai (OpenStreetMap roads, free up to 50,000 calls a month)</string>
+    <string name="way_source_mapmap_no_key">mapmap.ai chosen without a key: Google is used</string>
+    <string name="mapmap_key_label">mapmap.ai key (snk_…)</string>
+    <string name="help_way_source">Who draws the way on the tablet\'s map and gives its minutes and the travel times for Suggest. Google: the Routes API with the same Google key (billed by Google after its free use). mapmap.ai: OpenStreetMap\'s roads, with your own key from mapmap.ai/account (free up to 50,000 calls a month). Only the tablet\'s position and the stops\' points are sent, never a name or an address. A stop without a point is asked from Google. The map itself is always Google\'s.</string>
     <string name="display_show_way">Show the way on the map</string>
     <string name="display_map_close">Close the map</string>
     <string name="display_battery">Battery %1$d%%</string>

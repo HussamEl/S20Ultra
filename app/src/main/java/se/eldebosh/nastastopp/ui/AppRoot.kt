@@ -397,6 +397,8 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 }
                             }
                             LaunchedEffect(routeMap, night, groundHex) { routeMap?.setLook(night, groundHex) }
+                            // The ways and travel times from Google or mapmap, as the driver chose (304).
+                            LaunchedEffect(routeMap, settings.waySource, settings.mapmapKey) { routeMap?.useWays(settings.waySource, settings.mapmapKey) }
                             DisposableEffect(routeMap) { onDispose { routeMap?.destroy() } }
                             // A map whose renderer stopped is replaced by a new one.
                             LaunchedEffect(routeMap?.gone) { if (routeMap?.gone == true) mapRestarts++ }
@@ -479,6 +481,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 },
                                 weatherWidget = widgetLabel?.let { { m: Modifier -> HostedWidget(widgets, widgetId, m) } },
                                 onSaveMapsKey = { key -> graph.settings.update { it.copy(mapsKey = key) } },
+                                onSaveWays = { source, key -> graph.settings.update { it.copy(waySource = source, mapmapKey = key) } },
                                 mapRefused = routeMap?.refused == true,
                                 routeMap = routeMap,
                                 mapLive = fix != null,

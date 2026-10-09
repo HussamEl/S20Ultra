@@ -175,6 +175,12 @@
     <string name="maps_key_refused">Google avvisade nyckeln</string>
     <string name="maps_key_label">API-nyckel för Google Maps</string>
     <string name="help_maps_key">Kartan använder din egen Google-nyckel. I Google Cloud: skapa en API-nyckel, aktivera "Maps JavaScript API" och "Routes API" och begränsa nyckeln till de två API:erna och webbplatsen https://nastastopp.app/* . Google tar betalt för varje karta som skapas och varje väg som efterfrågas utöver den fria månadsanvändningen, och det är inte lovat att den räcker för din: sätt en budget och varningar i Google Cloud och följ din användning där. Appen skapar en karta per skärm och frågar efter vägen igen bara när den ändras; 3D-vyn och gatubilderna öppnar Googles egna appar. Kartan tar bilens position från surfplattans egen GPS (plats medan skärmen är öppen, aldrig i bakgrunden; frågas första gången kartknappen trycks). Den positionen och vägens stopp (högst sju, aldrig ett namn) går till Google för vägen; inget sparas eller loggas.</string>
+    <string name="way_source">Vägar och restider</string>
+    <string name="way_source_google">Google (Routes API, med Google-nyckeln)</string>
+    <string name="way_source_mapmap">mapmap.ai (OpenStreetMaps vägar, gratis upp till 50 000 anrop i månaden)</string>
+    <string name="way_source_mapmap_no_key">mapmap.ai vald utan nyckel: Google används</string>
+    <string name="mapmap_key_label">Nyckel för mapmap.ai (snk_…)</string>
+    <string name="help_way_source">Vem som ritar vägen på surfplattans karta och ger dess minuter och restiderna för Föreslå. Google: Routes API med samma Google-nyckel (Google tar betalt efter den fria användningen). mapmap.ai: OpenStreetMaps vägar, med din egen nyckel från mapmap.ai/account (gratis upp till 50 000 anrop i månaden). Bara surfplattans position och hållplatsernas punkter skickas, aldrig ett namn eller en adress. En hållplats utan punkt frågas hos Google. Själva kartan är alltid Googles.</string>
     <string name="display_show_way">Visa vägen på kartan</string>
     <string name="display_map_close">Stäng kartan</string>
     <string name="display_battery">Batteri %1$d %%</string>
