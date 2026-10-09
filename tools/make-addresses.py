@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Makes app/src/main/assets/addresses.txt, the address part of the app's own address archive: every
-address of the municipalities given, from Lantmäteriet's address register ("Belägenhetsadresser",
+address of the municipalities given (Värmland's 16 and Örebro's 12), from Lantmäteriet's address register ("Belägenhetsadresser",
 CC BY 4.0), so the app finds an address on the phone, before Android's geocoder, and finds the
 ones the geocoder does not know (village addresses like "Nolby 503", new streets). It also adds
 the register's street names to the districts' streets in app/src/main/assets/karlstad_districts.json
@@ -12,11 +12,13 @@ Each municipality is one GeoPackage from Geotorget (belagenhetsadresser_kn<code>
 zip). Addresses in force ("Gällande") and reserved for new buildings ("Reserverad") are kept: the
 street (or the village's address area), the number and letter, the postcode, the post town and the
 municipality, the point turned from SWEREF 99 TM (EPSG:3006) into WGS 84 with 5 decimals (about a
-metre), and the place's popular name where it has one (a farm, a school, a church, a harbour). No
-names of people, no property references. Run by hand when the driver brings newer files (needs
+metre), and the place's popular name where it has one (a farm, a school, a church, a harbour). A
+farm's address is kept under the farm's own name ("Väststugan 1"); an address written twice with
+two points (one farm name in two villages of one postcode) is left out, never chosen. No names of
+people, no property references. Run by hand when the driver brings newer files (needs
 `pip install pyproj`):
 
-    python3 tools/make-addresses.py belagenhetsadresser_kn1780.gpkg [more.gpkg …]
+    python3 tools/make-addresses.py belagenhetsadresser_kn17*.gpkg belagenhetsadresser_kn18*.gpkg
 
 The file has a line per street of a post town, and a line per popular name of a post town:
     <street>|<post town>|<postcode>|<municipality>|<number><letter>:<lat>:<lng>;…
@@ -91,29 +93,39 @@ def main():
     streets = defaultdict(dict)
     places = defaultdict(list)
     street_points = defaultdict(list)
+    twice = set()
     count = 0
     for path in sys.argv[1:]:
         db = sqlite3.connect(path)
         rows = db.execute(
-            "select adressomrade_faststalltnamn, adressomradestyp, adressplatsnummer, bokstavstillagg, postnummer, "
-            "postort, kommunnamn, popularnamn, adressplatspunkt from belagenhetsadress "
+            "select adressomrade_faststalltnamn, adressomradestyp, gardsadressomrade_faststalltnamn, adressplatsnummer, "
+            "bokstavstillagg, postnummer, postort, kommunnamn, popularnamn, adressplatspunkt from belagenhetsadress "
             "where statusforbelagenhetsadress in ('Gällande', 'Reserverad') and adressplatsnummer is not null"
         )
-        for street, kind, number, letter, postcode, town, municipality, popular, blob in rows:
-            if not street or not blob:
+        for area, kind, farm, number, letter, postcode, town, municipality, popular, blob in rows:
+            if not area or not blob:
                 continue
             x, y = point(blob)
             lng, lat = TO_DEGREES.transform(x, y)
             lat, lng = round(lat, 5), round(lng, 5)
-            street = street.strip()
+            # A farm's address is written by the farm's own name ("Väststugan 1", in the village
+            # Ambjörby): the village's own number 1 is another house.
+            street = (farm or area).strip()
             house = f"{number.strip()}{(letter or '').strip().upper()}"
             key = (street, (town or "").strip(), str(postcode or ""), (municipality or "").strip())
+            known = streets[key].get(house)
+            if known is not None and known != (lat, lng):
+                # Written twice with two points: neither is taken (a house is never guessed).
+                twice.add((key, house))
             streets[key][house] = (lat, lng)
             if popular and popular.strip():
                 places[(popular.strip(),) + key[1:]].append((lat, lng, f"{street} {house}"))
-            if kind == "Gatuadressområde" and (municipality or "").strip() == "Karlstad":
+            if kind == "Gatuadressområde" and not farm and (municipality or "").strip() == "Karlstad":
                 street_points[street].append((lat, lng))
             count += 1
+    for key, house in twice:
+        streets[key].pop(house, None)
+    streets = {k: v for k, v in streets.items() if v}
     with open(OUT, "w", encoding="utf-8") as out:
         out.write("# Lantmäteriet, Belägenhetsadresser (CC BY 4.0). street|post town|postcode|municipality|number:lat:lng;…"
                   " — @popular name|post town|postcode|municipality|lat:lng:street number;…\n")
@@ -123,7 +135,7 @@ def main():
         for (name, town, postcode, municipality), spots in sorted(places.items()):
             line = ";".join(f"{lat}:{lng}:{address}" for lat, lng, address in sorted(spots, key=lambda s: s[2]))
             out.write(f"@{name}|{town}|{postcode}|{municipality}|{line}\n")
-    print(OUT, count, "addresses on", len(streets), "streets,", len(places), "popular names")
+    print(OUT, count, "addresses on", len(streets), "streets,", len(places), "popular names,", len(twice), "written twice left out")
     if street_points:
         add_to_archive(street_points)
 

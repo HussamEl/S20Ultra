@@ -101,5 +101,16 @@ class AddressRegisterTest {
         assertNotNull(register.find("Nolby 404", null, "Väse"))
         assertNotNull(register.find("Grava kyrka", null, "Karlstad"))
         assertTrue(register.names > 1_000)
+        // Värmland's and Örebro's municipalities, each where it is written.
+        assertTrue(register.size > 250_000)
+        assertNotNull(register.find("Drottninggatan 1", "702 10", "Örebro"))
+        // One street name in two towns: each where it is written.
+        assertEquals(59.53086, register.find("Järnvägsgatan 6", null, "Storfors")!!.lat, 1e-9)
+        assertEquals("Karlstad", register.find("Järnvägsgatan 6", null, "Karlstad")!!.locality)
+        // The municipality written for its post town (Ljusnarsberg for Kopparberg); never when the
+        // municipality is a post town too (Hammarö: Skoghall's Apelstigen is not taken for it).
+        assertEquals(register.find("Andstigen 1", null, "Kopparberg")!!.lat, register.find("Andstigen 1", null, "Ljusnarsberg")!!.lat, 1e-9)
+        assertNotNull(register.find("Apelstigen 1", null, "Skoghall"))
+        assertNull(register.find("Apelstigen 1", null, "Hammarö"))
     }
 }

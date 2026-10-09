@@ -1,7 +1,9 @@
 addresses.txt
 
 Addresses: Lantmäteriet, Belägenhetsadresser (Nedladdning, vektor), CC BY 4.0
-(https://creativecommons.org/licenses/by/4.0/).
+(https://creativecommons.org/licenses/by/4.0/). The municipalities of Värmlands län and Örebro län.
 
-Only addresses in force: street or address area, number and letter, postcode, post town,
-municipality and point (converted from SWEREF 99 TM to WGS 84). No names of people.
+Only addresses in force or reserved for new buildings: street, village or farm address area,
+number and letter, postcode, post town, municipality, point (converted from SWEREF 99 TM to
+WGS 84) and the place's popular name. No names of people. The street names it adds to
+karlstad_districts.json come from the same source.

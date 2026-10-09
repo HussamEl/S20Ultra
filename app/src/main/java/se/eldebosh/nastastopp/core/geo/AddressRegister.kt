@@ -4,7 +4,7 @@ import se.eldebosh.nastastopp.core.parse.TextNorm
 
 /**
  * Lantmäteriet's address register ("Belägenhetsadresser", CC BY 4.0) for the municipalities the
- * driver brought (`assets/addresses.txt`, made by `tools/make-addresses.py`): every address in
+ * driver brought (Värmland's and Örebro's) (`assets/addresses.txt`, made by `tools/make-addresses.py`): every address in
  * force or reserved for a new building, with its point, and the places' popular names (a farm, a
  * school, a church), on the phone. It is asked before Android's geocoder and knows the addresses
  * the geocoder does not (village addresses, new streets). An address is taken only when its
@@ -16,7 +16,33 @@ class AddressRegister private constructor(
     private val named: Map<String, List<Named>> = emptyMap(),
 ) {
 
-    private class Street(val name: String, val town: String, val postcode: String, val municipality: String, val places: Map<String, Pair<Double, Double>>)
+    /**
+     * A street of a post town and its houses, kept as written in the file ([spots]: "number:lat:lng"
+     * separated by ";") and read only when the street is asked for: the register of two counties
+     * stays small on the phone.
+     */
+    private class Street(val name: String, val town: String, val postcode: String, val municipality: String, private val spots: String) {
+        val houses: Int get() = if (spots.isEmpty()) 0 else spots.count { it == ';' } + 1
+
+        /** The point of house [number] ("14", "14B"), or null. */
+        fun at(number: String): Pair<Double, Double>? {
+            var from = 0
+            while (from < spots.length) {
+                val end = spots.indexOf(';', from).let { if (it < 0) spots.length else it }
+                val colon = from + number.length
+                if (colon < end && spots[colon] == ':' && spots.regionMatches(from, number, 0, number.length, ignoreCase = true)) {
+                    val second = spots.indexOf(':', colon + 1)
+                    if (second in colon + 1 until end) {
+                        val lat = spots.substring(colon + 1, second).toDoubleOrNull()
+                        val lng = spots.substring(second + 1, end).toDoubleOrNull()
+                        if (lat != null && lng != null) return lat to lng
+                    }
+                }
+                from = end + 1
+            }
+            return null
+        }
+    }
 
     /** A popular name ([name]) of a post town, at one address or a few side by side ([spots]: point and address). */
     private class Named(val name: String, val town: String, val postcode: String, val municipality: String, val spots: List<Triple<Double, Double, String>>)
@@ -24,7 +50,7 @@ class AddressRegister private constructor(
     /** The post towns' keys: a municipality named as one of them (Karlstad) is read as the post town. */
     private val towns: Set<String> = streets.values.flatten().mapTo(HashSet()) { TextNorm.key(it.town) }
 
-    val size: Int get() = streets.values.sumOf { list -> list.sumOf { it.places.size } }
+    val size: Int get() = streets.values.sumOf { list -> list.sumOf { it.houses } }
 
     /** Popular names known, in all their post towns. */
     val names: Int get() = named.values.sumOf { it.size }
@@ -44,10 +70,10 @@ class AddressRegister private constructor(
         val written = NUMBERED.find(candidate.substringBefore(',').trim()) ?: return named(candidate, digits, place)
         val street = TextNorm.key(written.groupValues[1])
         val number = written.groupValues[2] + written.groupValues[3].uppercase()
-        val numbered = streets[street].orEmpty().filter { it.places.containsKey(number) }
+        val numbered = streets[street].orEmpty().mapNotNull { s -> s.at(number)?.let { s to it } }
         // Only one such address there: two streets of one name in one town are never chosen between.
-        val found = inTown(numbered, digits, place, { it.postcode }, { it.town }, { it.municipality }).singleOrNull() ?: return null
-        val (lat, lng) = found.places.getValue(number)
+        val (found, point) = inTown(numbered, digits, place, { it.first.postcode }, { it.first.town }, { it.first.municipality }).singleOrNull() ?: return null
+        val (lat, lng) = point
         val shown = "${found.name} ${written.groupValues[2]}${written.groupValues[3].uppercase().let { if (it.isEmpty()) "" else " $it" }}"
         return GeoResult(
             lat = lat,
@@ -125,14 +151,7 @@ class AddressRegister private constructor(
                     if (spots.isNotEmpty()) named.getOrPut(TextNorm.key(name)) { mutableListOf() } += Named(name, parts[1], parts[2], parts[3], spots)
                     return@forEach
                 }
-                val places = HashMap<String, Pair<Double, Double>>()
-                for (spot in parts[4].split(';')) {
-                    val p = spot.split(':')
-                    val lat = p.getOrNull(1)?.toDoubleOrNull() ?: continue
-                    val lng = p.getOrNull(2)?.toDoubleOrNull() ?: continue
-                    places[p[0].uppercase()] = lat to lng
-                }
-                streets.getOrPut(TextNorm.key(parts[0])) { mutableListOf() } += Street(parts[0], parts[1], parts[2], parts[3], places)
+                streets.getOrPut(TextNorm.key(parts[0])) { mutableListOf() } += Street(parts[0], parts[1], parts[2], parts[3], parts[4])
             }
             return AddressRegister(streets, named)
         }
