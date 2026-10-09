@@ -50,9 +50,9 @@ class Announcer(context: Context, private val settings: SettingsStore) {
     private val _said = MutableSharedFlow<Int>(extraBufferCapacity = 4)
 
     /**
-     * Each part of a next-stop announcement once it has been said, by its place in
-     * [Announcements.parts] (0 "Nästa stopp …", 1 "Därefter …"), so a passenger display on this
-     * device moves on with the voice.
+     * Each step of an announcement the passenger display shows once it has been said, by its place
+     * in [Announcements.steps] (0 the next stop's time, 1 its address, 2 "Därefter" and its time …),
+     * so a passenger display on this device moves on with the voice.
      */
     val said: SharedFlow<Int> = _said.asSharedFlow()
 
@@ -61,7 +61,7 @@ class Announcer(context: Context, private val settings: SettingsStore) {
     private var pendingAtMs = 0L
     private val counter = AtomicInteger()
     @Volatile private var lastUtteranceId: String? = null
-    /** The next-stop announcement being said, whose parts [said] tells. */
+    /** The announcement being said in steps, whose steps [said] tells. */
     @Volatile private var currentId = 0
     private var triedGoogleEngine = false
     private var generation = 0
@@ -143,17 +143,17 @@ class Announcer(context: Context, private val settings: SettingsStore) {
         t.setSpeechRate(s.speechRate)
         t.setLanguage(swedish)
         val mode = if (interrupt) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD
-        val parts = Announcements.parts(announcement.swedish)
-        if (Announcements.isNextStops(announcement.swedish)) {
-            // In step with the passenger display: silent while the next stop comes into view, and
-            // between its part and "Därefter …" while that comes in its place.
+        if (Announcements.isShow(announcement.swedish)) {
+            // In step with the passenger display: each trip's time, then its address, with the
+            // silences in which the display brings the trip, gives the time way to the address,
+            // and goes on to the next trip.
+            val steps = Announcements.steps(announcement.swedish)
             currentId = id
-            silence(t, Announcements.LEAD_MS, mode, "lead-$id")
-            parts.forEachIndexed { k, part ->
-                if (k > 0) silence(t, Announcements.GAP_MS, TextToSpeech.QUEUE_ADD, "gap-$id-$k")
+            steps.forEachIndexed { k, step ->
+                silence(t, Announcements.silenceBefore(steps, k), if (k == 0) mode else TextToSpeech.QUEUE_ADD, "lead-$id-$k")
                 val svId = "$PART$id-$k"
                 lastUtteranceId = svId
-                t.speak(part, TextToSpeech.QUEUE_ADD, null, svId)
+                t.speak(step.text, TextToSpeech.QUEUE_ADD, null, svId)
             }
         } else {
             val svId = "sv-$id"
@@ -195,7 +195,7 @@ class Announcer(context: Context, private val settings: SettingsStore) {
             if (utteranceId == lastUtteranceId) abandonFocus()
         }
 
-        /** The part of the current next-stop announcement that [utteranceId] is ("part-7-1" → 1). */
+        /** The step of the announcement being said that [utteranceId] is ("part-7-1" → 1). */
         private fun partOf(utteranceId: String?): Int? {
             val rest = utteranceId?.removePrefix(PART)?.takeIf { it != utteranceId } ?: return null
             val id = rest.substringBefore('-').toIntOrNull() ?: return null

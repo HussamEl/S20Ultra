@@ -110,6 +110,8 @@ fun DisplayRoleScreen(
     spoken: Int = 0,
     /** Each part of an announcement once this tablet's voice has said it (null while it does not speak). */
     voice: Flow<Int>? = null,
+    /** Each step of a trip tapped here once this tablet's voice has said it. */
+    ownVoice: Flow<Int>? = null,
     /** The controls the driver used on the phone's floating panel, and what this display's map shows, for it. */
     remote: Flow<LinkMessage.Remote>? = null,
     onMapView: ((LinkMessage.MapView) -> Unit)? = null,
@@ -136,6 +138,7 @@ fun DisplayRoleScreen(
             onExit = { showSetup = true },
             spoken = spoken,
             voice = voice,
+            ownVoice = ownVoice,
             detail = if (!connected) link.lastError?.let { stringResource(R.string.display_last_error, it) } else null,
             weatherWidget = weatherWidget,
             routeMap = routeMap,

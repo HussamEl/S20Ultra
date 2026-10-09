@@ -70,7 +70,7 @@ class DisplayFeaturesRoboTest {
         assertEquals("Karlstad", d.current?.subtitle)
         assertEquals(listOf("Järnvägsgatan 3B", "Björkvägen 7", "Kungsgatan 5", "Lindvägen 9"), d.upcoming.map { it.title })
         assertEquals(listOf("Storfors", "Hammarö", "Kil"), d.upcoming.take(3).map { it.subtitle })
-        assertEquals("Nästa stopp: 12 och 30 minuter. Storgatan 14, Karlstad. Därefter: 12 och 45 minuter. Järnvägsgatan 3B, Storfors.", d.announcementSv)
+        assertEquals("Nästa stopp: Klockan tolv trettio. Storgatan 14, Karlstad. Därefter: Klockan tolv fyrtiofem. Järnvägsgatan 3B, Storfors.", d.announcementSv)
 
         c.next()
         idle()
@@ -104,9 +104,9 @@ class DisplayFeaturesRoboTest {
         idle()
         assertEquals(
             listOf(
-                "Nästa stopp: 12 och 30 minuter. Storgatan 14, Karlstad. Därefter: 12 och 45 minuter. Järnvägsgatan 3B, Storfors.",
-                "Nästa stopp: 12 och 45 minuter. Järnvägsgatan 3B, Storfors. Därefter: 13 och 5 minuter. Björkvägen 7, Hammarö.",
-                "Nästa stopp: 12 och 45 minuter. Järnvägsgatan 3B, Storfors. Därefter: 13 och 5 minuter. Björkvägen 7, Hammarö.",
+                "Nästa stopp: Klockan tolv trettio. Storgatan 14, Karlstad. Därefter: Klockan tolv fyrtiofem. Järnvägsgatan 3B, Storfors.",
+                "Nästa stopp: Klockan tolv fyrtiofem. Järnvägsgatan 3B, Storfors. Därefter: Klockan tretton noll fem. Björkvägen 7, Hammarö.",
+                "Nästa stopp: Klockan tolv fyrtiofem. Järnvägsgatan 3B, Storfors. Därefter: Klockan tretton noll fem. Björkvägen 7, Hammarö.",
             ),
             got.map { it.swedish },
         )

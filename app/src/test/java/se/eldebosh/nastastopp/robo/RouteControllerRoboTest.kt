@@ -134,7 +134,7 @@ class RouteControllerRoboTest {
 
         assertTrue(c.start())
         idle()
-        assertEquals("Nästa stopp: 6 och 55 minuter. Storgatan 14, Karlstad. Därefter: 7 och 9 minuter. Järnvägsgatan 3B, Storfors.", tts.lastAnnouncement)
+        assertEquals("Nästa stopp: Klockan sex femtiofem. Storgatan 14, Karlstad. Därefter: Klockan sju noll nio. Järnvägsgatan 3B, Storfors.", tts.lastAnnouncement)
         // The address log keeps the address, never the passenger's name.
         val logged = c.route.value!!.stops.mapNotNull(c::logLine)
         assertTrue(logged.toString(), logged.first().startsWith("Storgatan 14"))
@@ -381,7 +381,7 @@ class RouteControllerRoboTest {
         assertEquals("Provby Äldreboende · Strandvägen 3, 665 30 Kil", c.route.value!!.stops.first().shownAddress)
         assertTrue(c.start())
         idle()
-        assertEquals("Nästa stopp: 8. Strandvägen 3, Kil. Därefter: 8 och 30 minuter. Centralsjukhuset, huvudentrén.", tts.lastAnnouncement)
+        assertEquals("Nästa stopp: Klockan åtta. Strandvägen 3, Kil. Därefter: Klockan åtta trettio. Centralsjukhuset, huvudentrén.", tts.lastAnnouncement)
         val display = c.display.value
         assertEquals("Strandvägen 3", display.current?.title)
         assertEquals(listOf("C-Sjukhuset Huvudentrén", "Provby Vårdcentral"), display.upcoming.map { it.title })
@@ -391,7 +391,7 @@ class RouteControllerRoboTest {
         assertFalse("passenger display", (shown + display.announcementSv.orEmpty()).any { it.contains("Äldreboende") })
         c.next()
         idle()
-        assertEquals("Nästa stopp: 8 och 30 minuter. Centralsjukhuset, huvudentrén, Karlstad. Därefter: 9. Provby Vårdcentral, Skolgatan 5, Kil.", tts.lastAnnouncement)
+        assertEquals("Nästa stopp: Klockan åtta trettio. Centralsjukhuset, huvudentrén, Karlstad. Därefter: Klockan nio. Provby Vårdcentral, Skolgatan 5, Kil.", tts.lastAnnouncement)
         c.end()
     }
 
@@ -454,7 +454,7 @@ class RouteControllerRoboTest {
         c.reorder(listOf(ids[1], ids[0]))
         idle()
         assertEquals(listOf(ids[1], ids[0], ids[2]), c.route.value!!.stops.map { it.id })
-        assertTrue(tts.lastAnnouncement.orEmpty(), tts.lastAnnouncement.orEmpty().startsWith("Nästa stopp: 8 och 20 minuter. Storgatan 14"))
+        assertTrue(tts.lastAnnouncement.orEmpty(), tts.lastAnnouncement.orEmpty().startsWith("Nästa stopp: Klockan åtta tjugo. Storgatan 14"))
         c.reorder(listOf(ids[0], 999L))
         assertEquals(listOf(ids[1], ids[0], ids[2]), c.route.value!!.stops.map { it.id })
         // Frida dropped off before she is picked up: not taken.
@@ -523,7 +523,7 @@ class RouteControllerRoboTest {
         idleUntil { c.route.value!!.stops.none { it.geoStatus == GeoStatus.PENDING } }
         assertTrue(c.start())
         idle()
-        assertEquals("Nästa stopp: 13 och 33 minuter. Centralsjukhuset, Karlstad. Därefter: 14. Storgatan 14, Karlstad.", tts.lastAnnouncement)
+        assertEquals("Nästa stopp: Klockan tretton trettiotre. Centralsjukhuset, Karlstad. Därefter: Klockan fjorton. Storgatan 14, Karlstad.", tts.lastAnnouncement)
         assertEquals("C-Sjukhuset", c.display.value.current?.title)
         assertEquals("C-Sjukhuset Karlstad", c.route.value!!.stops.first().shownAddress)
         c.end()

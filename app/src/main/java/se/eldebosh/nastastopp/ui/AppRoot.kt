@@ -332,6 +332,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 onSpeak = { controller.repeat() },
                                 onSay = { graph.announcer.speak(it) },
                                 voice = graph.announcer.said,
+                                ownVoice = graph.announcer.said,
                                 onExit = { vm.back() },
                                 dark = settings.displayDark,
                                 onToggleLook = { graph.settings.update { it.copy(displayDark = !it.displayDark) } },
@@ -442,6 +443,8 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 spoken = spoken,
                                 // This tablet's own voice says the announcements (unless switched off): the display follows it.
                                 voice = if (settings.displaySpeaks) graph.announcer.said else null,
+                                // The trips tapped here are said here.
+                                ownVoice = graph.announcer.said,
                                 onToggleSpeaks = { v -> graph.settings.update { it.copy(displaySpeaks = v) } },
                                 onToggleLook = { graph.settings.update { it.copy(displayDark = !it.displayDark) } },
                                 onOrder = { ids -> client.order(ids) },
