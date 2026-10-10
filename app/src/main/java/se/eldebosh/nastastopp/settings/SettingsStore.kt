@@ -54,7 +54,7 @@ data class AppSettings(
      */
     val mapsKey: String? = null,
     /** Display role: who gives this tablet's map its ways and travel times (304). */
-    val waySource: WaySource = WaySource.GOOGLE,
+    val waySource: WaySource = WaySource.MAPMAP,
     /** Display role: the driver's own mapmap.ai key for the ways on this tablet, or null. */
     val mapmapKey: String? = null,
     /** Display role: the weather app's widget shown on this tablet's display, or -1 for SMHI's weather. */
@@ -170,7 +170,7 @@ class SettingsStore(context: Context) : WindowPlaces {
         displayDark = prefs.getBoolean(K_DISPLAY_DARK, true),
         motionStyle = runCatching { MotionStyle.valueOf(prefs.getString(K_MOTION_STYLE, null) ?: "") }.getOrDefault(MotionStyle.TRAILS),
         mapsKey = prefs.getString(K_MAPS_KEY, null),
-        waySource = runCatching { WaySource.valueOf(prefs.getString(K_WAY_SOURCE, null) ?: "") }.getOrDefault(WaySource.GOOGLE),
+        waySource = runCatching { WaySource.valueOf(prefs.getString(K_WAY_SOURCE, null) ?: "") }.getOrDefault(WaySource.MAPMAP),
         mapmapKey = prefs.getString(K_MAPMAP_KEY, null),
         weatherWidgetId = prefs.getInt(K_WEATHER_WIDGET, -1),
         displayControllerAddress = prefs.getString(K_CONTROLLER, null),

@@ -180,7 +180,7 @@
     <string name="way_source_mapmap">mapmap.ai (OpenStreetMap roads)</string>
     <string name="way_source_mapmap_no_key">mapmap.ai chosen without a key: Google is used</string>
     <string name="mapmap_key_label">mapmap.ai key (snk_…)</string>
-    <string name="help_way_source">Who draws the way on the tablet\'s map and gives its minutes and the travel times for Suggest. Connected to the company\'s server (311): both are asked through it, with the company\'s keys, and nothing is typed here; mapmap.ai only when the server has its key. Not connected: Google with your own Google key (billed by Google after its free use), or mapmap.ai with your own key from mapmap.ai/account. To mapmap.ai only the tablet\'s position and the stops\' points are sent, never a name or an address; a stop without a point is asked from Google. The map itself is always Google\'s.</string>
+    <string name="help_way_source">Who draws the way on the tablet\'s map and gives its minutes and the travel times for Suggest: mapmap.ai unless you choose Google. Connected to the company\'s server (311): both are asked through it, with the company\'s keys, and nothing is typed here; mapmap.ai only when the server has its key. Not connected: Google with your own Google key (billed by Google after its free use), or mapmap.ai with your own key from mapmap.ai/account. To mapmap.ai only the tablet\'s position and the stops\' points are sent, never a name or an address; a stop without a point is asked from Google. The map itself is always Google\'s.</string>
     <string name="company_server">Company server</string>
     <string name="company_not_connected">Not connected: tap and type the code from the admin page</string>
     <string name="company_connected">Connected as %1$s</string>

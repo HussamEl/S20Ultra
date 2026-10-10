@@ -45,6 +45,7 @@ import se.eldebosh.nastastopp.BuildConfig
 import se.eldebosh.nastastopp.MainActivity
 import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.core.geo.AnnouncementDetail
+import se.eldebosh.nastastopp.core.nav.WaySource
 import se.eldebosh.nastastopp.geo.Geocoding
 import se.eldebosh.nastastopp.settings.SettingsStore
 import se.eldebosh.nastastopp.settings.AppSettings
@@ -121,6 +122,8 @@ class UiSmokeRoboTest {
         // The tablet's map: no key of the driver's own, and not connected to the company's server.
         assertNull(s.mapsKey)
         assertNull(s.mapmapKey)
+        // The ways and travel times come from mapmap.ai unless the driver chooses Google.
+        assertEquals(WaySource.MAPMAP, s.waySource)
         File(app.noBackupFilesDir, CompanyDevice.FILE).delete()
         assertEquals(DeviceState.NotConnected, CompanyDevice(app).state.value)
     }

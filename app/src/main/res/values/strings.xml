@@ -181,7 +181,7 @@
     <string name="way_source_mapmap">mapmap.ai (طرق OpenStreetMap)</string>
     <string name="way_source_mapmap_no_key">mapmap.ai مختار بلا مفتاح: تُستعمل Google</string>
     <string name="mapmap_key_label">مفتاح mapmap.ai (snk_…)</string>
-    <string name="help_way_source">من يرسم الطريق على خريطة التابلت ويعطي دقائقه وأزمنة «اقترح». مربوطاً بخادم الشركة (311): يُسأل الاثنان عبره بمفاتيح الشركة، ولا يُكتب هنا شيء؛ وmapmap.ai فقط إن كان مفتاحه على الخادم. غير مربوط: Google بمفتاح Google الخاص بك (تحسبها Google بعد استعمالها المجاني)، أو mapmap.ai بمفتاحك الخاص من mapmap.ai/account. إلى mapmap.ai يُرسل موقع التابلت ونقاط المحطات فقط، بلا أي اسم ولا عنوان؛ والمحطة التي لا نقطة لها تُسأل عنها Google. الخريطة نفسها دائماً من Google.</string>
+    <string name="help_way_source">من يرسم الطريق على خريطة التابلت ويعطي دقائقه وأزمنة «اقترح»: mapmap.ai ما لم تختر Google. مربوطاً بخادم الشركة (311): يُسأل الاثنان عبره بمفاتيح الشركة، ولا يُكتب هنا شيء؛ وmapmap.ai فقط إن كان مفتاحه على الخادم. غير مربوط: Google بمفتاح Google الخاص بك (تحسبها Google بعد استعمالها المجاني)، أو mapmap.ai بمفتاحك الخاص من mapmap.ai/account. إلى mapmap.ai يُرسل موقع التابلت ونقاط المحطات فقط، بلا أي اسم ولا عنوان؛ والمحطة التي لا نقطة لها تُسأل عنها Google. الخريطة نفسها دائماً من Google.</string>
     <string name="company_server">خادم الشركة</string>
     <string name="company_not_connected">غير مربوط: اضغط واكتب الرمز من صفحة الإدارة</string>
     <string name="company_connected">مربوط باسم %1$s</string>
