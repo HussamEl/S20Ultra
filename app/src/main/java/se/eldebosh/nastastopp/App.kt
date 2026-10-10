@@ -27,6 +27,7 @@ import se.eldebosh.nastastopp.ocr.OcrEngine
 import se.eldebosh.nastastopp.overlay.LinkPanelSource
 import se.eldebosh.nastastopp.overlay.OverlayManager
 import se.eldebosh.nastastopp.overlay.RoutePanelSource
+import se.eldebosh.nastastopp.settings.CompanyDevice
 import se.eldebosh.nastastopp.settings.DeviceRole
 import se.eldebosh.nastastopp.route.RouteController
 import se.eldebosh.nastastopp.route.RouteRepository
@@ -119,6 +120,13 @@ class AppGraph(app: Application) {
     /** The driver's YouDrive page, watched for added / cancelled trips (alerts as notifications). */
     /** The YouDrive login, only if the driver saved it on this phone (encrypted). */
     val youDriveLogin = YouDriveLogin(app)
+
+    /**
+     * Display role: this tablet's connection to the company's server (311), for its map key, ways
+     * and travel times. Made only by the tablet's screens: no phone path builds it, so the phone's
+     * position never leaves the phone.
+     */
+    val companyDevice by lazy { CompanyDevice(app) }
 
     val youDrive = YouDriveWatcher(app, settings, extractor, youDriveLogin) { changes ->
         Notifications.postTripChanges(app, changes.map { it.id to it.change })

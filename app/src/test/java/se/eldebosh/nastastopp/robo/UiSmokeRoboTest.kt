@@ -16,11 +16,22 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.click
+import androidx.compose.ui.geometry.Offset
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -36,6 +47,16 @@ import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.core.geo.AnnouncementDetail
 import se.eldebosh.nastastopp.geo.Geocoding
 import se.eldebosh.nastastopp.settings.SettingsStore
+import se.eldebosh.nastastopp.settings.AppSettings
+import se.eldebosh.nastastopp.settings.Appearance
+import se.eldebosh.nastastopp.settings.CompanyDevice
+import se.eldebosh.nastastopp.settings.DeviceRole
+import se.eldebosh.nastastopp.settings.DeviceState
+import se.eldebosh.nastastopp.settings.EnrollResult
+import se.eldebosh.nastastopp.link.DisplayLinkClient
+import se.eldebosh.nastastopp.ui.screens.DisplayRoleScreen
+import se.eldebosh.nastastopp.ui.theme.NastaTheme
+import java.io.File
 
 /**
  * Smoke-tests the Compose screens in the Arabic UI on Android 13 (like the S20 Ultra).
@@ -97,6 +118,11 @@ class UiSmokeRoboTest {
         assertTrue(s.displayFullAddress)
         assertFalse(s.youDriveAutoSignIn)
         assertFalse(s.youDriveWatch)
+        // The tablet's map: no key of the driver's own, and not connected to the company's server.
+        assertNull(s.mapsKey)
+        assertNull(s.mapmapKey)
+        File(app.noBackupFilesDir, CompanyDevice.FILE).delete()
+        assertEquals(DeviceState.NotConnected, CompanyDevice(app).state.value)
     }
 
     @Test
@@ -199,6 +225,109 @@ class UiSmokeRoboTest {
             assertEquals(se.eldebosh.nastastopp.settings.DeviceRole.DISPLAY, app.graph.settings.current.role)
             compose.onNodeWithText(s(R.string.switch_to_controller)).performScrollTo().performClick()
             compose.onNodeWithText(s(R.string.home_import)).assertExists()
+        }
+    }
+
+    /** Taps a settings row at its title's start (the right, in Arabic), clear of its "?" (which opens its help instead). */
+    private fun tapRow(tag: String) {
+        compose.onNodeWithTag(tag).performScrollTo().performTouchInput { click(Offset(width - 24f, height / 2f)) }
+    }
+
+    /**
+     * The tablet's company server (311–321): not connected, its Connect window takes only a code;
+     * connected, the map key (208) and the ways (304) are the server's, and no key is typed.
+     */
+    @Test
+    fun tabletCompanyServerRowsAreNumbered() {
+        var state by mutableStateOf<DeviceState>(DeviceState.NotConnected)
+        val tried = mutableListOf<String>()
+        var checked = 0
+        var disconnected = 0
+        ActivityScenario.launch(ComponentActivity::class.java).use { sc ->
+            sc.onActivity { activity ->
+                activityContext = activity
+                activity.setContent {
+                    NastaTheme(Appearance.DAY) {
+                        DisplayRoleScreen(
+                            settings = AppSettings(role = DeviceRole.DISPLAY, mapmapKey = "snk_" + "a1B2c3D4e5F6g7H8"),
+                            link = DisplayLinkClient.State(),
+                            snapshot = null,
+                            paired = emptyList(),
+                            bluetoothReady = false,
+                            onRequestPermission = {},
+                            onEnableBluetooth = {},
+                            onOpenBluetoothSettings = {},
+                            onChoose = {},
+                            onSpeak = {},
+                            onSay = {},
+                            onToggleSpeaks = {},
+                            onSwitchToController = {},
+                            companyState = state,
+                            onConnect = { code ->
+                                tried += code
+                                EnrollResult.WrongCode
+                            },
+                            onCheckNow = { checked++ },
+                            onDisconnect = { disconnected++ },
+                        )
+                    }
+                }
+            }
+            compose.waitForIdle()
+            // Not connected: the row says so, and the driver's own key row is as before.
+            compose.onNodeWithTag("ref_311").performScrollTo()
+            compose.onNodeWithText(s(R.string.company_not_connected)).assertExists()
+            compose.onNodeWithText(s(R.string.maps_key_none)).assertExists()
+            tapRow("ref_311")
+            compose.onNodeWithTag("ref_312").assertExists()
+            compose.onNodeWithTag("ref_315").assertExists()
+            compose.onNodeWithTag("ref_314").assertIsNotEnabled()
+            compose.onNodeWithTag("ref_313").assertDoesNotExist()
+            // A letter never in a code: the hint.
+            compose.onNodeWithTag("ref_312").performTextReplacement("o")
+            compose.onNodeWithText(s(R.string.company_code_lookalikes)).assertExists()
+            compose.onNodeWithTag("ref_314").assertIsNotEnabled()
+            compose.onNodeWithTag("ref_312").performTextReplacement("abcd 2345")
+            compose.onNodeWithText(s(R.string.company_code_lookalikes)).assertDoesNotExist()
+            compose.onNodeWithTag("ref_314").assertIsEnabled().performClick()
+            compose.waitForIdle()
+            assertEquals(listOf("ABCD 2345"), tried)
+            compose.onNodeWithTag("ref_313").assertTextEquals(s(R.string.company_wrong_code))
+            compose.onNodeWithTag("ref_315").performClick()
+            compose.onNodeWithTag("ref_312").assertDoesNotExist()
+
+            // Connected: 208 is the company's and opens the connected window.
+            state = DeviceState.Connected("tablet-40274", "AIzaSyB-0987654321zyxwvutsrqponmlkjih", google = true, mapmap = false)
+            compose.waitForIdle()
+            compose.onNodeWithText(s(R.string.company_connected, "tablet-40274")).assertExists()
+            compose.onNodeWithText(s(R.string.maps_key_company)).assertExists()
+            tapRow("ref_208")
+            compose.onNodeWithTag("ref_214").assertDoesNotExist()
+            for (n in 316..319) compose.onNodeWithTag("ref_$n").assertExists()
+            compose.onNodeWithTag("ref_317").performClick()
+            assertEquals(1, checked)
+            compose.onNodeWithTag("ref_318").performClick()
+            compose.onNodeWithTag("ref_320").assertExists()
+            compose.onNodeWithTag("ref_321").performClick()
+            compose.onNodeWithTag("ref_320").assertDoesNotExist()
+            assertEquals(0, disconnected)
+            compose.onNodeWithTag("ref_319").performClick()
+            compose.onNodeWithTag("ref_316").assertDoesNotExist()
+
+            // The ways: no key of his own is typed or deleted here, and mapmap.ai only when the server has it.
+            tapRow("ref_304")
+            compose.onNodeWithTag("ref_305").assertExists()
+            compose.onNodeWithTag("ref_306").assertIsNotEnabled()
+            compose.onNodeWithTag("ref_307").assertDoesNotExist()
+            compose.onNodeWithTag("ref_309").assertDoesNotExist()
+            compose.onNodeWithTag("ref_310").performClick()
+
+            // Disconnect through its confirmation.
+            tapRow("ref_311")
+            compose.onNodeWithTag("ref_318").performClick()
+            compose.onNodeWithTag("ref_320").performClick()
+            assertEquals(1, disconnected)
+            compose.onNodeWithTag("ref_316").assertDoesNotExist()
         }
     }
 

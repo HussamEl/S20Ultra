@@ -184,7 +184,10 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import java.time.Instant
 import java.time.LocalTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.PI
 import kotlin.math.abs
@@ -211,6 +214,7 @@ import se.eldebosh.nastastopp.core.geo.GeoLogic
 import se.eldebosh.nastastopp.core.link.LinkMessage
 import se.eldebosh.nastastopp.core.nav.DisplayEta
 import se.eldebosh.nastastopp.core.nav.OrderPlanner
+import se.eldebosh.nastastopp.core.nav.ServerTrouble
 import se.eldebosh.nastastopp.core.nav.WaySource
 import se.eldebosh.nastastopp.core.parse.TripKinds
 import se.eldebosh.nastastopp.core.parse.TripTimes
@@ -1306,8 +1310,9 @@ private fun MapButton(icon: Int, label: Int, ref: Int, onClick: () -> Unit, modi
 
 /**
  * Why the map or the way does not come, in a few words, or null: Google's script did not load,
- * its pictures did not come, the page stopped (its own words), the map is still loading; and
- * Google's answer when it gave no way.
+ * its pictures did not come, the page stopped (its own words), the map is still loading; and the
+ * answer when no way came: the company's server's own refusal (the tablet stopped or unknown,
+ * today's limit, no key, no answer), else Google's or mapmap's.
  */
 @Composable
 private fun mapNote(map: RouteMap): String? {
@@ -1317,8 +1322,25 @@ private fun mapNote(map: RouteMap): String? {
         RouteMap.Trouble.PAGE -> stringResource(R.string.passenger_map_stopped, map.troubleDetail ?: "?")
         null -> if (!map.ready) stringResource(R.string.passenger_map_loading) else null
     }
-    val from = if (map.routeFrom == WaySource.MAPMAP) "mapmap.ai" else "Google"
-    val way = map.routeAnswer?.let { if (it == 0) stringResource(R.string.passenger_way_no_answer, from) else stringResource(R.string.passenger_way_refused, from, it) }
+    val way = map.routeAnswer?.let { answer ->
+        val from = if (answer.source == WaySource.MAPMAP) "mapmap.ai" else "Google"
+        when (val trouble = answer.trouble) {
+            ServerTrouble.NotEnrolled -> stringResource(R.string.passenger_way_server_unknown)
+            ServerTrouble.Stopped, ServerTrouble.Role -> stringResource(R.string.passenger_way_server_stopped)
+            is ServerTrouble.DailyLimit -> stringResource(
+                R.string.passenger_way_server_limit,
+                DateTimeFormatter.ofPattern("HH:mm", Locale.forLanguageTag("sv-SE")).format(Instant.ofEpochMilli(trouble.untilWallMs).atZone(ZoneId.systemDefault())),
+            )
+            ServerTrouble.NoKey -> stringResource(R.string.passenger_way_server_no_key, from)
+            ServerTrouble.Down -> stringResource(R.string.passenger_way_server_down)
+            // The server answered: Google or mapmap behind it did not.
+            ServerTrouble.UpstreamDown -> stringResource(R.string.passenger_way_no_answer, from)
+            // The server refused the request itself: the app and the server do not agree.
+            is ServerTrouble.Bug -> stringResource(R.string.passenger_way_server_refused, trouble.code)
+            // Google's or mapmap's own answer, asked directly or passed on by the server.
+            null -> if (answer.code == 0) stringResource(R.string.passenger_way_no_answer, from) else stringResource(R.string.passenger_way_refused, from, answer.code)
+        }
+    }
     return listOfNotNull(page, way).joinToString("  ·  ").ifEmpty { null }
 }
 

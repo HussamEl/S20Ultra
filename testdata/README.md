@@ -36,6 +36,7 @@ None of these may appear in logcat from the app. The app shows the passenger's *
 - **Postcodes:** 653 40, 652 24, 652 25, 688 30, 664 30, 663 30, 681 30, 681 31, 665 30
 - **Places** (invented, except the public hospital Centralsjukhuset): Provby Vårdcentral, Provby Äldreboende, Provby Servicehus, Kortboende Provgården
 - **Points** (an entrance in tests): 59.381234, 13.501234 · 59°22'48.0"N 13°30'00.0"E; the entrance note "Från gården"
+- **The company's server** (JVM and Robolectric tests only; on the tablet Hussam types a real code from the admin page, and Claude never sees it): the connection code `ABCD2345` (typed as " abcd 2345 " or "ABCD-2345" too), the tablet's pass `ab12` repeated 16 times (64 hex characters), the company's map key `AIzaSyB-0987654321zyxwvutsrqponmlkjih`. Besides logcat, none of them may appear in a file in plain text or in the settings. The code goes only in the body of `POST /v1/enroll`; the pass only in the `Authorization` header to api.nastastopp.se, never in a URL, a body or the map page; the map key only into the map page as its key, never in a page error's text. The tablet's name in tests, `tablet-40274`, is shown on the tablet (311) and is not secret.
 
 ## Floating panel positions (UI Automator cannot see overlay windows)
 ```

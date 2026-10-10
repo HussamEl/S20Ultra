@@ -37,6 +37,29 @@ class MapmapApiTest {
         assertNull(MapmapApi.matrixBody(59.3794, 13.503, listOf(stop(null, null))))
     }
 
+    /** The points as mapmap takes them, in its address (the driver's own key) or in a body to the company's server. */
+    @Test
+    fun pointsAreLongitudeFirstAndPointsOnly() {
+        val south = stop(-33.865143, -151.2099)
+        assertEquals("-70.123457,-12.500000;-151.209900,-33.865143", MapmapApi.points(-12.5, -70.1234567, listOf(south)))
+        assertEquals("13.503000,59.379400;13.465500,59.324500;13.238000,59.504000", MapmapApi.points(59.3794, 13.503, listOf(skoghall, kil)))
+        assertNull(MapmapApi.points(59.3794, 13.503, listOf(skoghall, stop(null, 13.0))))
+        assertNull(MapmapApi.points(59.3794, 13.503, emptyList()))
+        assertNull(MapmapApi.points(59.3794, 13.503, List(MapmapApi.MAX_STOPS + 1) { skoghall }))
+        assertNull(MapmapApi.points(Double.NaN, 13.503, listOf(skoghall)))
+        assertNull(MapmapApi.points(59.3794, 13.503, listOf(stop(Double.POSITIVE_INFINITY, 13.0))))
+        assertEquals(MapmapApi.MAX_STOPS + 1, MapmapApi.points(59.3794, 13.503, List(MapmapApi.MAX_STOPS) { skoghall })!!.split(';').size)
+
+        assertEquals("overview=full&geometries=polyline&steps=true", MapmapApi.ROUTE_OPTIONS)
+        assertEquals(
+            """{"points":"13.503000,59.379400;13.465500,59.324500;13.238000,59.504000","overview":"full","geometries":"polyline","steps":"true"}""",
+            MapmapApi.serverRouteBody(59.3794, 13.503, listOf(skoghall, kil)),
+        )
+        // Never an address or a name: a stop without its point is left to Google.
+        assertNull(MapmapApi.serverRouteBody(59.3794, 13.503, listOf(skoghall, stop(null, null))))
+        assertFalse(MapmapApi.serverRouteBody(59.3794, 13.503, listOf(skoghall))!!.contains("Storgatan"))
+    }
+
     /** An answer as mapmap gives it: each leg's line is its steps' lines, so each leg is drawn in its stop's colour. */
     @Test
     fun theWayIsReadWithALegToEachStop() {

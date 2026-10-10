@@ -3,8 +3,16 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <!--
-        Network: only for the driver's YouDrive page and the offline street map's download (on the
-        driver's tap). Nothing else is sent anywhere; ML Kit's usage reporting is switched off below.
+        Network, only for:
+        - the driver's YouDrive page;
+        - the offline street map's download (on the driver's tap);
+        - SMHI's weather for the passenger display (one fixed place);
+        - the tablet's Google map (Maps JavaScript);
+        - api.nastastopp.se, the company's server: the tablet's connection, its map key, ways and
+          travel times.
+        Google's Routes API and mapmap.ai are reached directly only with the driver's own keys,
+        while the tablet is not connected to the company's server. Nothing else is sent anywhere;
+        ML Kit's usage reporting is switched off below.
     -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />

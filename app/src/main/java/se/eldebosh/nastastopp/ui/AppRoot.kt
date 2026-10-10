@@ -7,9 +7,13 @@ import java.util.Locale
 import se.eldebosh.nastastopp.ui.theme.displayColors
 import se.eldebosh.nastastopp.ui.screens.HostedWidget
 import se.eldebosh.nastastopp.ui.screens.RouteMap
+import se.eldebosh.nastastopp.core.nav.CompanyServer
 import se.eldebosh.nastastopp.core.nav.RoutesApi
+import se.eldebosh.nastastopp.core.nav.WayAccess
+import se.eldebosh.nastastopp.settings.DeviceState
 import se.eldebosh.nastastopp.core.route.MapsUrlBuilder
 import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.toArgb
 import android.appwidget.AppWidgetProviderInfo
 import android.app.Activity
@@ -388,18 +392,52 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             val ground = displayColors(night).background.toArgb()
                             val mapScope = rememberCoroutineScope()
                             var mapRestarts by remember { mutableIntStateOf(0) }
+                            // The company's server (311): the map key, ways and travel times while this
+                            // tablet is connected, kept up to date (silently) while the display is in sight.
+                            val company = graph.companyDevice
+                            val device by company.state.collectAsStateWithLifecycle()
+                            LifecycleStartEffect(company) {
+                                val job = mapScope.launch { company.keepFresh() }
+                                onStopOrDispose { job.cancel() }
+                            }
+                            // The map's key and the page's address: the company's while connected, the
+                            // driver's own only while not (never a silent switch to his key while
+                            // connected, so the map is billed where the owner decided); none while the
+                            // tablet is stopped or unknown to the server.
+                            val wantedPage = when (val d = device) {
+                                is DeviceState.Connected -> d.mapKey?.takeIf { RoutesApi.isKey(it) }?.let { it to CompanyServer.PAGE_BASE }
+                                DeviceState.NotConnected, DeviceState.Lost -> settings.mapsKey?.takeIf { RoutesApi.isKey(it) }?.let { it to RouteMap.BASE }
+                                is DeviceState.Stopped, DeviceState.Unknown -> null
+                            }
+                            var page by remember { mutableStateOf(wantedPage) }
+                            // A tablet stopped while its map is open keeps that map until the display is left.
+                            LaunchedEffect(wantedPage, device) {
+                                if (wantedPage != null || (device !is DeviceState.Stopped && device !is DeviceState.Unknown)) page = wantedPage
+                            }
                             // One map for as long as the display is open (Google counts each map made):
-                            // a new look recolours it.
+                            // a new look recolours it, and the same key never makes another.
                             val groundHex = String.format(Locale.ROOT, "#%06X", ground and 0xFFFFFF)
-                            val routeMap = remember(settings.mapsKey, mapRestarts) {
-                                settings.mapsKey?.takeIf { RoutesApi.isKey(it) }?.let {
-                                    RouteMap(context, it, night, groundHex, mapScope)
-                                }
+                            val routeMap = remember(page, mapRestarts) {
+                                page?.let { (key, base) -> RouteMap(context, key, night, groundHex, mapScope, base) }
                             }
                             LaunchedEffect(routeMap, night, groundHex) { routeMap?.setLook(night, groundHex) }
-                            // The ways and travel times from Google or mapmap, as the driver chose (304).
-                            LaunchedEffect(routeMap, settings.waySource, settings.mapmapKey) { routeMap?.useWays(settings.waySource, settings.mapmapKey) }
-                            DisposableEffect(routeMap) { onDispose { routeMap?.destroy() } }
+                            // The ways and travel times from Google or mapmap, as the driver chose (304):
+                            // through the company's server while connected, else with his own keys.
+                            LaunchedEffect(routeMap, settings.waySource, settings.mapsKey, settings.mapmapKey, device) {
+                                routeMap?.useWays(
+                                    settings.waySource,
+                                    when (device) {
+                                        is DeviceState.Connected -> company.access()
+                                        DeviceState.NotConnected, DeviceState.Lost ->
+                                            settings.mapsKey?.takeIf { RoutesApi.isKey(it) }?.let { WayAccess.Own(it, settings.mapmapKey) } ?: WayAccess.None
+                                        is DeviceState.Stopped, DeviceState.Unknown -> WayAccess.None
+                                    },
+                                )
+                            }
+                            DisposableEffect(routeMap) {
+                                routeMap?.onServerTrouble = company::onTrouble
+                                onDispose { routeMap?.destroy() }
+                            }
                             // A map whose renderer stopped is replaced by a new one.
                             LaunchedEffect(routeMap?.gone) { if (routeMap?.gone == true) mapRestarts++ }
                             // Where the car is, for the map: this tablet's own GPS, while the display
@@ -484,13 +522,18 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 weatherWidget = widgetLabel?.let { { m: Modifier -> HostedWidget(widgets, widgetId, m) } },
                                 onSaveMapsKey = { key -> graph.settings.update { it.copy(mapsKey = key) } },
                                 onSaveWays = { source, key -> graph.settings.update { it.copy(waySource = source, mapmapKey = key) } },
+                                companyState = device,
+                                // The driver's own keys stay as they are: unused while connected, used again after Disconnect.
+                                onConnect = { code -> company.enroll(code) },
+                                onCheckNow = { mapScope.launch { company.refresh(force = true) } },
+                                onDisconnect = { mapScope.launch { company.disconnect() } },
                                 mapRefused = routeMap?.refused == true,
                                 routeMap = routeMap,
                                 mapLive = fix != null,
                                 onWantPosition = {
                                     if (!position.allowed) askPosition.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
                                 },
-                                // Google's own apps on the driver's tap: nothing billed on his key.
+                                // Google's own apps on the driver's tap: nothing billed on the map key.
                                 // From this screen: Back in Google's app comes back to the display.
                                 onEarth = { lat, lng -> graph.maps.openEarth(lat, lng, context) },
                                 onStreetPhotos = { lat, lng -> graph.maps.open(MapsUrlBuilder.streetViewUrl(lat, lng), context) },

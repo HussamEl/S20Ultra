@@ -46,7 +46,12 @@ data class AppSettings(
     val displayDark: Boolean = true,
     /** Display role: the look of the motion band on the top line (297), switched by a long press there. */
     val motionStyle: MotionStyle = MotionStyle.TRAILS,
-    /** Display role: the driver's own Google Maps key for the map on this tablet, or null. */
+    /**
+     * Display role: the driver's own Google Maps key for the map on this tablet, or null. His own
+     * keys (this and [mapmapKey]) are used only while the tablet is not connected to the company's
+     * server; connected, they stay here unused. The tablet's pass to the server is never kept in
+     * these settings (settings/CompanyDevice).
+     */
     val mapsKey: String? = null,
     /** Display role: who gives this tablet's map its ways and travel times (304). */
     val waySource: WaySource = WaySource.GOOGLE,

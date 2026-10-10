@@ -1,9 +1,11 @@
 <!doctype html>
 <!--
-  The tablet's map of the way (RouteMap.kt). Google's map with the driver's own key; no device
-  location. The app hands it the vehicle's position (setCar), the way (setWay: the stops in turn,
-  lettered A, B, C…, the one looked at, and each leg's line) and when to come and go (reveal,
-  conceal); nothing else is sent anywhere from here. The map grows and fades here, in the page:
+  The tablet's map of the way (RouteMap.kt). Google's map with the company's key (from
+  api.nastastopp.se, loaded under https://map.nastastopp.se/) or the driver's own (under
+  https://nastastopp.app/); no device location, and never the tablet's pass to the server. The
+  app hands it the vehicle's position (setCar), the way (setWay: the stops in turn, lettered A, B,
+  C…, the one looked at, and each leg's line) and when to come and go (reveal, conceal); nothing
+  else is sent anywhere from here. The map grows and fades here, in the page:
   the app never scales or fades the WebView itself, so the map is drawn the same on every device.
 
   One page, one map for the display's whole life: what changes is only what it shows. Google bills

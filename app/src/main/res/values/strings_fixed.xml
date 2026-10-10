@@ -21,4 +21,11 @@
     <string name="passenger_map_stopped" translatable="false">Kartan stannade: %1$s</string>
     <string name="passenger_way_refused" translatable="false">Vägen: %1$s svarade %2$d</string>
     <string name="passenger_way_no_answer" translatable="false">Vägen: inget svar från %1$s</string>
+    <!-- The company's server's own refusals of the tablet's ways (the passengers see them under the map the driver opens). -->
+    <string name="passenger_way_server_stopped" translatable="false">Vägen: surfplattan är stoppad av Nästa Stopp</string>
+    <string name="passenger_way_server_unknown" translatable="false">Vägen: surfplattan är inte ansluten till Nästa Stopp</string>
+    <string name="passenger_way_server_limit" translatable="false">Vägen: dagens gräns är nådd, igen kl. %1$s</string>
+    <string name="passenger_way_server_no_key" translatable="false">Vägen: Nästa Stopps server har ingen nyckel för %1$s</string>
+    <string name="passenger_way_server_down" translatable="false">Vägen: inget svar från Nästa Stopps server</string>
+    <string name="passenger_way_server_refused" translatable="false">Vägen: Nästa Stopps server svarade %1$d</string>
 </resources>

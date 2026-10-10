@@ -27,27 +27,37 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import se.eldebosh.nastastopp.core.geo.GeoLogic
+import se.eldebosh.nastastopp.core.nav.CompanyServer
 import se.eldebosh.nastastopp.core.nav.MapWay
 import se.eldebosh.nastastopp.core.nav.MapmapApi
 import se.eldebosh.nastastopp.core.nav.OrderPlanner
 import se.eldebosh.nastastopp.core.nav.RouteLine
 import se.eldebosh.nastastopp.core.nav.RoutesApi
+import se.eldebosh.nastastopp.core.nav.ServerTrouble
+import se.eldebosh.nastastopp.core.nav.WayAccess
+import se.eldebosh.nastastopp.core.nav.WayGate
+import se.eldebosh.nastastopp.core.nav.WayRequest
+import se.eldebosh.nastastopp.core.nav.WayRequests
+import se.eldebosh.nastastopp.core.nav.WayService
 import se.eldebosh.nastastopp.core.nav.WaySource
-import java.net.HttpURLConnection
-import java.net.URI
+import se.eldebosh.nastastopp.net.Https
+import se.eldebosh.nastastopp.net.WayTransport
 import androidx.compose.ui.graphics.toArgb
 import java.util.Locale
 import se.eldebosh.nastastopp.ui.theme.DayColors
 import se.eldebosh.nastastopp.ui.theme.DisplayColors
 
 /**
- * The tablet's map of the way to the next stop: Google's map in a WebView of its own, with the
- * driver's own key (entered on the tablet, 208) and the route from Google's Routes API, or from
- * mapmap.ai when the driver chose it (304, [useWays]). Only the tablet's own position (from
+ * The tablet's map of the way to the next stop: Google's map in a WebView of its own, with [key]:
+ * the company's map key (from api.nastastopp.se, [CompanyServer]) loaded under [base]
+ * ([CompanyServer.PAGE_BASE]), or the driver's own (entered on the tablet, 208) under [BASE]. The
+ * route comes from Google's Routes API, or from mapmap.ai when the driver chose it (304), through
+ * the company's server with its keys while the tablet is connected (311), else with the driver's
+ * own keys ([useWays], [WayAccess]). Only the tablet's own position (from
  * [se.eldebosh.nastastopp.geo.TabletPosition]) and the stops go to them, never a name. The page
- * itself never gets the location; nothing is stored or logged. The page grows and fades the map
- * itself ([reveal], [conceal]): the WebView is never scaled or faded from outside, so it is drawn
- * the same on every device. What stops the map ([trouble],
+ * itself never gets the location, nor the tablet's pass; nothing is stored or logged. The page
+ * grows and fades the map itself ([reveal], [conceal]): the WebView is never scaled or faded from
+ * outside, so it is drawn the same on every device. What stops the map ([trouble],
  * [routeAnswer]) is shown under it, for the driver to see why.
  *
  * One map for the display's whole life (Google counts each map made, not what it shows): only
@@ -57,10 +67,21 @@ import se.eldebosh.nastastopp.ui.theme.DisplayColors
  * never made here. Every way goes from the vehicle through a few stops in turn, lettered on the map
  * ([focus]); the driver can try another order and ask for the best one ([suggest]).
  *
+ * @param key the page's Maps JavaScript key only.
  * @param ground the page's colour ("#F3F4F6"), shown until the tiles come.
+ * @param base the page's address, which a key restricted to websites must allow.
+ * @param transport how the asks for ways and travel times are sent ([Https]).
  */
 @Stable
-class RouteMap(context: Context, private val key: String, night: Boolean, ground: String, private val scope: CoroutineScope) {
+class RouteMap(
+    context: Context,
+    private val key: String,
+    night: Boolean,
+    ground: String,
+    private val scope: CoroutineScope,
+    base: String = BASE,
+    private val transport: WayTransport = Https,
+) {
     /** The map has loaded with the key. */
     var ready by mutableStateOf(false)
         private set
@@ -81,16 +102,17 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
     var trouble by mutableStateOf<Trouble?>(null)
         private set
 
-    /** The answer to the last ask for the way when it gave none (an HTTP code; 0: no answer), or null; from [routeFrom]. */
-    var routeAnswer by mutableStateOf<Int?>(null)
+    /** The answer to the last ask for a way or travel times when it gave none, or null. */
+    var routeAnswer by mutableStateOf<WayAnswer?>(null)
         private set
 
-    /** Who gave (or did not give) the last answer: Google or mapmap ([useWays]), for [routeAnswer]'s words. */
-    var routeFrom by mutableStateOf(WaySource.GOOGLE)
-        private set
-
-    /** Who is being asked now. */
-    @Volatile private var askedOf = WaySource.GOOGLE
+    /**
+     * An answer that gave no way: its HTTP [code] (0: none came, or a refusal of the server's that
+     * still holds was not asked again), who was asked ([source]: Google or mapmap), whether through
+     * the company's server ([viaServer]), and the server's own refusal ([trouble]; null: the code is
+     * Google's or mapmap's).
+     */
+    data class WayAnswer(val code: Int, val source: WaySource, val viaServer: Boolean, val trouble: ServerTrouble?)
 
     /**
      * The way on the map, from the vehicle through its stops in turn: the next stops, or the
@@ -122,15 +144,17 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
     private var askedAtMs = 0L
 
     /**
-     * When Google last gave no way for the next stops (no network, an error): asked again after
-     * [RETRY_MS]; not for the same stops when Google refused the request itself ([refusedFor]: the
-     * key, its rights or the request; asking again would be refused again).
+     * When each service may be asked again ([WayGate]): a way after no answer or an error, a while
+     * later; a daily limit until it ends; a tablet the server stopped, not at all. The travel times
+     * (Suggest, the driver's tap) wait only for the server's refusals. Never for the same
+     * stops when they cannot be asked, or the request itself was refused ([refusedFor]: the key, its
+     * rights or the request; asking again would be refused again).
      */
-    private var failedAtMs: Long? = null
+    private val gate = WayGate()
     private var refusedFor: String? = null
 
-    /** The last answer's HTTP code (0: no answer), as it came. */
-    @Volatile private var lastCode: Int? = null
+    /** The last ask for the next stops' way gave it. */
+    private var lastOk = false
 
     /** Where the vehicle was when the next stops' way was last asked for. */
     private var askedFrom: MapWay? = null
@@ -151,30 +175,28 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
             GeoLogic.distanceMeters(it.fromLat, it.fromLng, from.lat, from.lng) < REUSE_M
     }?.line
 
-    /** Who gives the ways and travel times, and the driver's mapmap key ([useWays]). */
-    @Volatile private var waySource = WaySource.GOOGLE
-    @Volatile private var mapmapKey: String? = null
+    /** Who gives the ways and travel times (304), and with what they are asked ([useWays]). */
+    @Volatile private var source = WaySource.GOOGLE
+    @Volatile private var access: WayAccess = WayAccess.None
 
     /**
-     * The ways and travel times from [source], mapmap's with the driver's own [key] (304–309).
-     * A change forgets the ways already given, so the next one comes from the source chosen.
+     * The ways and travel times from [source] (304), asked with [access]: through the company's
+     * server, with the driver's own keys, or not at all ([WayAccess.None]). A change forgets the
+     * ways already given and every wait, so the next one comes as now chosen.
      */
-    fun useWays(source: WaySource, key: String?) {
-        val usable = key?.takeIf { MapmapApi.isKey(it) }
-        if (source == waySource && usable == mapmapKey) return
-        waySource = source
-        mapmapKey = usable
+    fun useWays(source: WaySource, access: WayAccess) {
+        if (source == this.source && access == this.access) return
+        this.source = source
+        this.access = access
         known.clear()
         refusedFor = null
-        failedAtMs = null
         askedFor = null
+        lastOk = false
+        gate.clear()
     }
 
-    /**
-     * mapmap's key when the driver chose mapmap and has its key, and every stop of [stops] has its
-     * point (mapmap is asked by points only); null: Google is asked.
-     */
-    private fun mapmap(stops: List<MapWay.Stop>): String? = mapmapKey?.takeIf { waySource == WaySource.MAPMAP && MapmapApi.canAsk(stops) }
+    /** The company's server refused an ask of a service ([CompanyServer.classify]); on the main thread. */
+    var onServerTrouble: ((WayService, ServerTrouble) -> Unit)? = null
 
     /** The driver's way until [unfocus]: its stops in turn and the one he looks at; null for the next stops. */
     private var focused: Way? = null
@@ -260,7 +282,7 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
             .replace("__GROUND__", ground)
             // The borders are the app's own (SCB's, drawn on the page): nothing is asked for them.
             .replace("__BORDERS__", runCatching { context.assets.open(BORDERS).bufferedReader().use { it.readText() } }.getOrDefault("null"))
-        loadDataWithBaseURL(BASE, page, "text/html", "utf-8", null)
+        loadDataWithBaseURL(base, page, "text/html", "utf-8", null)
     }
 
     /**
@@ -348,31 +370,31 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
         val now = SystemClock.elapsedRealtime()
         if (asking?.isActive == true) return
         if (key == refusedFor) return
-        failedAtMs?.let { if (now - it < RETRY_MS) return }
         // The same stops: asked again only after a while and once the car has gone some way, so a
         // car waiting at a stop asks nothing; at once when no way came.
         val from = askedFrom
-        if (failedAtMs == null && key == askedFor && from != null &&
+        if (lastOk && key == askedFor && from != null &&
             (now - askedAtMs < REFRESH_MS || GeoLogic.distanceMeters(from.lat, from.lng, way.lat, way.lng) < MOVED_M)
         ) {
             return
         }
-        askedFor = key
-        askedAtMs = now
-        askedFrom = way
+        // A way already given is drawn, also while the asks wait ([gate]: a daily limit lasts hours).
         knownFor(key, way)?.let { line ->
-            failedAtMs = null
+            askedFor = key
+            askedAtMs = now
+            askedFrom = way
+            lastOk = true
             if (focused == null) draw(line, Way(way.stops, 0))
             return
         }
+        if (!mayAsk(WayRequests.routeService(access, source, way.stops))) return
+        askedFor = key
+        askedAtMs = now
+        askedFrom = way
         asking = scope.launch {
-            val line = withContext(Dispatchers.IO) { fetch(way.lat, way.lng, way.stops) }
-            if (line == null) {
-                failedAtMs = SystemClock.elapsedRealtime()
-                if (lastCode.let { it != null && it in 400..499 && it != TOO_MANY }) refusedFor = key
-                return@launch
-            }
-            failedAtMs = null
+            val line = settle(withContext(Dispatchers.IO) { fetch(way.lat, way.lng, way.stops) }, key)
+            lastOk = line != null
+            line ?: return@launch
             known[key] = Known(SystemClock.elapsedRealtime(), way.lat, way.lng, line)
             if (focused == null) draw(line, Way(way.stops, 0))
         }
@@ -407,8 +429,10 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
             draw(it, way)
             return
         }
+        // The same waits as the next stops' way: the stops are drawn without it meanwhile.
+        if (key == refusedFor || !mayAsk(WayRequests.routeService(access, source, way.stops))) return
         asking = scope.launch {
-            val line = withContext(Dispatchers.IO) { fetch(from.lat, from.lng, way.stops) } ?: return@launch
+            val line = settle(withContext(Dispatchers.IO) { fetch(from.lat, from.lng, way.stops) }, key) ?: return@launch
             known[key] = Known(SystemClock.elapsedRealtime(), from.lat, from.lng, line)
             if (focused?.stops == way.stops) draw(line, focused!!)
         }
@@ -437,10 +461,18 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
     fun suggest(stops: List<MapWay.Stop>, trips: List<OrderPlanner.Trip>, now: Int) {
         val from = vehicle ?: return
         if (suggesting || stops.size != trips.size) return
+        // The driver's tap waits for nothing but a refusal of the server's that still holds; then
+        // the tap is answered with its words, never ignored.
+        val service = WayRequests.matrixService(access, source, stops)
+        gate.held(service, System.currentTimeMillis())?.let { held ->
+            routeAnswer = WayAnswer(0, service.source, viaServer = true, trouble = held)
+            return
+        }
         suggesting = true
         suggestion = null
         scope.launch {
-            val seconds = withContext(Dispatchers.IO) { fetchMatrix(from.lat, from.lng, stops) }
+            // A refusal of the travel times never stops the ways through the same stops.
+            val seconds = settle(withContext(Dispatchers.IO) { fetchMatrix(from.lat, from.lng, stops) }, null)
             suggesting = false
             seconds ?: return@launch
             // The order shown may have no way (or drop a passenger off first): the best one is still put up.
@@ -490,76 +522,72 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
 
     private fun js(code: String) = view.evaluateJavascript(code, null)
 
-    private fun fetch(lat: Double, lng: Double, stops: List<MapWay.Stop>): RouteLine? {
-        mapmap(stops)?.let { mapmapKey ->
-            askedOf = WaySource.MAPMAP
-            val url = MapmapApi.routeUrl(lat, lng, stops) ?: return null
-            val text = request(url, mapmapHeaders(mapmapKey), null) ?: return null
-            return MapmapApi.parse(text).also { if (it == null) answered(HttpURLConnection.HTTP_OK) }
+    /** Whether [service] may be asked now ([gate]). */
+    private fun mayAsk(service: WayService) = gate.mayAsk(service, SystemClock.elapsedRealtime(), System.currentTimeMillis())
+
+    /** The way from ([lat], [lng]) through [stops], asked as [useWays] says; off the main thread. */
+    private fun fetch(lat: Double, lng: Double, stops: List<MapWay.Stop>): Got<RouteLine> {
+        val request = WayRequests.route(access, source, lat, lng, stops) ?: return Got.Unaskable
+        return send(request) { text ->
+            if (request.service.source == WaySource.MAPMAP) MapmapApi.parse(text) else RoutesApi.parse(text)
         }
-        askedOf = WaySource.GOOGLE
-        val body = RoutesApi.body(lat, lng, stops) ?: return null
-        val text = request(RoutesApi.URL, googleHeaders(RoutesApi.FIELDS), body) ?: return null
-        return RoutesApi.parse(text).also { if (it == null) answered(HttpURLConnection.HTTP_OK) }
     }
 
-    private fun fetchMatrix(lat: Double, lng: Double, stops: List<MapWay.Stop>): Array<IntArray>? {
-        mapmap(stops)?.let { mapmapKey ->
-            askedOf = WaySource.MAPMAP
-            val body = MapmapApi.matrixBody(lat, lng, stops) ?: return null
-            val text = request(MapmapApi.MATRIX_URL, mapmapHeaders(mapmapKey), body) ?: return null
-            return MapmapApi.parseMatrix(text, stops.size).also { if (it == null) answered(HttpURLConnection.HTTP_OK) }
+    /** The travel times between the vehicle and [stops]; off the main thread. */
+    private fun fetchMatrix(lat: Double, lng: Double, stops: List<MapWay.Stop>): Got<Array<IntArray>> {
+        val request = WayRequests.matrix(access, source, lat, lng, stops) ?: return Got.Unaskable
+        return send(request) { text ->
+            if (request.service.source == WaySource.MAPMAP) MapmapApi.parseMatrix(text, stops.size) else RoutesApi.parseMatrix(text, stops.size)
         }
-        askedOf = WaySource.GOOGLE
-        val body = RoutesApi.matrixBody(lat, lng, stops) ?: return null
-        val text = request(RoutesApi.MATRIX_URL, googleHeaders(RoutesApi.MATRIX_FIELDS), body) ?: return null
-        return RoutesApi.parseMatrix(text, stops.size).also { if (it == null) answered(HttpURLConnection.HTTP_OK) }
     }
-
-    private fun googleHeaders(fields: String) = mapOf(
-        "X-Goog-Api-Key" to key,
-        "X-Goog-FieldMask" to fields,
-        // The same page address the map loads from, for a key restricted to it.
-        "Referer" to BASE,
-    )
-
-    /** The key goes in a header, never in the address. */
-    private fun mapmapHeaders(mapmapKey: String) = mapOf("Authorization" to "Bearer $mapmapKey")
 
     /**
-     * The answer to [body] (POST), or to the address alone (GET, no [body]), or null (its HTTP
-     * code, or 0 for none, goes to [routeAnswer]).
+     * Sends [request] and reads its answer by its service's parser; the answer goes to [gate]. An
+     * answer that cannot be read is answered as 200 (its words say so) and waits as if none came.
      */
-    private fun request(url: String, headers: Map<String, String>, body: String?): String? = runCatching {
-        val conn = URI(url).toURL().openConnection() as HttpURLConnection
-        try {
-            conn.requestMethod = if (body != null) "POST" else "GET"
-            conn.connectTimeout = 15_000
-            conn.readTimeout = 15_000
-            headers.forEach { (name, value) -> conn.setRequestProperty(name, value) }
-            if (body != null) {
-                conn.doOutput = true
-                conn.setRequestProperty("Content-Type", "application/json")
-                conn.outputStream.use { it.write(body.toByteArray()) }
-            }
-            val code = conn.responseCode
-            if (code != HttpURLConnection.HTTP_OK) {
-                answered(code)
-                return null
-            }
-            conn.inputStream.bufferedReader().use { it.readText() }.also { answered(null) }
-        } finally {
-            conn.disconnect()
+    private fun <T> send(request: WayRequest, parse: (String) -> T?): Got<T> {
+        val reply = transport.send(request.ask)
+        val value = reply.text?.takeIf { reply.code == HTTP_OK }?.let(parse)
+        val nowMs = SystemClock.elapsedRealtime()
+        val wallMs = System.currentTimeMillis()
+        if (value != null) {
+            gate.after(request.service, HTTP_OK, null, nowMs, wallMs)
+            return Got.Value(value)
         }
-    }.onFailure { answered(0) }.getOrNull()
+        val trouble = if (reply.code == HTTP_OK) null else CompanyServer.classify(reply.code, reply.slug, reply.retryAfterSec, wallMs)
+        val outcome = gate.after(request.service, if (reply.code == HTTP_OK) UNREAD else reply.code, trouble, nowMs, wallMs)
+        return Got.Failed(request.service, outcome, WayAnswer(reply.code, request.service.source, request.ask.viaServer, trouble))
+    }
 
-    private fun answered(code: Int?) {
-        lastCode = code
-        val from = askedOf
-        main.post {
-            routeAnswer = code
-            routeFrom = from
+    /**
+     * On the main thread: what came of an ask for the stops [key] (null: travel times, which never
+     * stop the ways). Its words go to [routeAnswer], a refusal for good to [refusedFor], the
+     * server's own refusal to [onServerTrouble]. Gives the answer, or null.
+     */
+    private fun <T> settle(got: Got<T>, key: String?): T? {
+        when (got) {
+            is Got.Value -> {
+                routeAnswer = null
+                return got.value
+            }
+            // No way can be asked for these stops (no access, or a stop with neither a point nor an address).
+            Got.Unaskable -> if (key != null) refusedFor = key
+            is Got.Failed -> {
+                routeAnswer = got.answer
+                if (key != null && got.outcome == WayGate.Outcome.REFUSE_STOPS) refusedFor = key
+                got.answer.trouble?.let { trouble -> onServerTrouble?.invoke(got.service, trouble) }
+            }
         }
+        return null
+    }
+
+    /** What came of an ask ([send]). */
+    private sealed interface Got<out T> {
+        class Value<T>(val value: T) : Got<T>
+
+        data object Unaskable : Got<Nothing>
+
+        class Failed(val service: WayService, val outcome: WayGate.Outcome, val answer: WayAnswer) : Got<Nothing>
     }
 
     private inner class Bridge {
@@ -590,7 +618,8 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
             main.post {
                 if (found == Trouble.NO_TILES && tiles) return@post
                 trouble = found
-                troubleDetail = detail?.take(DETAIL_CHARS)?.takeIf { it.isNotBlank() }
+                // The page's words may quote its address, and the key in it: never shown.
+                troubleDetail = detail?.replace(key, "***")?.take(DETAIL_CHARS)?.takeIf { it.isNotBlank() }
             }
         }
 
@@ -622,8 +651,11 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
     companion object {
         private const val DETAIL_CHARS = 80
 
-        /** The page's address: a key restricted to websites must allow it and every page under it. */
-        const val BASE = "https://nastastopp.app/"
+        /**
+         * The page's address with the driver's own key: a key restricted to websites must allow it
+         * and every page under it. The company's key loads under [CompanyServer.PAGE_BASE].
+         */
+        const val BASE = WayRequests.OWN_PAGE_BASE
         private const val PAGE = "route_map.html"
 
         /** The map stops being drawn this long after it has gone. */
@@ -639,12 +671,12 @@ class RouteMap(context: Context, private val key: String, night: Boolean, ground
         /** A way asked for is used again for this long, from as near as [REUSE_M]. */
         private const val KNOWN_MS = 15 * 60_000L
 
-        /** No way came for the next stops: asked again after this long, whether the car moved or not. */
-        private const val RETRY_MS = 30_000L
-
-        /** Google's "too many requests": a wait, not a refusal. */
-        private const val TOO_MANY = 429
+        // When a service is asked again after no way came, or a refusal: [WayGate].
         private const val REUSE_M = 1_000.0
+        private const val HTTP_OK = 200
+
+        /** An answer that could not be read: it waits as if none came ([WayGate]). */
+        private const val UNREAD = 0
 
         /** Ways kept for orders tried again. */
         private const val KNOWN_WAYS = 12

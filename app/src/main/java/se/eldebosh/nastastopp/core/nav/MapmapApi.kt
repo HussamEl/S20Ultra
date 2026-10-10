@@ -17,20 +17,25 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import java.util.Locale
 
-/** Who gives the tablet's map its ways and travel times, chosen by the driver on the tablet (304). */
+/**
+ * Who gives the tablet's map its ways and travel times, chosen by the driver on the tablet (304);
+ * asked through the company's server while the tablet is connected to it ([CompanyServer]), else
+ * with the driver's own keys ([WayRequests]).
+ */
 enum class WaySource {
-    /** Google's Routes API, with the same key as the map ([RoutesApi]). */
+    /** Google's Routes API ([RoutesApi]): the company's key through its server, or the driver's own map key. */
     GOOGLE,
 
-    /** mapmap.ai (OpenStreetMap's roads), with the driver's own mapmap key ([MapmapApi]). */
+    /** mapmap.ai (OpenStreetMap's roads, [MapmapApi]): the company's key through its server, or the driver's own mapmap key. */
     MAPMAP,
 }
 
 /**
- * mapmap.ai, asked by the tablet with the driver's own key when he chose it for the ways (304):
- * the way from the vehicle through a few stops (its OSRM-style route, by points only), and the
- * travel times between them for an order to suggest (its Valhalla-style matrix). The same answers
- * as [RoutesApi]'s ([RouteLine], seconds), so the map and [OrderPlanner] work with either. Only the
+ * mapmap.ai, when the driver chose it for the ways (304): through the company's server with the
+ * company's key while the tablet is connected to it, else with the driver's own key. It gives the
+ * way from the vehicle through a few stops (its OSRM-style route, by points only), and the travel
+ * times between them for an order to suggest (its Valhalla-style matrix). The same answers as
+ * [RoutesApi]'s ([RouteLine], seconds), so the map and [OrderPlanner] work with either. Only the
  * points are sent, never an address or a name; a stop known only by its address is left to Google.
  */
 object MapmapApi {
@@ -46,14 +51,40 @@ object MapmapApi {
     fun canAsk(stops: List<MapWay.Stop>): Boolean = stops.isNotEmpty() && stops.all { it.lat != null && it.lng != null }
 
     /**
+     * The vehicle's point, then each stop's, as mapmap takes them: "longitude,latitude" with six
+     * decimals, joined by ";". Null when a stop has no point, a point is not a number, or there
+     * are more than [MAX_STOPS] stops.
+     */
+    fun points(fromLat: Double, fromLng: Double, stops: List<MapWay.Stop>): String? {
+        if (!canAsk(stops) || stops.size > MAX_STOPS) return null
+        val points = listOf(fromLat to fromLng) + stops.map { it.lat!! to it.lng!! }
+        if (points.any { (lat, lng) -> !lat.isFinite() || !lng.isFinite() }) return null
+        return points.joinToString(";") { (lat, lng) -> String.format(Locale.ROOT, "%.6f,%.6f", lng, lat) }
+    }
+
+    /** What the route answers with: the whole line, as Google's polyline, and each leg's steps. */
+    const val ROUTE_OPTIONS = "overview=full&geometries=polyline&steps=true"
+
+    /**
      * The way from the vehicle through [stops] in turn, each leg with its own line (the steps'
      * lines, so each stop's leg can be drawn in its colour); null when a stop has no point.
      */
-    fun routeUrl(fromLat: Double, fromLng: Double, stops: List<MapWay.Stop>): String? {
-        if (!canAsk(stops) || stops.size > MAX_STOPS) return null
-        val points = listOf(fromLat to fromLng) + stops.map { it.lat!! to it.lng!! }
-        val path = points.joinToString(";") { (lat, lng) -> String.format(Locale.ROOT, "%.6f,%.6f", lng, lat) }
-        return "$BASE/route/v1/driving/$path?overview=full&geometries=polyline&steps=true"
+    fun routeUrl(fromLat: Double, fromLng: Double, stops: List<MapWay.Stop>): String? =
+        points(fromLat, fromLng, stops)?.let { "$BASE/route/v1/driving/$it?$ROUTE_OPTIONS" }
+
+    /**
+     * The same way asked through the company's server ([CompanyServer.MAPMAP_ROUTE]): a POST of the
+     * points and [ROUTE_OPTIONS], so no point is ever in an address (or a web server's log).
+     */
+    fun serverRouteBody(fromLat: Double, fromLng: Double, stops: List<MapWay.Stop>): String? {
+        val points = points(fromLat, fromLng, stops) ?: return null
+        return buildJsonObject {
+            put("points", points)
+            ROUTE_OPTIONS.split('&').forEach { option ->
+                val (name, value) = option.split('=', limit = 2)
+                put(name, value)
+            }
+        }.toString()
     }
 
     const val MATRIX_URL = "$BASE/matrix"

@@ -31,9 +31,12 @@ data class RouteLine(val minutes: Int, val meters: Int, val path: List<Pair<Doub
 }
 
 /**
- * Google's Routes API, asked by the tablet with the driver's own key: the way from the vehicle
- * through a few stops (computeRoutes), and the travel times between them all for an order to
- * suggest (computeRouteMatrix). Only the places are sent, never a name.
+ * Google's Routes API, asked by the tablet for the way from the vehicle through a few stops
+ * (computeRoutes), and the travel times between them all for an order to suggest
+ * (computeRouteMatrix): through the company's server api.nastastopp.se with the company's key while
+ * the tablet is connected ([CompanyServer], the same bodies and field masks, which the server
+ * checks byte for byte), else directly with the driver's own key ([WayRequests]). Only the places
+ * are sent, never a name.
  */
 object RoutesApi {
     const val URL = "https://routes.googleapis.com/directions/v2:computeRoutes"
