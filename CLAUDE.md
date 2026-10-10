@@ -132,6 +132,6 @@ The project is built to be sold one day to a large company: everything must pass
 - **Loop:**
   1. Post `DEVICE-TEST READY <sha>` on PR #1 with the APK link and a numbered checklist.
   2. The tester replies `DEVICE-TEST RESULT <sha>`.
-  - **Hussam decides when the laptop session tests** and tells it himself. Post the READY on the PR and carry on. Don't write prompts for it, ask him to relay, or wait for it.
+  - **Claude and the laptop session work together directly on PR #1 (decided by Hussam):** Claude posts READYs and `CLAUDE REQUEST <topic>` comments (device tests, setup steps in Hussam's browser), the laptop session answers there, and neither asks Hussam to relay or approve each step. Claude tells Hussam, in short Arabic, what both are doing and what came out. Still for Hussam alone: signing in, typing any password or key (the server's secrets file), paying, and accepting terms; both stop there and tell him.
 - **YouDrive:** it is the real dispatch site, so the user signs in manually. The tester never types credentials.
 - **The local partner's proposals** (on PR #1): the official branch is always the base; the partner rebuilds its experiment on the latest release and posts findings as `NSGPT-PROP-YYYYMMDD-NNN`. Answer each on PR #1 with `CLAUDE REPLY <id>`: ADOPTED (version and commit), DEFERRED, REJECTED (why) or NEEDS-HUSSAM. Adopt one only after Hussam approves it in this session.
