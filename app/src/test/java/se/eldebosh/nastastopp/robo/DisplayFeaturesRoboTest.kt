@@ -19,6 +19,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowSettings
 import se.eldebosh.nastastopp.App
 import se.eldebosh.nastastopp.core.route.Announcement
+import se.eldebosh.nastastopp.geo.Geocoding
 import se.eldebosh.nastastopp.route.model.GeoStatus
 import java.time.Duration
 
@@ -32,6 +33,7 @@ class DisplayFeaturesRoboTest {
     @Before
     fun setUp() {
         app = ApplicationProvider.getApplicationContext()
+        Geocoding.register(app) // read before the stops are looked for, so they wait only in the test's own time
         app.graph.controller.clear()
         idle()
     }
@@ -56,7 +58,7 @@ class DisplayFeaturesRoboTest {
     }
 
     @Test
-    fun completedTripsStayWithTheirTimesAndDisplayShowsOnePreviousAndThreeUpcoming() {
+    fun completedTripsStayWithTheirTimesAndDisplayShowsTheDoneAndUpcomingTrips() {
         addFive()
         val c = app.graph.controller
         c.start()
@@ -65,12 +67,12 @@ class DisplayFeaturesRoboTest {
         assertTrue(d.active)
         assertNull(d.previous)
         assertEquals("12:30", d.current?.time)
-        // Street address with the house number (default since 1.4.0), the area under it.
+        // Street address with the house number (the default), the area under it.
         assertEquals("Storgatan 14", d.current?.title)
         assertEquals("Karlstad", d.current?.subtitle)
-        assertEquals(listOf("Järnvägsgatan 3B", "Björkvägen 7", "Kungsgatan 5"), d.upcoming.map { it.title })
-        assertEquals(listOf("Storfors", "Hammarö", "Kil"), d.upcoming.map { it.subtitle })
-        assertEquals("Nästa stopp: Karlstad. Därefter: Storfors.", d.announcementSv)
+        assertEquals(listOf("Järnvägsgatan 3B", "Björkvägen 7", "Kungsgatan 5", "Lindvägen 9"), d.upcoming.map { it.title })
+        assertEquals(listOf("Storfors", "Hammarö", "Kil"), d.upcoming.take(3).map { it.subtitle })
+        assertEquals("Nästa stopp: Klockan tolv trettio. Storgatan 14, Karlstad. Klockan tolv fyrtiofem. Järnvägsgatan 3B, Storfors.", d.announcementSv)
 
         c.next()
         idle()
@@ -79,6 +81,8 @@ class DisplayFeaturesRoboTest {
         d = c.display.value
         assertEquals("Storgatan 14", d.previous?.title)
         assertEquals("12:30", d.previous?.time)
+        assertTrue("done here", d.previous!!.doneHere)
+        assertEquals(listOf("Storgatan 14"), d.earlier.map { it.title })
         assertEquals("Järnvägsgatan 3B", d.current?.title)
         assertEquals(listOf("Björkvägen 7", "Kungsgatan 5", "Lindvägen 9"), d.upcoming.map { it.title })
 
@@ -102,9 +106,9 @@ class DisplayFeaturesRoboTest {
         idle()
         assertEquals(
             listOf(
-                "Nästa stopp: Karlstad. Därefter: Storfors.",
-                "Nästa stopp: Storfors. Därefter: Hammarö.",
-                "Nästa stopp: Storfors. Därefter: Hammarö.",
+                "Nästa stopp: Klockan tolv trettio. Storgatan 14, Karlstad. Klockan tolv fyrtiofem. Järnvägsgatan 3B, Storfors.",
+                "Nästa stopp: Klockan tolv fyrtiofem. Järnvägsgatan 3B, Storfors. Klockan tretton noll fem. Björkvägen 7, Hammarö.",
+                "Nästa stopp: Klockan tolv fyrtiofem. Järnvägsgatan 3B, Storfors. Klockan tretton noll fem. Björkvägen 7, Hammarö.",
             ),
             got.map { it.swedish },
         )

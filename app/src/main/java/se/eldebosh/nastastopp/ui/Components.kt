@@ -2,10 +2,22 @@ package se.eldebosh.nastastopp.ui
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,34 +31,44 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import se.eldebosh.nastastopp.R
-import se.eldebosh.nastastopp.ui.theme.Hairline
+import se.eldebosh.nastastopp.core.parse.TripKind
+import se.eldebosh.nastastopp.ui.theme.AppTheme
 
 /** Minimum touch target for everything the driver taps. */
 val TouchTarget: Dp = 48.dp
 
 /**
- * The app's button: [primary] = filled brand colour (the main action of a screen), otherwise a
- * quiet tonal button with a hairline border. Compact (48 dp) unless [minHeight] says otherwise.
+ * The app's button: [primary] = filled with the action colour (the main action of a screen),
+ * otherwise a quiet tonal button with a hairline border. Compact (48 dp) unless [minHeight] says
+ * otherwise. It shrinks a little while pressed ([AppTheme.effects]).
  */
 @Composable
 fun AppButton(
@@ -59,27 +81,32 @@ fun AppButton(
     minHeight: Dp = TouchTarget,
     containerColor: Color? = null,
     contentColor: Color? = null,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
 ) {
     val colors = if (primary) {
         ButtonDefaults.buttonColors(
-            containerColor = containerColor ?: MaterialTheme.colorScheme.primary,
-            contentColor = contentColor ?: MaterialTheme.colorScheme.onPrimary,
+            containerColor = containerColor ?: AppTheme.colors.action,
+            contentColor = contentColor ?: AppTheme.colors.onAction,
         )
     } else {
         ButtonDefaults.buttonColors(
-            containerColor = containerColor ?: MaterialTheme.colorScheme.surfaceContainerHigh,
-            contentColor = contentColor ?: MaterialTheme.colorScheme.onSurface,
-            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            containerColor = containerColor ?: AppTheme.colors.tonal,
+            contentColor = contentColor ?: AppTheme.colors.text,
+            disabledContainerColor = AppTheme.colors.card,
         )
     }
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) AppTheme.effects.pressedScale else 1f, label = "press")
     Button(
         onClick = onClick,
         enabled = enabled,
         shape = MaterialTheme.shapes.medium,
         colors = colors,
-        border = if (primary) null else BorderStroke(1.dp, Hairline),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-        modifier = modifier.heightIn(min = minHeight),
+        border = if (primary) null else BorderStroke(1.dp, AppTheme.colors.cardBorder),
+        contentPadding = contentPadding,
+        interactionSource = interaction,
+        modifier = modifier.heightIn(min = minHeight).graphicsLayer { scaleX = scale; scaleY = scale },
     ) {
         if (icon != null) {
             Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(20.dp))
@@ -146,24 +173,25 @@ fun SectionTitle(
     }
 }
 
-/** A soft surface with a hairline border that groups related rows. */
+/** A soft surface with a hairline border (and, by day, a soft shadow) that groups related rows. */
 @Composable
 fun AppCard(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
     val shape = MaterialTheme.shapes.large
     Column(
         modifier
             .fillMaxWidth()
+            .shadow(AppTheme.effects.cardShadow, shape)
             .clip(shape)
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .border(1.dp, Hairline, shape)
+            .background(AppTheme.colors.card)
+            .border(1.dp, AppTheme.colors.cardBorder, shape)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         content = content,
     )
 }
 
-/** Hairline between the rows of a card. */
+/** AppTheme.colors.cardBorder between the rows of a card. */
 @Composable
-fun CardDivider() = HorizontalDivider(thickness = 1.dp, color = Hairline, modifier = Modifier.padding(horizontal = 16.dp))
+fun CardDivider() = HorizontalDivider(thickness = 1.dp, color = AppTheme.colors.cardBorder, modifier = Modifier.padding(horizontal = 16.dp))
 
 /** An icon in a small tinted rounded square (leading element of a row). */
 @Composable
@@ -229,6 +257,92 @@ fun ListRow(
             trailing()
         }
     }
+}
+
+/** The name of a trip's kind ("Pick-up", "Drop-off", "Start", "Back to depot"). */
+@StringRes
+fun kindName(kind: TripKind): Int = when (kind) {
+    TripKind.PICK_UP -> R.string.kind_pick_up
+    TripKind.DROP_OFF -> R.string.kind_drop_off
+    TripKind.PULL_OUT -> R.string.kind_pull_out
+    TripKind.PULL_IN -> R.string.kind_pull_in
+}
+
+/** A trip's kind as a small white pill, like YouDrive's status pills; readable on every card colour. */
+@Composable
+fun KindLabel(kind: TripKind, modifier: Modifier = Modifier) {
+    val shape = RoundedCornerShape(50)
+    Text(
+        stringResource(kindName(kind)),
+        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+        color = AppTheme.colors.onKindPill,
+        maxLines = 1,
+        modifier = modifier
+            .clip(shape)
+            .background(AppTheme.colors.kindPill)
+            .border(1.dp, AppTheme.colors.onKindPill.copy(alpha = 0.14f), shape)
+            .padding(horizontal = 8.dp, vertical = 1.dp),
+    )
+}
+
+/**
+ * Where a trip was finished, as small coloured dots with a check and no words: green = in YouDrive
+ * ([youDrive]), blue = in this app ([here]). A green dot alone on a coming trip means YouDrive
+ * already counts it done while the route has not passed it. Nothing shows when neither is true.
+ */
+@Composable
+fun DoneMarks(youDrive: Boolean, here: Boolean, modifier: Modifier = Modifier, size: Dp = 14.dp) {
+    if (!youDrive && !here) return
+    val inYouDrive = stringResource(R.string.done_in_youdrive)
+    val inApp = stringResource(R.string.done_here)
+    val description = listOfNotNull(inYouDrive.takeIf { youDrive }, inApp.takeIf { here }).joinToString(", ")
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(size / 4),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier.ref(202, centered = true).semantics { contentDescription = description },
+    ) {
+        if (youDrive) CheckDot(AppTheme.colors.success, AppTheme.colors.onStatus, size)
+        if (here) CheckDot(AppTheme.colors.info, AppTheme.colors.onInfo, size)
+    }
+}
+
+@Composable
+private fun CheckDot(fill: Color, tick: Color, size: Dp) = Canvas(Modifier.size(size)) {
+    val w = this.size.width
+    drawCircle(fill)
+    val check = Path().apply {
+        moveTo(w * 0.28f, w * 0.52f)
+        lineTo(w * 0.44f, w * 0.68f)
+        lineTo(w * 0.73f, w * 0.36f)
+    }
+    drawPath(check, tick, style = Stroke(width = w * 0.13f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+}
+
+/**
+ * A trip's card in YouDrive's colours ([AppColors.trip][se.eldebosh.nastastopp.ui.theme.AppColors.trip]):
+ * green pick-up, white drop-off, grey depot. The current trip ([current]) gets YouDrive's thick
+ * border and lifts a little. The colour fades when it changes (the next trip moves up).
+ */
+@Composable
+fun TripSurface(
+    kind: TripKind?,
+    modifier: Modifier = Modifier,
+    current: Boolean = false,
+    shape: Shape = MaterialTheme.shapes.large,
+    content: @Composable () -> Unit,
+) {
+    val colors = AppTheme.colors
+    val effects = AppTheme.effects
+    val color by animateColorAsState(colors.trip(kind), tween(effects.colorFadeMs), label = "trip")
+    Surface(
+        modifier = modifier,
+        shape = shape,
+        color = color,
+        contentColor = colors.onTrip,
+        border = BorderStroke(if (current) 3.dp else 1.dp, if (current) colors.currentBorder else colors.cardBorder),
+        shadowElevation = if (current) effects.currentShadow else effects.cardShadow,
+        content = content,
+    )
 }
 
 /** A trailing chevron (the row opens something). */

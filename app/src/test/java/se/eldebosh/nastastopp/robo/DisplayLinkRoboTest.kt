@@ -3,6 +3,7 @@ package se.eldebosh.nastastopp.robo
 import android.Manifest
 import android.bluetooth.BluetoothClass
 import android.bluetooth.BluetoothManager
+import android.bluetooth.BluetoothSocket
 import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -13,6 +14,8 @@ import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import se.eldebosh.nastastopp.App
+import se.eldebosh.nastastopp.core.link.LinkMessage
+import se.eldebosh.nastastopp.core.link.LinkProtocol
 import se.eldebosh.nastastopp.link.DisplayLinkClient
 import se.eldebosh.nastastopp.link.DisplayLinkServer
 import se.eldebosh.nastastopp.settings.DeviceRole
@@ -49,6 +52,16 @@ class DisplayLinkRoboTest {
         check(condition()) { "condition not reached" }
     }
 
+    /** The socket the tablet opened to the phone (the client keeps it private). */
+    private fun socketOf(client: DisplayLinkClient): BluetoothSocket? =
+        DisplayLinkClient::class.java.getDeclaredField("socket")
+            .apply { isAccessible = true }
+            .get(client) as BluetoothSocket?
+
+    /**
+     * The tablet links on its own to the paired phone, not to the headset, once the phone answers
+     * as a Nästa Stopp controller.
+     */
     @Test
     fun displayFindsThePairedPhoneWithoutChoosingIt() {
         val adapter = app.getSystemService(BluetoothManager::class.java).adapter
@@ -66,6 +79,12 @@ class DisplayLinkRoboTest {
         app.graph.settings.update { it.copy(role = DeviceRole.DISPLAY, displayControllerAddress = null) }
         val client = app.graph.displayClient
         client.start(null) // automatic: nothing chosen
+        waitFor { socketOf(client) != null }
+        val hello = LinkProtocol.encode(LinkMessage.Hello(LinkProtocol.VERSION, LinkProtocol.ROLE_CONTROLLER))
+        shadowOf(socketOf(client)).inputStreamFeeder.apply {
+            write("$hello\n".toByteArray())
+            flush()
+        }
         waitFor { client.state.value.status == DisplayLinkClient.Status.CONNECTED }
         assertEquals("Galaxy S25 Ultra", client.state.value.deviceName)
         waitFor { app.graph.settings.current.displayControllerAddress == "00:11:22:33:44:02" }

@@ -9,10 +9,14 @@ import android.os.Looper
 import android.os.SystemClock
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import se.eldebosh.nastastopp.core.route.Announcement
+import se.eldebosh.nastastopp.core.route.Announcements
 import se.eldebosh.nastastopp.settings.SettingsStore
 import se.eldebosh.nastastopp.util.DebugLog
 import java.util.Locale
@@ -43,11 +47,22 @@ class Announcer(context: Context, private val settings: SettingsStore) {
     private val _status = MutableStateFlow(TtsStatus.INITIALIZING)
     val status: StateFlow<TtsStatus> = _status.asStateFlow()
 
+    private val _said = MutableSharedFlow<Int>(extraBufferCapacity = 4)
+
+    /**
+     * Each step of an announcement the passenger display shows once it has been said, by its place
+     * in [Announcements.steps] (0 the next stop's time, 1 its address, 2 the next trip's time …),
+     * so a passenger display on this device moves on with the voice.
+     */
+    val said: SharedFlow<Int> = _said.asSharedFlow()
+
     private var tts: TextToSpeech? = null
     private var pending: Announcement? = null
     private var pendingAtMs = 0L
     private val counter = AtomicInteger()
     @Volatile private var lastUtteranceId: String? = null
+    /** The announcement being said in steps, whose steps [said] tells. */
+    @Volatile private var currentId = 0
     private var triedGoogleEngine = false
     private var generation = 0
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -109,9 +124,15 @@ class Announcer(context: Context, private val settings: SettingsStore) {
         initEngine(null)
     }
 
-    fun speak(announcement: Announcement) {
+    /**
+     * Says [announcement]. [interrupt] = false queues it after what is being said (the street's name
+     * said by itself must not cut off a next-stop announcement); such a line is dropped, not kept for
+     * later, when the voice is not ready.
+     */
+    fun speak(announcement: Announcement, interrupt: Boolean = true) {
         val t = tts
         if (t == null || _status.value != TtsStatus.READY) {
+            if (!interrupt) return
             pending = announcement
             pendingAtMs = SystemClock.elapsedRealtime()
             return
@@ -121,9 +142,24 @@ class Announcer(context: Context, private val settings: SettingsStore) {
         requestFocus()
         t.setSpeechRate(s.speechRate)
         t.setLanguage(swedish)
-        val svId = "sv-$id"
-        lastUtteranceId = svId
-        t.speak(announcement.swedish, TextToSpeech.QUEUE_FLUSH, null, svId)
+        val mode = if (interrupt) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD
+        if (Announcements.isShow(announcement.swedish)) {
+            // In step with the passenger display: each trip's time, then its address, with the
+            // silences in which the display brings the trip, gives the time way to the address,
+            // and goes on to the next trip.
+            val steps = Announcements.steps(announcement.swedish)
+            currentId = id
+            steps.forEachIndexed { k, step ->
+                silence(t, Announcements.silenceBefore(steps, k), if (k == 0) mode else TextToSpeech.QUEUE_ADD, "lead-$id-$k")
+                val svId = "$PART$id-$k"
+                lastUtteranceId = svId
+                t.speak(step.text, TextToSpeech.QUEUE_ADD, null, svId)
+            }
+        } else {
+            val svId = "sv-$id"
+            lastUtteranceId = svId
+            t.speak(announcement.swedish, mode, null, svId)
+        }
         val en = announcement.english
         if (s.englishRepeat && en != null && t.isLanguageAvailable(english) >= TextToSpeech.LANG_AVAILABLE) {
             t.setLanguage(english)
@@ -139,6 +175,10 @@ class Announcer(context: Context, private val settings: SettingsStore) {
         abandonFocus()
     }
 
+    private fun silence(t: TextToSpeech, ms: Long, mode: Int, utteranceId: String) {
+        runCatching { t.playSilentUtterance(ms, mode, utteranceId) }
+    }
+
     private fun requestFocus() {
         runCatching { audioManager?.requestAudioFocus(focusRequest) }
     }
@@ -151,7 +191,15 @@ class Announcer(context: Context, private val settings: SettingsStore) {
         override fun onStart(utteranceId: String?) {}
 
         override fun onDone(utteranceId: String?) {
+            partOf(utteranceId)?.let { _said.tryEmit(it) }
             if (utteranceId == lastUtteranceId) abandonFocus()
+        }
+
+        /** The step of the announcement being said that [utteranceId] is ("part-7-1" → 1). */
+        private fun partOf(utteranceId: String?): Int? {
+            val rest = utteranceId?.removePrefix(PART)?.takeIf { it != utteranceId } ?: return null
+            val id = rest.substringBefore('-').toIntOrNull() ?: return null
+            return rest.substringAfter('-').toIntOrNull()?.takeIf { id == currentId }
         }
 
         @Deprecated("Deprecated in Java")
@@ -171,6 +219,7 @@ class Announcer(context: Context, private val settings: SettingsStore) {
 
     companion object {
         const val GOOGLE_TTS = "com.google.android.tts"
+        private const val PART = "part-"
         private const val PENDING_MAX_AGE_MS = 20_000L
     }
 }

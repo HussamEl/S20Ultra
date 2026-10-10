@@ -21,9 +21,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,18 +36,16 @@ import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import se.eldebosh.nastastopp.R
+import se.eldebosh.nastastopp.core.youdrive.YouDriveCards
 import se.eldebosh.nastastopp.ui.AppCard
 import se.eldebosh.nastastopp.ui.Chevron
 import se.eldebosh.nastastopp.ui.Hint
+import se.eldebosh.nastastopp.ui.KindLabel
 import se.eldebosh.nastastopp.ui.ListRow
 import se.eldebosh.nastastopp.ui.TouchTarget
 import se.eldebosh.nastastopp.ui.ref
 import se.eldebosh.nastastopp.ui.refCorner
-import se.eldebosh.nastastopp.ui.theme.Brand
-import se.eldebosh.nastastopp.ui.theme.Hairline
-import se.eldebosh.nastastopp.ui.theme.Located
-import se.eldebosh.nastastopp.ui.theme.NotLocated
-import se.eldebosh.nastastopp.ui.theme.TimeColor
+import se.eldebosh.nastastopp.ui.theme.AppTheme
 import se.eldebosh.nastastopp.youdrive.YouDriveWatcher
 import java.time.Instant
 import java.time.ZoneId
@@ -86,12 +84,12 @@ fun YouDriveBar(
             Column(Modifier.weight(1f).padding(start = 4.dp)) {
                 Text(stringResource(R.string.youdrive_title), style = MaterialTheme.typography.titleMedium, maxLines = 1)
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.ref(143)) {
-                    Box(Modifier.size(7.dp).clip(MaterialTheme.shapes.extraSmall).background(if (problem) NotLocated else if (watching) Located else MaterialTheme.colorScheme.outline))
+                    Box(Modifier.size(7.dp).clip(MaterialTheme.shapes.extraSmall).background(if (problem) AppTheme.colors.danger else if (watching) AppTheme.colors.success else MaterialTheme.colorScheme.outline))
                     Spacer(Modifier.width(6.dp))
                     Text(
                         youDriveStatus(state),
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (problem) NotLocated else MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (problem) AppTheme.colors.danger else MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -101,7 +99,7 @@ fun YouDriveBar(
                 Icon(
                     painterResource(if (watching) R.drawable.ic_bell else R.drawable.ic_bell_off),
                     contentDescription = stringResource(R.string.youdrive_watch),
-                    tint = if (watching) Located else MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = if (watching) AppTheme.colors.success else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(22.dp),
                 )
             }
@@ -113,11 +111,11 @@ fun YouDriveBar(
                     MenuItem(stringResource(R.string.youdrive_start_page), R.drawable.ic_home, 153) { menu = false; onStartPage() }
                     MenuItem(stringResource(R.string.youdrive_reload), R.drawable.ic_repeat, 141) { menu = false; onReload() }
                     MenuItem(
-                        stringResource(R.string.youdrive_import_all, state.trips.size), R.drawable.ic_add, 148,
+                        stringResource(R.string.youdrive_import_all, YouDriveCards.toAdd(state.trips).size), R.drawable.ic_add, 148,
                         enabled = state.trips.isNotEmpty(),
                     ) { menu = false; onImportAll() }
                     MenuItem(stringResource(R.string.youdrive_read_now), R.drawable.ic_schedule, 149) { menu = false; onReadNow() }
-                    HorizontalDivider(color = Hairline)
+                    HorizontalDivider(color = AppTheme.colors.cardBorder)
                     MenuItem(stringResource(R.string.youdrive_logout), R.drawable.ic_delete, 152, color = MaterialTheme.colorScheme.error) {
                         menu = false
                         confirmLogout = true
@@ -126,7 +124,7 @@ fun YouDriveBar(
             }
         }
         state.changes.asReversed().forEach { ChangeRow(it, onApply, onDismiss) }
-        HorizontalDivider(color = Hairline)
+        HorizontalDivider(color = AppTheme.colors.cardBorder)
     }
     if (confirmLogout) {
         AlertDialog(
@@ -196,12 +194,29 @@ private fun ChangeRow(
             .padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
     ) {
         Column(Modifier.weight(1f)) {
-            Text(
-                stringResource(if (added) R.string.trip_added_title else R.string.trip_cancelled_title, trip.time ?: "--:--"),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = if (added) Located else NotLocated,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(if (added) R.string.trip_added_title else R.string.trip_cancelled_title, trip.time ?: "--:--"),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = if (added) AppTheme.colors.success else AppTheme.colors.danger,
+                )
+                // The passenger's name level with the time, as on YouDrive's card.
+                trip.stop?.name?.let {
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.titleSmall.copy(textDirection = TextDirection.Content),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                }
+                trip.stop?.kind?.let {
+                    Spacer(Modifier.width(8.dp))
+                    KindLabel(it)
+                }
+            }
             Text(
                 trip.address,
                 style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Content),
@@ -210,7 +225,7 @@ private fun ChangeRow(
             )
         }
         TextButton(onClick = { onApply(change) }, modifier = Modifier.refCorner(if (added) 145 else 147).heightIn(min = TouchTarget)) {
-            Text(stringResource(if (added) R.string.youdrive_add else R.string.youdrive_remove), color = Brand, style = MaterialTheme.typography.labelLarge)
+            Text(stringResource(if (added) R.string.youdrive_add else R.string.youdrive_remove), color = AppTheme.colors.info, style = MaterialTheme.typography.labelLarge)
         }
         TextButton(onClick = { onDismiss(change) }, modifier = Modifier.refCorner(146).heightIn(min = TouchTarget)) {
             Text(stringResource(R.string.youdrive_dismiss), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelLarge)
@@ -226,14 +241,14 @@ fun YouDriveCard(state: YouDriveWatcher.State, watching: Boolean, onOpen: () -> 
             title = stringResource(R.string.youdrive_card_title),
             subtitle = if (watching) youDriveStatus(state) else stringResource(R.string.youdrive_card_off),
             icon = R.drawable.ic_schedule,
-            iconTint = if (watching) Located else Brand,
+            iconTint = if (watching) AppTheme.colors.success else AppTheme.colors.info,
             trailing = { Chevron() },
         )
         if (state.changes.isNotEmpty()) {
             Text(
                 stringResource(R.string.youdrive_card_changes, state.changes.size),
                 style = MaterialTheme.typography.labelLarge,
-                color = TimeColor,
+                color = AppTheme.colors.time,
                 modifier = Modifier.padding(start = 64.dp, end = 16.dp, bottom = 12.dp),
             )
         }

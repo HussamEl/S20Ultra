@@ -1,5 +1,7 @@
 package se.eldebosh.nastastopp.ui.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -9,41 +11,70 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
 import se.eldebosh.nastastopp.R
+import se.eldebosh.nastastopp.core.display.DisplaySnapshot
+import se.eldebosh.nastastopp.core.display.MotionStyle
+import se.eldebosh.nastastopp.core.link.LinkMessage
+import se.eldebosh.nastastopp.core.nav.CompanyServer
+import se.eldebosh.nastastopp.core.nav.MapmapApi
+import se.eldebosh.nastastopp.core.nav.RoutesApi
+import se.eldebosh.nastastopp.core.nav.WaySource
+import se.eldebosh.nastastopp.core.route.Announcement
+import se.eldebosh.nastastopp.link.DisplayLinkClient
+import se.eldebosh.nastastopp.link.PairedDevice
+import se.eldebosh.nastastopp.settings.AppSettings
+import se.eldebosh.nastastopp.settings.DeviceState
+import se.eldebosh.nastastopp.settings.EnrollResult
+import se.eldebosh.nastastopp.settings.WindowPlaces
+import se.eldebosh.nastastopp.ui.AppButton
 import se.eldebosh.nastastopp.ui.AppCard
 import se.eldebosh.nastastopp.ui.HelpDot
 import se.eldebosh.nastastopp.ui.IconBadge
 import se.eldebosh.nastastopp.ui.ListRow
-import se.eldebosh.nastastopp.ui.ref
-import se.eldebosh.nastastopp.ui.refCorner
-import se.eldebosh.nastastopp.core.display.DisplaySnapshot
-import se.eldebosh.nastastopp.link.DisplayLinkClient
-import se.eldebosh.nastastopp.link.PairedDevice
-import se.eldebosh.nastastopp.settings.AppSettings
-import se.eldebosh.nastastopp.ui.AppButton
 import se.eldebosh.nastastopp.ui.SectionTitle
 import se.eldebosh.nastastopp.ui.TopBar
-import se.eldebosh.nastastopp.ui.theme.Brand
-import se.eldebosh.nastastopp.ui.theme.Hairline
+import se.eldebosh.nastastopp.ui.ref
+import se.eldebosh.nastastopp.ui.refCorner
+import se.eldebosh.nastastopp.ui.theme.AppTheme
+import se.eldebosh.nastastopp.weather.WeatherWidgets
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /**
  * This device is a passenger display: first choose the driver's (paired) device, then show the
@@ -63,9 +94,64 @@ fun DisplayRoleScreen(
     /** A paired device's address, or null for automatic search. */
     onChoose: (String?) -> Unit,
     onSpeak: () -> Unit,
+    /** Says what a tap on the display's clock or a card asks for, on this device. */
+    onSay: (Announcement) -> Unit,
     onToggleSpeaks: (Boolean) -> Unit,
     onSwitchToController: () -> Unit,
+    /** The phone's floating panel on this tablet (asks for the overlay permission when missing). */
+    onTogglePanel: (Boolean) -> Unit = {},
+    panelAllowed: Boolean = true,
+    onAllowPanel: () -> Unit = {},
+    onToggleLook: () -> Unit = {},
+    /** Sends the order the driver set on the display's map to the phone (the trips' numbers). */
+    onOrder: ((List<Long>) -> Unit)? = null,
+    /** The weather app's widget on the display (207): its name (null: SMHI's weather), the choices, the choice. */
+    widgetLabel: String? = null,
+    widgetChoices: () -> List<WeatherWidgets.Choice> = { emptyList() },
+    onChooseWidget: (WeatherWidgets.Choice?) -> Unit = {},
+    weatherWidget: (@Composable (Modifier) -> Unit)? = null,
+    /**
+     * The Google map on the display (208): the driver's own key (null removes it), the source of
+     * the ways (304) with his own mapmap key, whether Google refused the map's key, the map. His own
+     * keys are used only while the tablet is not connected to the company's server.
+     */
+    onSaveMapsKey: (String?) -> Unit = {},
+    onSaveWays: (WaySource, String?) -> Unit = { _, _ -> },
+    /**
+     * The company's server (311): where this tablet stands, Connect with the code the owner gave
+     * (312–314), Check now (317) and Disconnect (318 → 320).
+     */
+    companyState: DeviceState = DeviceState.NotConnected,
+    onConnect: suspend (String) -> EnrollResult = { EnrollResult.Offline },
+    onCheckNow: () -> Unit = {},
+    onDisconnect: () -> Unit = {},
+    mapRefused: Boolean = false,
+    routeMap: RouteMap? = null,
+    /** The tablet knows where it is (its own GPS), for the map. */
+    mapLive: Boolean = false,
+    /** The map is asked for: the tablet's location permission, if not given yet. */
+    onWantPosition: (() -> Unit)? = null,
+    /** Google's own apps at a stop's point, from the driver's map: Google Earth's 3D view (242), Google Maps' street photos (244). */
+    onEarth: ((Double, Double) -> Unit)? = null,
+    onStreetPhotos: ((Double, Double) -> Unit)? = null,
+    /** Where the driver last left the display's trip card and list of trips, and how big. */
+    places: WindowPlaces? = null,
     availabilityStatus: DisplayLinkClient.Status = DisplayLinkClient.Status.IDLE,
+    /** Goes up by one with each announcement from the driver's phone. */
+    spoken: Int = 0,
+    /** Each part of an announcement once this tablet's voice has said it (null while it does not speak). */
+    voice: Flow<Int>? = null,
+    /** Each step of a trip tapped here once this tablet's voice has said it. */
+    ownVoice: Flow<Int>? = null,
+    /** The controls the driver used on the phone's floating panel, and what this display's map shows, for it. */
+    remote: Flow<LinkMessage.Remote>? = null,
+    onMapView: ((LinkMessage.MapView) -> Unit)? = null,
+    /** The car moved in the last two minutes, how much it shakes now and how fast it goes (the display's motion band). */
+    awake: Boolean = true,
+    motion: (() -> Float)? = null,
+    speed: () -> Float? = { null },
+    /** The motion band's look was switched by a long press on the display's top line. */
+    onMotionStyle: ((MotionStyle) -> Unit)? = null,
 ) {
     var showSetup by remember { mutableStateOf(false) }
     val blocked = !bluetoothReady || paired.isEmpty() ||
@@ -78,20 +164,51 @@ fun DisplayRoleScreen(
         val connected = link.status == DisplayLinkClient.Status.CONNECTED
         PassengerDisplayScreen(
             snapshot = snapshot,
-            status = when {
-                connected -> stringResource(R.string.display_connected, link.deviceName.orEmpty())
-                link.deviceName != null -> stringResource(R.string.display_connecting, link.deviceName)
-                else -> stringResource(R.string.display_searching)
-            },
+            // The phone's name, short (the dot beside it says whether it is connected).
+            status = link.deviceName?.take(NAME_CHARS) ?: stringResource(R.string.display_searching),
             connected = connected,
             onSpeak = onSpeak,
+            onSay = onSay,
             onExit = { showSetup = true },
+            spoken = spoken,
+            voice = voice,
+            ownVoice = ownVoice,
             detail = if (!connected) link.lastError?.let { stringResource(R.string.display_last_error, it) } else null,
+            weatherWidget = weatherWidget,
+            routeMap = routeMap,
+            mapLive = mapLive,
+            onWantPosition = onWantPosition,
+            onEarth = onEarth,
+            onStreetPhotos = onStreetPhotos,
+            places = places,
+            dark = settings.displayDark,
+            onToggleLook = onToggleLook,
+            onOrder = onOrder,
+            remote = remote,
+            onMapView = onMapView,
+            awake = awake,
+            motion = motion,
+            speed = speed,
+            motionStyle = settings.motionStyle,
+            onMotionStyle = onMotionStyle,
         )
         return
     }
+    var choosingWidget by remember { mutableStateOf(false) }
+    var editingKey by remember { mutableStateOf(false) }
+    var choosingWays by remember { mutableStateOf(false) }
+    var companyWindow by remember { mutableStateOf<CompanyWindow?>(null) }
+    var disconnecting by remember { mutableStateOf(false) }
+    // While the company's server holds this tablet's keys (also stopped or unknown to it), the
+    // driver's own keys are not used: 208 and 304 say so and never open his key's window.
+    val companyMode = companyState is DeviceState.Connected || companyState is DeviceState.Stopped || companyState is DeviceState.Unknown
+    val serverMapmap = (companyState as? DeviceState.Connected)?.mapmap == true
+    // Which window a tap on 311 (or 208 while connected) opens; it stays that window while open.
+    val openCompany = {
+        companyWindow = if (companyMode && companyState !is DeviceState.Unknown) CompanyWindow.CONNECTED else CompanyWindow.CONNECT
+    }
 
-    Column(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         TopBar(
             stringResource(R.string.role_display),
             onBack = if (!blocked) ({ showSetup = false }) else null,
@@ -140,11 +257,411 @@ fun DisplayRoleScreen(
                     onClick = { onToggleSpeaks(!settings.displaySpeaks) },
                     trailing = { Switch(checked = settings.displaySpeaks, onCheckedChange = onToggleSpeaks, modifier = Modifier.refCorner(198)) },
                 )
+                // On but not allowed to show over other apps: it says so, and a tap asks for it.
+                val panelBlocked = settings.tabletPanel && !panelAllowed
+                ListRow(
+                    title = stringResource(R.string.tablet_panel),
+                    subtitle = if (panelBlocked) stringResource(R.string.tablet_panel_needs_permission) else null,
+                    help = R.string.help_tablet_panel,
+                    onClick = { if (panelBlocked) onAllowPanel() else onTogglePanel(!settings.tabletPanel) },
+                    trailing = { Switch(checked = settings.tabletPanel, onCheckedChange = onTogglePanel, modifier = Modifier.refCorner(206)) },
+                )
+                ListRow(
+                    title = stringResource(R.string.weather_widget),
+                    subtitle = widgetLabel ?: stringResource(R.string.weather_widget_none),
+                    help = R.string.help_weather_widget,
+                    ref = 207,
+                    onClick = { choosingWidget = true },
+                )
+                val (companyText, companyColor) = companyLine(companyState)
+                ListRow(
+                    title = stringResource(R.string.company_server),
+                    subtitle = companyText,
+                    subtitleColor = companyColor,
+                    help = R.string.help_company_server,
+                    ref = 311,
+                    onClick = openCompany,
+                )
+                if (companyMode) {
+                    ListRow(
+                        title = stringResource(R.string.maps_key),
+                        subtitle = stringResource(if (mapRefused) R.string.maps_key_company_refused else R.string.maps_key_company),
+                        subtitleColor = if (mapRefused) AppTheme.colors.danger else null,
+                        help = R.string.help_maps_key,
+                        ref = 208,
+                        onClick = openCompany,
+                    )
+                } else {
+                    ListRow(
+                        title = stringResource(R.string.maps_key),
+                        subtitle = stringResource(
+                            when {
+                                settings.mapsKey == null -> R.string.maps_key_none
+                                mapRefused -> R.string.maps_key_refused
+                                else -> R.string.maps_key_set
+                            },
+                        ),
+                        subtitleColor = if (mapRefused && settings.mapsKey != null) AppTheme.colors.danger else null,
+                        help = R.string.help_maps_key,
+                        ref = 208,
+                        onClick = { editingKey = true },
+                    )
+                }
+                ListRow(
+                    title = stringResource(R.string.way_source),
+                    subtitle = stringResource(
+                        when {
+                            settings.waySource == WaySource.GOOGLE -> R.string.way_source_google
+                            companyMode -> if (serverMapmap) R.string.way_source_mapmap else R.string.way_source_mapmap_unavailable
+                            MapmapApi.isKey(settings.mapmapKey) -> R.string.way_source_mapmap
+                            else -> R.string.way_source_mapmap_no_key
+                        },
+                    ),
+                    help = R.string.help_way_source,
+                    ref = 304,
+                    onClick = { choosingWays = true },
+                )
             }
             Spacer(Modifier.size(8.dp))
             AppButton(stringResource(R.string.switch_to_controller), onSwitchToController, Modifier.ref(199).fillMaxWidth(), icon = R.drawable.ic_navigation, primary = false)
             Spacer(Modifier.size(24.dp))
         }
+    }
+
+    if (choosingWidget) {
+        val choices = remember { widgetChoices() }
+        AlertDialog(
+            onDismissRequest = { choosingWidget = false },
+            title = { Text(stringResource(R.string.weather_widget_pick)) },
+            text = {
+                LazyColumn(Modifier.heightIn(max = 440.dp)) {
+                    item {
+                        ChoiceRow(stringResource(R.string.weather_widget_none), null, 212) {
+                            choosingWidget = false
+                            onChooseWidget(null)
+                        }
+                    }
+                    items(choices) { c ->
+                        ChoiceRow(c.label, c.app, 213) {
+                            choosingWidget = false
+                            onChooseWidget(c)
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { choosingWidget = false }, modifier = Modifier.ref(218)) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+
+    if (choosingWays) {
+        var source by remember { mutableStateOf(settings.waySource) }
+        var text by remember { mutableStateOf(settings.mapmapKey.orEmpty()) }
+        val valid = MapmapApi.isKey(text)
+        AlertDialog(
+            onDismissRequest = { choosingWays = false },
+            title = { Text(stringResource(R.string.way_source)) },
+            text = {
+                Column {
+                    SourceRow(stringResource(R.string.way_source_google), source == WaySource.GOOGLE, 305) { source = WaySource.GOOGLE }
+                    // Connected: mapmap.ai only when the company's server has its key; no key is typed here.
+                    SourceRow(stringResource(R.string.way_source_mapmap), source == WaySource.MAPMAP, 306, enabled = !companyMode || serverMapmap) { source = WaySource.MAPMAP }
+                    if (companyMode && !serverMapmap) {
+                        Text(stringResource(R.string.way_source_mapmap_unavailable), style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.textMuted)
+                    }
+                    if (source == WaySource.MAPMAP && !companyMode) {
+                        OutlinedTextField(
+                            value = text,
+                            onValueChange = { text = it.trim() },
+                            label = { Text(stringResource(R.string.mapmap_key_label)) },
+                            singleLine = true,
+                            isError = text.isNotEmpty() && !valid,
+                            keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Ascii),
+                            modifier = Modifier.ref(307).fillMaxWidth(),
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        choosingWays = false
+                        // Connected: only the source; the driver's own mapmap key stays as it is.
+                        onSaveWays(source, if (companyMode) settings.mapmapKey else text.takeIf { valid } ?: settings.mapmapKey)
+                    },
+                    enabled = source == WaySource.GOOGLE || (if (companyMode) serverMapmap else valid),
+                    modifier = Modifier.ref(308),
+                ) { Text(stringResource(R.string.save)) }
+            },
+            dismissButton = {
+                Row {
+                    if (settings.mapmapKey != null && !companyMode) {
+                        TextButton(
+                            onClick = {
+                                choosingWays = false
+                                onSaveWays(WaySource.GOOGLE, null)
+                            },
+                            modifier = Modifier.ref(309),
+                        ) { Text(stringResource(R.string.delete)) }
+                    }
+                    TextButton(onClick = { choosingWays = false }, modifier = Modifier.ref(310)) { Text(stringResource(R.string.cancel)) }
+                }
+            },
+        )
+    }
+
+    if (editingKey) {
+        var text by remember { mutableStateOf(settings.mapsKey.orEmpty()) }
+        val valid = RoutesApi.isKey(text)
+        AlertDialog(
+            onDismissRequest = { editingKey = false },
+            title = { Text(stringResource(R.string.maps_key)) },
+            text = {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it.trim() },
+                    label = { Text(stringResource(R.string.maps_key_label)) },
+                    singleLine = true,
+                    isError = text.isNotEmpty() && !valid,
+                    keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Ascii),
+                    modifier = Modifier.ref(214).fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        editingKey = false
+                        onSaveMapsKey(text)
+                    },
+                    enabled = valid,
+                    modifier = Modifier.ref(215),
+                ) { Text(stringResource(R.string.save)) }
+            },
+            dismissButton = {
+                Row {
+                    if (settings.mapsKey != null) {
+                        TextButton(
+                            onClick = {
+                                editingKey = false
+                                onSaveMapsKey(null)
+                            },
+                            modifier = Modifier.ref(216),
+                        ) { Text(stringResource(R.string.delete)) }
+                    }
+                    TextButton(onClick = { editingKey = false }, modifier = Modifier.ref(217)) { Text(stringResource(R.string.cancel)) }
+                }
+            },
+        )
+    }
+
+    when (companyWindow) {
+        CompanyWindow.CONNECTED -> ConnectedWindow(
+            state = companyState,
+            onCheckNow = onCheckNow,
+            onDisconnect = { disconnecting = true },
+            onClose = { companyWindow = null },
+        )
+        CompanyWindow.CONNECT -> ConnectWindow(
+            onConnect = onConnect,
+            // A saved connection that is lost or unknown can also be forgotten, for the driver's own keys.
+            onDisconnect = if (companyState is DeviceState.Lost || companyState is DeviceState.Unknown) ({ disconnecting = true }) else null,
+            onClose = { companyWindow = null },
+        )
+        null -> Unit
+    }
+
+    if (disconnecting) {
+        AlertDialog(
+            onDismissRequest = { disconnecting = false },
+            title = { Text(stringResource(R.string.company_disconnect)) },
+            text = { Text(stringResource(R.string.company_disconnect_ask), style = MaterialTheme.typography.bodyMedium) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        disconnecting = false
+                        companyWindow = null
+                        onDisconnect()
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = AppTheme.colors.danger),
+                    modifier = Modifier.ref(320),
+                ) { Text(stringResource(R.string.company_disconnect_short)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { disconnecting = false }, modifier = Modifier.ref(321)) { Text(stringResource(R.string.cancel)) }
+            },
+        )
+    }
+}
+
+/**
+ * The words of 311 (and 316) for [state], with the colour of those that need the driver: red when
+ * the map is gone until he or the owner acts, amber while it waits by itself.
+ */
+@Composable
+private fun companyLine(state: DeviceState): Pair<String, Color?> = when (state) {
+    is DeviceState.Stopped -> stringResource(R.string.company_stopped) to AppTheme.colors.danger
+    DeviceState.Unknown -> stringResource(R.string.company_unknown) to AppTheme.colors.danger
+    DeviceState.Lost -> stringResource(R.string.company_lost) to AppTheme.colors.danger
+    DeviceState.NotConnected -> stringResource(R.string.company_not_connected) to null
+    is DeviceState.Connected -> {
+        val until = state.limits.values.filter { it > System.currentTimeMillis() }.maxOrNull()
+        when {
+            until != null -> stringResource(R.string.company_limit, clockOf(until)) to AppTheme.colors.warning
+            state.down -> stringResource(R.string.company_down) to AppTheme.colors.warning
+            state.mapKey == null -> stringResource(R.string.company_no_map_key) to null
+            else -> stringResource(R.string.company_connected, state.label.ifBlank { CompanyServer.ROLE }) to null
+        }
+    }
+}
+
+/** [wallMs] as this tablet's clock shows it ("00:00"). */
+private fun clockOf(wallMs: Long): String =
+    DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT).format(Instant.ofEpochMilli(wallMs).atZone(ZoneId.systemDefault()))
+
+/**
+ * Connects this tablet to the company's server with the code the owner made on the admin page
+ * (312–315). The code lives only in this window while it is open: it is sent once and never kept.
+ */
+@Composable
+private fun ConnectWindow(onConnect: suspend (String) -> EnrollResult, onDisconnect: (() -> Unit)?, onClose: () -> Unit) {
+    var text by remember { mutableStateOf("") }
+    var sending by remember { mutableStateOf(false) }
+    var answer by remember { mutableStateOf<EnrollResult?>(null) }
+    val scope = rememberCoroutineScope()
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text(stringResource(R.string.company_server)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = text,
+                    // Letters and digits as typed, upper case; spaces and "-" are let through and left out when sent.
+                    onValueChange = { typed -> text = typed.filter { it in CODE_TYPED }.uppercase(Locale.ROOT).take(CODE_CHARS) },
+                    label = { Text(stringResource(R.string.company_code_label)) },
+                    singleLine = true,
+                    supportingText = if (CompanyServer.hasLookalikes(text)) ({ Text(stringResource(R.string.company_code_lookalikes)) }) else null,
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Characters,
+                        autoCorrectEnabled = false,
+                        keyboardType = KeyboardType.Ascii,
+                    ),
+                    modifier = Modifier.ref(312).fillMaxWidth(),
+                )
+                val said = when {
+                    sending -> stringResource(R.string.company_connecting) to AppTheme.colors.textMuted
+                    else -> when (val a = answer) {
+                        null, is EnrollResult.Connected -> null
+                        EnrollResult.WrongCode -> stringResource(R.string.company_wrong_code) to AppTheme.colors.danger
+                        EnrollResult.Offline -> stringResource(R.string.company_offline) to AppTheme.colors.danger
+                        is EnrollResult.ServerError -> stringResource(R.string.company_server_error, a.code) to AppTheme.colors.danger
+                    }
+                }
+                said?.let { (words, color) ->
+                    Text(words, style = MaterialTheme.typography.bodyMedium, color = color, modifier = Modifier.ref(313))
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    sending = true
+                    answer = null
+                    scope.launch {
+                        val result = onConnect(text)
+                        sending = false
+                        answer = result
+                        if (result is EnrollResult.Connected) onClose()
+                    }
+                },
+                enabled = !sending && CompanyServer.code(text) != null,
+                modifier = Modifier.ref(314),
+            ) { Text(stringResource(R.string.company_connect)) }
+        },
+        dismissButton = {
+            Row {
+                if (onDisconnect != null) {
+                    TextButton(
+                        onClick = onDisconnect,
+                        colors = ButtonDefaults.textButtonColors(contentColor = AppTheme.colors.danger),
+                        modifier = Modifier.ref(318),
+                    ) { Text(stringResource(R.string.company_disconnect)) }
+                }
+                TextButton(onClick = onClose, modifier = Modifier.ref(315)) { Text(stringResource(R.string.cancel)) }
+            }
+        },
+    )
+}
+
+/** This tablet connected (or stopped by the owner): its state and ways (316), Check now, Disconnect, Close (317–319). */
+@Composable
+private fun ConnectedWindow(state: DeviceState, onCheckNow: () -> Unit, onDisconnect: () -> Unit, onClose: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text(stringResource(R.string.company_server)) },
+        text = {
+            val (words, color) = companyLine(state)
+            val connected = state as? DeviceState.Connected
+            val ways = listOfNotNull("Google".takeIf { connected?.google == true }, "mapmap.ai".takeIf { connected?.mapmap == true })
+            Column(Modifier.ref(316), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(words, style = MaterialTheme.typography.bodyLarge, color = color ?: MaterialTheme.colorScheme.onSurface)
+                if (connected != null) {
+                    Text(
+                        stringResource(R.string.company_ways, ways.joinToString(" · ").ifEmpty { "—" }),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = AppTheme.colors.textMuted,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onClose, modifier = Modifier.ref(319)) { Text(stringResource(R.string.ok)) }
+        },
+        dismissButton = {
+            Row {
+                TextButton(
+                    onClick = onDisconnect,
+                    colors = ButtonDefaults.textButtonColors(contentColor = AppTheme.colors.danger),
+                    modifier = Modifier.ref(318),
+                ) { Text(stringResource(R.string.company_disconnect)) }
+                TextButton(onClick = onCheckNow, modifier = Modifier.ref(317)) { Text(stringResource(R.string.company_check_now)) }
+            }
+        },
+    )
+}
+
+/** The windows of the company's server: Connect (312–315), or the tablet connected (316–319). */
+private enum class CompanyWindow { CONNECT, CONNECTED }
+
+/** One source of the ways in the window of 304: its name, picked or not, and whether it can be chosen. */
+@Composable
+private fun SourceRow(title: String, picked: Boolean, ref: Int, enabled: Boolean = true, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .ref(ref)
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .selectable(selected = picked, enabled = enabled, onClick = onClick, role = Role.RadioButton)
+            .padding(horizontal = 4.dp, vertical = 6.dp),
+    ) {
+        RadioButton(selected = picked, onClick = null, enabled = enabled)
+        Spacer(Modifier.width(8.dp))
+        Text(title, style = MaterialTheme.typography.bodyLarge, color = if (enabled) MaterialTheme.colorScheme.onSurface else AppTheme.colors.textMuted)
+    }
+}
+
+@Composable
+private fun ChoiceRow(title: String, subtitle: String?, ref: Int, onClick: () -> Unit) {
+    Column(
+        Modifier
+            .ref(ref)
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 10.dp),
+    ) {
+        Text(title, style = MaterialTheme.typography.bodyLarge)
+        if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.textMuted)
     }
 }
 
@@ -158,12 +675,21 @@ private fun DeviceRow(name: String, selected: Boolean, ref: Int, onClick: () -> 
             .heightIn(min = 56.dp)
             .clip(MaterialTheme.shapes.large)
             .background(if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer)
-            .border(1.dp, if (selected) Brand else Hairline, MaterialTheme.shapes.large)
+            .border(1.dp, if (selected) AppTheme.colors.info else AppTheme.colors.cardBorder, MaterialTheme.shapes.large)
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
-        IconBadge(R.drawable.ic_bluetooth, if (selected) Brand else MaterialTheme.colorScheme.onSurfaceVariant)
+        IconBadge(R.drawable.ic_bluetooth, if (selected) AppTheme.colors.info else MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.width(12.dp))
         Text(name, style = MaterialTheme.typography.bodyLarge)
     }
 }
+
+/** The phone's name on the passenger display's top line: its first letters are enough. */
+private const val NAME_CHARS = 10
+
+/** What the code field takes (312): ASCII letters and digits, and the spaces and "-" a code may be written with. */
+private val CODE_TYPED = ('a'..'z').toSet() + ('A'..'Z') + ('0'..'9') + ' ' + '-'
+
+/** The code field's longest text: a code's 8 characters and a little room for spaces or "-". */
+private const val CODE_CHARS = 10

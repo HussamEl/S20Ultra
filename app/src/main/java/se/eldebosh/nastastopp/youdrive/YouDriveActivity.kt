@@ -2,6 +2,7 @@ package se.eldebosh.nastastopp.youdrive
 
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import android.view.ViewGroup
@@ -16,21 +17,28 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import se.eldebosh.nastastopp.App
 import se.eldebosh.nastastopp.MainActivity
 import se.eldebosh.nastastopp.R
+import se.eldebosh.nastastopp.core.youdrive.YouDriveCards
 import se.eldebosh.nastastopp.service.Notifications
 import se.eldebosh.nastastopp.settings.SettingsStore
 import se.eldebosh.nastastopp.ui.LocalExplainResources
 import se.eldebosh.nastastopp.ui.RefNumbers
 import se.eldebosh.nastastopp.ui.screens.YouDriveBar
+import se.eldebosh.nastastopp.ui.theme.AppTheme
 import se.eldebosh.nastastopp.ui.theme.NastaTheme
+import se.eldebosh.nastastopp.ui.theme.SystemBarsFollowTheme
 import se.eldebosh.nastastopp.util.LocaleHelper
 import se.eldebosh.nastastopp.util.SystemIntents
 
@@ -42,6 +50,7 @@ import se.eldebosh.nastastopp.util.SystemIntents
 class YouDriveActivity : ComponentActivity() {
 
     private lateinit var holder: FrameLayout
+    private lateinit var root: LinearLayout
     private var web: WebView? = null
     private val graph get() = App.from(this).graph
 
@@ -55,9 +64,10 @@ class YouDriveActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val bar = ComposeView(this).apply { setContent { Bar() } }
         holder = FrameLayout(this)
-        val root = LinearLayout(this).apply {
+        root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(BAR_COLOR) // behind the status bar: the same colour as the bar
+            // Behind the status bar: the same colour as the bar (the look's card colour).
+            setBackgroundColor(AppTheme.colorsFor(graph.settings.current.appearance, isNightMode()).card.toArgb())
             addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             addView(holder, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         }
@@ -100,9 +110,16 @@ class YouDriveActivity : ComponentActivity() {
             LocaleHelper.explanationContext(this, settings.uiLanguage, settings.explanationsArabic)
                 .takeIf { it !== this }?.resources
         }
-        NastaTheme {
-            // Surface: gives the bar's texts and icons the theme's light content colour.
-            Surface(color = MaterialTheme.colorScheme.surfaceContainerLow, contentColor = MaterialTheme.colorScheme.onSurface) {
+        NastaTheme(settings.appearance) {
+            SystemBarsFollowTheme()
+            val barColor = AppTheme.colors.card
+            SideEffect { root.setBackgroundColor(barColor.toArgb()) }
+            // Surface: gives the bar's texts and icons the theme's content colour.
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.semantics { testTagsAsResourceId = true }, // "ref_<n>" resource-ids
+            ) {
                 CompositionLocalProvider(LocalExplainResources provides explainResources) {
                     YouDriveBar(
                         state = state,
@@ -131,9 +148,11 @@ class YouDriveActivity : ComponentActivity() {
     }
 
     private fun importAll() {
-        val added = graph.controller.importTrips(graph.youDrive.state.value.trips.mapNotNull { it.stop })
+        // Trips already done today ("Performed", "Departed") are not added; trips already in the
+        // list are brought up to date instead of added twice.
+        val (added, updated) = graph.controller.syncTrips(YouDriveCards.toAdd(graph.youDrive.state.value.trips))
         if (added == 0) {
-            toast(getString(R.string.youdrive_nothing_new))
+            toast(if (updated > 0) getString(R.string.youdrive_updated, updated) else getString(R.string.youdrive_nothing_new))
             return
         }
         toast(getString(R.string.import_result, added))
@@ -162,10 +181,8 @@ class YouDriveActivity : ComponentActivity() {
 
     private fun toast(text: String) = Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
 
-    private companion object {
-        /** The bar's colour (theme surfaceContainerLow), also behind the status bar. */
-        const val BAR_COLOR = 0xFF0F1520.toInt()
-    }
+    private fun isNightMode() =
+        (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
 
     override fun onDestroy() {
         graph.youDrive.onPageReplaced = null

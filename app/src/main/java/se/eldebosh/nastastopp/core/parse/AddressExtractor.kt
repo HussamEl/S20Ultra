@@ -11,6 +11,12 @@ package se.eldebosh.nastastopp.core.parse
  * @property parsedTownKnown true if [parsedTown] is in the bundled locality list.
  * @property sourceOrder index of the (first) OCR line this stop came from.
  * @property time scheduled time of the trip as shown in the screenshot ("12:48"), or null.
+ * @property kind pick-up / drop-off / depot, from the list's label next to the trip, or null.
+ * @property name the passenger's first and last name from the line above the address, or null.
+ * @property place the named place written with the address on a YouDrive card ("Kils
+ *   Vårdcentral", "Centralsjukhuset Huvudentrén"), or null; see [Places].
+ * @property card everything on the trip's YouDrive card, as written, or null: shown only on the
+ *   passenger display's trip card, when the driver opens it; never said, sent anywhere else or logged.
  */
 data class ExtractedStop(
     val displayText: String,
@@ -20,9 +26,15 @@ data class ExtractedStop(
     val sourceOrder: Int,
     val parsedTownKnown: Boolean = false,
     val time: String? = null,
+    val kind: TripKind? = null,
+    val name: String? = null,
+    /** YouDrive's card says the trip is done ("Performed"). */
+    val youDriveDone: Boolean = false,
+    val place: String? = null,
+    val card: String? = null,
 )
 
-/** Which detection rule accepted the line (see §5 of the spec). */
+/** Which detection rule accepted the line. */
 enum class MatchRule { POSTAL_TOWN, STREET_NUMBER, KNOWN_TOWN, MANUAL }
 
 /** Result of analysing one (possibly joined) line. */
@@ -50,7 +62,7 @@ class AddressExtractor(private val localities: Localities) {
         val found = ArrayList<Triple<ParsedAddress, Int, Int>>()
         var i = 0
         while (i < lines.size) {
-            val line = lines[i]
+            val line = withCarriedPrefix(lines.getOrNull(i - 1), lines[i])
             val next = lines.getOrNull(i + 1)
             val single = safeParse(line)
             val singleHasPlace = single != null && (single.postalCode != null || single.town != null)
@@ -65,15 +77,31 @@ class AddressExtractor(private val localities: Localities) {
             if (single != null) found += Triple(single, i, i)
             i++
         }
-        val times = try {
-            TripTimes.assign(lines, found.map { it.second to it.third })
-        } catch (_: RuntimeException) {
-            List(found.size) { null }
-        }
+        val (times, kinds) = timesAndKinds(lines, found.map { it.second to it.third })
         return mergeConsecutiveDuplicates(
-            found.mapIndexed { k, (p, first, _) -> p.toStop(startOrder + first).copy(time = times.getOrNull(k)) to p },
+            found.mapIndexed { k, (p, first, _) ->
+                // The passenger's name is the line right above the address (never past the previous trip).
+                val above = first - 1
+                val name = if (above >= 0 && (k == 0 || above > found[k - 1].third)) personName(lines[above]) else null
+                p.toStop(startOrder + first).copy(time = times.getOrNull(k), kind = kinds.getOrNull(k), name = name) to p
+            },
         )
     }
+
+    /**
+     * The time and kind label ("Pick-up") of every address span. Both sit in the same card, so one
+     * direction (above or below the address) is chosen for both, by whichever gives more spans a
+     * time or a label: a trip never takes its neighbour's kind while keeping its own time.
+     */
+    private fun timesAndKinds(lines: List<String>, spans: List<Pair<Int, Int>>): Pair<List<String?>, List<TripKind?>> =
+        try {
+            val times = TripTimes.timesNearby(lines, spans)
+            val kinds = TripTimes.nearby(lines, spans) { TripKinds.labelIn(lines[it]) }
+            val above = times.count(above = true) + kinds.count(above = true) >= times.count(above = false) + kinds.count(above = false)
+            times.values(above) to kinds.values(above)
+        } catch (_: RuntimeException) {
+            List(spans.size) { null } to List(spans.size) { null }
+        }
 
     /**
      * Parses a manually typed (or edited) address. Never rejects: if the text does not look like an
@@ -81,11 +109,29 @@ class AddressExtractor(private val localities: Localities) {
      */
     fun fromManualText(text: String, order: Int = 0): ExtractedStop? {
         val parsed = parse(text, manual = true)
-        if (parsed != null) return parsed.toStop(order)
+        if (parsed != null) return inNamedTown(parsed.toStop(order))
         val cleaned = clean(text) ?: return null
         if (TextNorm.letterCount(cleaned) + cleaned.count { it.isDigit() } < 2) return null
         val display = TitleCase.apply(cleaned)
-        return ExtractedStop(display, listOf(display), null, null, order)
+        return inNamedTown(ExtractedStop(display, listOf(display), null, null, order))
+    }
+
+    /**
+     * A place named by its town first, with no street number ("Edsvalla centrum", "Kil
+     * busstation"): the town is the one written, so the place is looked for there, and else the
+     * town itself (a meeting point in the town's centre). Any other stop as it is.
+     */
+    internal fun inNamedTown(stop: ExtractedStop): ExtractedStop {
+        if (stop.parsedTown != null || stop.parsedPostalCode != null) return stop
+        val text = stop.displayText
+        if (text.any { it.isDigit() }) return stop
+        val n = localities.prefixWords(text)
+        if (n == 0) return stop
+        val words = text.trim().split(Regex("[\\s,]+")).filter { it.isNotEmpty() }
+        if (words.size - n > PLACE_WORDS) return stop
+        val town = localities.canonical(words.take(n).joinToString(" ")) ?: return stop
+        val candidates = (stop.candidates.map { if (words.size > n) "$it, $town" else it } + town).distinct()
+        return stop.copy(candidates = candidates, parsedTown = town, parsedTownKnown = true)
     }
 
     /** True if two stops are the same address (used to merge consecutive duplicates). */
@@ -99,6 +145,36 @@ class AddressExtractor(private val localities: Localities) {
         val townOk = a.parsedTown == null || b.parsedTown == null || TextNorm.fold(a.parsedTown) == TextNorm.fold(b.parsedTown)
         return postalOk && townOk
     }
+
+    /**
+     * A passenger's name line ("Per Johan Albin Stenbäck", "ANNA TESTSSON") as first + last name
+     * ("Per Stenbäck", "Anna Testsson"): the only part of it that is kept. Anything that is not
+     * clearly a name gives null: digits or commas, a street, a town, a kind / status word, or
+     * (when [strict], for text of unknown layout) a lower-case word other than "van", "af" ….
+     * A YouDrive card's name line is known by its place (the card's first line), so there
+     * [strict] is off and "anna testsson" counts too.
+     */
+    fun personName(line: String, strict: Boolean = true): String? {
+        val text = TextNorm.collapseSpaces(line)
+        if (text.any { it.isDigit() || it == ',' || it == ':' } || TripKinds.labelIn(text) != null) return null
+        val words = text.split(' ')
+        if (words.size !in 2..6) return null
+        val first = words.first()
+        val last = words.last()
+        val letters = { w: String -> w.length >= 2 && w.all { it.isLetter() || it == '-' || it == '\'' } }
+        val nameWord = { w: String -> letters(w) && (!strict || w.first().isUpperCase()) }
+        if (!nameWord(first) || !nameWord(last)) return null
+        if (!words.drop(1).dropLast(1).all { nameWord(it) || TextNorm.fold(it) in NAME_PARTICLES }) return null
+        if (words.any { TextNorm.fold(it) in NOT_NAME_WORDS }) return null
+        if (localities.canonical(text) != null || findStreetToken(words + "1") >= 0) return null
+        if (words.any { w -> STREET_SUFFIXES.any { s -> w.length > s.length + 1 && w.lowercase(TextNorm.SWEDISH).endsWith(s) } }) return null
+        return "${nameCase(first)} ${nameCase(last)}"
+    }
+
+    /** "ANNA" / "anna" → "Anna", "ANNA-KARIN" → "Anna-Karin"; a mixed-case word stays as written. */
+    private fun nameCase(word: String): String =
+        if (word.any { it.isLowerCase() } && word.any { it.isUpperCase() }) word
+        else word.split('-').joinToString("-") { part -> part.lowercase(TextNorm.SWEDISH).replaceFirstChar { it.titlecase(TextNorm.SWEDISH) } }
 
     // ---------------------------------------------------------------------------------------
     // Line analysis
@@ -127,6 +203,9 @@ class AddressExtractor(private val localities: Localities) {
 
         val text = clean(rawNorm) ?: return null
         if (TextNorm.letterCount(text) < 2) return null
+        // A note written as a sentence ("följes in till plan 3", "så är det vid …") is not an
+        // address, even when it mentions a street.
+        if (!manual && lowerCaseWords(text) >= PROSE_WORDS) return null
 
         // --- Rule (a): postal code followed by a town word.
         val postal = findPostal(text)
@@ -166,7 +245,7 @@ class AddressExtractor(private val localities: Localities) {
             return null
         }
 
-        var tokens = tokenize(streetPart)
+        var tokens = withoutRepeatedWords(tokenize(streetPart))
         var streetIdx = findStreetToken(tokens)
 
         if (town == null && streetIdx >= 0) {
@@ -236,6 +315,21 @@ class AddressExtractor(private val localities: Localities) {
         )
     }
 
+    /**
+     * OCR sometimes splits one row in two: "10:45 Västra" | "Torggatan 12, 652 24 Karlstad". A
+     * street prefix word left at the end of the previous line is put back in front of the street.
+     */
+    private fun withCarriedPrefix(previous: String?, line: String): String {
+        val last = previous?.trim()?.split(' ')?.lastOrNull()?.stripPunct() ?: return line
+        // Capitalised like a street name ("Västra"), so UI text such as "Visa nya" is not carried.
+        if (last.firstOrNull()?.isUpperCase() != true || !isStreetPrefix(last)) return line
+        val first = line.trim().split(' ').firstOrNull()?.stripPunct() ?: return line
+        if (first.isEmpty() || !first.first().isLetter() || isStreetPrefix(first)) return line
+        return "$last ${line.trim()}"
+    }
+
+    private fun isStreetPrefix(word: String) = TextNorm.fold(word) in STREET_PREFIXES
+
     private fun ParsedAddress.toStop(order: Int) = ExtractedStop(
         displayText = displayText,
         candidates = candidates,
@@ -249,12 +343,15 @@ class AddressExtractor(private val localities: Localities) {
         val out = ArrayList<Pair<ExtractedStop, ParsedAddress>>()
         for (item in items) {
             val last = out.lastOrNull()
-            if (last != null && sameParsed(last.second, item.second)) {
+            if (last != null && sameParsed(last.second, item.second) && noConflict(last.first, item.first)) {
                 // Keep the more complete of the two (more place info), at the first position.
+                val time = last.first.time ?: item.first.time
+                val kind = last.first.kind ?: item.first.kind
+                val name = last.first.name ?: item.first.name
                 val keep = if (placeScore(item.second) > placeScore(last.second)) {
-                    item.first.copy(sourceOrder = last.first.sourceOrder, time = last.first.time ?: item.first.time) to item.second
+                    item.first.copy(sourceOrder = last.first.sourceOrder, time = time, kind = kind, name = name) to item.second
                 } else {
-                    last.first.copy(time = last.first.time ?: item.first.time) to last.second
+                    last.first.copy(time = time, kind = kind, name = name) to last.second
                 }
                 out[out.lastIndex] = keep
             } else {
@@ -263,6 +360,23 @@ class AddressExtractor(private val localities: Localities) {
         }
         return out.map { it.first }
     }
+
+    /** Words of letters that start in lower case ("inne", "följes", "så"): many of them make a sentence. */
+    private fun lowerCaseWords(text: String): Int =
+        text.split(' ', ',').count { w -> w.length >= 2 && w.first().isLowerCase() && w.all { it.isLetter() || it == '/' } }
+
+    /**
+     * Nothing known says [a] and [b] are two trips: no two different kinds (a drop-off and a
+     * pick-up at the same address are two stops), times or passengers. A field that one of them
+     * lacks says nothing, so a card cut by the edge of a screenshot still merges with its whole read.
+     */
+    fun noConflict(a: ExtractedStop, b: ExtractedStop): Boolean =
+        (a.kind == null || b.kind == null || a.kind == b.kind) &&
+            (a.time == null || b.time == null || TripTimes.minutes(a.time) == TripTimes.minutes(b.time)) &&
+            (a.name == null || b.name == null || TextNorm.fold(a.name) == TextNorm.fold(b.name))
+
+    /** One trip read twice (one after the other in an image, or across two overlapping images): its address, nothing in conflict. */
+    fun isSameTrip(a: ExtractedStop, b: ExtractedStop): Boolean = isSameAddress(a, b) && noConflict(a, b)
 
     private fun placeScore(p: ParsedAddress) = (if (p.postalCode != null) 2 else 0) + (if (p.town != null) 1 else 0)
 
@@ -426,6 +540,11 @@ class AddressExtractor(private val localities: Localities) {
 
     private fun tokenize(text: String): List<String> = text.split(' ').filter { it.isNotEmpty() }
 
+    /** "Depågatan Depågatan 1" (a place named after its street) → "Depågatan 1". */
+    private fun withoutRepeatedWords(tokens: List<String>): List<String> = tokens.filterIndexed { i, t ->
+        i == 0 || t.none { it.isLetter() } || !t.stripPunct().equals(tokens[i - 1].stripPunct(), ignoreCase = true)
+    }
+
     /** Index of the token carrying a street suffix that is followed by a house number, or -1. */
     private fun findStreetToken(tokens: List<String>): Int {
         for (i in tokens.indices) {
@@ -454,7 +573,10 @@ class AddressExtractor(private val localities: Localities) {
         if (streetIdx >= 0) {
             val word = tokens[streetIdx].stripPunct().lowercase(TextNorm.SWEDISH)
             val standalone = STREET_SUFFIXES.any { it == word }
-            return if (standalone) maxOf(0, streetIdx - 1) else streetIdx
+            var anchor = if (standalone) maxOf(0, streetIdx - 1) else streetIdx
+            // "Västra Torggatan", "Gamla Kilsvägen": the prefix belongs to the street name.
+            while (anchor > 0 && isStreetPrefix(tokens[anchor - 1].stripPunct())) anchor--
+            return anchor
         }
         val numIdx = tokens.indexOfFirst { HOUSE_NUMBER.matches(it.stripPunct()) }
         if (numIdx > 0) {
@@ -477,6 +599,28 @@ class AddressExtractor(private val localities: Localities) {
             "udden", "ringen", "allén", "allé", "gata", "torg", "plan", "väg",
             "vagen", "allen", "alle",
         ).sortedByDescending { it.length }
+
+        /** Lower-case words inside a name ("Anna van der Berg"), folded. */
+        private val NAME_PARTICLES = setOf("van", "von", "der", "den", "de", "af", "av", "la", "le", "el", "al", "bin", "ibn", "da", "di", "du")
+
+        /** Words that never occur in a passenger's name line (list headings, statuses, fees), folded. */
+        private val NOT_NAME_WORDS = setOf(
+            "performed", "departed", "arrive", "arrived", "compensation", "client", "fee", "status", "trips",
+            "start", "pull", "pick", "drop", "tel", "mobil", "resor", "idag", "korningar", "utford", "avgatt",
+            "no", "not", "show", "stop", "cancelled", "waiting", "min", "summary", "total",
+        )
+
+        /** At most this many words after a town make a place in it ("Edsvalla centrum", "Rud bytespunkt"). */
+        private const val PLACE_WORDS = 2
+
+        /** A line with this many lower-case words is a sentence (a note), not an address. */
+        private const val PROSE_WORDS = 4
+
+        /** Words that start a street name ("Västra Torggatan"), folded (no å ä ö, lower case). */
+        val STREET_PREFIXES: Set<String> = setOf(
+            "vastra", "ostra", "norra", "sodra", "stora", "lilla", "gamla", "nya",
+            "ovre", "nedre", "yttre", "inre", "sankt", "s:t",
+        )
 
         private val HOUSE_NUMBER = Regex("\\d{1,4}\\s?[A-Za-z]?|\\d{1,4}-\\d{1,4}")
 

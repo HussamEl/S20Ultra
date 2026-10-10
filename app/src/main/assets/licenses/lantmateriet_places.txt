@@ -1,0 +1,7 @@
+places.txt
+
+Place names: Lantmäteriet, Ortnamn (Nedladdning, vektor), CC BY 4.0
+(https://creativecommons.org/licenses/by/4.0/). The municipalities of Värmlands län and Örebro län.
+
+Only the names a trip can go to (settlements, towns, churches, facilities), each with its
+municipality and its point (converted from SWEREF 99 TM to WGS 84). No names of people.

@@ -1,40 +1,42 @@
 package se.eldebosh.nastastopp.ui.screens
 
 import androidx.annotation.DrawableRes
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.preferKeepClear
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,36 +44,37 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import se.eldebosh.nastastopp.R
-import se.eldebosh.nastastopp.ui.ref
 import se.eldebosh.nastastopp.core.geo.StreetInfo
+import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.core.parse.TripTimes
-import se.eldebosh.nastastopp.core.route.DetectorPhase
-import se.eldebosh.nastastopp.route.TrackingState
 import se.eldebosh.nastastopp.route.model.RouteData
+import se.eldebosh.nastastopp.route.Entrance
 import se.eldebosh.nastastopp.route.model.Stop
+import se.eldebosh.nastastopp.ui.DoneMarks
 import se.eldebosh.nastastopp.ui.AppButton
 import se.eldebosh.nastastopp.ui.ButtonRow
+import se.eldebosh.nastastopp.ui.KindLabel
 import se.eldebosh.nastastopp.ui.TopBar
 import se.eldebosh.nastastopp.ui.TouchTarget
+import se.eldebosh.nastastopp.ui.TripSurface
+import se.eldebosh.nastastopp.ui.ref
 import se.eldebosh.nastastopp.ui.refCorner
-import se.eldebosh.nastastopp.ui.theme.Brand
-import se.eldebosh.nastastopp.ui.theme.Hairline
-import se.eldebosh.nastastopp.ui.theme.TimeColor
-import se.eldebosh.nastastopp.ui.theme.Located
-import se.eldebosh.nastastopp.ui.theme.NotLocated
+import se.eldebosh.nastastopp.ui.theme.AppTheme
 import se.eldebosh.nastastopp.util.TimeLabels
 import java.time.Instant
 import java.time.ZoneId
-import kotlin.math.roundToInt
 
 /**
  * Active route: the trips stay listed in order, each starting with its time. Completed trips stay
@@ -80,7 +83,6 @@ import kotlin.math.roundToInt
 @Composable
 fun ActiveRouteScreen(
     route: RouteData,
-    tracking: TrackingState,
     hasLocationPermission: Boolean,
     spokenName: (Stop) -> String,
     overlayAvailable: Boolean,
@@ -96,6 +98,11 @@ fun ActiveRouteScreen(
     onEnd: () -> Unit,
     onOpenDisplay: () -> Unit,
     onToggleOverlay: () -> Unit,
+    /** The driver's entrance for a stop's address, or null. */
+    entranceOf: (Stop) -> Entrance? = { null },
+    /** Google Maps for the current stop alone: navigation to it, and its street photos (null: no point known). */
+    onNavigateStop: (Stop) -> Unit = {},
+    onStreetViewStop: ((Stop) -> Unit)? = null,
 ) {
     // Keep the screen on while this screen is visible.
     val view = LocalView.current
@@ -106,9 +113,10 @@ fun ActiveRouteScreen(
     var confirmEnd by remember { mutableStateOf(false) }
     val current = route.stops.firstOrNull()
     val listState = rememberLazyListState()
-    // Keep one completed trip visible above the current one.
-    LaunchedEffect(route.completed.size) {
-        listState.scrollToItem((route.completed.size - 1).coerceAtLeast(0))
+    // Keep one completed trip (or the start point) visible above the current one.
+    val lead = if (route.depot != null) 1 else 0
+    LaunchedEffect(route.completed.size, lead) {
+        listState.scrollToItem((lead + route.completed.size - 1).coerceAtLeast(0))
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -130,6 +138,16 @@ fun ActiveRouteScreen(
                         )
                     }
                 }
+                // End sits up here, not with the driving buttons: Maps' picture-in-picture window
+                // covers the bottom-right corner (V3), and ending is rare and asks first anyway.
+                IconButton(onClick = { confirmEnd = true }, modifier = Modifier.refCorner(82).size(TouchTarget)) {
+                    Icon(
+                        painterResource(R.drawable.ic_stop),
+                        contentDescription = stringResource(R.string.btn_end),
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
             },
         )
         if (hasLocationPermission) StreetBar(street, onSpeakStreet)
@@ -138,12 +156,21 @@ fun ActiveRouteScreen(
             modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            route.depot?.let { depot -> item(key = "depot") { DepotRow(depot) } }
             itemsIndexed(route.completed, key = { _, s -> "done-${s.id}" }) { _, stop ->
                 CompletedRow(stop, spokenName(stop))
             }
             if (current != null) {
                 item(key = "current-${current.id}") {
-                    CurrentCard(current, spokenName(current), statusText(current, tracking, hasLocationPermission), tracking.arrivedAtMs)
+                    val entrance = entranceOf(current)
+                    CurrentCard(
+                        current,
+                        spokenName(current),
+                        statusText(),
+                        entrance = entrance,
+                        onNavigate = { onNavigateStop(current) },
+                        onStreetView = onStreetViewStop?.takeIf { current.isLocated || entrance?.hasPoint == true }?.let { { it(current) } },
+                    )
                 }
             }
             if (route.stops.size > 1) {
@@ -160,22 +187,38 @@ fun ActiveRouteScreen(
                 UpcomingRow(index = i + 2, stop = stop, area = spokenName(stop))
             }
         }
-        Column(
-            Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerLow).padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            ButtonRow {
-                AppButton(
-                    stringResource(R.string.overlay_back), onPreviousTrip, Modifier.ref(77).weight(1f),
-                    icon = R.drawable.ic_previous, primary = false, enabled = route.completed.isNotEmpty(), minHeight = 60.dp,
-                )
-                AppButton(stringResource(R.string.btn_next), onNext, Modifier.ref(78).weight(1.6f), icon = R.drawable.ic_next, minHeight = 60.dp)
-            }
-            ButtonRow {
-                ActionTile(R.drawable.ic_repeat, stringResource(R.string.btn_repeat), 79, onRepeat)
-                ActionTile(R.drawable.ic_navigation, stringResource(R.string.btn_open_maps), 80, onOpenMaps)
-                ActionTile(R.drawable.ic_edit, stringResource(R.string.btn_edit_list), 81, onEdit)
-                ActionTile(R.drawable.ic_stop, stringResource(R.string.btn_end), 82, { confirmEnd = true }, MaterialTheme.colorScheme.error)
+        HorizontalDivider(thickness = 1.dp, color = AppTheme.colors.cardBorder)
+        // Maps' picture-in-picture window sits in the screen's bottom-right corner (about a third of
+        // the width), and not every system moves it for preferKeepClear. So the driving buttons
+        // (Back, Next, Repeat) stay in the left part in every language, and the right part holds
+        // Open Maps and Edit list, which are not needed while that window is shown.
+        val direction = LocalLayoutDirection.current
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            Row(
+                Modifier.fillMaxWidth().preferKeepClear().background(MaterialTheme.colorScheme.surfaceContainerLow).padding(horizontal = 16.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                CompositionLocalProvider(LocalLayoutDirection provides direction) {
+                    Column(Modifier.weight(DRIVING_SHARE), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ButtonRow {
+                            AppButton(
+                                stringResource(R.string.overlay_back), onPreviousTrip, Modifier.ref(77).weight(1f),
+                                icon = R.drawable.ic_previous, primary = false, enabled = route.completed.isNotEmpty(), minHeight = 60.dp,
+                                contentPadding = DRIVING_BUTTON_PADDING,
+                            )
+                            AppButton(
+                                stringResource(R.string.btn_next), onNext, Modifier.ref(78).weight(1.4f),
+                                icon = R.drawable.ic_next, minHeight = 60.dp, containerColor = AppTheme.colors.accent, contentColor = AppTheme.colors.onAccent,
+                                contentPadding = DRIVING_BUTTON_PADDING,
+                            )
+                        }
+                        ActionTile(R.drawable.ic_repeat, stringResource(R.string.btn_repeat), 79, onRepeat, Modifier.fillMaxWidth())
+                    }
+                    Column(Modifier.weight(1f - DRIVING_SHARE), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ActionTile(R.drawable.ic_navigation, stringResource(R.string.btn_open_maps), 80, onOpenMaps, Modifier.fillMaxWidth())
+                        ActionTile(R.drawable.ic_edit, stringResource(R.string.btn_edit_list), 81, onEdit, Modifier.fillMaxWidth())
+                    }
+                }
             }
         }
     }
@@ -197,14 +240,14 @@ private fun CompletedRow(stop: Stop, area: String) {
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.ref(67).fillMaxWidth().alpha(0.5f).padding(horizontal = 6.dp, vertical = 2.dp),
     ) {
-        Icon(painterResource(R.drawable.ic_located), contentDescription = null, tint = Located, modifier = Modifier.size(14.dp))
+        DoneMarks(youDrive = stop.youDriveDone, here = true)
         Spacer(Modifier.width(6.dp))
         if (stop.time != null) {
-            Text(stop.time, style = MaterialTheme.typography.labelMedium, color = TimeColor)
+            Text(stop.time, style = MaterialTheme.typography.labelMedium, color = AppTheme.colors.time)
             Spacer(Modifier.width(8.dp))
         }
         Text(
-            "$area · ${stop.displayText}",
+            listOfNotNull(stop.name, area, stop.displayText).joinToString(" · "),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Content),
@@ -225,7 +268,7 @@ private fun StreetBar(street: StreetInfo?, onSpeak: () -> Unit) {
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .padding(start = 14.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
     ) {
-        Icon(painterResource(R.drawable.ic_pin), contentDescription = null, tint = Brand, modifier = Modifier.size(20.dp))
+        Icon(painterResource(R.drawable.ic_pin), contentDescription = null, tint = AppTheme.colors.info, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(stringResource(R.string.street_label), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -266,101 +309,200 @@ private fun TimeStatusChip(time: String, nowMs: Long) {
     val until = TripTimes.minutesUntil(time, now.hour * 60 + now.minute) ?: return
     val resources = LocalResources.current
     val context = LocalContext.current
-    val color = Color(TimeLabels.color(TripTimes.level(until)))
+    val color = AppTheme.colors.status(TripTimes.level(until))
     val label = remember(until, resources) { TimeLabels.until(context, until) }
     Text(
         label,
         style = MaterialTheme.typography.labelLarge,
-        color = Color(0xFF0B0F17),
+        color = AppTheme.colors.onStatus,
         modifier = Modifier.ref(70).clip(RoundedCornerShape(50)).background(color).padding(horizontal = 10.dp, vertical = 3.dp),
     )
 }
 
+/**
+ * The current trip, like YouDrive's active card: the trip's colour (green pick-up, white
+ * drop-off) inside a thick border, the time on a yellow pill, the passenger's name beside it.
+ */
 @Composable
-private fun CurrentCard(current: Stop, area: String, status: String, arrivedAtMs: Long?) {
+private fun CurrentCard(
+    current: Stop,
+    area: String,
+    status: String,
+    entrance: Entrance?,
+    onNavigate: () -> Unit,
+    onStreetView: (() -> Unit)?,
+) {
     val nowMs = rememberNowMs()
-    val shape = MaterialTheme.shapes.large
-    Column(
-        Modifier
-            .ref(68)
-            .fillMaxWidth()
-            .clip(shape)
-            .background(Brush.verticalGradient(listOf(Color(0xFF1C3968), Color(0xFF132A4D))))
-            .border(1.dp, Brand.copy(alpha = 0.35f), shape)
-            .padding(16.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+    TripSurface(current.kind, Modifier.ref(68).fillMaxWidth(), current = true) {
+        Column(Modifier.animateContentSize().padding(16.dp)) {
+            // First line, as on YouDrive's card: the time and the passenger's first and last
+            // name level with it (the driver's screen only), then how late or early it is.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (current.time != null) {
+                    Text(
+                        current.time,
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = AppTheme.colors.onAccent,
+                        modifier = Modifier
+                            .ref(69)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(AppTheme.colors.accent)
+                            .padding(horizontal = 10.dp, vertical = 2.dp),
+                    )
+                    Spacer(Modifier.width(12.dp))
+                }
+                if (current.youDriveDone) {
+                    DoneMarks(youDrive = true, here = false, size = 18.dp)
+                    Spacer(Modifier.width(10.dp))
+                }
+                if (current.name != null) {
+                    Text(
+                        current.name,
+                        style = MaterialTheme.typography.titleLarge.copy(textDirection = TextDirection.Content),
+                        color = AppTheme.colors.onTrip,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.ref(135, centered = true).weight(1f),
+                    )
+                } else {
+                    Spacer(Modifier.weight(1f))
+                }
+                if (current.time != null) TimeStatusChip(current.time, nowMs)
+            }
+            Spacer(Modifier.height(6.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.active_next_label),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = AppTheme.colors.onTrip,
+                )
+                if (current.kind != null) {
+                    Spacer(Modifier.width(8.dp))
+                    KindLabel(current.kind, Modifier.ref(128, centered = true))
+                }
+            }
             Text(
-                stringResource(R.string.active_next_label),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.weight(1f),
+                area,
+                style = MaterialTheme.typography.headlineLarge.copy(textDirection = TextDirection.Content),
+                color = AppTheme.colors.onTrip,
+                modifier = Modifier.ref(71),
             )
-            if (current.time != null) TimeStatusChip(current.time, nowMs)
+            Spacer(Modifier.height(6.dp))
+            Row(verticalAlignment = Alignment.Top) {
+                Icon(
+                    painterResource(if (current.isLocated) R.drawable.ic_located else R.drawable.ic_not_located),
+                    contentDescription = stringResource(if (current.isLocated) R.string.stop_located else R.string.stop_not_located),
+                    tint = if (current.isLocated) AppTheme.colors.success else AppTheme.colors.danger,
+                    modifier = Modifier.padding(top = 2.dp).size(18.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    current.shownAddress,
+                    style = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Content),
+                    color = AppTheme.colors.onTrip,
+                    modifier = Modifier.ref(72),
+                )
+            }
+            // The driver's own stopping point and how to get in, when he set them.
+            if (entrance != null) {
+                Text(
+                    listOfNotNull(stringResource(if (entrance.hasPoint) R.string.entrance_saved else R.string.entrance_note_only), entrance.note)
+                        .joinToString(" · "),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = AppTheme.colors.success,
+                    modifier = Modifier.ref(258).padding(top = 4.dp),
+                )
+            }
+            // Google Maps for this stop alone: navigation to its point (never a search for its name),
+            // and Google's street photos of it.
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+                AppButton(
+                    stringResource(R.string.stop_navigate),
+                    onNavigate,
+                    Modifier.ref(252).weight(1f),
+                    icon = R.drawable.ic_navigation,
+                    primary = false,
+                    minHeight = 40.dp,
+                )
+                if (onStreetView != null) {
+                    AppButton(
+                        stringResource(R.string.stop_street_view),
+                        onStreetView,
+                        Modifier.ref(253).weight(1f),
+                        icon = R.drawable.ic_street,
+                        primary = false,
+                        minHeight = 40.dp,
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(status, style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.onTripMuted, modifier = Modifier.ref(73))
         }
-        if (current.time != null) {
-            Text(current.time, style = MaterialTheme.typography.headlineSmall, color = TimeColor, modifier = Modifier.ref(69).padding(top = 4.dp))
-        }
-        Text(
-            area,
-            style = MaterialTheme.typography.headlineLarge.copy(textDirection = TextDirection.Content),
-            color = Color.White,
-            modifier = Modifier.ref(71),
-        )
-        Spacer(Modifier.height(6.dp))
-        Row(verticalAlignment = Alignment.Top) {
-            Icon(
-                painterResource(if (current.isLocated) R.drawable.ic_located else R.drawable.ic_not_located),
-                contentDescription = stringResource(if (current.isLocated) R.string.stop_located else R.string.stop_not_located),
-                tint = if (current.isLocated) Located else NotLocated,
-                modifier = Modifier.padding(top = 2.dp).size(18.dp),
-            )
-            Spacer(Modifier.width(8.dp))
+    }
+}
+
+/** A coming trip on its YouDrive colour (green pick-up, white drop-off, grey depot). */
+@Composable
+private fun UpcomingRow(index: Int, stop: Stop, area: String) {
+    TripSurface(stop.kind, Modifier.ref(76).fillMaxWidth(), shape = MaterialTheme.shapes.medium) {
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+            // First line: the time and the passenger's name level with it, as on YouDrive's card.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stop.time ?: "--:--",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = if (stop.time != null) AppTheme.colors.time else MaterialTheme.colorScheme.outline,
+                )
+                if (stop.youDriveDone) {
+                    Spacer(Modifier.width(8.dp))
+                    DoneMarks(youDrive = true, here = false)
+                }
+                if (stop.name != null) {
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        stop.name,
+                        style = MaterialTheme.typography.titleSmall.copy(textDirection = TextDirection.Content),
+                        color = AppTheme.colors.onTrip,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                } else {
+                    Spacer(Modifier.weight(1f))
+                }
+                if (stop.kind != null) {
+                    Spacer(Modifier.width(8.dp))
+                    KindLabel(stop.kind)
+                }
+            }
+            Text("$index. $area", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.onTrip)
             Text(
-                current.displayText,
-                style = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Content),
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.ref(72),
-            )
-        }
-        Spacer(Modifier.height(8.dp))
-        Text(status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f), modifier = Modifier.ref(73))
-        if (arrivedAtMs != null) {
-            Text(
-                stringResource(R.string.wait_at_stop, TimeLabels.duration(nowMs - arrivedAtMs)),
-                style = MaterialTheme.typography.titleMedium,
-                color = TimeColor,
-                modifier = Modifier.ref(74),
+                stop.shownAddress,
+                style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Content),
+                color = AppTheme.colors.onTripMuted,
             )
         }
     }
 }
 
+/** The day's start point (YouDrive's grey Pull-out card): shown, but not a stop. */
 @Composable
-private fun UpcomingRow(index: Int, stop: Stop, area: String) {
-    val shape = MaterialTheme.shapes.medium
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .ref(76)
-            .fillMaxWidth()
-            .clip(shape)
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .border(1.dp, Hairline, shape)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-    ) {
-        Text(
-            stop.time ?: "--:--",
-            style = MaterialTheme.typography.labelLarge,
-            color = if (stop.time != null) TimeColor else MaterialTheme.colorScheme.outline,
-        )
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text("$index. $area", style = MaterialTheme.typography.titleSmall)
+private fun DepotRow(depot: Stop) {
+    TripSurface(TripKind.PULL_OUT, Modifier.ref(85).fillMaxWidth(), shape = MaterialTheme.shapes.medium) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
+            KindLabel(TripKind.PULL_OUT)
+            Spacer(Modifier.width(10.dp))
+            if (depot.time != null) {
+                Text(depot.time, style = MaterialTheme.typography.labelLarge, color = AppTheme.colors.onTrip)
+                Spacer(Modifier.width(8.dp))
+            }
             Text(
-                stop.displayText,
+                depot.displayText,
                 style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Content),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = AppTheme.colors.onTrip,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
             )
         }
     }
@@ -368,18 +510,18 @@ private fun UpcomingRow(index: Int, stop: Stop, area: String) {
 
 /** A small square action under Next (icon above a short label). */
 @Composable
-private fun RowScope.ActionTile(@DrawableRes icon: Int, label: String, ref: Int, onClick: () -> Unit, color: Color = MaterialTheme.colorScheme.onSurface) {
+private fun ActionTile(@DrawableRes icon: Int, label: String, ref: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val shape = MaterialTheme.shapes.medium
+    val color = MaterialTheme.colorScheme.onSurface
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
-        modifier = Modifier
+        modifier = modifier
             .ref(ref)
-            .weight(1f)
             .heightIn(min = 56.dp)
             .clip(shape)
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .border(1.dp, Hairline, shape)
+            .border(1.dp, AppTheme.colors.cardBorder, shape)
             .clickable(onClick = onClick)
             .padding(horizontal = 4.dp, vertical = 6.dp),
     ) {
@@ -390,10 +532,13 @@ private fun RowScope.ActionTile(@DrawableRes icon: Int, label: String, ref: Int,
 }
 
 @Composable
-private fun statusText(stop: Stop, tracking: TrackingState, hasLocation: Boolean): String = when {
-    !hasLocation -> stringResource(R.string.status_no_location)
-    !stop.isLocated || !tracking.autoEnabled -> stringResource(R.string.status_manual_only)
-    tracking.phase == DetectorPhase.ARRIVED -> stringResource(R.string.status_arrived)
-    tracking.distanceM != null -> stringResource(R.string.status_distance, tracking.distanceM.roundToInt())
-    else -> stringResource(R.string.status_waiting_gps)
-}
+private fun statusText(): String = stringResource(R.string.status_tap_next)
+
+/**
+ * The part of the bottom bar's width for the driving buttons, kept clear of Maps'
+ * picture-in-picture window (which starts at about two thirds of the width).
+ */
+private const val DRIVING_SHARE = 0.62f
+
+/** The driving buttons are narrower than usual: less padding keeps their labels on one line. */
+private val DRIVING_BUTTON_PADDING = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
