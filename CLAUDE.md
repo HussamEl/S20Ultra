@@ -12,6 +12,14 @@ An Android app for a Swedish shared-ride driver:
 - The phone is a Samsung Galaxy S20 Ultra (Android 13) and the passenger display is a Galaxy Tab S9+. You cannot reach the devices from the cloud.
 - Deliver each build as a zip of `dist/NastaStopp.apk`, sent as a file.
 
+## Professional standard (decided by the owner)
+The project is built to be sold one day to a large company: everything must pass its engineers' review.
+- **Names are chosen, never improvised.** Every account, database, user, key, folder and label has a proposed name and an owner in `docs/ACCOUNTS.md` of `HussamEl/nastastopp-web` (the company's accounts, the app's too). When a step asks the owner to create something, give the exact name to type and say whose it is (the owner's, the server's, or a device's). The owner is not a programmer: never leave him to guess.
+- **Instructions for the owner** are numbered steps, right-aligned, with every English word (a menu, a field, a value) on its own line or in its own box, exactly as the screen shows it; a long guide goes on a page (an Artifact), not in the chat.
+- **Separation:** secrets only in the server's config file or the owner's password manager; accounts in the company's name (`admin@nastastopp.se`), not a personal one; the server's accounts are never used by a person.
+- **Quality:** tests for every behaviour and a CI check on every push (here: `./gradlew test assembleRelease lintDebug lintRelease`); small commits with clear messages; docs that say what is and why (README for the owner in Arabic, GUIDE, DECISIONS, CLAUDE.md and code comments in English).
+- **Licences and data:** every outside source has its licence and attribution in the repo; personal data is kept to the minimum the service needs (GDPR), never logged.
+
 ## Hard rules (never break)
 - Images are never copied or stored. Keep only addresses, times, the trip kind (the list's Pick-up / Drop-off / Pull-out label) and the passenger's **first + last name**: no middle names, phone numbers or other text.
   - **The one exception, decided by the driver: a YouDrive trip's whole card** (`Stop.card`: every word on it, as written, phone numbers and codes too). It goes with the route only to the passenger display's trip card (235), laid out as YouDrive's details window (`core/youdrive/TripCardText`), which opens only on the driver's tap on that trip's person figure (231 under the next stop, 234 beside the other trips). The tablet is beside the driver; the passengers sit far behind and do not touch it. The card is **never said**, and never in an announcement, a notification, "Previous trips" or a log (`theTripCardGoesOnlyToTheDisplay`).
