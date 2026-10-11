@@ -1,0 +1,511 @@
+<!doctype html>
+<!--
+  The tablet's map of the way (RouteMap.kt). Google's map with the company's key (from
+  api.nastastopp.se, loaded under https://map.nastastopp.se/) or the driver's own (under
+  https://nastastopp.app/); no device location, and never the tablet's pass to the server. The
+  app hands it the vehicle's position (setCar), the way (setWay: the stops in turn, lettered A, B,
+  C…, the one looked at, and each leg's line) and when to come and go (reveal, conceal); nothing
+  else is sent anywhere from here. The map grows and fades here, in the page:
+  the app never scales or fades the WebView itself, so the map is drawn the same on every device.
+
+  One page, one map for the display's whole life: what changes is only what it shows. Google bills
+  each map made, not what is done with it. It is only the driver's (hold), opened by his tap and
+  moved by his touch and the app's buttons (satellite, toCar, toStop, whole); it stays flat, and
+  the app opens Google's own apps for 3D and street photos. The map never leaves northern Europe
+  (REGION).
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<style>
+  :root { --ground: __GROUND__; }
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: var(--ground); }
+  #stage { position: fixed; left: 0; top: 0; right: 0; bottom: 0; opacity: 0; transform: scale(0.06); will-change: transform, opacity; }
+  #map { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: var(--ground); pointer-events: none; }
+  body.held #map { pointer-events: auto; }
+  .dot { position: absolute; transform: translate(-50%, -50%); border-radius: 50%; box-sizing: border-box; }
+  .car { width: 26px; height: 26px; background: #1A73E8; border: 5px solid #FFFFFF;
+         box-shadow: 0 0 0 10px rgba(26, 115, 232, 0.22), 0 2px 8px rgba(0, 0, 0, 0.35); }
+  /*
+    A stop: a small dot on its point; above it, on a short tail, its letter (large) and its trip's
+    time in the stop's colour (--c) on nothing; under it, its address and its passenger's last
+    name; all written the way the map writes its own names (with a halo).
+  */
+  .pin { position: absolute; width: 0; height: 0; }
+  .pin .spot { position: absolute; left: -6px; top: -6px; width: 12px; height: 12px; border-radius: 50%; box-sizing: border-box;
+               background: var(--c); border: 2.5px solid var(--edge); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35); }
+  .pin .tag { position: absolute; left: 0; bottom: 8px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; }
+  /* The letter large and the time, both in the stop's colour, on nothing (the map shows through),
+     with a halo like the map's own names; the one looked at: its time red and beating, a red
+     marker beating over it. */
+  .pin .pill { display: flex; align-items: baseline; gap: 5px; padding: 0 4px; border-radius: 12px; white-space: nowrap;
+               background: transparent; color: var(--c); border: 3px solid transparent;
+               font: 800 20px sans-serif; line-height: 1; font-variant-numeric: tabular-nums;
+               text-shadow: 0 0 3px var(--halo), 0 0 3px var(--halo), 0 0 2px var(--halo), 0 0 1px var(--halo); }
+  .pin .letter { font: 900 30px sans-serif; color: var(--c); }
+  .pin .tail { width: 3px; height: 9px; margin-top: 1px; border-radius: 2px; background: var(--c); }
+  .pin.focus .pill { font-size: 25px; padding: 1px 7px; }
+  .pin.focus .letter { font-size: 38px; }
+  .pin.focus .time { color: #EA4335; animation: beat 0.9s ease-in-out infinite alternate; display: inline-block; }
+  .pin .mark { display: none; }
+  .pin.focus .mark { display: block; width: 0; height: 0; margin-bottom: 3px; border-left: 11px solid transparent; border-right: 11px solid transparent;
+                     border-top: 14px solid #EA4335; filter: drop-shadow(0 0 2px var(--halo)); animation: beat 0.9s ease-in-out infinite alternate; }
+  .pin.focus .spot { left: -8px; top: -8px; width: 16px; height: 16px; }
+  @keyframes beat { from { transform: scale(1); opacity: 1; } to { transform: scale(1.25); opacity: 0.7; } }
+  /* Stops at the same place stand apart, a thin line from each to where they meet. */
+  .pin .body { position: absolute; left: 0; top: 0; }
+  .pin .lead { position: absolute; left: 0; top: 0; height: 2px; transform-origin: 0 50%; background: var(--c); opacity: 0.9; display: none; }
+  .pin .meet { position: absolute; left: -4px; top: -4px; width: 8px; height: 8px; border-radius: 50%; background: var(--ink); display: none; }
+  .pin .label { position: absolute; left: 0; top: 9px; transform: translateX(-50%); text-align: center; white-space: nowrap; line-height: 1.15;
+                font: 600 13px sans-serif; color: var(--ink); text-shadow: 0 0 3px var(--halo), 0 0 3px var(--halo), 0 0 2px var(--halo); }
+  .pin.focus .label { font-size: 15px; top: 12px; }
+  .pin .who { font-weight: 700; color: var(--name); }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="map"></div>
+</div>
+<script>
+  var NIGHT = __NIGHT__;
+  var GROUND = '__GROUND__';
+  // How small the map starts, as it grows out of the map sign.
+  var FROM = 0.06;
+  // Without the map's pictures this long after it is shown, the app is told.
+  var TILES_WAIT_MS = 12000;
+  var map = null, carDot = null, Dot = null, lines2d = [], pins2d = [], borders = [];
+  // The way: its stops in turn (points, or null until known), the one looked at, each leg's line.
+  var car = null, stops = [], focusAt = 0, legs = [], shown = false, tiles = false;
+  // Each stop's own colour, by day and by night, its trip's time, its address and its passenger's
+  // last name (from the app, for its pin; the colour also marks the way on from it).
+  var colors = [], nightColors = [], times = [], labels = [], names = [];
+  // The way from the car to the first stop.
+  function carWay() { return NIGHT ? '#9AA0A6' : '#5F6368'; }
+  // Legs that share a street are drawn thinner and this many pixels apart, side by side.
+  var APART_PX = 4;
+  // The borders of the counties, the municipalities and the towns' districts (SCB, CC0; drawn here,
+  // never asked of Google): flat [lat, lng, lat, lng…] lines.
+  var BORDERS = __BORDERS__;
+  // The districts' borders only this close (they would only clutter a whole county).
+  var DISTRICTS_FROM_ZOOM = 12;
+  var LETTERS = 'ABCDEFGHIJK';
+  var stage = document.getElementById('stage');
+  // The driver's own map (hold): the same map, under his touch.
+  var held = false;
+
+  // Anything that stops the map is told to the app (which shows it under the map; nothing is logged).
+  function problem(kind, detail) {
+    try { Android.onProblem(kind, String(detail || '').slice(0, 120)); } catch (e) {}
+  }
+  window.onerror = function (message) { problem('page', message); };
+  window.addEventListener('unhandledrejection', function (e) { problem('page', e.reason && e.reason.message || e.reason); });
+  window.gm_authFailure = function () { Android.onAuthFailure(); };
+
+  function setLook(night, ground) {
+    NIGHT = night;
+    GROUND = ground;
+    document.documentElement.style.setProperty('--ground', ground);
+    if (!map) return;
+    try {
+      map.setOptions({ styles: NIGHT ? dark : quiet, backgroundColor: GROUND });
+      drawBorders();
+      draw(false);
+    } catch (e) {}
+  }
+
+  var quiet = [
+    { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+    { featureType: 'transit', stylers: [{ visibility: 'off' }] }
+  ];
+  // Neutral greys on the passenger display's black, light enough to be read in a car.
+  var dark = quiet.concat([
+    { elementType: 'geometry', stylers: [{ color: '#22262c' }] },
+    { elementType: 'labels.text.fill', stylers: [{ color: '#c3c8cf' }] },
+    { elementType: 'labels.text.stroke', stylers: [{ color: '#22262c' }] },
+    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#3b4048' }] },
+    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#525862' }] },
+    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#10213a' }] }
+  ]);
+
+  // Google's script is here: the map is made once the page has its size (a map made at no size
+  // can stay blank).
+  function ready() {
+    var div = document.getElementById('map');
+    if (!div.offsetWidth || !div.offsetHeight) { setTimeout(ready, 200); return; }
+    google.maps.importLibrary('maps').then(make, function (e) { problem('page', e && e.message || e); });
+  }
+
+  // The map never leaves northern Europe, nor zooms out farther than a country: a way, a car or a
+  // gesture can never make it show the whole world.
+  var REGION = { north: 71.5, south: 54.0, west: 3.0, east: 32.0 };
+  var MIN_ZOOM = 5;
+  function inRegion(p) {
+    return p && isFinite(p.lat) && isFinite(p.lng) && p.lat <= REGION.north && p.lat >= REGION.south && p.lng >= REGION.west && p.lng <= REGION.east;
+  }
+
+  function make() {
+    map = new google.maps.Map(document.getElementById('map'), {
+      center: { lat: 59.38, lng: 13.5 }, zoom: 14, minZoom: MIN_ZOOM,
+      restriction: { latLngBounds: REGION, strictBounds: false },
+      disableDefaultUI: true, gestureHandling: 'none', keyboardShortcuts: false,
+      clickableIcons: false, backgroundColor: GROUND, styles: NIGHT ? dark : quiet
+    });
+    map.addListener('tilesloaded', function () {
+      if (tiles) return;
+      tiles = true;
+      Android.onTiles();
+    });
+    Dot = function (cls, html) { this.div = document.createElement('div'); this.div.className = cls; if (html) this.div.innerHTML = html; this.at = null; };
+    Dot.prototype = new google.maps.OverlayView();
+    Dot.prototype.onAdd = function () { this.getPanes().overlayMouseTarget.appendChild(this.div); };
+    Dot.prototype.draw = function () {
+      var projection = this.getProjection();
+      if (!this.at || !projection) { this.div.style.display = 'none'; return; }
+      var p = projection.fromLatLngToDivPixel(new google.maps.LatLng(this.at.lat, this.at.lng));
+      this.div.style.display = 'block';
+      this.div.style.left = p.x + 'px';
+      this.div.style.top = p.y + 'px';
+    };
+    Dot.prototype.onRemove = function () { this.div.remove(); };
+    Dot.prototype.place = function (at) { this.at = at; this.draw(); };
+    carDot = new Dot('dot car'); carDot.setMap(map);
+    // Closer or farther: the districts' borders come or go, and legs side by side stay as far apart.
+    var lastZoom = map.getZoom();
+    map.addListener('zoom_changed', function () {
+      var z = map.getZoom();
+      if (z === lastZoom) return;
+      lastZoom = z;
+      try { showDistricts(); drawLines(); } catch (e) {}
+      setTimeout(spread, 0);
+    });
+    drawBorders();
+    draw(true);
+    Android.onReady();
+    if (shown) waitForTiles();
+    if (held) map.setOptions({ gestureHandling: 'greedy' });
+  }
+
+  // The map grows out of (x, y), fractions of the screen, over ms.
+  function reveal(x, y, ms) {
+    shown = true;
+    stage.style.transformOrigin = (x * 100) + '% ' + (y * 100) + '%';
+    stage.style.transition = 'transform ' + ms + 'ms cubic-bezier(0.4, 0, 0.2, 1), opacity ' + Math.round(ms / 1.6) + 'ms ease-out';
+    stage.style.opacity = '1';
+    stage.style.transform = 'scale(1)';
+    if (!map) return;
+    try { draw(true); } catch (e) { problem('page', e && e.message); }
+    waitForTiles();
+  }
+
+  // Back into where it came from, over ms.
+  function conceal(ms) {
+    shown = false;
+    stage.style.transition = 'transform ' + ms + 'ms cubic-bezier(0.4, 0, 1, 1), opacity ' + ms + 'ms ease-in';
+    stage.style.opacity = '0';
+    stage.style.transform = 'scale(' + FROM + ')';
+  }
+
+  function waitForTiles() {
+    if (tiles) return;
+    setTimeout(function () { if (shown && !tiles) problem('tiles', ''); }, TILES_WAIT_MS);
+  }
+
+  function setCar(lat, lng) {
+    car = { lat: lat, lng: lng };
+    if (!map) return;
+    draw(false);
+  }
+
+  // The way: {stops: [[lat, lng] or null…], focus: n, legs: [[[lat, lng]…]…] or null (not yet)}.
+  function setWay(w) {
+    stops = (w.stops || []).map(function (p) { return p ? { lat: p[0], lng: p[1] } : null; });
+    focusAt = Math.max(0, Math.min(stops.length - 1, w.focus || 0));
+    legs = (w.legs || []).map(function (leg) { return leg.map(function (p) { return { lat: p[0], lng: p[1] }; }); });
+    function hex(c) { return /^#[0-9A-Fa-f]{6}$/.test(c) ? c : '#1A73E8'; }
+    colors = (w.colors || []).map(hex);
+    nightColors = (w.nightColors || []).map(hex);
+    times = (w.times || []).map(function (t) { return t ? String(t).replace(/[^0-9:]/g, '').slice(0, 5) : ''; });
+    labels = (w.labels || []).map(function (t) { return t ? String(t).slice(0, 60) : ''; });
+    names = (w.names || []).map(function (t) { return t ? String(t).slice(0, 40) : ''; });
+    if (map) draw(!held);
+  }
+
+  // Every point of the way, for the view to take in.
+  function wayPoints() {
+    var all = [];
+    legs.forEach(function (leg) { all = all.concat(leg); });
+    stops.forEach(function (p) { if (p) all.push(p); });
+    return all;
+  }
+
+  // The stop looked at: its point, else where its leg ends.
+  function target() {
+    var s = stops[focusAt];
+    if (s) return s;
+    var leg = legs[focusAt];
+    return leg && leg.length ? leg[leg.length - 1] : null;
+  }
+
+  // Lighter colours by night, which stand out on the dark map; darker ones by day.
+  function colorOf(i) { return (NIGHT ? nightColors[i] || colors[i] : colors[i]) || '#1A73E8'; }
+
+  function esc(t) {
+    return String(t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
+  }
+
+  // A stop: its letter and its trip's time together in its own colour, on a tail down to its point;
+  // its address and its passenger's last name under the point. The one looked at larger, its time
+  // red and beating under a beating red marker.
+  function pinHtml(i) {
+    var label = (labels[i] ? '<div>' + esc(labels[i]) + '</div>' : '') + (names[i] ? '<div class="who">' + esc(names[i]) + '</div>' : '');
+    return '<div class="lead"></div><div class="meet"></div><div class="body"><div class="spot"></div>' +
+      '<div class="tag"><div class="mark"></div><div class="pill"><span class="letter">' + LETTERS.charAt(i) + '</span>' + (times[i] ? '<span class="time">' + esc(times[i]) + '</span>' : '') + '</div>' +
+      '<div class="tail"></div></div>' +
+      (label ? '<div class="label">' + label + '</div>' : '') + '</div>';
+  }
+
+  function pinStyle(pin, i) {
+    var s = pin.div.style, c = colorOf(i);
+    s.setProperty('--c', c);
+    s.setProperty('--edge', NIGHT ? '#111418' : '#FFFFFF');
+    s.setProperty('--ink', NIGHT ? '#E8EAED' : '#202124');
+    s.setProperty('--halo', NIGHT ? 'rgba(17, 20, 24, 0.95)' : 'rgba(255, 255, 255, 0.95)');
+    s.setProperty('--name', c);
+  }
+
+  // Each leg in the colour of the stop it leaves (the first, the car's): full up to the stop looked
+  // at, lighter after it; thinner where it shares a street with another leg.
+  function legStyle(i, beside) {
+    var color = i === 0 ? carWay() : colorOf(i - 1);
+    if (beside) return i <= focusAt ? { color: color, opacity: 1, weight: 5 } : { color: color, opacity: 0.6, weight: 4 };
+    return i <= focusAt ? { color: color, opacity: 1, weight: 8 } : { color: color, opacity: 0.5, weight: 6 };
+  }
+
+  // Which legs share a street with another one: each leg's line is followed every ~20 m and the
+  // ~50 m squares it passes are counted; three squares in common make two legs neighbours. Each
+  // such leg gets a place across the street ([-1.5 … 1.5] for four), so they lie side by side.
+  function besides() {
+    var cells = legs.map(function (leg) {
+      var seen = {};
+      for (var k = 1; k < leg.length; k++) {
+        var a = leg[k - 1], b = leg[k];
+        var n = Math.max(1, Math.ceil(Math.hypot((b.lat - a.lat) * 111000, (b.lng - a.lng) * 56000) / 20));
+        for (var j = 0; j <= n; j++) {
+          var lat = a.lat + (b.lat - a.lat) * j / n, lng = a.lng + (b.lng - a.lng) * j / n;
+          seen[Math.round(lat * 2200) + ':' + Math.round(lng * 1100)] = true;
+        }
+      }
+      return seen;
+    });
+    var shared = legs.map(function () { return false; });
+    for (var i = 0; i < legs.length; i++) {
+      for (var j = i + 1; j < legs.length; j++) {
+        var common = 0;
+        for (var c in cells[i]) if (cells[j][c] && ++common >= 3) break;
+        if (common >= 3) shared[i] = shared[j] = true;
+      }
+    }
+    var count = shared.filter(Boolean).length, slot = 0;
+    return shared.map(function (s) { return s ? slot++ - (count - 1) / 2 : null; });
+  }
+
+  // The line moved [px] pixels aside, at the map's zoom: to the right of a leg going north or
+  // east overall, to the left of one going south or west, so two legs along the same street in
+  // opposite directions still lie side by side.
+  function shifted(leg, px) {
+    if (!px || leg.length < 2) return leg;
+    var lat0 = leg[0].lat * Math.PI / 180;
+    var kx = 111320 * Math.cos(lat0), ky = 110540;
+    var first = leg[0], last = leg[leg.length - 1];
+    var north = (last.lat - first.lat) * ky, east = (last.lng - first.lng) * kx;
+    if (Math.abs(north) >= Math.abs(east) ? north < 0 : east < 0) px = -px;
+    var m = px * 156543.03392 * Math.cos(lat0) / Math.pow(2, map.getZoom());
+    return leg.map(function (p, k) {
+      var a = leg[Math.max(0, k - 1)], b = leg[Math.min(leg.length - 1, k + 1)];
+      var dx = (b.lng - a.lng) * kx, dy = (b.lat - a.lat) * ky, d = Math.hypot(dx, dy);
+      if (!d) return p;
+      // The right-hand normal of the way's direction here.
+      return { lat: p.lat - (dx / d) * m / ky, lng: p.lng + (dy / d) * m / kx };
+    });
+  }
+
+  var places = [];
+  function drawLines() {
+    lines2d.forEach(function (l) { l.setMap(null); });
+    lines2d = [];
+    legs.forEach(function (leg, i) {
+      var beside = places[i] !== null && places[i] !== undefined;
+      var st = legStyle(i, beside), path = beside ? shifted(leg, places[i] * APART_PX) : leg;
+      if (i <= focusAt) lines2d.push(new google.maps.Polyline({ map: map, path: path, strokeColor: NIGHT ? '#111418' : '#FFFFFF', strokeWeight: st.weight + (beside ? 3 : 5), strokeOpacity: 1, clickable: false, zIndex: 2 + 2 * i }));
+      lines2d.push(new google.maps.Polyline({ map: map, path: path, strokeColor: st.color, strokeWeight: st.weight, strokeOpacity: st.opacity, clickable: false, zIndex: 3 + 2 * i }));
+    });
+  }
+
+  // The borders: thin dashes, the county's a little stronger than a municipality's, a district's
+  // the faintest; under the way.
+  function drawBorders() {
+    borders.forEach(function (b) { b.line.setMap(null); });
+    borders = [];
+    if (!BORDERS) return;
+    var ink = NIGHT ? '#B8C0CC' : '#5F6368';
+    [['county', 0.75, 1.3, 9], ['town', 0.6, 1.1, 8], ['district', 0.45, 1, 7]].forEach(function (k) {
+      (BORDERS[k[0]] || []).forEach(function (flat) {
+        var path = [];
+        for (var j = 0; j + 1 < flat.length; j += 2) path.push({ lat: flat[j], lng: flat[j + 1] });
+        var line = new google.maps.Polyline({
+          map: map, path: path, clickable: false, zIndex: 1, strokeOpacity: 0,
+          icons: [{ icon: { path: 'M 0,-1 0,1', strokeColor: ink, strokeOpacity: k[1], strokeWeight: k[2], scale: 2 }, offset: '0', repeat: k[3] + 'px' }]
+        });
+        borders.push({ line: line, district: k[0] === 'district' });
+      });
+    });
+    showDistricts();
+  }
+
+  // Stops whose pins would cover each other (the same place, or close at this zoom) stand apart
+  // around where they are, each with a thin line back to its point and a dot where they meet.
+  var APART_PX = 70, OUT_PX = 64;
+  function spread() {
+    var projection = pins2d.length && pins2d[0].getProjection();
+    if (!projection) { if (pins2d.length) setTimeout(spread, 100); return; }
+    var at = pins2d.map(function (d) { return projection.fromLatLngToDivPixel(new google.maps.LatLng(d.at.lat, d.at.lng)); });
+    var group = at.map(function (_, i) { return i; });
+    for (var i = 0; i < at.length; i++) {
+      for (var j = 0; j < i; j++) {
+        if (Math.hypot(at[i].x - at[j].x, at[i].y - at[j].y) < APART_PX) { group[i] = group[j]; break; }
+      }
+    }
+    pins2d.forEach(function (d, i) {
+      var mates = group.map(function (g, k) { return g === group[i] ? k : -1; }).filter(function (k) { return k >= 0; });
+      var body = d.div.querySelector('.body'), lead = d.div.querySelector('.lead'), meet = d.div.querySelector('.meet');
+      if (!body) return;
+      if (mates.length < 2) {
+        body.style.transform = ''; lead.style.display = 'none'; meet.style.display = 'none';
+        return;
+      }
+      // Around the group's middle, evenly, the first upward.
+      var cx = 0, cy = 0;
+      mates.forEach(function (k) { cx += at[k].x; cy += at[k].y; });
+      cx /= mates.length; cy /= mates.length;
+      var angle = -Math.PI / 2 + 2 * Math.PI * mates.indexOf(i) / mates.length;
+      var dx = cx + OUT_PX * Math.cos(angle) - at[i].x, dy = cy + OUT_PX * Math.sin(angle) - at[i].y;
+      body.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+      lead.style.display = 'block';
+      lead.style.width = Math.hypot(dx, dy) + 'px';
+      lead.style.transform = 'rotate(' + Math.atan2(dy, dx) + 'rad)';
+      meet.style.display = 'block';
+    });
+  }
+
+  function showDistricts() {
+    var near = map.getZoom() >= DISTRICTS_FROM_ZOOM;
+    borders.forEach(function (b) { if (b.district) b.line.setVisible(near); });
+  }
+
+  function draw(refit) {
+    places = besides();
+    drawLines();
+    pins2d.forEach(function (d) { d.setMap(null); });
+    pins2d = [];
+    stops.forEach(function (p, i) {
+      var at = p || (legs[i] && legs[i].length ? legs[i][legs[i].length - 1] : null);
+      if (!at) return;
+      var pin = new Dot(i === focusAt ? 'pin focus' : 'pin', pinHtml(i));
+      pinStyle(pin, i);
+      pin.at = at;
+      pin.setMap(map);
+      pins2d.push(pin);
+    });
+    spread();
+    carDot.place(car);
+    // Only points in the region count: one wrong point would take the view across the world.
+    var bounds = new google.maps.LatLngBounds();
+    var points = wayPoints().filter(inRegion);
+    points.forEach(function (p) { bounds.extend(p); });
+    if (inRegion(car)) bounds.extend(car);
+    if (bounds.isEmpty()) return;
+    var seen = map.getBounds();
+    if (refit || !seen || (!held && car && !seen.contains(car))) {
+      if (points.length) map.fitBounds(bounds, clear()); else { map.setCenter(car); map.setZoom(15); }
+    }
+  }
+
+  // The way keeps to the clear middle: with room for the minutes and distance at the bottom, or,
+  // on the driver's own map, for his list of trips (where he put it) and his buttons at the left.
+  // The room kept never takes more than [MAX_SIDES] of the width: a wide list, or one in the
+  // middle, would leave the way no room, and Google would show the whole world instead.
+  var MAX_SIDES = 0.6;
+  function clear() {
+    var d = map.getDiv(), w = d.offsetWidth, h = d.offsetHeight;
+    if (held) {
+      var left = Math.max(0.1, listRoom.left), right = Math.max(0.08, listRoom.right);
+      var f = Math.min(1, MAX_SIDES / (left + right));
+      return { top: Math.round(h * 0.1), bottom: Math.round(h * 0.1), left: Math.round(w * left * f), right: Math.round(w * right * f) };
+    }
+    return { top: Math.round(h * 0.2), bottom: Math.round(h * 0.34), left: Math.round(w * 0.16), right: Math.round(w * 0.16) };
+  }
+  // How much of the map's width the driver's list of trips covers from its left or its right.
+  var listRoom = { left: 0.3, right: 0 };
+  function room(left, right) {
+    listRoom = { left: left, right: right };
+  }
+
+  // --- The driver's own map ---------------------------------------------------------------
+
+  // Opened (true) by the driver's tap, or closed: the map takes his touches while it is his.
+  function hold(on) {
+    held = on;
+    document.body.classList.toggle('held', on);
+    if (map) map.setOptions({ gestureHandling: on ? 'greedy' : 'none' });
+  }
+
+  // The app's buttons: the satellite picture; to the car; to the stop; the whole way. A map
+  // that cannot move (Google refused it) stays as it is.
+  function button(f) {
+    return function () { try { f.apply(null, arguments); } catch (e) {} };
+  }
+
+  // Google's satellite picture with the roads' names, or the map: the same map.
+  var satellite = button(function (on) {
+    if (map) map.setMapTypeId(on ? 'hybrid' : 'roadmap');
+  });
+
+  var toCar = button(function () {
+    if (!inRegion(car) || !map) return;
+    map.panTo(car);
+    map.setZoom(16);
+  });
+
+  var toStop = button(function () {
+    var s = target();
+    if (!inRegion(s) || !map) return;
+    map.panTo(s);
+    map.setZoom(17);
+  });
+
+  // Stop i of the way, on the map.
+  var lookAt = button(function (i) {
+    var s = stops[i] || (legs[i] && legs[i].length ? legs[i][legs[i].length - 1] : null);
+    if (!inRegion(s) || !map) return;
+    map.panTo(s);
+    map.setZoom(17);
+  });
+
+  // The car, the way and the stops at once.
+  var whole = button(function () {
+    if (map) draw(true);
+  });
+
+  // Google's script, tried again every half minute while it does not come (no internet yet).
+  function load() {
+    var script = document.createElement('script');
+    script.async = true;
+    script.src = 'https://maps.googleapis.com/maps/api/js?key=__KEY__&callback=ready&loading=async&language=sv&region=SE';
+    script.onerror = function () { script.remove(); problem('script', ''); setTimeout(load, 30000); };
+    document.body.appendChild(script);
+  }
+  load();
+</script>
+</body>
+</html>

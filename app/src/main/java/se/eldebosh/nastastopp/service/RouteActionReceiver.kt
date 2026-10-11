@@ -11,7 +11,7 @@ class RouteActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val controller = App.from(context).graph.controller
         when (intent.action) {
-            ACTION_NEXT -> controller.next(auto = false)
+            ACTION_NEXT -> controller.next()
             ACTION_REPEAT -> controller.repeat()
             ACTION_END -> controller.end()
             ACTION_SHOW_OVERLAY -> App.from(context).graph.settings.update { it.copy(overlayHidden = false, overlayMinimized = false) }

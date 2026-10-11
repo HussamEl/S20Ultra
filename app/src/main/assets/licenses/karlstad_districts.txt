@@ -1,0 +1,9 @@
+karlstad_districts.json
+
+Districts (stadsdelar): Karlstads kommun, open data "Stadsdelar", CC0 1.0
+(https://creativecommons.org/publicdomain/zero/1.0/).
+
+Street names: © OpenStreetMap contributors, Open Database License (ODbL) 1.0
+(https://www.openstreetmap.org/copyright).
+
+No house or building numbers and no names of people are kept.

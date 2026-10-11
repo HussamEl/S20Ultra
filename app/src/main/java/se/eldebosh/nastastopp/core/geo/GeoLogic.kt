@@ -19,7 +19,12 @@ data class GeoResult(
     val thoroughfare: String?,
 )
 
-enum class AnnouncementDetail { DISTRICT, TOWN_ONLY }
+/**
+ * What the announcement says. FULL (the default): the next stop's street and number, then the
+ * district and the town; the stop after it with its street and number, then its district.
+ * DISTRICT and TOWN_ONLY name both stops by district (or town) only.
+ */
+enum class AnnouncementDetail { FULL, DISTRICT, TOWN_ONLY }
 
 object GeoLogic {
     /** Sweden bounding box used for the geocoder. */
@@ -28,11 +33,28 @@ object GeoLogic {
     const val SWEDEN_LAT_MAX = 69.1
     const val SWEDEN_LNG_MAX = 24.2
 
+    /** Värmland's bounding box, for a place written without a town. */
+    const val VARMLAND_LAT_MIN = 58.8
+    const val VARMLAND_LNG_MIN = 11.5
+    const val VARMLAND_LAT_MAX = 61.7
+    const val VARMLAND_LNG_MAX = 14.7
+
     const val NEXT_ADDRESS = "nästa adress"
 
     /**
-     * Prefer a result whose postal code matches [parsedPostal]; else whose locality matches
-     * [parsedTown]; else the first result.
+     * For a place written without a town or postal code: the answer only when every result in
+     * Värmland is in one and the same town; otherwise null, as the town would be a guess.
+     */
+    fun inOneTown(results: List<GeoResult>): GeoResult? {
+        val inside = results.filter { it.lat in VARMLAND_LAT_MIN..VARMLAND_LAT_MAX && it.lng in VARMLAND_LNG_MIN..VARMLAND_LNG_MAX }
+        val towns = inside.map { TextNorm.fold(it.locality ?: it.subLocality ?: return null) }.distinct()
+        return if (towns.size == 1) inside.first() else null
+    }
+
+    /**
+     * A result whose postal code matches [parsedPostal]; else whose locality matches [parsedTown];
+     * else none: a point in another place is never taken for the one written. The first result
+     * only when neither is written.
      */
     fun choose(results: List<GeoResult>, parsedPostal: String?, parsedTown: String?): GeoResult? {
         if (results.isEmpty()) return null
@@ -47,14 +69,42 @@ object GeoLogic {
                     (r.subLocality != null && TextNorm.fold(r.subLocality) == town)
             }?.let { return it }
         }
-        return results.first()
+        return if (postalDigits.isNullOrEmpty() && parsedTown.isNullOrBlank()) results.first() else null
     }
+
+    /**
+     * The next stop said in full: "Storgatan 14, Herrhagen, Karlstad". The street and
+     * number, then the district and the town, each said once: a district or town already said
+     * in what comes before it ("Centralsjukhuset Karlstad", then "Karlstad") is left out (compared
+     * word by word, without case or å ä ö). An apartment number ("lgh 1402") is left out, and so
+     * is the placeholder for an unknown place.
+     */
+    fun fullSpokenName(street: String, district: String?, town: String?): String {
+        val parts = mutableListOf<String>()
+        for (part in listOf(street.replace(APARTMENT, "").trim().trimEnd(','), district, town)) {
+            val p = part?.trim()?.takeIf { it.isNotEmpty() && it != NEXT_ADDRESS } ?: continue
+            if (!saidIn(parts, p)) parts += p
+        }
+        return parts.joinToString(", ").ifEmpty { NEXT_ADDRESS }
+    }
+
+    /** [name]'s words all come, in order, in one of [parts] already. */
+    private fun saidIn(parts: List<String>, name: String): Boolean {
+        val words = words(name)
+        if (words.isEmpty()) return true
+        return parts.any { part -> words(part).windowed(words.size).any { it == words } }
+    }
+
+    private fun words(text: String): List<String> = TextNorm.fold(text).split(' ', ',', '-', '.').filter { it.isNotEmpty() }
+
+    private val APARTMENT = Regex("""(?i)\s*\b(lgh|lägenhet)\.?\s*\S+""")
 
     /**
      * The only text that is ever spoken for a stop: an area/town name, never a street, number,
      * person or facility. subLocality if present and different from locality, otherwise
      * locality, otherwise the parsed town (only if it is a known locality), otherwise
-     * "nästa adress".
+     * "nästa adress". An [official] district (Karlstad's own, [Districts]) is taken as it is
+     * written, even one named after a street ("Edsgatan").
      */
     fun spokenName(
         subLocality: String?,
@@ -64,13 +114,15 @@ object GeoLogic {
         detail: AnnouncementDetail,
         thoroughfare: String? = null,
         isKnownLocality: (String) -> Boolean = { false },
+        official: Boolean = false,
     ): String {
         val loc = locality?.trim()?.takeIf { isSafeAreaName(it, thoroughfare, strict = false) }
         val sub = subLocality?.trim()?.takeIf {
-            isKnownLocality(it) && isSafeAreaName(it, thoroughfare, strict = false) ||
+            official && isSafeAreaName(it, null, strict = false) ||
+                isKnownLocality(it) && isSafeAreaName(it, thoroughfare, strict = false) ||
                 isSafeAreaName(it, thoroughfare, strict = true)
         }
-        if (detail == AnnouncementDetail.DISTRICT && sub != null &&
+        if (detail != AnnouncementDetail.TOWN_ONLY && sub != null &&
             (loc == null || TextNorm.fold(sub) != TextNorm.fold(loc))
         ) {
             return sub

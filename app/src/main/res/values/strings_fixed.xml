@@ -9,4 +9,23 @@
     <string name="lang_sv" translatable="false">Svenska</string>
     <string name="lang_en" translatable="false">English</string>
     <string name="dialog_address_hint" translatable="false">Storgatan 14, 652 24 Karlstad</string>
+    <!-- The passenger display speaks to the passengers in Swedish, like the announcements. -->
+    <string name="passenger_next_stop" translatable="false">Nästa stopp</string>
+    <string name="passenger_next" translatable="false">Nästa</string>
+    <string name="passenger_to_next_stop" translatable="false">till nästa stopp</string>
+    <string name="passenger_waiting" translatable="false">Rutten har inte börjat än</string>
+    <string name="passenger_finding_position" translatable="false">Söker bilens position…</string>
+    <string name="passenger_map_loading" translatable="false">Kartan laddas…</string>
+    <string name="passenger_map_no_script" translatable="false">Kartan kunde inte hämtas från Google</string>
+    <string name="passenger_map_no_tiles" translatable="false">Kartans bilder kom inte från Google</string>
+    <string name="passenger_map_stopped" translatable="false">Kartan stannade: %1$s</string>
+    <string name="passenger_way_refused" translatable="false">Vägen: %1$s svarade %2$d</string>
+    <string name="passenger_way_no_answer" translatable="false">Vägen: inget svar från %1$s</string>
+    <!-- The company's server's own refusals of the tablet's ways (the passengers see them under the map the driver opens). -->
+    <string name="passenger_way_server_stopped" translatable="false">Vägen: surfplattan är stoppad av Nästa Stopp</string>
+    <string name="passenger_way_server_unknown" translatable="false">Vägen: surfplattan är inte ansluten till Nästa Stopp</string>
+    <string name="passenger_way_server_limit" translatable="false">Vägen: dagens gräns är nådd, igen kl. %1$s</string>
+    <string name="passenger_way_server_no_key" translatable="false">Vägen: Nästa Stopps server har ingen nyckel för %1$s</string>
+    <string name="passenger_way_server_down" translatable="false">Vägen: inget svar från Nästa Stopps server</string>
+    <string name="passenger_way_server_refused" translatable="false">Vägen: Nästa Stopps server svarade %1$d</string>
 </resources>

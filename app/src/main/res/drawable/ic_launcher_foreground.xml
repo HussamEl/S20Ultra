@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- App icon: a white stop pin with a "next" chevron, and a short route line under it. -->
+<!-- App icon: a black stop pin with a yellow "next" chevron, and a short route line under it. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
@@ -11,17 +11,17 @@
         android:scaleX="2.25"
         android:scaleY="2.25">
         <path
-            android:fillColor="#FFFFFFFF"
+            android:fillColor="#FF17171A"
             android:pathData="M12,2C8.13,2 5,5.13 5,9c0,5.25 7,13 7,13s7,-7.75 7,-13c0,-3.87 -3.13,-7 -7,-7z" />
         <path
             android:fillColor="#00000000"
-            android:strokeColor="#FF1E4BB8"
+            android:strokeColor="#FFFFC61A"
             android:strokeWidth="1.7"
             android:strokeLineCap="round"
             android:strokeLineJoin="round"
             android:pathData="M10.7,6.3L13.4,9L10.7,11.7" />
     </group>
     <path
-        android:fillColor="#B3FFFFFF"
+        android:fillColor="#9917171A"
         android:pathData="M42,76.5h24a1.5,1.5 0,0 1,0 3h-24a1.5,1.5 0,0 1,0 -3z" />
 </vector>

@@ -7,6 +7,7 @@ import android.content.Intent
 import kotlinx.serialization.json.Json
 import se.eldebosh.nastastopp.route.model.RouteData
 import se.eldebosh.nastastopp.util.DebugLog
+import se.eldebosh.nastastopp.util.writeWhole
 import java.io.File
 
 /**
@@ -33,12 +34,7 @@ class RouteRepository(private val context: Context) {
 
     @Synchronized
     fun save(data: RouteData) {
-        val tmp = File(file.parentFile, "$FILE_NAME.tmp")
-        tmp.writeText(json.encodeToString(RouteData.serializer(), data))
-        if (!tmp.renameTo(file)) {
-            file.delete()
-            tmp.renameTo(file)
-        }
+        writeWhole(file, json.encodeToString(RouteData.serializer(), data))
     }
 
     @Synchronized

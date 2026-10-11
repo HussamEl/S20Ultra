@@ -36,25 +36,60 @@ object TripTimes {
         index == 0 && TextNorm.letterCount(lines[index]) <= 3
 
     /**
-     * @param spans for every address, the first and last OCR line index it was read from
-     *   (in reading order, not overlapping).
-     * @return the time of every address, or null.
+     * The times around every address span (see [Nearby]); the status bar clock is skipped.
+     * [spans] holds, for every address, the first and last OCR line index it was read from (in
+     * reading order, not overlapping).
      */
-    fun assign(lines: List<String>, spans: List<Pair<Int, Int>>): List<String?> {
-        if (spans.isEmpty()) return emptyList()
-        val lineTimes = lines.indices.map { i -> if (isStatusBar(lines, i)) null else timeIn(lines[i]) }
-        val same = spans.map { (a, b) -> (a..b).firstNotNullOfOrNull { lineTimes.getOrNull(it) } }
-        val above = spans.mapIndexed { k, (a, _) ->
+    fun timesNearby(lines: List<String>, spans: List<Pair<Int, Int>>): Nearby<String> =
+        nearby(lines, spans) { i -> if (isStatusBar(lines, i)) null else timeIn(lines[i]) }
+
+    /**
+     * For every address span, the value ([valueOf] a line index) on its own lines, and the one on
+     * the nearest line above and below it, never past a neighbouring address.
+     */
+    fun <T : Any> nearby(lines: List<String>, spans: List<Pair<Int, Int>>, valueOf: (Int) -> T?): Nearby<T> {
+        val values = lines.indices.map(valueOf)
+        val same = spans.map { (a, b) -> (a..b).firstNotNullOfOrNull { values.getOrNull(it) } }
+        val upAt = spans.mapIndexed { k, (a, _) ->
             val lo = if (k == 0) 0 else spans[k - 1].second + 1
-            (a - 1 downTo lo).firstNotNullOfOrNull { lineTimes.getOrNull(it) }
+            (a - 1 downTo lo).firstOrNull { values.getOrNull(it) != null }
         }
-        val below = spans.mapIndexed { k, (_, b) ->
+        val downAt = spans.mapIndexed { k, (_, b) ->
             val hi = if (k == spans.lastIndex) lines.lastIndex else spans[k + 1].first - 1
-            (b + 1..hi).firstNotNullOfOrNull { lineTimes.getOrNull(it) }
+            (b + 1..hi).firstOrNull { values.getOrNull(it) != null }
         }
-        val needing = spans.indices.filter { same[it] == null }
-        val useAbove = needing.count { above[it] != null } >= needing.count { below[it] != null }
-        return spans.indices.map { same[it] ?: if (useAbove) above[it] else below[it] }
+        return Nearby(same, upAt.map { it?.let(values::get) }, downAt.map { it?.let(values::get) }, upAt, downAt)
+    }
+
+    /**
+     * Values found on, above and below each address span; the caller picks one direction for all.
+     * [upAt] / [downAt] are the line indices of the values above / below.
+     */
+    class Nearby<T : Any>(
+        private val same: List<T?>,
+        private val up: List<T?>,
+        private val down: List<T?>,
+        private val upAt: List<Int?>,
+        private val downAt: List<Int?>,
+    ) {
+        /** How many spans without a value of their own find one [above] (or below). */
+        fun count(above: Boolean): Int = same.indices.count { same[it] == null && (if (above) up[it] else down[it]) != null }
+
+        /**
+         * Each span's value: its own, else the one in the chosen direction ([above] or below), else
+         * the one on the other side when the neighbouring span does not take that same line. The
+         * last case is YouDrive's start point: its time sits beside (so, read before) its address
+         * while every trip card has its time below.
+         */
+        fun values(above: Boolean): List<T?> = same.indices.map { i ->
+            same[i] ?: (if (above) up[i] else down[i]) ?: if (above) down[i]?.takeUnless { takenBelow(i) } else up[i]?.takeUnless { takenAbove(i) }
+        }
+
+        /** The value below span [i] is the next span's value above it (the next span takes it). */
+        private fun takenBelow(i: Int) = i < same.lastIndex && same[i + 1] == null && upAt[i + 1] == downAt[i]
+
+        /** The value above span [i] is the previous span's value below it (the previous span takes it). */
+        private fun takenAbove(i: Int) = i > 0 && same[i - 1] == null && downAt[i - 1] == upAt[i]
     }
 
     /** Validates / normalises a time typed by the driver ("9:05" → "09:05"); null if invalid. */

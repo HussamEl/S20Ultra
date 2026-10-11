@@ -3,6 +3,21 @@ package se.eldebosh.nastastopp.ui
 import android.Manifest
 import android.os.Build
 import androidx.activity.compose.BackHandler
+import java.util.Locale
+import se.eldebosh.nastastopp.ui.theme.displayColors
+import se.eldebosh.nastastopp.ui.screens.HostedWidget
+import se.eldebosh.nastastopp.ui.screens.RouteMap
+import se.eldebosh.nastastopp.core.nav.CompanyServer
+import se.eldebosh.nastastopp.core.nav.RoutesApi
+import se.eldebosh.nastastopp.core.nav.WayAccess
+import se.eldebosh.nastastopp.settings.DeviceState
+import se.eldebosh.nastastopp.core.route.MapsUrlBuilder
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import androidx.compose.ui.graphics.toArgb
+import android.appwidget.AppWidgetProviderInfo
+import android.app.Activity
+import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -27,16 +42,23 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.compose.LifecycleStartEffect
+import se.eldebosh.nastastopp.core.display.DisplaySnapshot
+import se.eldebosh.nastastopp.geo.CarMotion
+import se.eldebosh.nastastopp.geo.TabletPosition
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.core.route.Announcements
@@ -69,6 +91,9 @@ private const val MAX_PICK = 30
 /** Key under which the route screen asks for current-street lookups. */
 private const val STREET_KEY = "active_screen"
 
+/** Key under which the passenger display keeps the floating panel away. */
+private const val DISPLAY_KEY = "passenger_display"
+
 @Composable
 fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
     val context = LocalContext.current
@@ -77,15 +102,18 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
     val controller = graph.controller
     val stack by vm.stack.collectAsStateWithLifecycle()
     val route by controller.route.collectAsStateWithLifecycle()
-    val tracking by controller.tracking.collectAsStateWithLifecycle()
     val settings by graph.settings.state.collectAsStateWithLifecycle()
     val ttsStatus by graph.announcer.status.collectAsStateWithLifecycle()
     val importState by vm.importState.collectAsStateWithLifecycle()
     val importError by vm.importError.collectAsStateWithLifecycle()
     val display by controller.display.collectAsStateWithLifecycle()
+    val entrances by controller.savedEntrances.collectAsStateWithLifecycle()
+    val addressLog by graph.addressLog.all.collectAsStateWithLifecycle()
     val linkServer by graph.displayServer.state.collectAsStateWithLifecycle()
     val history by graph.history.entries.collectAsStateWithLifecycle()
     val street by graph.street.state.collectAsStateWithLifecycle()
+    val youDriveLoginSaved by graph.youDriveLogin.saved.collectAsStateWithLifecycle()
+    val streetMap by graph.streetMap.state.collectAsStateWithLifecycle()
     val youDrive by graph.youDrive.state.collectAsStateWithLifecycle()
     val importing = importState is ImportUi.Running
     val snackbar = remember { SnackbarHostState() }
@@ -123,6 +151,12 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
     val startPermissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { startRoute() }
     fun requestStart() {
         val needed = buildList {
+            // Location only names the street the vehicle is on (never for the YouDrive page). Precise
+            // location is needed for that: with approximate only, Android offers to upgrade it.
+            if (!SystemIntents.hasPreciseLocation(context)) {
+                add(Manifest.permission.ACCESS_FINE_LOCATION)
+                add(Manifest.permission.ACCESS_COARSE_LOCATION)
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !SystemIntents.hasNotifications(context)) {
                 add(Manifest.permission.POST_NOTIFICATIONS)
             }
@@ -130,6 +164,10 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
         if (needed.isEmpty()) startRoute() else startPermissions.launch(needed.toTypedArray())
     }
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { resumeTick++ }
+    val locationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        controller.ensureStreetService()
+        resumeTick++
+    }
 
     // Bluetooth (passenger display link): permission → then (re)start the link.
     val bluetoothPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
@@ -163,8 +201,12 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
     }
 
     CompositionLocalProvider(LocalExplainResources provides explainResources) {
-    Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
-        Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+    // testTagsAsResourceId: numbered controls appear to UI Automator as resource-id "ref_<n>".
+    Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
+        // The passenger display is black to the screen's very edge (under the camera's cutout too)
+        // and keeps its own content clear of it; every other screen stays inside the safe area.
+        val edgeToEdge = screen == Screen.DISPLAY_LOCAL || screen == Screen.DISPLAY_ROLE
+        Box(Modifier.fillMaxSize().then(if (edgeToEdge) Modifier else Modifier.safeDrawingPadding())) {
             Column(Modifier.fillMaxSize()) {
                 if (importState is ImportUi.Running) {
                     val s = importState as ImportUi.Running
@@ -190,7 +232,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             ttsStatus = ttsStatus,
                             importing = importing,
                             onImport = ::pickImages,
-                            onResume = { vm.navigate(Screen.ACTIVE) },
+                            onResume = { controller.ensureStreetService(); vm.navigate(Screen.ACTIVE) },
                             onReview = { vm.navigate(Screen.REVIEW) },
                             onClear = { controller.clear() },
                             onSettings = { vm.navigate(Screen.SETTINGS) },
@@ -245,15 +287,22 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             onAddScreenshots = ::pickImages,
                             onStart = ::requestStart,
                             onBackToRoute = { vm.leaveReviewToActive() },
+                            entrances = entrances,
+                            onEntrance = { stop, point, note ->
+                                // The stop as it now reads (its address may just have been edited).
+                                val fresh = controller.route.value?.stops?.firstOrNull { it.id == stop.id } ?: stop
+                                controller.setEntrance(fresh, point, note)
+                            },
+                            onNavigate = { controller.navigateTo(it) },
+                            onStreetView = { controller.streetViewAt(it) },
                         )
                         Screen.ACTIVE -> route?.takeIf { it.active }?.let { r ->
                             ActiveRouteScreen(
                                 route = r,
-                                tracking = tracking,
                                 hasLocationPermission = remember(resumeTick) { SystemIntents.hasLocation(context) },
                                 spokenName = spokenName,
                                 onBack = { if (!vm.back()) vm.resetTo(Screen.HOME) },
-                                onNext = { controller.next(auto = false) },
+                                onNext = { controller.next() },
                                 onRepeat = { controller.repeat() },
                                 onOpenMaps = { controller.openMaps() },
                                 onEdit = { vm.navigate(Screen.REVIEW) },
@@ -265,6 +314,9 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 onPreviousTrip = { controller.back() },
                                 onOpenDisplay = { vm.navigate(Screen.DISPLAY_LOCAL) },
                                 onToggleOverlay = { graph.settings.update { it.copy(overlayHidden = !it.overlayHidden, overlayMinimized = false) } },
+                                entranceOf = { entrances[it.entranceKey] },
+                                onNavigateStop = { controller.navigateTo(it) },
+                                onStreetViewStop = { controller.streetViewAt(it) },
                             )
                             // Look up the current street while this screen is shown.
                             DisposableEffect(Unit) {
@@ -272,13 +324,34 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 onDispose { graph.street.want(STREET_KEY, false) }
                             }
                         }
-                        Screen.DISPLAY_LOCAL -> PassengerDisplayScreen(
-                            snapshot = display,
-                            status = null,
-                            connected = true,
-                            onSpeak = { controller.repeat() },
-                            onExit = { vm.back() },
-                        )
+                        Screen.DISPLAY_LOCAL -> {
+                            // Each spoken announcement lights up what it says on the screen.
+                            var spoken by remember { mutableIntStateOf(0) }
+                            LaunchedEffect(Unit) { controller.announcements.collect { spoken++ } }
+                            PassengerDisplayScreen(
+                                snapshot = display,
+                                status = null,
+                                connected = true,
+                                spoken = spoken,
+                                onSpeak = { controller.repeat() },
+                                onSay = { graph.announcer.speak(it) },
+                                voice = graph.announcer.said,
+                                ownVoice = graph.announcer.said,
+                                onExit = { vm.back() },
+                                dark = settings.displayDark,
+                                onToggleLook = { graph.settings.update { it.copy(displayDark = !it.displayDark) } },
+                                places = graph.settings,
+                            )
+                            // The passengers look at this screen: the driver's floating panel stays away.
+                            DisposableEffect(Unit) {
+                                graph.overlay.suppress(DISPLAY_KEY, true)
+                                graph.localDisplays.value++
+                                onDispose {
+                                    graph.overlay.suppress(DISPLAY_KEY, false)
+                                    graph.localDisplays.value--
+                                }
+                            }
+                        }
                         Screen.DISPLAY_ROLE -> {
                             val client = graph.displayClient
                             val link by client.state.collectAsStateWithLifecycle()
@@ -288,10 +361,104 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             // Connect while this screen is shown; retry after returning from settings.
                             LaunchedEffect(address, resumeTick) { client.start(address) }
                             DisposableEffect(Unit) { onDispose { client.stop() } }
-                            // Optionally speak the controller's announcements here too.
+                            // Speak the controller's announcements here too (unless switched off), and
+                            // light up on the screen what they say.
                             LaunchedEffect(settings.displaySpeaks) {
                                 if (settings.displaySpeaks) client.announcements.collect { graph.announcer.speak(it) }
                             }
+                            var spoken by remember { mutableIntStateOf(0) }
+                            LaunchedEffect(client) { client.announcements.collect { spoken++ } }
+                            // A weather app's widget (207): its slot is bound after the system asks the driver.
+                            val widgets = graph.weatherWidgets
+                            DisposableEffect(Unit) {
+                                widgets.listen(true)
+                                onDispose { widgets.listen(false) }
+                            }
+                            var binding by remember { mutableStateOf<Pair<Int, AppWidgetProviderInfo>?>(null) }
+                            val keepWidget = { id: Int, info: AppWidgetProviderInfo ->
+                                val old = settings.weatherWidgetId
+                                graph.settings.update { it.copy(weatherWidgetId = id) }
+                                if (old >= 0 && old != id) widgets.remove(old)
+                                if (widgets.needsSetup(info)) (context as? Activity)?.let { widgets.setUp(it, id) }
+                            }
+                            val bindWidget = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+                                binding?.let { (id, info) -> if (result.resultCode == Activity.RESULT_OK) keepWidget(id, info) else widgets.remove(id) }
+                                binding = null
+                            }
+                            val widgetId = settings.weatherWidgetId
+                            val widgetLabel = remember(widgetId, resumeTick) { widgetId.takeIf { it >= 0 }?.let { widgets.label(it) } }
+                            // In the passenger display's own look (black or light, 223), whatever the app's.
+                            val night = settings.displayDark
+                            val ground = displayColors(night).background.toArgb()
+                            val mapScope = rememberCoroutineScope()
+                            var mapRestarts by remember { mutableIntStateOf(0) }
+                            // The company's server (311): the map key, ways and travel times while this
+                            // tablet is connected, kept up to date (silently) while the display is in sight.
+                            val company = graph.companyDevice
+                            val device by company.state.collectAsStateWithLifecycle()
+                            LifecycleStartEffect(company) {
+                                val job = mapScope.launch { company.keepFresh() }
+                                onStopOrDispose { job.cancel() }
+                            }
+                            // The map's key and the page's address: the company's while connected, the
+                            // driver's own only while not (never a silent switch to his key while
+                            // connected, so the map is billed where the owner decided); none while the
+                            // tablet is stopped or unknown to the server.
+                            val wantedPage = when (val d = device) {
+                                is DeviceState.Connected -> d.mapKey?.takeIf { RoutesApi.isKey(it) }?.let { it to CompanyServer.PAGE_BASE }
+                                DeviceState.NotConnected, DeviceState.Lost -> settings.mapsKey?.takeIf { RoutesApi.isKey(it) }?.let { it to RouteMap.BASE }
+                                is DeviceState.Stopped, DeviceState.Unknown -> null
+                            }
+                            var page by remember { mutableStateOf(wantedPage) }
+                            // A tablet stopped while its map is open keeps that map until the display is left.
+                            LaunchedEffect(wantedPage, device) {
+                                if (wantedPage != null || (device !is DeviceState.Stopped && device !is DeviceState.Unknown)) page = wantedPage
+                            }
+                            // One map for as long as the display is open (Google counts each map made):
+                            // a new look recolours it, and the same key never makes another.
+                            val groundHex = String.format(Locale.ROOT, "#%06X", ground and 0xFFFFFF)
+                            val routeMap = remember(page, mapRestarts) {
+                                page?.let { (key, base) -> RouteMap(context, key, night, groundHex, mapScope, base) }
+                            }
+                            LaunchedEffect(routeMap, night, groundHex) { routeMap?.setLook(night, groundHex) }
+                            // The ways and travel times from Google or mapmap, as the driver chose (304):
+                            // through the company's server while connected, else with his own keys.
+                            LaunchedEffect(routeMap, settings.waySource, settings.mapsKey, settings.mapmapKey, device) {
+                                routeMap?.useWays(
+                                    settings.waySource,
+                                    when (device) {
+                                        is DeviceState.Connected -> company.access()
+                                        DeviceState.NotConnected, DeviceState.Lost ->
+                                            settings.mapsKey?.takeIf { RoutesApi.isKey(it) }?.let { WayAccess.Own(it, settings.mapmapKey) } ?: WayAccess.None
+                                        is DeviceState.Stopped, DeviceState.Unknown -> WayAccess.None
+                                    },
+                                )
+                            }
+                            DisposableEffect(routeMap) {
+                                routeMap?.onServerTrouble = company::onTrouble
+                                onDispose { routeMap?.destroy() }
+                            }
+                            // A map whose renderer stopped is replaced by a new one.
+                            LaunchedEffect(routeMap?.gone) { if (routeMap?.gone == true) mapRestarts++ }
+                            // Where the car is, for the map: this tablet's own GPS, while the display
+                            // is in sight and the location is allowed (asked when the map is wanted).
+                            val position = remember { TabletPosition(context.applicationContext) }
+                            var located by remember(resumeTick) { mutableStateOf(position.allowed) }
+                            val askPosition = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { located = position.allowed }
+                            LifecycleStartEffect(routeMap, located) {
+                                if (routeMap != null && located) position.start()
+                                onStopOrDispose { position.stop() }
+                            }
+                            val fix by position.fix.collectAsStateWithLifecycle()
+                            // Whether the car moves (the tablet's accelerometer and GPS speed), while the
+                            // display is in sight: its moments and its map's flights rest when it stands still.
+                            val carMotion = remember { CarMotion(context.applicationContext) }
+                            LifecycleStartEffect(carMotion) {
+                                carMotion.start()
+                                onStopOrDispose { carMotion.stop() }
+                            }
+                            LaunchedEffect(fix) { carMotion.onSpeed(fix?.speedMps) }
+                            val carAwake by carMotion.awake.collectAsStateWithLifecycle()
                             DisplayRoleScreen(
                                 settings = settings,
                                 link = link,
@@ -312,17 +479,76 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                     client.choose(address)
                                 },
                                 onSpeak = { remote?.announcement?.let { graph.announcer.speak(it) } },
+                                onSay = { graph.announcer.speak(it) },
+                                spoken = spoken,
+                                // This tablet's own voice says the announcements (unless switched off): the display follows it.
+                                voice = if (settings.displaySpeaks) graph.announcer.said else null,
+                                // The trips tapped here are said here.
+                                ownVoice = graph.announcer.said,
                                 onToggleSpeaks = { v -> graph.settings.update { it.copy(displaySpeaks = v) } },
+                                onToggleLook = { graph.settings.update { it.copy(displayDark = !it.displayDark) } },
+                                onOrder = { ids -> client.order(ids) },
+                                remote = client.remotes,
+                                onMapView = { client.mapView(it) },
+                                awake = carAwake,
+                                motion = if (carMotion.available) ({ carMotion.level.value }) else null,
+                                speed = { carMotion.speed.value },
+                                onMotionStyle = { style -> graph.settings.update { it.copy(motionStyle = style) } },
+                                places = graph.settings,
+                                panelAllowed = remember(resumeTick) { graph.tabletPanel.canShow },
+                                onAllowPanel = { SystemIntents.openOverlaySettings(context) },
+                                onTogglePanel = { v ->
+                                    // Turned on, it shows even if it was closed with its × before.
+                                    graph.settings.update { it.copy(tabletPanel = v, overlayHidden = if (v) false else it.overlayHidden) }
+                                    if (v && !graph.tabletPanel.canShow) SystemIntents.openOverlaySettings(context)
+                                },
                                 onSwitchToController = { vm.setRole(DeviceRole.CONTROLLER) },
+                                widgetLabel = widgetLabel,
+                                widgetChoices = { widgets.choices() },
+                                onChooseWidget = { choice ->
+                                    if (choice == null) {
+                                        widgets.remove(settings.weatherWidgetId)
+                                        graph.settings.update { it.copy(weatherWidgetId = -1) }
+                                    } else {
+                                        val (id, bound) = widgets.add(choice.info)
+                                        if (bound) {
+                                            keepWidget(id, choice.info)
+                                        } else {
+                                            binding = id to choice.info
+                                            bindWidget.launch(widgets.bindIntent(id, choice.info))
+                                        }
+                                    }
+                                },
+                                weatherWidget = widgetLabel?.let { { m: Modifier -> HostedWidget(widgets, widgetId, m) } },
+                                onSaveMapsKey = { key -> graph.settings.update { it.copy(mapsKey = key) } },
+                                onSaveWays = { source, key -> graph.settings.update { it.copy(waySource = source, mapmapKey = key) } },
+                                companyState = device,
+                                // The driver's own keys stay as they are: unused while connected, used again after Disconnect.
+                                onConnect = { code -> company.enroll(code) },
+                                onCheckNow = { mapScope.launch { company.refresh(force = true) } },
+                                onDisconnect = { mapScope.launch { company.disconnect() } },
+                                mapRefused = routeMap?.refused == true,
+                                routeMap = routeMap,
+                                mapLive = fix != null,
+                                onWantPosition = {
+                                    if (!position.allowed) askPosition.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                                },
+                                // Google's own apps on the driver's tap: nothing billed on the map key.
+                                // From this screen: Back in Google's app comes back to the display.
+                                onEarth = { lat, lng -> graph.maps.openEarth(lat, lng, context) },
+                                onStreetPhotos = { lat, lng -> graph.maps.open(MapsUrlBuilder.streetViewUrl(lat, lng), context) },
                             )
                         }
                         Screen.SETTINGS -> SettingsScreen(
                             settings = settings,
                             permissions = remember(resumeTick) {
                                 PermissionStatus(
+                                    location = SystemIntents.hasLocation(context),
+                                    locationApproximate = SystemIntents.hasLocation(context) && !SystemIntents.hasPreciseLocation(context),
                                     notifications = SystemIntents.hasNotifications(context),
                                     overlay = SystemIntents.canDrawOverlays(context),
                                     battery = SystemIntents.isIgnoringBatteryOptimizations(context),
+                                    mapsTime = SystemIntents.hasMapsTimeAccess(context),
                                 )
                             },
                             ttsStatus = ttsStatus,
@@ -339,6 +565,11 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 }
                             },
                             onTestVoice = ::testVoice,
+                            onLocation = {
+                                // Approximate only: asking again lets Android offer "precise" (street names need it).
+                                if (SystemIntents.hasPreciseLocation(context)) SystemIntents.openAppDetails(context)
+                                else locationPermission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                            },
                             onNotifications = {
                                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !SystemIntents.hasNotifications(context)) {
                                     notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -347,10 +578,25 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 }
                             },
                             onOverlay = { SystemIntents.openOverlaySettings(context) },
+                            onMapsTime = { SystemIntents.openMapsTimeSettings(context) },
                             onBattery = { SystemIntents.requestIgnoreBatteryOptimizations(context) },
                             link = linkServer,
                             onToggleLink = ::toggleLink,
                             onFixLink = ::fixLink,
+                            youDriveLoginSaved = youDriveLoginSaved,
+                            onSaveYouDriveLogin = { u, p -> graph.youDriveLogin.save(u, p) },
+                            onDeleteYouDriveLogin = { graph.youDriveLogin.delete() },
+                            streetMap = streetMap,
+                            onDownloadStreetMap = { graph.streetMap.download() },
+                            onDeleteStreetMap = { graph.streetMap.delete() },
+                            entrancesSaved = entrances.size,
+                            onClearEntrances = { controller.clearEntrances() },
+                            addressesLogged = addressLog.size,
+                            onShareAddresses = {
+                                val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, graph.addressLog.asText())
+                                runCatching { context.startActivity(Intent.createChooser(send, null)) }
+                            },
+                            onClearAddresses = { graph.addressLog.clear() },
                             onVoice = {
                                 if (ttsStatus == se.eldebosh.nastastopp.tts.TtsStatus.READY) testVoice() else vm.navigate(Screen.TTS_MISSING)
                             },

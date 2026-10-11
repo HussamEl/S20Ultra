@@ -2,62 +2,127 @@ package se.eldebosh.nastastopp.robo
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Paint
 import android.os.Looper
 import android.view.View
 import android.view.WindowManager
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.filterToOne
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasAnyDescendant
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDialog
+import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.pinch
+import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.swipeRight
+import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import java.io.File
+import java.time.Duration
+import java.time.LocalTime
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 import org.robolectric.shadow.api.Shadow
 import org.robolectric.shadows.ShadowSettings
 import org.robolectric.shadows.ShadowWindowManagerImpl
 import se.eldebosh.nastastopp.App
-import se.eldebosh.nastastopp.ui.screens.OnboardingScreen
-import java.time.Duration
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.graphics.asAndroidBitmap
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.test.captureToImage
-import androidx.compose.ui.test.junit4.v2.createComposeRule
-import androidx.compose.ui.test.onRoot
-import androidx.test.ext.junit.runners.AndroidJUnit4
-import org.junit.Rule
-import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.annotation.Config
-import org.robolectric.annotation.GraphicsMode
 import se.eldebosh.nastastopp.core.display.DisplayItem
 import se.eldebosh.nastastopp.core.display.DisplaySnapshot
+import se.eldebosh.nastastopp.core.display.MotionStyle
+import se.eldebosh.nastastopp.core.geo.Fix
+import se.eldebosh.nastastopp.core.geo.GeoResult
+import se.eldebosh.nastastopp.core.link.LinkMessage
+import se.eldebosh.nastastopp.core.nav.DisplayEta
+import se.eldebosh.nastastopp.core.parse.DeviceFixtures
+import se.eldebosh.nastastopp.core.parse.TripKind
+import se.eldebosh.nastastopp.core.weather.DisplayWeather
 import se.eldebosh.nastastopp.core.youdrive.TripChange
 import se.eldebosh.nastastopp.core.youdrive.WatchedTrip
+import se.eldebosh.nastastopp.geo.CurrentStreet
+import se.eldebosh.nastastopp.geo.StreetMapStore
 import se.eldebosh.nastastopp.link.DisplayLinkServer
+import se.eldebosh.nastastopp.overlay.FloatingPanel
+import se.eldebosh.nastastopp.overlay.OverlayManager
+import se.eldebosh.nastastopp.overlay.PanelActions
+import se.eldebosh.nastastopp.overlay.PanelSource
+import se.eldebosh.nastastopp.overlay.RoutePanelSource
 import se.eldebosh.nastastopp.route.HistoryEntry
-import se.eldebosh.nastastopp.route.TrackingState
 import se.eldebosh.nastastopp.route.model.GeoPoint
 import se.eldebosh.nastastopp.route.model.GeoStatus
 import se.eldebosh.nastastopp.route.model.RouteData
 import se.eldebosh.nastastopp.route.model.Stop
 import se.eldebosh.nastastopp.settings.AppSettings
+import se.eldebosh.nastastopp.settings.Appearance
+import se.eldebosh.nastastopp.settings.WindowPlaces
 import se.eldebosh.nastastopp.tts.TtsStatus
 import se.eldebosh.nastastopp.ui.LocalExplainResources
 import se.eldebosh.nastastopp.ui.screens.ActiveRouteScreen
 import se.eldebosh.nastastopp.ui.screens.HelpScreen
 import se.eldebosh.nastastopp.ui.screens.HomeScreen
+import se.eldebosh.nastastopp.ui.screens.OnboardingScreen
 import se.eldebosh.nastastopp.ui.screens.PassengerDisplayScreen
 import se.eldebosh.nastastopp.ui.screens.PermissionStatus
 import se.eldebosh.nastastopp.ui.screens.ReviewScreen
+import se.eldebosh.nastastopp.ui.screens.RouteMap
 import se.eldebosh.nastastopp.ui.screens.SettingsScreen
 import se.eldebosh.nastastopp.ui.screens.YouDriveBar
 import se.eldebosh.nastastopp.ui.screens.YouDriveCard
+import se.eldebosh.nastastopp.ui.theme.AppTheme
 import se.eldebosh.nastastopp.ui.theme.NastaTheme
 import se.eldebosh.nastastopp.util.LocaleHelper
 import se.eldebosh.nastastopp.youdrive.YouDriveWatcher
-import java.io.File
 
 /**
  * Renders each screen (English UI, Arabic explanations, reference numbers on) with invented trips
@@ -73,34 +138,42 @@ class ScreenshotsRoboTest {
 
     private val now = System.currentTimeMillis()
 
-    private fun stop(id: Long, text: String, time: String?, located: Boolean = true) = Stop(
+    private fun stop(id: Long, text: String, time: String?, located: Boolean = true, kind: TripKind? = null, name: String? = null) = Stop(
         id = id,
         displayText = text,
         candidates = listOf(text),
         geoStatus = if (located) GeoStatus.LOCATED else GeoStatus.NOT_LOCATED,
         geo = if (located) GeoPoint(59.38, 13.50) else null,
         time = time,
+        kind = kind,
+        name = name,
     )
 
     private val stops = listOf(
-        stop(1, "Sjösalagatan 21, 66452 Vålberg", "07:30"),
-        stop(2, "Brattgårdsgatan 4, 66452 Vålberg", "07:36"),
-        stop(3, "Majeldsvägen 10, 66450 Vålberg", "08:00"),
-        stop(4, "Storgatan 14, 65224 Karlstad", "08:25", located = false),
+        stop(1, "Järnvägsgatan 3B, 68830 Storfors", "07:30", kind = TripKind.PICK_UP, name = "Anna Testsson"),
+        stop(2, "Västra Torggatan 12, 65224 Karlstad", "07:36", kind = TripKind.PICK_UP, name = "Bengt Provare"),
+        stop(3, "Hamngatan 7, 66330 Skoghall", "08:00", kind = TripKind.DROP_OFF, name = "Anna Testsson"),
+        stop(4, "Storgatan 14, 65224 Karlstad", "08:25", located = false, kind = TripKind.DROP_OFF, name = "Bengt Provare"),
         stop(5, "Lindvägen 9, 66430 Grums", "09:10"),
     )
 
+    /** The day's start point (YouDrive's Pull-out), invented. */
+    private val depot = stop(9, "Depågatan 1, 65340 Karlstad", "06:42", kind = TripKind.PULL_OUT)
+
     private fun spoken(s: Stop) = s.displayText.substringAfterLast(' ')
+
+    /** A stop's address large at the top (not the next stop's small one on the bottom line, 299). */
+    private fun hero(address: String) = compose.onNode(hasText(address) and !hasTestTag("ref_299"))
 
     private fun save(name: String, bitmap: Bitmap) {
         val dir = File("build/screenshots").apply { mkdirs() }
         File(dir, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
-    private fun shot(name: String, after: () -> Unit = {}, content: @Composable () -> Unit) {
+    private fun shot(name: String, after: () -> Unit = {}, night: Boolean = false, content: @Composable () -> Unit) {
         compose.setContent {
             val context = LocalContext.current
-            NastaTheme {
+            NastaTheme(if (night) Appearance.NIGHT else Appearance.DAY) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     CompositionLocalProvider(
                         LocalExplainResources provides LocaleHelper.explanationContext(context, "en", true).resources,
@@ -129,7 +202,10 @@ class ScreenshotsRoboTest {
 
     @Test
     @Config(qualifiers = "en-w412dp-h1500dp-xhdpi")
-    fun home() = shot("home") {
+    fun home() = shot("home") { HomeContent() }
+
+    @Composable
+    private fun HomeContent() {
         HomeScreen(
             route = RouteData(createdAtMs = now, stops = stops),
             ttsStatus = TtsStatus.READY,
@@ -139,7 +215,7 @@ class ScreenshotsRoboTest {
             onToggleLink = {}, onFixLink = {}, onUseAsDisplay = {},
             overlayPermission = true, overlayHidden = false, onOverlayVisible = {}, onOverlayPermission = {}, onAddTile = {},
             history = listOf(
-                HistoryEntry(1, "07:10", "Vålberg", "Kasernhöjden 1, 66452 Vålberg", now - 3_600_000),
+                HistoryEntry(1, "07:10", "Kristinehamn", "Kungsgatan 22, 68131 Kristinehamn", now - 3_600_000),
                 HistoryEntry(2, "06:45", "Karlstad", "Storgatan 14, 65224 Karlstad", now - 5_000_000, done = false),
             ),
             historyRetentionHours = 12,
@@ -149,10 +225,22 @@ class ScreenshotsRoboTest {
     }
 
     @Test
-    fun activeRoute() = shot("active") {
+    fun activeRouteNight() = shot("active_night", night = true) { ActiveContent() }
+
+    @Test
+    @Config(qualifiers = "en-w412dp-h1500dp-xhdpi")
+    fun homeNight() = shot("home_night", night = true) { HomeContent() }
+
+    @Test
+    fun reviewNight() = shot("review_night", night = true) { ReviewContent() }
+
+    @Test
+    fun activeRoute() = shot("active") { ActiveContent() }
+
+    @Composable
+    private fun ActiveContent() {
         ActiveRouteScreen(
-            route = RouteData(createdAtMs = now, active = true, stops = stops.drop(1), completed = stops.take(1)),
-            tracking = TrackingState(),
+            route = RouteData(createdAtMs = now, active = true, stops = stops.drop(1), completed = stops.take(1), depot = depot),
             hasLocationPermission = false,
             spokenName = ::spoken,
             overlayAvailable = true,
@@ -164,9 +252,12 @@ class ScreenshotsRoboTest {
     }
 
     @Test
-    fun review() = shot("review") {
+    fun review() = shot("review") { ReviewContent() }
+
+    @Composable
+    private fun ReviewContent() {
         ReviewScreen(
-            route = RouteData(createdAtMs = now, stops = stops),
+            route = RouteData(createdAtMs = now, stops = stops, depot = depot),
             spokenName = ::spoken,
             importing = false,
             onBack = {}, onMove = { _, _ -> }, onDelete = {}, onDeleteAbove = {}, onEdit = { _, _, _ -> true }, onRetry = {},
@@ -179,11 +270,13 @@ class ScreenshotsRoboTest {
     fun settings() = shot("settings") {
         SettingsScreen(
             settings = AppSettings(),
-            permissions = PermissionStatus(notifications = true, overlay = true, battery = false),
+            permissions = PermissionStatus(location = true, notifications = true, overlay = true, battery = false),
             ttsStatus = TtsStatus.READY,
-            onBack = {}, onUpdate = {}, onLanguage = {}, onTestVoice = {}, onNotifications = {}, onOverlay = {}, onBattery = {}, onVoice = {},
+            onBack = {}, onUpdate = {}, onLanguage = {}, onTestVoice = {}, onLocation = {}, onNotifications = {}, onOverlay = {}, onBattery = {}, onVoice = {},
             link = DisplayLinkServer.State(DisplayLinkServer.Status.WAITING, localName = "Galaxy S20 Ultra"),
             onToggleLink = {}, onFixLink = {},
+            youDriveLoginSaved = false, onSaveYouDriveLogin = { _, _ -> }, onDeleteYouDriveLogin = {},
+            streetMap = StreetMapStore.State.Ready(41_230, 1_790_000_000_000), onDownloadStreetMap = {}, onDeleteStreetMap = {},
         )
     }
 
@@ -207,10 +300,12 @@ class ScreenshotsRoboTest {
     }) {
         SettingsScreen(
             settings = AppSettings(),
-            permissions = PermissionStatus(notifications = true, overlay = true, battery = true),
+            permissions = PermissionStatus(location = false, notifications = true, overlay = true, battery = true),
             ttsStatus = TtsStatus.READY,
-            onBack = {}, onUpdate = {}, onLanguage = {}, onTestVoice = {}, onNotifications = {}, onOverlay = {}, onBattery = {}, onVoice = {},
+            onBack = {}, onUpdate = {}, onLanguage = {}, onTestVoice = {}, onLocation = {}, onNotifications = {}, onOverlay = {}, onBattery = {}, onVoice = {},
             link = DisplayLinkServer.State(), onToggleLink = {}, onFixLink = {},
+            youDriveLoginSaved = true, onSaveYouDriveLogin = { _, _ -> }, onDeleteYouDriveLogin = {},
+            streetMap = StreetMapStore.State.None, onDownloadStreetMap = {}, onDeleteStreetMap = {},
         )
     }
 
@@ -221,29 +316,210 @@ class ScreenshotsRoboTest {
 
     /** The floating panel over Maps (a window of its own): drawn into a bitmap. */
     @Test
-    fun floatingPanel() {
+    fun floatingPanel() = renderPanel("floating", Appearance.DAY)
+
+    @Test
+    fun floatingPanelNight() = renderPanel("floating_night", Appearance.NIGHT)
+
+    @Test
+    fun floatingBubble() = renderPanel("floating_bubble", Appearance.DAY, minimized = true)
+
+    /** The passenger display's map open: the panel runs it (its buttons and its list of trips). */
+    @Test
+    @Config(qualifiers = "en-w412dp-h1500dp-xhdpi")
+    fun floatingPanelRunsTheDisplaysMap() = renderPanel("floating_map", Appearance.DAY, mapOpen = true)
+
+    /** Arabic: the panel is mirrored (Back on the right). */
+    @Test
+    fun floatingArabic() = renderPanel("floating_ar", Appearance.DAY, language = "ar")
+
+    /**
+     * The panel (or its minimised capsule) over a background that is half a light day map with a
+     * park and a route line, half a dark wallpaper: the glass must read on all of them.
+     */
+    /** The panel as a tablet shows it over the passenger display: no name, no street bar or speed. */
+    @Test
+    fun floatingPanelOnTheTablet() = renderPanel("floating_tablet", Appearance.NIGHT, tablet = true)
+
+    @Test
+    fun floatingBubbleOnTheTablet() = renderPanel("floating_tablet_bubble", Appearance.NIGHT, minimized = true, tablet = true)
+
+    private fun renderPanel(name: String, appearance: Appearance, minimized: Boolean = false, language: String = "en", tablet: Boolean = false, mapOpen: Boolean = false) {
         val app = ApplicationProvider.getApplicationContext<App>()
         val graph = app.graph
         ShadowSettings.setCanDrawOverlays(true)
-        graph.settings.update { it.copy(overlayHidden = false, overlayMinimized = false) }
+        shadowOf(app).grantPermissions(android.Manifest.permission.ACCESS_FINE_LOCATION) // the speed circle shows
+        graph.settings.update { it.copy(overlayHidden = false, overlayMinimized = minimized, appearance = appearance, uiLanguage = language) }
+        LocaleHelper.applyAppLocale(app, language)
         graph.controller.clear()
-        graph.controller.addManual("Brattgårdsgatan 4, 66452 Vålberg", "07:36")
-        graph.controller.addManual("Majeldsvägen 10, 66450 Vålberg", "08:00")
+        graph.controller.addExtracted(
+            graph.extractor.extract(
+                listOf("2026-09-29", "07:36", "Pick-up", "Bengt Provare", "Västra Torggatan 12, 65224 Karlstad", "08:00", "Drop-off", "Bengt Provare", "Hamngatan 7, 66330 Skoghall"),
+            ),
+        )
         repeat(600) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1)) }
+        // The app's own panel stays away; this one knows the street (an invented lookup).
+        graph.overlay.suppress("render", true)
+        val street = CurrentStreet(graph.scope) { _, _ -> listOf(GeoResult(59.38, 13.5, null, null, "Karlstad", "Centrum", "Västra Torggatan")) }
+        street.want("render", true)
+        street.onFix(Fix(0, 59.38, 13.5, 12.5f, 5f)) // 45 km/h
+        shadowOf(Looper.getMainLooper()).idle()
+        street.onFix(Fix(10_000, 59.38, 13.5, 12.5f, 5f)) // the confirming reading
+        shadowOf(Looper.getMainLooper()).idle()
+        val phone = RoutePanelSource(graph.controller, street, graph.announcer, graph.displayServer, graph.scope)
+        // A tablet gets what its passenger display gets: no name, and no street or speed.
+        val source = when {
+            tablet -> object : PanelSource by phone {
+                override val street: CurrentStreet? = null
+                override fun trip() = phone.trip()?.copy(name = null, area = null)
+                override fun fullName(item: DisplayItem): String? = null
+                override val mapView: StateFlow<LinkMessage.MapView?>? = null
+                override val displayName: StateFlow<String?>? = null
+            }
+            // The tablet's map open: the panel runs it.
+            mapOpen -> object : PanelSource by phone {
+                override val displayName: StateFlow<String?> = MutableStateFlow("Galaxy Tab S9")
+                override val mapView: StateFlow<LinkMessage.MapView?> = MutableStateFlow(
+                    LinkMessage.MapView(hasMap = true, open = true, ids = graph.controller.route.value!!.stops.map { it.id }, at = 0, minutes = listOf(4, 11), located = true, canAdd = false, canAddEarlier = false),
+                )
+            }
+            else -> object : PanelSource by phone {
+                override val displayName: StateFlow<String?> = MutableStateFlow("Galaxy Tab S9")
+                override val mapView: StateFlow<LinkMessage.MapView?> = MutableStateFlow(LinkMessage.MapView(hasMap = true))
+            }
+        }
         graph.controller.start()
         shadowOf(Looper.getMainLooper()).idle()
+        if (!minimized) {
+            // The full panel is drawn with Compose: drawn here over the same backgrounds.
+            val actions = object : PanelActions {
+                override fun minimize() = Unit
+                override fun close() = Unit
+                override fun openApp() = Unit
+                override fun toggleSayStreet() = Unit
+                override fun toast(text: Int) = Unit
+                override fun barAt(bounds: androidx.compose.ui.geometry.Rect) = Unit
+            }
+            compose.setContent {
+                Box(Modifier.size(PANEL_SHOT_W, if (mapOpen) 900.dp else 560.dp)) {
+                    Row(Modifier.fillMaxSize()) {
+                        Box(Modifier.weight(1f).fillMaxHeight().background(PanelShotDay))
+                        Box(Modifier.weight(1f).fillMaxHeight().background(PanelShotNight))
+                    }
+                    Box(Modifier.padding(14.dp)) {
+                        FloatingPanel(source, actions, sayStreetOn = true, time = { LocalTime.of(7, 21, 30) })
+                    }
+                }
+            }
+            compose.waitForIdle()
+            save(name, compose.onRoot().captureToImage().asAndroidBitmap())
+            graph.overlay.suppress("render", false)
+            street.want("render", false)
+            graph.controller.end()
+            graph.settings.update { it.copy(appearance = Appearance.DAY, overlayMinimized = false, uiLanguage = "en") }
+            LocaleHelper.applyAppLocale(app, "en")
+            return
+        }
+        val panelManager = OverlayManager(app, source, graph.settings, graph.scope, bubbleScale = if (tablet) 2f else 1f) { true }
         val wm = Shadow.extract<ShadowWindowManagerImpl>(app.getSystemService(WindowManager::class.java))
         val panel = wm.views.last() // the compose rule's own window comes first
         panel.measure(View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
         panel.layout(0, 0, panel.measuredWidth, panel.measuredHeight)
-        val bitmap = Bitmap.createBitmap(panel.measuredWidth + 40, panel.measuredHeight + 40, Bitmap.Config.ARGB_8888)
+        val w = panel.measuredWidth + 40
+        val h = panel.measuredHeight + 40
+        val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         Canvas(bitmap).apply {
-            drawColor(0xFF5A6B57.toInt()) // a map-like background
+            val paint = Paint()
+            paint.color = 0xFFEDEBE6.toInt() // a light day map
+            drawRect(0f, 0f, w / 2f, h.toFloat(), paint)
+            paint.color = 0xFFC8E6C9.toInt() // a park
+            drawRect(0f, h * 0.55f, w / 2f, h.toFloat(), paint)
+            paint.color = 0xFF4285F4.toInt() // the route line
+            drawRect(w * 0.28f, 0f, w * 0.34f, h.toFloat(), paint)
+            paint.color = 0xFF202124.toInt() // a dark wallpaper
+            drawRect(w / 2f, 0f, w.toFloat(), h.toFloat(), paint)
+            paint.color = 0xFFFFC61A.toInt() // a bright app icon
+            drawRect(w * 0.78f, h * 0.2f, w * 0.92f, h * 0.45f, paint)
             translate(20f, 20f)
             panel.draw(this)
         }
-        save("floating", bitmap)
+        save(name, bitmap)
+        panelManager.hide()
+        graph.overlay.suppress("render", false)
+        street.want("render", false)
         graph.controller.end()
+        graph.settings.update { it.copy(appearance = Appearance.DAY, overlayMinimized = false, uiLanguage = "en") }
+        LocaleHelper.applyAppLocale(app, "en")
+    }
+
+    /**
+     * The invented dispatch lists of [DeviceFixtures] as phone screenshots (1080×2400), for the
+     * import test on the real phone. Copied to testdata/screenshots/ when they change.
+     */
+    @Test
+    fun deviceFixtures() {
+        listOf(
+            "fixture_time_above" to DeviceFixtures.timeAbove,
+            "fixture_same_line" to DeviceFixtures.sameLine,
+            "fixture_prefixes" to DeviceFixtures.prefixes,
+        ).forEach { (name, lines) ->
+            val bitmap = Bitmap.createBitmap(1080, 2400, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap).apply { drawColor(android.graphics.Color.WHITE) }
+            val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                color = android.graphics.Color.BLACK
+                typeface = android.graphics.Typeface.DEFAULT
+            }
+            var y = 70f
+            lines.forEachIndexed { i, line ->
+                val header = i < 2
+                paint.textSize = if (i == 1) 60f else if (i == 0) 34f else 46f
+                paint.isFakeBoldText = header || line.first().isDigit()
+                if (!header && line.first().isDigit() && i > 2 && name == "fixture_time_above") y += 36f // gap between trips
+                canvas.drawText(line, 48f, y, paint)
+                y += if (i == 0) 110f else 78f
+            }
+            val dir = File("build/fixtures").apply { mkdirs() }
+            File(dir, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        }
+        drawYouDriveFixture()
+    }
+
+    /** [DeviceFixtures.youDriveCards] drawn like YouDrive's list: coloured cards, two columns. */
+    private fun drawYouDriveFixture() {
+        val bitmap = Bitmap.createBitmap(1080, 2400, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap).apply { drawColor(0xFFF5F5F5.toInt()) }
+        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.BLACK }
+        val fill = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        paint.textSize = 34f
+        canvas.drawText(DeviceFixtures.youDrive[0], 48f, 50f, paint) // status bar clock
+        paint.textSize = 52f
+        paint.isFakeBoldText = true
+        canvas.drawText(DeviceFixtures.youDrive[1], 48f, 150f, paint)
+        val rowH = 60f
+        var top = 210f
+        for (card in DeviceFixtures.youDriveCards) {
+            val bottom = top + 40f + card.rows.size * rowH
+            val rect = android.graphics.RectF(24f, top, 1056f, bottom)
+            fill.style = android.graphics.Paint.Style.FILL
+            fill.color = card.color.toInt()
+            canvas.drawRoundRect(rect, 12f, 12f, fill)
+            fill.style = android.graphics.Paint.Style.STROKE
+            fill.color = 0xFFBDBDBD.toInt()
+            canvas.drawRoundRect(rect, 12f, 12f, fill)
+            card.rows.forEachIndexed { i, (left, right) ->
+                val y = top + 20f + (i + 1) * rowH - 16f
+                paint.textSize = 40f
+                paint.isFakeBoldText = true
+                left?.let { canvas.drawText(it, 48f, y, paint) }
+                paint.isFakeBoldText = false
+                paint.textSize = 36f
+                right?.let { canvas.drawText(it, 260f, y, paint) }
+            }
+            top = bottom + 24f
+        }
+        File(File("build/fixtures").apply { mkdirs() }, "fixture_youdrive.png").outputStream().use {
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+        }
     }
 
     @Test
@@ -251,14 +527,1026 @@ class ScreenshotsRoboTest {
         PassengerDisplayScreen(
             snapshot = DisplaySnapshot(
                 active = true,
-                previous = DisplayItem("07:30", "Sjösalagatan 21", "Vålberg"),
-                current = DisplayItem("07:36", "Brattgårdsgatan 4", "Vålberg"),
-                upcoming = listOf(DisplayItem("08:00", "Majeldsvägen 10", "Vålberg"), DisplayItem("08:25", "Storgatan 14", "Karlstad")),
+                previous = DisplayItem("07:30", "Järnvägsgatan 3B", "Storfors"),
+                current = DisplayItem("07:36", "Västra Torggatan 12", "Karlstad"),
+                upcoming = listOf(DisplayItem("08:00", "Hamngatan 7", "Skoghall"), DisplayItem("08:25", "Storgatan 14", "Karlstad")),
             ),
-            status = "Connected: Galaxy S20 Ultra",
+            status = "Galaxy S20",
             connected = true,
             onSpeak = {},
             onExit = {},
         )
     }
+
+    /**
+     * Next on the phone: the stop left goes, the new next stop's time and street are shown large as
+     * they are said, then the stop after it. Frames during the move are saved for a look; the end
+     * state is checked.
+     */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun passengerDisplayMovesOnToTheNextStop() {
+        val first = DisplaySnapshot(
+            active = true,
+            current = DisplayItem("07:36", "Västra Torggatan 12", "Karlstad"),
+            upcoming = listOf(DisplayItem("08:00", "Hamngatan 7", "Skoghall"), DisplayItem("08:25", "Storgatan 14", "Karlstad")),
+            announcementSv = "Nästa stopp: Klockan sju trettiosex. Västra Torggatan 12, Karlstad. Klockan åtta. Hamngatan 7, Skoghall.",
+        )
+        val next = DisplaySnapshot(
+            active = true,
+            previous = first.current,
+            current = first.upcoming[0],
+            upcoming = listOf(first.upcoming[1]),
+            announcementSv = "Nästa stopp: Klockan åtta. Hamngatan 7, Skoghall. Klockan åtta tjugofem. Storgatan 14, Karlstad.",
+        )
+        var snapshot by mutableStateOf(first)
+        var spoken by mutableIntStateOf(0)
+        compose.setContent {
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(snapshot, status = "Galaxy S20", connected = true, onSpeak = {}, onExit = {}, spoken = spoken)
+            }
+        }
+        compose.waitForIdle()
+        compose.mainClock.autoAdvance = false
+        snapshot = next
+        spoken++
+        // The stop left goes, the new one comes; its time grows, then its street (M1–M7).
+        for (ms in listOf(200L, 700L, 1_100L, 1_500L, 1_500L, 2_500L, 2_500L)) {
+            compose.mainClock.advanceTimeBy(ms)
+            save("display_move_${compose.mainClock.currentTime}", compose.onRoot().captureToImage().asAndroidBitmap())
+        }
+        // Said, the stop after it in turn, and back (the steps are slow).
+        compose.mainClock.advanceTimeBy(30_000)
+        compose.mainClock.autoAdvance = true
+        compose.waitForIdle()
+        hero("Hamngatan").assertExists()
+        // The bottom line by times only: the next stop's (08:00), then the one after it (08:25).
+        compose.onNode(hasTestTag("ref_299") and hasText("00")).assertExists()
+        compose.onNodeWithText("Västra Torggatan").assertDoesNotExist()
+        compose.onNode(hasTestTag("ref_94") and hasText("25")).assertExists()
+    }
+
+    /**
+     * A tap on a card says its time and place and shows its trip in the middle for a moment; a tap
+     * on the clock says the time, on this device.
+     */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun passengerDisplaySaysWhatIsTapped() {
+        val said = mutableListOf<String>()
+        compose.setContent {
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(
+                    tabletSnapshot,
+                    status = "Galaxy S20",
+                    connected = true,
+                    onSpeak = {},
+                    onExit = {},
+                    onSay = { said += it.swedish },
+                    time = { LocalTime.of(8, 11, 5) },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.mainClock.autoAdvance = false
+        compose.onNodeWithTag("ref_94").performClick()
+        compose.mainClock.advanceTimeBy(2_500)
+        save("display_card_tap", compose.onRoot().captureToImage().asAndroidBitmap())
+        // Shown and said (its time, then its address), held two seconds, turned away; then the
+        // next stop and the clock are back.
+        compose.mainClock.advanceTimeBy(16_000)
+        compose.onNodeWithTag("ref_88").performClick()
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.mainClock.autoAdvance = true
+        assertEquals(listOf("Klockan åtta. Hamngatan 7, Skoghall.", "Klockan är åtta elva."), said)
+    }
+
+    /**
+     * A tap on the clock says the time and springs it out to fill the screen, seconds and all; a
+     * tap anywhere brings the screen back at once.
+     */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun passengerDisplayClockTapFillsTheScreen() {
+        val said = mutableListOf<String>()
+        var repeats = 0
+        compose.setContent {
+            NastaTheme(Appearance.NIGHT) {
+                PassengerDisplayScreen(
+                    tabletSnapshot,
+                    status = "Galaxy S20",
+                    connected = true,
+                    onSpeak = { repeats++ },
+                    onExit = {},
+                    onSay = { said += it.swedish },
+                    time = { LocalTime.of(8, 11, 42) },
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("display_night", compose.onRoot().captureToImage().asAndroidBitmap())
+        compose.mainClock.autoAdvance = false
+        compose.onNodeWithTag("ref_88").performClick()
+        compose.mainClock.advanceTimeBy(2_500)
+        save("display_clock_tap", compose.onRoot().captureToImage().asAndroidBitmap())
+        assertEquals(listOf("Klockan är åtta elva."), said)
+        // While the time fills the screen a tap anywhere only brings the screen back; after that
+        // the address takes taps again.
+        hero("Västra Torggatan").performClick()
+        compose.mainClock.advanceTimeBy(800)
+        assertEquals(0, repeats)
+        hero("Västra Torggatan").performClick()
+        compose.mainClock.advanceTimeBy(800)
+        assertEquals(1, repeats)
+        compose.mainClock.autoAdvance = true
+    }
+
+    /** In its turn the time grows into the middle of the screen, stays, then goes back. */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun passengerDisplayMinuteGrows() {
+        var now = LocalTime.of(8, 10, 58)
+        compose.setContent {
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(tabletSnapshot, status = "Galaxy S20", connected = true, onSpeak = {}, onExit = {}, time = { now })
+            }
+        }
+        compose.waitForIdle()
+        compose.mainClock.autoAdvance = false
+        // The time's turn comes 50 s after the display last showed something.
+        compose.mainClock.advanceTimeBy(49_500)
+        // Growing, the ground fading in, solid at its largest, going back as the ground clears, back.
+        for (ms in listOf(1_000L, 3_700L, 1_800L, 2_000L, 900L, 2_000L)) {
+            compose.mainClock.advanceTimeBy(ms)
+            save("display_minute_${compose.mainClock.currentTime}", compose.onRoot().captureToImage().asAndroidBitmap())
+        }
+        compose.mainClock.autoAdvance = true
+        hero("Västra Torggatan").assertExists()
+    }
+
+    /**
+     * A swipe across the address pages to the following stops, each with its time under it, while
+     * the time beside the clock stays the next stop's; Home brings back the next stop. The route
+     * itself does not move.
+     */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun passengerDisplayPagesThroughTheStops() {
+        compose.setContent {
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(tabletSnapshot, status = "Galaxy S20", connected = true, onSpeak = {}, onExit = {}, time = { LocalTime.of(8, 11, 5) })
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("ref_200").assertDoesNotExist()
+        compose.mainClock.autoAdvance = false
+        // A swipe across the middle of the screen, where the stops are.
+        repeat(2) {
+            compose.onRoot().performTouchInput { swipeLeft() }
+            compose.mainClock.advanceTimeBy(1_500)
+        }
+        save("display_paged", compose.onRoot().captureToImage().asAndroidBitmap())
+        // The third stop, large at the top with its time over it, its street without its number
+        // (the bottom line shows times only).
+        compose.onAllNodesWithText("Storgatan").assertCountEquals(1)
+        compose.onAllNodesWithTag("ref_230", useUnmergedTree = true).filterToOne(hasAnyDescendant(hasText("08")) and hasAnyDescendant(hasText("25"))).assertIsDisplayed()
+        hero("Västra Torggatan").assertDoesNotExist()
+        compose.onNodeWithTag("ref_200").performClick()
+        compose.mainClock.advanceTimeBy(3_000)
+        save("display_paged_home", compose.onRoot().captureToImage().asAndroidBitmap())
+        hero("Västra Torggatan").assertIsDisplayed()
+        compose.onNodeWithTag("ref_200").assertDoesNotExist()
+        // The other way: the trips done.
+        compose.onRoot().performTouchInput { swipeRight() }
+        compose.mainClock.advanceTimeBy(1_500)
+        save("display_paged_back", compose.onRoot().captureToImage().asAndroidBitmap())
+        compose.onAllNodesWithText("Järnvägsgatan").onFirst().assertExists()
+        compose.onNodeWithTag("ref_200").assertExists()
+        compose.mainClock.autoAdvance = true
+    }
+
+    /**
+     * A swipe along the bottom line brings out the strip of all the trips in its place, the top
+     * following the trip in the strip's middle; it goes three seconds after the last swipe and the
+     * next stop comes back. A tap on a trip in it says the trip and shows it, and puts the strip away.
+     */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun passengerDisplayListsAllTheTrips() {
+        val said = mutableListOf<String>()
+        compose.setContent {
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(
+                    tabletSnapshot,
+                    status = "Galaxy S20",
+                    connected = true,
+                    onSpeak = {},
+                    onExit = {},
+                    onSay = { said += it.swedish },
+                    time = { LocalTime.of(8, 11, 5) },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onAllNodesWithTag("ref_226").assertCountEquals(0)
+        compose.mainClock.autoAdvance = false
+        compose.onNodeWithTag("ref_94").performTouchInput { swipeLeft() }
+        compose.mainClock.advanceTimeBy(1_000)
+        save("display_list", compose.onRoot().captureToImage().asAndroidBitmap())
+        compose.onNodeWithText("Nästa stopp", ignoreCase = true).assertIsDisplayed()
+        compose.onNodeWithTag("ref_200").assertExists()
+        compose.mainClock.advanceTimeBy(4_000)
+        compose.onAllNodesWithTag("ref_226").assertCountEquals(0)
+        hero("Västra Torggatan").assertIsDisplayed()
+        // Out again from the clock; a tap on a coming trip in the strip says it and shows it.
+        compose.onNodeWithTag("ref_88").performTouchInput { swipeLeft() }
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.onNode(hasTestTag("ref_226") and hasText("Södra Kyrkogatan")).performClick()
+        compose.mainClock.advanceTimeBy(2_500)
+        save("display_list_pick", compose.onRoot().captureToImage().asAndroidBitmap())
+        compose.onAllNodesWithTag("ref_226").assertCountEquals(0)
+        compose.mainClock.autoAdvance = true
+        assertEquals(listOf("Klockan åtta femtio. Södra Kyrkogatan 7, Kristinehamn."), said)
+    }
+
+    /**
+     * The weather in the middle of the minute and Google Maps' travel time a little later, each for
+     * a moment; a tap brings the screen back at once. The weather sign on the top line brings the
+     * weather up too.
+     */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun passengerDisplayShowsTheWeatherAndTheTravelTime() {
+        var now = LocalTime.of(8, 11, 25)
+        val snapshot = tabletSnapshot.copy(weather = DisplayWeather(14, 3), eta = DisplayEta(12, 5300))
+        compose.setContent {
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(snapshot, status = "Galaxy S20", connected = true, onSpeak = {}, onExit = {}, time = { now })
+            }
+        }
+        compose.waitForIdle()
+        compose.mainClock.autoAdvance = false
+        // The time first, then the weather 50 s after it has gone.
+        assertTrue("the weather in its turn", waitFor(150) { compose.onAllNodesWithTag("ref_204").fetchSemanticsNodes().isNotEmpty() })
+        compose.mainClock.advanceTimeBy(2_000)
+        save("display_weather", compose.onRoot().captureToImage().asAndroidBitmap())
+        compose.onNodeWithTag("ref_204").assertIsDisplayed()
+        compose.onNodeWithText("Halvklart").assertIsDisplayed()
+        compose.mainClock.advanceTimeBy(6_000)
+        compose.onNodeWithTag("ref_204").assertDoesNotExist()
+        // The small weather sign (the degrees beside the picture) brings it up at once.
+        save("display_weather_sign", compose.onRoot().captureToImage().asAndroidBitmap())
+        showSigns()
+        compose.onNodeWithTag("ref_222").performClick()
+        compose.mainClock.advanceTimeBy(1_500)
+        compose.onNodeWithText("Halvklart").assertIsDisplayed()
+        compose.onRoot().performTouchInput { click(center) }
+        compose.mainClock.advanceTimeBy(800)
+        compose.onNodeWithText("Halvklart").assertDoesNotExist()
+        // Then the travel time (no map here), 50 s later.
+        assertTrue("the travel time in its turn", waitFor(80) { compose.onAllNodesWithText("12").fetchSemanticsNodes().isNotEmpty() })
+        compose.mainClock.advanceTimeBy(2_000)
+        save("display_eta", compose.onRoot().captureToImage().asAndroidBitmap())
+        compose.onNodeWithText("12").assertIsDisplayed()
+        // A tap anywhere: straight back.
+        compose.onRoot().performTouchInput { click(center) }
+        compose.mainClock.advanceTimeBy(800)
+        compose.onNodeWithText("12").assertDoesNotExist()
+        compose.mainClock.autoAdvance = true
+    }
+
+    /**
+     * The map sign and a long press on a trip open the driver's own map, filling the screen, and
+     * ask for the tablet's position (its permission, when not given yet); until the tablet knows
+     * where it is the map says it is looking, and under it why the map is not there yet. The map
+     * takes his touches; its buttons move it, and its × brings the screen back. Google's apps open
+     * only from 242 and 244, at the trip looked at (the one picked in the list, else the one opened).
+     */
+    /**
+     * The phone's floating panel drives the display as if tapped there: it opens the map for a trip,
+     * switches it to the satellite picture, tries an order, uses it, says the time and closes the
+     * map; the display tells the phone what its map shows (trip numbers only).
+     */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun theDisplayTakesThePhonesControls() {
+        var map: RouteMap? = null
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val remote = MutableSharedFlow<LinkMessage.Remote>(extraBufferCapacity = 8)
+        val views = ArrayList<LinkMessage.MapView>()
+        val said = ArrayList<String>()
+        val sent = ArrayList<List<Long>>()
+        val numbered = tabletSnapshot.copy(
+            current = tabletSnapshot.current!!.copy(id = 11, lat = 59.381234, lng = 13.501234),
+            upcoming = tabletSnapshot.upcoming.mapIndexed { i, t -> t.copy(id = 12L + i) },
+        )
+        compose.setContent {
+            val scope = rememberCoroutineScope()
+            map = remember { RouteMap(context, "AIzaTestKeyForTheMapOnly", true, "#000000", scope) }
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(
+                    numbered,
+                    status = "Galaxy S20",
+                    connected = true,
+                    onSpeak = {},
+                    onExit = {},
+                    onSay = { said += it.swedish },
+                    time = { LocalTime.of(8, 11, 42) },
+                    routeMap = map,
+                    onOrder = { sent += it },
+                    remote = remote,
+                    onMapView = { views += it },
+                )
+            }
+        }
+        compose.waitForIdle()
+        assertEquals(LinkMessage.MapView(hasMap = true), views.last())
+        compose.mainClock.autoAdvance = false
+        // A long press on "Hamngatan 7" in the phone's panel: the display's map for it, its list.
+        remote.tryEmit(LinkMessage.Remote(LinkMessage.Remote.Action.OPEN_MAP, id = 12))
+        compose.mainClock.advanceTimeBy(1_500)
+        val open = views.last()
+        assertTrue("open: $open", open.open)
+        assertEquals(listOf(11L, 12L, 13L, 14L), open.ids)
+        assertEquals(1, open.at)
+        compose.onNodeWithTag("ref_243").assertIsDisplayed()
+        // The satellite picture, from the phone.
+        remote.tryEmit(LinkMessage.Remote(LinkMessage.Remote.Action.SATELLITE, on = true))
+        compose.mainClock.advanceTimeBy(300)
+        assertEquals("satellite(true)", shadowOf(map!!.view).lastEvaluatedJavascript)
+        assertTrue(views.last().satellite)
+        // An order tried on the phone: drawn here at once, and used.
+        remote.tryEmit(LinkMessage.Remote(LinkMessage.Remote.Action.TRY_ORDER, ids = listOf(11L, 13L, 12L, 14L)))
+        compose.mainClock.advanceTimeBy(300)
+        assertEquals(listOf(11L, 13L, 12L, 14L), views.last().ids)
+        assertTrue(views.last().changed)
+        remote.tryEmit(LinkMessage.Remote(LinkMessage.Remote.Action.APPLY))
+        compose.mainClock.advanceTimeBy(300)
+        assertEquals(listOf(listOf(11L, 13L, 12L, 14L)), sent)
+        // An order with trips that are not the way's is not taken.
+        remote.tryEmit(LinkMessage.Remote(LinkMessage.Remote.Action.TRY_ORDER, ids = listOf(99L, 11L, 12L, 13L)))
+        compose.mainClock.advanceTimeBy(300)
+        assertEquals(listOf(11L, 13L, 12L, 14L), views.last().ids)
+        // The time, said here.
+        remote.tryEmit(LinkMessage.Remote(LinkMessage.Remote.Action.SAY_TIME))
+        compose.mainClock.advanceTimeBy(300)
+        assertTrue(said.toString(), said.last().startsWith("Klockan är åtta"))
+        // Closed from the phone.
+        remote.tryEmit(LinkMessage.Remote(LinkMessage.Remote.Action.CLOSE_MAP))
+        compose.mainClock.advanceTimeBy(1_500)
+        assertFalse(views.last().open)
+        compose.onNodeWithTag("ref_243").assertDoesNotExist()
+        compose.mainClock.autoAdvance = true
+    }
+
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun passengerDisplayMapAsksForThePosition() {
+        var asked = 0
+        var map: RouteMap? = null
+        val google = ArrayList<String>()
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        // The next stop with its point, for Google's own apps.
+        val located = tabletSnapshot.copy(
+            current = tabletSnapshot.current!!.copy(lat = 59.381234, lng = 13.501234),
+            upcoming = listOf(tabletSnapshot.upcoming.first().copy(lat = 59.391234, lng = 13.491234)) + tabletSnapshot.upcoming.drop(1),
+        )
+        compose.setContent {
+            val scope = rememberCoroutineScope()
+            map = remember { RouteMap(context, "AIzaTestKeyForTheMapOnly", true, "#000000", scope) }
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(
+                    located,
+                    status = "Galaxy S20",
+                    connected = true,
+                    onSpeak = {},
+                    onExit = {},
+                    time = { LocalTime.of(8, 11, 42) },
+                    routeMap = map,
+                    onWantPosition = { asked++ },
+                    onEarth = { lat, lng -> google += "earth $lat,$lng" },
+                    onStreetPhotos = { lat, lng -> google += "street $lat,$lng" },
+                )
+            }
+        }
+        compose.waitForIdle()
+        // The next stop's time, over its address.
+        compose.onAllNodesWithTag("ref_230", useUnmergedTree = true).filterToOne(hasAnyDescendant(hasText("07")) and hasAnyDescendant(hasText("36"))).assertIsDisplayed()
+        compose.mainClock.autoAdvance = false
+        showSigns()
+        compose.onNodeWithTag("ref_219").performClick()
+        compose.mainClock.advanceTimeBy(1_500)
+        save("display_map_looking", compose.onRoot().captureToImage().asAndroidBitmap())
+        compose.onNodeWithText("Söker bilens position…").assertIsDisplayed()
+        // Under it, small, why the map is not there yet.
+        compose.onNodeWithTag("ref_233", useUnmergedTree = true).assert(hasText("Kartan laddas…"))
+        // The driver's buttons. The 3D view (242) and the street photos (244) are Google's own apps,
+        // opened at the stop's point; the map's page makes neither.
+        for (ref in listOf(270, 239, 240, 241, 242, 243, 244)) compose.onNodeWithTag("ref_$ref").assertIsDisplayed()
+        compose.onNodeWithTag("ref_242").performClick()
+        compose.onNodeWithTag("ref_244").performClick()
+        assertEquals(listOf("earth 59.381234,13.501234", "street 59.381234,13.501234"), google)
+        // The trip picked in the list is the one looked at: Google's apps open at its point.
+        compose.onNodeWithContentDescription("B: Hamngatan 7").performClick()
+        compose.mainClock.advanceTimeBy(500)
+        compose.onNodeWithTag("ref_242").performClick()
+        assertEquals("earth 59.391234,13.491234", google.last())
+        compose.onNodeWithContentDescription("B: Hamngatan 7").performClick()
+        compose.mainClock.advanceTimeBy(500)
+        // The satellite picture: the same map, its other look; no + or − (the fingers zoom).
+        compose.onNodeWithTag("ref_270").performClick()
+        assertEquals("satellite(true)", shadowOf(map!!.view).lastEvaluatedJavascript)
+        compose.onNodeWithTag("ref_237").assertDoesNotExist()
+        compose.onNodeWithTag("ref_239").performClick()
+        assertEquals("toCar()", shadowOf(map!!.view).lastEvaluatedJavascript)
+        // A tap on the map is the map's own: it stays.
+        compose.onRoot().performClick()
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.onNodeWithText("Söker bilens position…").assertIsDisplayed()
+        compose.onNodeWithTag("ref_243").performClick()
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.onNodeWithText("Söker bilens position…").assertDoesNotExist()
+        compose.onNodeWithTag("ref_243").assertDoesNotExist()
+        compose.onNodeWithTag("ref_94").performTouchInput { longClick() }
+        compose.mainClock.advanceTimeBy(1_500)
+        compose.onNodeWithText("Söker bilens position…").assertIsDisplayed()
+        compose.mainClock.autoAdvance = true
+        assertEquals(2, asked)
+    }
+
+    /**
+     * The next stop's passenger's last name stands under its address; a tap says it and shows it
+     * large. No other trip has a name.
+     */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun passengerDisplayShowsTheNextPassengersLastName() {
+        val said = mutableListOf<String>()
+        compose.setContent {
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(
+                    tabletSnapshot,
+                    status = "Galaxy S20",
+                    connected = true,
+                    onSpeak = {},
+                    onExit = {},
+                    onSay = { said += it.swedish },
+                    time = { LocalTime.of(8, 11, 5) },
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("display_name", compose.onRoot().captureToImage().asAndroidBitmap())
+        // Only the figure: the name shows after a tap on it.
+        compose.onNodeWithTag("ref_231").assertIsDisplayed()
+        compose.onNodeWithText("Testsson").assertDoesNotExist()
+        compose.mainClock.autoAdvance = false
+        compose.onNodeWithTag("ref_231").performClick()
+        compose.mainClock.advanceTimeBy(600)
+        save("display_name_shown", compose.onRoot().captureToImage().asAndroidBitmap())
+        compose.onNodeWithTag("ref_236").assertIsDisplayed()
+        assertTrue("nothing said yet: $said", said.isEmpty())
+        // A tap on the name says it and shows it large.
+        compose.onNodeWithTag("ref_236").performClick()
+        compose.mainClock.advanceTimeBy(1_500)
+        save("display_name_large", compose.onRoot().captureToImage().asAndroidBitmap())
+        compose.onNodeWithTag("ref_232").assertIsDisplayed()
+        compose.mainClock.advanceTimeBy(8_000)
+        compose.onNodeWithTag("ref_232").assertDoesNotExist()
+        compose.mainClock.autoAdvance = true
+        assertEquals(listOf("Testsson."), said)
+    }
+
+    /**
+     * The person figure under the next stop opens its whole YouDrive card, laid out as YouDrive's
+     * details window, over everything until its × or a tap beside it; nothing of it is said. Its
+     * instructions are a line for each thing written, each phone number on its own. A coming trip
+     * with a card has its own figure; the top line has no card sign.
+     */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun passengerDisplayShowsTheTripCardOnTap() {
+        val said = mutableListOf<String>()
+        val card = "07:36\nPick-up\nAnna Maria Testsson\nVÄSTRA TORGGATAN 12, 65224 KARLSTAD\n0700000001\nHLI, RU1\nClient fee 0 KR\nCompensation 84.92 KR\nFTJ\n" +
+            "portkod 1234 / Personalen hjälper till 0700000004 alt 0700000005/ / Son 0700000006"
+        val then = "08:00\nDrop-off\nAnna Maria Testsson\nHamngatan 7, 66330 Skoghall\nRU1\nCompensation 12.00 KR\nFTJ"
+        val snapshot = tabletSnapshot.copy(
+            current = tabletSnapshot.current!!.copy(card = card),
+            upcoming = listOf(tabletSnapshot.upcoming.first().copy(card = then)) + tabletSnapshot.upcoming.drop(1),
+        )
+        compose.setContent {
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(snapshot, status = "Galaxy S20", connected = true, onSpeak = {}, onExit = {}, onSay = { said += it.swedish }, time = { LocalTime.of(8, 11, 5) })
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("ref_235").assertDoesNotExist()
+        compose.onNodeWithTag("ref_231", useUnmergedTree = true).performClick()
+        compose.waitForIdle()
+        save("display_trip_card", compose.onRoot().captureToImage().asAndroidBitmap())
+        compose.onNodeWithTag("ref_235").assertIsDisplayed()
+        compose.onNodeWithText("Pick-up 07:36").assertIsDisplayed()
+        compose.onNodeWithText("Phone number").assertIsDisplayed()
+        // The phone number in groups of 3, 4 and 3.
+        compose.onNodeWithText("070\u00A00000\u00A0001").assertIsDisplayed()
+        compose.onNodeWithText("Rullstol 1").assertIsDisplayed()
+        compose.onNodeWithText("Hämtas/Lämnas inne").assertIsDisplayed()
+        // The instructions, further down the card: a line for each thing written, each number on its own.
+        val gap = "\u00A0"
+        for (line in listOf("portkod 1234", "Personalen hjälper till", "070${gap}0000${gap}004", "070${gap}0000${gap}005  alt", "070${gap}0000${gap}006  Son")) {
+            compose.onNodeWithText(line).performScrollTo().assertIsDisplayed()
+        }
+        save("display_trip_card_notes", compose.onRoot().captureToImage().asAndroidBitmap())
+        // A tap on the card leaves it; its × closes it.
+        compose.onNodeWithTag("ref_235").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithTag("ref_235").assertIsDisplayed()
+        compose.onNodeWithTag("ref_264").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithTag("ref_235").assertDoesNotExist()
+        // The page of the stop after the next: its own figure opens its card.
+        compose.onRoot().performTouchInput { swipeLeft() }
+        compose.waitForIdle()
+        compose.onNodeWithTag("ref_234", useUnmergedTree = true).performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("Drop-off 08:00").assertIsDisplayed()
+        // A tap beside the card closes it.
+        compose.onRoot().performTouchInput { click(Offset(10f, 10f)) }
+        compose.waitForIdle()
+        compose.onNodeWithTag("ref_235").assertDoesNotExist()
+        assertTrue("nothing said: $said", said.isEmpty())
+    }
+
+    /**
+     * The trip card is a window: its band moves it, + and − size it, two fingers pinch it; it stays
+     * on the screen, and opens again where and as big as the driver left it.
+     */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun theTripCardMovesAndKeepsItsPlace() {
+        val places = WindowPlaces.InMemory()
+        val card = "07:36\nPick-up\nAnna Testsson\nStorgatan 14, 65224 Karlstad\n0700000001\nSP1\nCompensation 1 KR\nFTJ\nportkod 1234"
+        val snapshot = tabletSnapshot.copy(current = tabletSnapshot.current!!.copy(card = card))
+        compose.setContent {
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(snapshot, status = "Galaxy S20", connected = true, onSpeak = {}, onExit = {}, time = { LocalTime.of(8, 11, 5) }, places = places)
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("ref_231", useUnmergedTree = true).performClick()
+        compose.waitForIdle()
+        val first = compose.onNodeWithTag("ref_235").fetchSemanticsNode().boundsInRoot
+        // Its middle at the screen's middle at first.
+        assertEquals(700f, first.center.x, 2f)
+        // Its right edge, 100 px further right: wider, as tall, its left edge where it was.
+        compose.onNodeWithTag("ref_262").performTouchInput {
+            down(Offset(width - 6f, height / 2f))
+            repeat(10) {
+                advanceEventTime(50)
+                moveBy(Offset(10f, 0f))
+            }
+            up()
+        }
+        compose.waitForIdle()
+        val wide = places.place("trip_card")!!.width
+        assertTrue("wider: $wide", wide > 0f)
+        assertEquals("as tall", 0f, places.place("trip_card")!!.height)
+        val bigger = compose.onNodeWithTag("ref_235").fetchSemanticsNode().boundsInRoot
+        assertEquals(first.width + 100f, bigger.width, 4f)
+        assertEquals(first.height, bigger.height, 3f)
+        assertEquals(first.left, bigger.left, 3f)
+        // Its bottom edge, 60 px up: lower, as wide.
+        compose.onNodeWithTag("ref_262").performTouchInput {
+            down(Offset(width / 2f, height - 6f))
+            repeat(6) {
+                advanceEventTime(50)
+                moveBy(Offset(0f, -10f))
+            }
+            up()
+        }
+        compose.waitForIdle()
+        val lower = compose.onNodeWithTag("ref_235").fetchSemanticsNode().boundsInRoot
+        assertEquals(bigger.height - 60f, lower.height, 4f)
+        assertEquals(bigger.width, lower.width, 3f)
+        assertEquals(bigger.top, lower.top, 3f)
+        // Its band, about 300 px to the left; then far up: it stops at the screen's top.
+        compose.onNodeWithTag("ref_261").performTouchInput {
+            down(center)
+            // A little more than 300 px: the first few go into the touch slop.
+            repeat(12) {
+                advanceEventTime(50)
+                moveBy(Offset(-30f, 0f))
+            }
+            up()
+        }
+        compose.onNodeWithTag("ref_261").performTouchInput {
+            down(center)
+            repeat(20) {
+                advanceEventTime(50)
+                moveBy(Offset(0f, -60f))
+            }
+            up()
+        }
+        compose.waitForIdle()
+        val moved = compose.onNodeWithTag("ref_235").fetchSemanticsNode().boundsInRoot
+        assertTrue("moved left: $moved from $bigger", moved.center.x < bigger.center.x - 150f)
+        assertTrue("inside the screen: $moved", moved.top >= 0f)
+        // Two fingers drawn together: smaller.
+        compose.onNodeWithTag("ref_235").performTouchInput {
+            pinch(center + Offset(-120f, 0f), center + Offset(-40f, 0f), center + Offset(120f, 0f), center + Offset(40f, 0f))
+        }
+        compose.waitForIdle()
+        assertTrue("pinched smaller: ${places.place("trip_card")}", places.place("trip_card")!!.width < wide)
+        val kept = compose.onNodeWithTag("ref_235").fetchSemanticsNode().boundsInRoot
+        compose.onNodeWithTag("ref_264").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithTag("ref_231", useUnmergedTree = true).performClick()
+        compose.waitForIdle()
+        val again = compose.onNodeWithTag("ref_235").fetchSemanticsNode().boundsInRoot
+        assertEquals(kept.left, again.left, 2f)
+        assertEquals(kept.top, again.top, 2f)
+        assertEquals(kept.width, again.width, 2f)
+    }
+
+    /** A trip without a YouDrive card (a screenshot, a stop typed by hand) has no figure of its own. */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun passengerDisplayHasNoFigureWithoutACard() {
+        compose.setContent {
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(tabletSnapshot, status = "Galaxy S20", connected = true, onSpeak = {}, onExit = {}, time = { LocalTime.of(8, 11, 5) })
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("ref_234", useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    /** A weather app's widget, when the tablet hosts one, takes the weather's moment in the middle. */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun passengerDisplayShowsAWeatherWidget() {
+        var now = LocalTime.of(8, 11, 25)
+        compose.setContent {
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(
+                    tabletSnapshot,
+                    status = "Galaxy S20",
+                    connected = true,
+                    onSpeak = {},
+                    onExit = {},
+                    time = { now },
+                    weatherWidget = { m -> Box(m.background(AppTheme.colors.info)) { Text("Widget") } },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.mainClock.autoAdvance = false
+        assertTrue("the widget in the weather's turn", waitFor(150) { compose.onAllNodesWithText("Widget").fetchSemanticsNodes().isNotEmpty() })
+        compose.mainClock.advanceTimeBy(2_000)
+        compose.onNodeWithText("Widget").assertIsDisplayed()
+        compose.onNodeWithTag("ref_211").assertExists()
+        compose.mainClock.advanceTimeBy(6_000)
+        compose.onNodeWithText("Widget").assertDoesNotExist()
+        compose.mainClock.autoAdvance = true
+    }
+
+    /** The top line's signs, shown as by a tap on the line (they hide themselves after a while). */
+    private fun showSigns() {
+        compose.onNodeWithTag("ref_298").performTouchInput { click(Offset(width / 2f, height / 2f)) }
+        if (compose.mainClock.autoAdvance) compose.waitForIdle() else compose.mainClock.advanceTimeBy(800)
+    }
+
+    /** Advances the held clock a second at a time, up to [seconds], until [shown]. */
+    private fun waitFor(seconds: Int, shown: () -> Boolean): Boolean {
+        repeat(seconds) {
+            if (shown()) return true
+            compose.mainClock.advanceTimeBy(1_000)
+        }
+        return shown()
+    }
+
+    /**
+     * The car has stood still for two minutes: no moment comes (nothing moves for nobody); once it
+     * moves, the moments take their turns again. The motion sign sways with the shaking; the top
+     * line's signs show on a tap and hide again.
+     */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun theDisplayRestsWhileTheCarStandsStill() {
+        var awake by mutableStateOf(false)
+        val snapshot = tabletSnapshot.copy(weather = DisplayWeather(14, 3))
+        compose.setContent {
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(snapshot, status = "Galaxy S20", connected = true, onSpeak = {}, onExit = {}, time = { LocalTime.of(8, 11, 5) }, awake = awake, motion = { if (awake) 0.6f else 0f })
+            }
+        }
+        compose.waitForIdle()
+        compose.mainClock.autoAdvance = false
+        compose.onNodeWithTag("ref_297").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Motion sensor: the car stands still, the display rests").assertExists()
+        assertFalse("nothing while the car stands still", waitFor(200) { compose.onAllNodesWithTag("ref_204").fetchSemanticsNodes().isNotEmpty() })
+        // The signs are hidden; a tap on the top line shows them, and they go again.
+        compose.onNodeWithTag("ref_222").assertDoesNotExist()
+        showSigns()
+        compose.onNodeWithTag("ref_222").assertIsDisplayed()
+        compose.mainClock.advanceTimeBy(11_000)
+        compose.onNodeWithTag("ref_222").assertDoesNotExist()
+        awake = true
+        assertTrue("the moments again once it moves", waitFor(150) { compose.onAllNodesWithTag("ref_204").fetchSemanticsNodes().isNotEmpty() })
+        compose.onNodeWithContentDescription("Motion sensor: the car is moving").assertExists()
+        compose.mainClock.autoAdvance = true
+    }
+
+    /**
+     * The motion band (297) runs across the top line in each of its five looks, at a highway's speed
+     * and shaking, above an address it never moves; a long press on the line switches the look and
+     * names it for a moment.
+     */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun theMotionBandFlowsWithTheCar() {
+        var style by mutableStateOf(MotionStyle.TRAILS)
+        compose.setContent {
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(
+                    tabletSnapshot, status = "Galaxy S20", connected = true, onSpeak = {}, onExit = {},
+                    time = { LocalTime.of(8, 11, 5) }, motion = { 0.5f }, speed = { 28f },
+                    motionStyle = style, onMotionStyle = { style = it },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.mainClock.autoAdvance = false
+        MotionStyle.entries.forEachIndexed { i, look ->
+            assertEquals(look, style)
+            compose.mainClock.advanceTimeBy(1_500)
+            compose.onNodeWithTag("ref_297").assertIsDisplayed()
+            save("display_motion_${i + 1}_${look.name.lowercase()}", compose.onRoot().captureToImage().asAndroidBitmap())
+            compose.onNodeWithTag("ref_298").performTouchInput { longClick(Offset(width / 2f, height / 2f)) }
+            compose.mainClock.advanceTimeBy(800)
+        }
+        assertEquals("round again to the first look", MotionStyle.TRAILS, style)
+        compose.onNodeWithText("Light trails").assertExists()
+        compose.mainClock.advanceTimeBy(3_000)
+        compose.onNodeWithText("Light trails").assertDoesNotExist()
+        compose.mainClock.autoAdvance = true
+    }
+
+    /**
+     * A long address (a shop with its street, a hospital's entrance) fits: on the tablet and on a
+     * phone held upright the address stays inside the screen, under its time and clear of the
+     * bottom line, however long it is.
+     */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun aLongAddressFitsTheTablet() = longAddressFits("display_long_tablet")
+
+    @Test
+    @Config(qualifiers = "en-w412dp-h915dp-port-xxhdpi")
+    fun aLongAddressFitsThePhone() = longAddressFits("display_long_phone")
+
+    private fun longAddressFits(name: String) {
+        val long = tabletSnapshot.copy(
+            current = DisplayItem("09:58", "Coop Stormarknad Provby Handelsområde Södra Kyrkogatan 152", "Kristinehamn"),
+        )
+        compose.setContent {
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(long, status = "Galaxy S20", connected = true, onSpeak = {}, onExit = {}, time = { LocalTime.of(9, 11, 5) })
+            }
+        }
+        compose.waitForIdle()
+        compose.mainClock.advanceTimeBy(2_000)
+        save(name, compose.onRoot().captureToImage().asAndroidBitmap())
+        val root = compose.onRoot().fetchSemanticsNode().boundsInRoot
+        val address = compose.onNodeWithTag("ref_91", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val time = compose.onAllNodesWithTag("ref_230", useUnmergedTree = true)[0].fetchSemanticsNode().boundsInRoot
+        val clock = compose.onNodeWithTag("ref_88").fetchSemanticsNode().boundsInRoot
+        assertTrue("inside the screen: $address in $root", address.left >= root.left - 1f && address.right <= root.right + 1f && address.top >= root.top)
+        assertTrue("under its time: $address, $time", address.top >= time.bottom - 1f)
+        assertTrue("clear of the bottom line: $address, $clock", address.bottom <= clock.top + 1f)
+    }
+
+    private val tabletSnapshot = DisplaySnapshot(
+        active = true,
+        previous = DisplayItem("07:30", "Järnvägsgatan 3B", "Storfors", doneInYouDrive = true, doneHere = true),
+        earlier = listOf(
+            DisplayItem("07:05", "Kyrkogatan 2", "Karlstad", doneInYouDrive = true, doneHere = true),
+            DisplayItem("07:30", "Järnvägsgatan 3B", "Storfors", doneInYouDrive = true, doneHere = true),
+        ),
+        current = DisplayItem("07:36", "Västra Torggatan 12", "Karlstad", lastName = "Testsson"),
+        upcoming = listOf(
+            DisplayItem("08:00", "Hamngatan 7", "Skoghall"),
+            DisplayItem("08:25", "Storgatan 14", "Karlstad", doneInYouDrive = true),
+            DisplayItem("08:50", "Södra Kyrkogatan 7", "Kristinehamn"),
+            DisplayItem("09:10", "Lindvägen 9", "Grums"),
+            DisplayItem("09:35", "Kungsgatan 5", "Karlstad"),
+        ),
+    )
+
+    /** The tablet's trips with their numbers, kinds and passengers' numbers, for the driver's way. */
+    private val orderSnapshot = tabletSnapshot.copy(
+        current = DisplayItem("07:36", "Västra Torggatan 12", "Karlstad", lastName = "Testsson", kind = TripKind.PICK_UP, id = 11, rider = 1),
+        upcoming = listOf(
+            DisplayItem("08:00", "Hamngatan 7", "Skoghall", kind = TripKind.DROP_OFF, id = 12, rider = 1),
+            DisplayItem("08:25", "Storgatan 14", "Karlstad", kind = TripKind.PICK_UP, id = 13, rider = 2),
+            DisplayItem("08:50", "Södra Kyrkogatan 7", "Kristinehamn", kind = TripKind.DROP_OFF, id = 14, rider = 2),
+            DisplayItem("09:10", "Lindvägen 9", "Grums", kind = TripKind.PICK_UP, id = 15, rider = 3),
+        ),
+    )
+
+    /**
+     * The driver's map lists his way at its left, lettered: the next stop (A, looked at) and the two
+     * after it; "+" adds the next trip in its place, also into an order he is trying. A tap picks a
+     * trip and gives it arrows; moving it shows the new order with Undo and Use, and Use sends the
+     * trips' numbers in the new order. A drop-off before its pick-up cannot be used.
+     */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun theDriverSetsTheOrderOnHisMap() {
+        val sent = mutableListOf<List<Long>>()
+        val places = WindowPlaces.InMemory()
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        compose.setContent {
+            val scope = rememberCoroutineScope()
+            val map = remember { RouteMap(context, "AIzaTestKeyForTheMapOnly", true, "#000000", scope) }
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(
+                    orderSnapshot,
+                    status = "Galaxy S20",
+                    connected = true,
+                    onSpeak = {},
+                    onExit = {},
+                    time = { LocalTime.of(7, 20, 42) },
+                    routeMap = map,
+                    onOrder = { sent += it },
+                    places = places,
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.mainClock.autoAdvance = false
+        showSigns()
+        compose.onNodeWithTag("ref_219").performClick()
+        compose.mainClock.advanceTimeBy(1_500)
+        // A, B, C: the next stop and the two after it.
+        compose.onAllNodesWithTag("ref_245").assertCountEquals(3)
+        compose.onNodeWithTag("ref_250").assertDoesNotExist()
+        // The list is a window too: its corner makes it wider and taller.
+        compose.onNodeWithTag("ref_266").performTouchInput {
+            down(Offset(width - 6f, height - 6f))
+            repeat(10) {
+                advanceEventTime(50)
+                moveBy(Offset(8f, 8f))
+            }
+            up()
+        }
+        compose.mainClock.advanceTimeBy(500)
+        assertTrue("bigger: ${places.place("way_list")}", places.place("way_list")!!.let { it.width > 0f && it.height > 0f })
+        // Nothing before the next stop to add.
+        compose.onNodeWithTag("ref_269").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("C: Storgatan 14").performClick()
+        compose.mainClock.advanceTimeBy(500)
+        // Storgatan 14 one place earlier: before Hamngatan 7.
+        compose.onNodeWithTag("ref_246").performClick()
+        compose.mainClock.advanceTimeBy(500)
+        compose.onNodeWithTag("ref_249").assertIsDisplayed()
+        // The next trip added: after the others, in the order tried too.
+        compose.onNodeWithTag("ref_260").performClick()
+        compose.mainClock.advanceTimeBy(500)
+        compose.onAllNodesWithTag("ref_245").assertCountEquals(4)
+        save("display_way_order", compose.onRoot().captureToImage().asAndroidBitmap())
+        compose.onNodeWithTag("ref_250").performClick()
+        assertEquals(listOf(listOf(11L, 13L, 12L, 14L)), sent)
+        // × takes a trip off the way on this map: D goes, the others stay.
+        compose.onAllNodesWithTag("ref_268")[3].performClick()
+        compose.mainClock.advanceTimeBy(500)
+        compose.onAllNodesWithTag("ref_245").assertCountEquals(3)
+        // Hamngatan 7 (a drop-off) before its pick-up: it cannot be used.
+        compose.onNodeWithTag("ref_249").performClick()
+        compose.mainClock.advanceTimeBy(500)
+        compose.onNodeWithContentDescription("B: Hamngatan 7").performClick()
+        compose.mainClock.advanceTimeBy(500)
+        compose.onNodeWithTag("ref_246").performClick()
+        compose.mainClock.advanceTimeBy(500)
+        compose.onNodeWithText("A drop-off before its pick-up: cannot be used").assertIsDisplayed()
+        compose.onNodeWithTag("ref_250").assertIsNotEnabled()
+        compose.mainClock.autoAdvance = true
+    }
+
+    /** On his map the driver drags a trip by its handle to another place in the list; Use sends that order. The list's bar moves it. */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun theDriverDragsATripInTheList() {
+        val sent = mutableListOf<List<Long>>()
+        val places = WindowPlaces.InMemory()
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        compose.setContent {
+            val scope = rememberCoroutineScope()
+            val map = remember { RouteMap(context, "AIzaTestKeyForTheMapOnly", true, "#000000", scope) }
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(
+                    orderSnapshot,
+                    status = "Galaxy S20",
+                    connected = true,
+                    onSpeak = {},
+                    onExit = {},
+                    time = { LocalTime.of(7, 20, 42) },
+                    routeMap = map,
+                    onOrder = { sent += it },
+                    places = places,
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.mainClock.autoAdvance = false
+        showSigns()
+        compose.onNodeWithTag("ref_219").performClick()
+        compose.mainClock.advanceTimeBy(1_500)
+        compose.onAllNodesWithTag("ref_245").assertCountEquals(3)
+        // C's handle, two rows up, a few pixels at a time: C before A and B.
+        compose.onAllNodesWithContentDescription("Drag to move the trip")[2].performTouchInput {
+            down(center)
+            repeat(12) { moveBy(Offset(0f, -9f)) }
+            up()
+        }
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.onNodeWithTag("ref_249").assertIsDisplayed()
+        compose.onNodeWithTag("ref_250").performClick()
+        assertEquals(listOf(listOf(13L, 11L, 12L)), sent)
+        // The list's bar moves the list, here to the left, and the list keeps its new place. (With
+        // the test's clock held, some of the moves are merged away: the distance is not exact.)
+        val before = compose.onNodeWithTag("ref_265").fetchSemanticsNode().boundsInRoot
+        compose.onNodeWithTag("ref_265").performTouchInput {
+            down(center)
+            repeat(20) {
+                advanceEventTime(50)
+                moveBy(Offset(-20f, 0f))
+            }
+            up()
+        }
+        compose.mainClock.advanceTimeBy(500)
+        val after = compose.onNodeWithTag("ref_265").fetchSemanticsNode().boundsInRoot
+        assertTrue("moved left: $before → $after", after.left < before.left - 150f)
+        // Kept: the list's middle (its bar starts 28 px into the 356 px window) as a share of the screen.
+        assertEquals((after.left - 28f + 178f) / 1400f, places.place("way_list")!!.x, 0.01f)
+        compose.mainClock.autoAdvance = true
+    }
+
+    /**
+     * The look sign on the top line switches the display between black and light, and a tap on the
+     * connection offers to close the display (there is no × of its own).
+     */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun passengerDisplaySwitchesItsLook() {
+        var dark by mutableStateOf(true)
+        var exited = false
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        compose.setContent {
+            val scope = rememberCoroutineScope()
+            val map = remember { RouteMap(context, "AIzaTestKeyForTheMapOnly", false, "#F3F4F6", scope) }
+            NastaTheme(Appearance.DAY) {
+                PassengerDisplayScreen(
+                    tabletSnapshot.copy(weather = DisplayWeather(14, 3)),
+                    status = "Galaxy S20",
+                    connected = true,
+                    onSpeak = {},
+                    onExit = { exited = true },
+                    time = { LocalTime.of(8, 11, 42) },
+                    routeMap = map,
+                    dark = dark,
+                    onToggleLook = { dark = !dark },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("ref_88").assertExists()
+        showSigns()
+        compose.onNodeWithTag("ref_223").performClick()
+        compose.waitForIdle()
+        assertEquals(false, dark)
+        save("display_tablet_light", compose.onRoot().captureToImage().asAndroidBitmap())
+        compose.onNodeWithTag("ref_87").performClick()
+        compose.onNodeWithTag("ref_86").performClick()
+        compose.waitForIdle()
+        assertEquals(true, exited)
+    }
+
+    /** The passenger display on the tablet (a Galaxy Tab S9+ in landscape). */
+    @Test
+    @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
+    fun passengerDisplayTablet() = shot("display_tablet") {
+        PassengerDisplayScreen(
+            snapshot = tabletSnapshot,
+            status = "Galaxy S20",
+            connected = true,
+            onSpeak = {},
+            onExit = {},
+            time = { LocalTime.of(8, 11, 42) },
+        )
+    }
 }
+
+private val PANEL_SHOT_W = 400.dp
+private val PanelShotDay = androidx.compose.ui.graphics.Color(0xFFEDEBE6)
+private val PanelShotNight = androidx.compose.ui.graphics.Color(0xFF202124)
