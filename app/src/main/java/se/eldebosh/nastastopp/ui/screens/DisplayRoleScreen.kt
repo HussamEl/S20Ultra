@@ -536,7 +536,12 @@ private fun ConnectWindow(onConnect: suspend (String) -> EnrollResult, onDisconn
                 OutlinedTextField(
                     value = text,
                     // Letters and digits as typed, upper case; spaces and "-" are let through and left out when sent.
-                    onValueChange = { typed -> text = typed.filter { it in CODE_TYPED }.uppercase(Locale.ROOT).take(CODE_CHARS) },
+                    // A new code clears the answer to the one before.
+                    onValueChange = { typed ->
+                        val next = typed.filter { it in CODE_TYPED }.uppercase(Locale.ROOT).take(CODE_CHARS)
+                        if (next != text) answer = null
+                        text = next
+                    },
                     label = { Text(stringResource(R.string.company_code_label)) },
                     singleLine = true,
                     supportingText = if (CompanyServer.hasLookalikes(text)) ({ Text(stringResource(R.string.company_code_lookalikes)) }) else null,

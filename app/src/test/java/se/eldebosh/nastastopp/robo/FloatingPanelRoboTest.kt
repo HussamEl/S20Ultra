@@ -21,6 +21,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
+import androidx.lifecycle.Lifecycle
+import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.time.Duration
@@ -46,6 +48,7 @@ import org.robolectric.shadows.ShadowToast
 import org.robolectric.shadows.ShadowWindowManagerImpl
 import se.eldebosh.nastastopp.App
 import se.eldebosh.nastastopp.AppGraph
+import se.eldebosh.nastastopp.MainActivity
 import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.core.geo.Fix
 import se.eldebosh.nastastopp.core.geo.GeoResult
@@ -416,6 +419,26 @@ class FloatingPanelRoboTest {
         graph.overlay.suppress("passenger_display", false)
         idle()
         assertEquals(1, overlays.size)
+        graph.controller.end()
+    }
+
+    /** Found on the S20 Ultra (B12): the panel lay over the route screen's Next and Back. */
+    @Test
+    fun panelStaysAwayWhileTheAppIsInFront() {
+        ShadowSettings.setCanDrawOverlays(true)
+        threeStops()
+        graph.controller.start()
+        idle()
+        assertEquals(1, overlays.size)
+        ActivityScenario.launch(MainActivity::class.java).use { app ->
+            idle()
+            assertTrue("no panel over the app's own screens", overlays.isEmpty())
+            assertNull("not the \"closed\" reminder: the driver did not close it", reminder())
+            // The driver leaves for Maps: the panel is back over it.
+            app.moveToState(Lifecycle.State.CREATED)
+            idle()
+            assertEquals(1, overlays.size)
+        }
         graph.controller.end()
     }
 

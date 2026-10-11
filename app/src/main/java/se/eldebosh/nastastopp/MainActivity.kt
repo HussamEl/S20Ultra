@@ -81,6 +81,9 @@ class MainActivity : ComponentActivity() {
         val graph = App.from(this).graph
         graph.controller.clearIfExpired()
         graph.history.prune()
+        // The panel is for over Maps: while the app itself is in front it steps aside, so it
+        // never lies over the app's own buttons (the route screen's Next and Back).
+        graph.overlay.suppress(APP_KEY, true)
         graph.overlay.refresh()
         graph.tabletPanel.refresh()
         // Naming the street: (re)start its service while we are in the foreground (after process death).
@@ -101,6 +104,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         App.from(this).graph.overlay.suppress(DIALOG_KEY, false)
+        App.from(this).graph.overlay.suppress(APP_KEY, false)
         super.onPause()
     }
 
@@ -129,3 +133,4 @@ class MainActivity : ComponentActivity() {
 
 /** The floating panel's suppression while one of the app's dialogs or menus is open. */
 private const val DIALOG_KEY = "dialog"
+private const val APP_KEY = "app_in_front"
