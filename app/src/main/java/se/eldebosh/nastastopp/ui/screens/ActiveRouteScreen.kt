@@ -62,10 +62,12 @@ import se.eldebosh.nastastopp.core.parse.TripTimes
 import se.eldebosh.nastastopp.route.model.RouteData
 import se.eldebosh.nastastopp.route.Entrance
 import se.eldebosh.nastastopp.route.model.Stop
+import se.eldebosh.nastastopp.route.pointWith
 import se.eldebosh.nastastopp.ui.DoneMarks
 import se.eldebosh.nastastopp.ui.AppButton
 import se.eldebosh.nastastopp.ui.ButtonRow
 import se.eldebosh.nastastopp.ui.KindLabel
+import se.eldebosh.nastastopp.ui.PointText
 import se.eldebosh.nastastopp.ui.TopBar
 import se.eldebosh.nastastopp.ui.TouchTarget
 import se.eldebosh.nastastopp.ui.TripSurface
@@ -103,6 +105,8 @@ fun ActiveRouteScreen(
     /** Google Maps for the current stop alone: navigation to it, and its street photos (null: no point known). */
     onNavigateStop: (Stop) -> Unit = {},
     onStreetViewStop: ((Stop) -> Unit)? = null,
+    /** Opens the window that finds any address's coordinates (324). */
+    onFindPoint: (() -> Unit)? = null,
 ) {
     // Keep the screen on while this screen is visible.
     val view = LocalView.current
@@ -126,6 +130,12 @@ fun ActiveRouteScreen(
             backRef = 61,
             titleRef = 62,
             actions = {
+                // Any address's coordinates (the home, where this sits too, is not in sight during a route).
+                if (onFindPoint != null) {
+                    IconButton(onClick = onFindPoint, modifier = Modifier.refCorner(324).size(TouchTarget)) {
+                        Icon(painterResource(R.drawable.ic_find_point), contentDescription = stringResource(R.string.find_point_open), modifier = Modifier.size(22.dp))
+                    }
+                }
                 IconButton(onClick = onOpenDisplay, modifier = Modifier.refCorner(63).size(TouchTarget)) {
                     Icon(painterResource(R.drawable.ic_display), contentDescription = stringResource(R.string.open_display), modifier = Modifier.size(22.dp))
                 }
@@ -156,9 +166,9 @@ fun ActiveRouteScreen(
             modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            route.depot?.let { depot -> item(key = "depot") { DepotRow(depot) } }
+            route.depot?.let { depot -> item(key = "depot") { DepotRow(depot, depot.pointWith(entranceOf(depot))) } }
             itemsIndexed(route.completed, key = { _, s -> "done-${s.id}" }) { _, stop ->
-                CompletedRow(stop, spokenName(stop))
+                CompletedRow(stop, spokenName(stop), stop.pointWith(entranceOf(stop)))
             }
             if (current != null) {
                 item(key = "current-${current.id}") {
@@ -184,7 +194,7 @@ fun ActiveRouteScreen(
                 }
             }
             itemsIndexed(route.stops.drop(1), key = { _, s -> "next-${s.id}" }) { i, stop ->
-                UpcomingRow(index = i + 2, stop = stop, area = spokenName(stop))
+                UpcomingRow(index = i + 2, stop = stop, area = spokenName(stop), point = stop.pointWith(entranceOf(stop)))
             }
         }
         HorizontalDivider(thickness = 1.dp, color = AppTheme.colors.cardBorder)
@@ -233,25 +243,25 @@ fun ActiveRouteScreen(
     }
 }
 
-/** Completed trip: time kept visible, but small, faded and on one line. */
+/** Completed trip: time kept visible, but small, faded and on one line; its [point] under it when known. */
 @Composable
-private fun CompletedRow(stop: Stop, area: String) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.ref(67).fillMaxWidth().alpha(0.5f).padding(horizontal = 6.dp, vertical = 2.dp),
-    ) {
-        DoneMarks(youDrive = stop.youDriveDone, here = true)
-        Spacer(Modifier.width(6.dp))
-        if (stop.time != null) {
-            Text(stop.time, style = MaterialTheme.typography.labelMedium, color = AppTheme.colors.time)
-            Spacer(Modifier.width(8.dp))
+private fun CompletedRow(stop: Stop, area: String, point: Pair<Double, Double>?) {
+    Column(Modifier.ref(67).fillMaxWidth().alpha(0.5f).padding(horizontal = 6.dp, vertical = 2.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            DoneMarks(youDrive = stop.youDriveDone, here = true)
+            Spacer(Modifier.width(6.dp))
+            if (stop.time != null) {
+                Text(stop.time, style = MaterialTheme.typography.labelMedium, color = AppTheme.colors.time)
+                Spacer(Modifier.width(8.dp))
+            }
+            Text(
+                listOfNotNull(stop.name, area, stop.displayText).joinToString(" · "),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Content),
+            )
         }
-        Text(
-            listOfNotNull(stop.name, area, stop.displayText).joinToString(" · "),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Content),
-        )
+        point?.let { (lat, lng) -> PointText(lat, lng) }
     }
 }
 
@@ -403,6 +413,8 @@ private fun CurrentCard(
                     modifier = Modifier.ref(72),
                 )
             }
+            // Its point as Maps gets it (the driver's entrance, else the address's): a tap copies it.
+            current.pointWith(entrance)?.let { (lat, lng) -> PointText(lat, lng, Modifier.padding(start = 22.dp), color = AppTheme.colors.onTripMuted) }
             // The driver's own stopping point and how to get in, when he set them.
             if (entrance != null) {
                 Text(
@@ -441,9 +453,9 @@ private fun CurrentCard(
     }
 }
 
-/** A coming trip on its YouDrive colour (green pick-up, white drop-off, grey depot). */
+/** A coming trip on its YouDrive colour (green pick-up, white drop-off, grey depot), with its [point] when known. */
 @Composable
-private fun UpcomingRow(index: Int, stop: Stop, area: String) {
+private fun UpcomingRow(index: Int, stop: Stop, area: String, point: Pair<Double, Double>?) {
     TripSurface(stop.kind, Modifier.ref(76).fillMaxWidth(), shape = MaterialTheme.shapes.medium) {
         Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
             // First line: the time and the passenger's name level with it, as on YouDrive's card.
@@ -481,29 +493,33 @@ private fun UpcomingRow(index: Int, stop: Stop, area: String) {
                 style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Content),
                 color = AppTheme.colors.onTripMuted,
             )
+            point?.let { (lat, lng) -> PointText(lat, lng, color = AppTheme.colors.onTripMuted) }
         }
     }
 }
 
-/** The day's start point (YouDrive's grey Pull-out card): shown, but not a stop. */
+/** The day's start point (YouDrive's grey Pull-out card): shown, but not a stop; its [point] only shown. */
 @Composable
-private fun DepotRow(depot: Stop) {
+private fun DepotRow(depot: Stop, point: Pair<Double, Double>?) {
     TripSurface(TripKind.PULL_OUT, Modifier.ref(85).fillMaxWidth(), shape = MaterialTheme.shapes.medium) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
-            KindLabel(TripKind.PULL_OUT)
-            Spacer(Modifier.width(10.dp))
-            if (depot.time != null) {
-                Text(depot.time, style = MaterialTheme.typography.labelLarge, color = AppTheme.colors.onTrip)
-                Spacer(Modifier.width(8.dp))
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                KindLabel(TripKind.PULL_OUT)
+                Spacer(Modifier.width(10.dp))
+                if (depot.time != null) {
+                    Text(depot.time, style = MaterialTheme.typography.labelLarge, color = AppTheme.colors.onTrip)
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text(
+                    depot.displayText,
+                    style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Content),
+                    color = AppTheme.colors.onTrip,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
             }
-            Text(
-                depot.displayText,
-                style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Content),
-                color = AppTheme.colors.onTrip,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
+            point?.let { (lat, lng) -> PointText(lat, lng, color = AppTheme.colors.onTripMuted) }
         }
     }
 }

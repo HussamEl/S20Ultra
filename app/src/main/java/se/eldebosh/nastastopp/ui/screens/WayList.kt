@@ -77,6 +77,7 @@ import se.eldebosh.nastastopp.core.nav.OrderPlanner
 import se.eldebosh.nastastopp.core.nav.RouteLine
 import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.core.parse.TripTimes
+import se.eldebosh.nastastopp.ui.PointText
 import se.eldebosh.nastastopp.ui.ref
 import se.eldebosh.nastastopp.ui.refCorner
 import se.eldebosh.nastastopp.ui.theme.AppTheme
@@ -473,7 +474,8 @@ private fun adviceText(advice: WayEdit.Advice?, asking: Boolean): String? = when
 /**
  * One trip of the way, one small line: the handle to drag it ([handle]), its letter, time, a dot
  * for its kind (green: pick-up, light: drop-off, as in YouDrive), the start of its street, and its
- * leg's minutes over when it is reached. Picked, its arrows move it a step.
+ * leg's minutes over when it is reached. Picked, its arrows move it a step, and its point shows
+ * under it (322: a tap copies it).
  */
 @Composable
 private fun TripRow(
@@ -499,17 +501,16 @@ private fun TripRow(
         else -> BorderStroke(ROW_BORDER, Color.Transparent)
     }
     val description = stringResource(R.string.display_way_trip, letter.toString(), item.title)
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier
+    Column(
+        modifier
             .ref(245, centered = true)
             .fillMaxWidth()
-            .heightIn(min = ROW_HEIGHT)
             .clip(RoundedCornerShape(ROW_CORNER))
             .background(AppTheme.colors.tonal)
             .border(border, RoundedCornerShape(ROW_CORNER))
             .then(row),
     ) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().heightIn(min = ROW_HEIGHT)) {
         // The handle: a finger on it drags the trip up or down.
         Box(
             contentAlignment = Alignment.Center,
@@ -580,6 +581,13 @@ private fun TripRow(
         }
         if (onRemove != null) RemoveButton(onRemove)
         Spacer(Modifier.width(4.dp))
+    }
+    // Picked, its point under it as the phone's route has it (322: a tap copies it); the others stay one line.
+    val lat = item.lat
+    val lng = item.lng
+    if (picked && lat != null && lng != null) {
+        PointText(lat, lng, Modifier.padding(start = HANDLE_WIDTH), style = TextStyle(fontFamily = DigitFont, fontSize = ROW_SMALL_SP))
+    }
     }
 }
 

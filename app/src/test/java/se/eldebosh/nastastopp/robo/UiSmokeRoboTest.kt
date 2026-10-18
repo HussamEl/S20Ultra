@@ -219,6 +219,39 @@ class UiSmokeRoboTest {
         }
     }
 
+    /**
+     * The find tool from the home (323): any address in, the register's point out (322, copied with
+     * a tap); a text the register cannot place in one town is not found. Nothing joins the route.
+     */
+    @Test
+    fun theFindToolGivesAnAddressesPointToCopy() {
+        app.graph.settings.update { it.copy(onboardingDone = true) }
+        launch().use {
+            waitText(s(R.string.home_import))
+            compose.onNodeWithTag("ref_323").performClick()
+            compose.waitForIdle()
+            for (n in listOf(326, 327, 328, 331)) compose.onNodeWithTag("ref_$n").assertExists()
+            compose.onNodeWithTag("ref_329").assertIsNotEnabled()
+            compose.onNodeWithTag("ref_328").performTextReplacement("Järnvägsgatan 6, Storfors")
+            compose.onNodeWithTag("ref_329").assertIsEnabled().performClick()
+            // The register is asked off the main thread, in real time.
+            var tries = 0
+            while (compose.onAllNodesWithText("59.530860, ", substring = true).fetchSemanticsNodes().isEmpty() && tries++ < 300) {
+                shadowOf(Looper.getMainLooper()).idle()
+                Thread.sleep(10)
+            }
+            compose.onNodeWithTag("ref_330").assertExists()
+            compose.onNodeWithTag("ref_322").performClick()
+            compose.waitForIdle()
+            val copied = app.getSystemService(android.content.ClipboardManager::class.java).primaryClip!!.getItemAt(0).text.toString()
+            assertTrue(copied, copied.startsWith("59.530860, "))
+            assertNull("the route is untouched", app.graph.controller.route.value)
+            compose.onNodeWithTag("ref_331").performClick()
+            compose.waitForIdle()
+            compose.onNodeWithTag("ref_326").assertDoesNotExist()
+        }
+    }
+
     @Test
     fun deviceCanBecomeAPassengerDisplayAndBack() {
         app.graph.settings.update { it.copy(onboardingDone = true) }
@@ -365,6 +398,8 @@ class UiSmokeRoboTest {
             waitText(s(R.string.btn_next))
             compose.onNodeWithText("Karlstad").assertExists()
             compose.onNodeWithText(s(R.string.active_counts, 0, 2)).assertExists()
+            // The find tool is here too, while the home is out of sight.
+            compose.onNodeWithTag("ref_324").assertExists()
             compose.onNodeWithText(s(R.string.btn_next)).performClick()
             compose.waitForIdle()
             assertEquals(1, app.graph.controller.route.value!!.stops.size)

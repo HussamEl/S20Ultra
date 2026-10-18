@@ -63,6 +63,7 @@ import se.eldebosh.nastastopp.core.geo.Coordinates
 import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.core.parse.TripTimes
 import se.eldebosh.nastastopp.route.Entrance
+import se.eldebosh.nastastopp.route.pointWith
 import se.eldebosh.nastastopp.route.model.GeoStatus
 import se.eldebosh.nastastopp.route.model.RouteData
 import se.eldebosh.nastastopp.route.model.Stop
@@ -71,6 +72,7 @@ import se.eldebosh.nastastopp.ui.AppButton
 import se.eldebosh.nastastopp.ui.ButtonRow
 import se.eldebosh.nastastopp.ui.HelpDot
 import se.eldebosh.nastastopp.ui.KindLabel
+import se.eldebosh.nastastopp.ui.PointText
 import se.eldebosh.nastastopp.ui.TopBar
 import se.eldebosh.nastastopp.ui.TouchTarget
 import se.eldebosh.nastastopp.ui.TripSurface
@@ -125,7 +127,7 @@ fun ReviewScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.ref(42).padding(horizontal = 20.dp),
         )
-        route?.depot?.let { DepotCard(it) }
+        route?.depot?.let { DepotCard(it, entrances[it.entranceKey]) }
         if (stops.isEmpty()) {
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 if (importing) CircularProgressIndicator()
@@ -193,6 +195,8 @@ fun ReviewScreen(
             initialTime = stop.time.orEmpty(),
             onDismiss = { editing = null },
             onSave = { text, time -> onEdit(stop, text, time).also { if (it) editing = null } },
+            // The address's own point, as found (the entrance's is in its own field, 256).
+            addressPoint = stop.geo?.takeIf { stop.isLocated }?.let { it.lat to it.lng },
             entrance = EntranceFields(
                 point = entrance?.takeIf { it.hasPoint }?.let { Coordinates.format(it.lat!!, it.lng!!) }.orEmpty(),
                 note = entrance?.note.orEmpty(),
@@ -200,7 +204,7 @@ fun ReviewScreen(
             ),
         )
     }
-    carded?.let { stop -> TripCardDialog(stop, onDismiss = { carded = null }) }
+    carded?.let { stop -> TripCardDialog(stop, point = stop.pointWith(entrances[stop.entranceKey]), onDismiss = { carded = null }) }
     if (adding) {
         AddressDialog(
             title = stringResource(R.string.dialog_add_title),
@@ -331,6 +335,8 @@ private fun SwipeableStopRow(
                             color = AppTheme.colors.onTrip,
                             modifier = Modifier.ref(47),
                         )
+                        // Its point as the route uses it (the driver's entrance, else the address's): a tap copies it.
+                        stop.pointWith(entrance)?.let { (lat, lng) -> PointText(lat, lng, color = AppTheme.colors.onTripMuted) }
                         Text(
                             stringResource(R.string.spoken_label, spoken),
                             style = MaterialTheme.typography.bodySmall,
@@ -423,7 +429,7 @@ private fun SwipeableStopRow(
 
 /** The day's start point (YouDrive's grey Pull-out): shown above the trips, but not one of them. */
 @Composable
-private fun DepotCard(depot: Stop) {
+private fun DepotCard(depot: Stop, entrance: Entrance?) {
     TripSurface(TripKind.PULL_OUT, Modifier.padding(horizontal = 16.dp, vertical = 4.dp).ref(127).fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 14.dp, end = 4.dp, top = 8.dp, bottom = 8.dp)) {
             KindLabel(TripKind.PULL_OUT)
@@ -431,6 +437,8 @@ private fun DepotCard(depot: Stop) {
             Column(Modifier.weight(1f)) {
                 if (depot.time != null) Text(depot.time, style = MaterialTheme.typography.labelLarge, color = AppTheme.colors.onTrip)
                 Text(depot.displayText, style = MaterialTheme.typography.bodyMedium.copy(textDirection = TextDirection.Content), color = AppTheme.colors.onTrip)
+                // Its point, found only to be shown here: the start point is never a stop.
+                depot.pointWith(entrance)?.let { (lat, lng) -> PointText(lat, lng, color = AppTheme.colors.onTripMuted) }
             }
             HelpDot(R.string.depot_hint, Modifier.refCorner(129), title = stringResource(R.string.kind_pull_out))
         }
@@ -450,6 +458,8 @@ private fun AddressDialog(
     initialTime: String,
     onDismiss: () -> Unit,
     onSave: (String, String?) -> Boolean,
+    /** The address's own point, once found (shown under the address; the entrance has its own field). */
+    addressPoint: Pair<Double, Double>? = null,
     entrance: EntranceFields? = null,
 ) {
     var text by remember { mutableStateOf(initial) }
@@ -475,6 +485,7 @@ private fun AddressDialog(
                     minLines = 2,
                     modifier = Modifier.ref(53).fillMaxWidth(),
                 )
+                addressPoint?.let { (lat, lng) -> PointText(lat, lng) }
                 OutlinedTextField(
                     value = time,
                     onValueChange = { time = it; timeError = false },

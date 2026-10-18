@@ -225,9 +225,11 @@ import se.eldebosh.nastastopp.core.weather.DisplayWeather
 import se.eldebosh.nastastopp.core.weather.WeatherKind
 import se.eldebosh.nastastopp.core.youdrive.CardNotes
 import se.eldebosh.nastastopp.core.youdrive.TripCardText
+import se.eldebosh.nastastopp.geo.PointFinder
 import se.eldebosh.nastastopp.settings.WindowPlace
 import se.eldebosh.nastastopp.settings.WindowPlaces
 import se.eldebosh.nastastopp.ui.DoneMarks
+import se.eldebosh.nastastopp.ui.PointText
 import se.eldebosh.nastastopp.ui.TouchTarget
 import se.eldebosh.nastastopp.ui.ref
 import se.eldebosh.nastastopp.ui.refCorner
@@ -311,12 +313,15 @@ fun PassengerDisplayScreen(
     voice: Flow<Int>? = null,
     /** This device's own voice, for the trips tapped here (always said here). */
     ownVoice: Flow<Int>? = null,
+    /** Finds any address's point for the driver (the sign 325 and its window 326); null: no sign. */
+    onFind: (suspend (String) -> PointFinder.Answer)? = null,
 ) {
     KeepScreenOnFullscreen()
-    // The trip card and the driver's list of trips open where he last left them, as big.
+    // The trip card, the driver's list of trips and the find window open where he last left them, as big.
     val windows = places ?: remember { WindowPlaces.InMemory() }
     val cardPlace = remember(windows) { WindowState(CARD_WINDOW, windows, WindowPlace(0.5f, 0.5f)) }
     val listPlace = remember(windows) { WindowState(LIST_WINDOW, windows, WindowPlace(1f, 0.5f)) }
+    val findPlace = remember(windows) { WindowState(FIND_WINDOW, windows, WindowPlace(0.5f, 0.3f)) }
     var tapped by remember { mutableIntStateOf(0) }
     val cue = spoken + tapped
     // Taps on a card or an address: said on this device, and the time keeps still meanwhile.
@@ -389,6 +394,11 @@ fun PassengerDisplayScreen(
     }
     LaunchedEffect(openCard != null) {
         if (openCard != null) moments.settle()
+    }
+    // The driver's find window (326, from its sign 325): open until he closes it; nothing comes over it.
+    var finding by remember { mutableStateOf(false) }
+    LaunchedEffect(finding) {
+        if (finding) moments.settle()
     }
     LaunchedEffect(moments.holding) { if (!moments.holding) routeMap?.unfocus() }
     // The driver's own map (the map sign, a trip pressed long): his touches move it, and it stays
@@ -558,7 +568,7 @@ fun PassengerDisplayScreen(
     LaunchedEffect(live?.current?.trip) { browse.open = false }
     val away = tripShown != null && tripShown.trip != live?.current?.trip
     // Busy: the minute's moments wait (two clocks never move at once).
-    val busy = openCard != null || (focus && !quietShow) || browse.open || away
+    val busy = openCard != null || finding || (focus && !quietShow) || browse.open || away
     LaunchedEffect(busy) { moments.paused = busy }
     LaunchedEffect(focus, quietShow) { moments.held = focus && quietShow }
     val lineHidden = focus || browse.open
@@ -685,6 +695,7 @@ fun PassengerDisplayScreen(
                         onWeather = { moments.playInfo(Moments.Info.WEATHER) },
                         dark = dark,
                         onToggleLook = onToggleLook,
+                        onFind = onFind?.let { { finding = true } },
                         enabled = !focus,
                     )
                     }
@@ -766,7 +777,7 @@ fun PassengerDisplayScreen(
                 ownVoice = ownVoice,
                 ground = ground,
                 screen = { screen },
-                canIdle = { moments.idle && openCard == null && !held },
+                canIdle = { moments.idle && openCard == null && !finding && !held },
             )
         }
         // The clock in the bottom-left corner; the coming trips follow it ([Stage]). Only its digits
@@ -859,6 +870,9 @@ fun PassengerDisplayScreen(
         ) {
             lastCard?.let { TripCard(it, landscape, cardPlace, onClose = { openCard = null }) }
         }
+        // Any address's point, for the driver: in a window of its own over the display (the keyboard
+        // never lays the display out again).
+        if (finding && onFind != null) FindPointWindow(findPlace, onFind, onClose = { finding = false })
     }
     }
     }
@@ -2055,8 +2069,9 @@ private fun ConnectionSign(status: String, connected: Boolean, wide: Boolean, on
 
 /**
  * The signs in the top-right corner, small and quiet, each only its picture with no frame: the map
- * sign ([onMap]: the way to the next stop), the weather sign, which brings the weather up, the look
- * sign ([onToggleLook]: black or light), and the device's battery ([BatterySign]).
+ * sign ([onMap]: the way to the next stop), the find sign ([onFind]: any address's coordinates, for
+ * the driver), the weather sign, which brings the weather up, the look sign ([onToggleLook]: black
+ * or light), and the device's battery ([BatterySign]).
  */
 @Composable
 private fun TopLine(
@@ -2067,10 +2082,16 @@ private fun TopLine(
     onWeather: () -> Unit,
     dark: Boolean,
     onToggleLook: (() -> Unit)?,
+    onFind: (() -> Unit)? = null,
     enabled: Boolean = true,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         if (onMap != null) MapSign(onMap, enabled, onMapPlaced)
+        if (onFind != null) {
+            IconButton(onClick = onFind, enabled = enabled, modifier = Modifier.refCorner(325).size(TouchTarget)) {
+                Icon(painterResource(R.drawable.ic_find_point), contentDescription = stringResource(R.string.find_point_open), tint = AppTheme.colors.textMuted, modifier = Modifier.size(TOP_ICON))
+            }
+        }
         if (hasWeather) WeatherSign(weather, onWeather, enabled)
         if (onToggleLook != null) {
             // The look it switches to: the sun for light, the moon for black.
@@ -3150,8 +3171,9 @@ private fun Modifier.breathe(rest: Float, scale: () -> Float): Modifier = layout
  * ([TripCardText]), small (about a quarter of the screen) and drawn to be read at a glance: a band
  * in the trip's colour (green pick-up, light drop-off) with its kind and time and its status; the
  * passenger's name beside a figure, the two times beside a clock; then each field with its own
- * sign (the address, the phone numbers large in the highlight colour, one under the other, seats
- * and mobility aids as chips, fare, compensation, eligibility), and the instructions in a box of
+ * sign (the address with its point under it, 322, which a tap copies; the phone numbers large in
+ * the highlight colour, one under the other; seats and mobility aids as chips; fare,
+ * compensation, eligibility), and the instructions in a box of
  * their own, a line for each ([CardNotes]). Over everything, for the driver, until a tap beside it
  * or its ×; a long card scrolls. It is a window ([place]): its band moves it (261), its border
  * makes it bigger or smaller from any edge or corner (262), two fingers do both, and it opens where
@@ -3262,6 +3284,13 @@ private fun TripCard(item: DisplayItem, landscape: Boolean, place: WindowState, 
                                 }
                             }
                             TripCardText.INSTRUCTIONS -> CardNote(row.value, words)
+                            // The address, and under it its point as the phone's route has it (322: a tap copies it).
+                            TripCardText.ADDRESS -> CardLine(cardIcon(row.label), size, row.label) {
+                                Text(withDigitFont(row.value), style = words)
+                                val lat = item.lat
+                                val lng = item.lng
+                                if (lat != null && lng != null) PointText(lat, lng, style = TextStyle(fontFamily = DigitFont, fontSize = size * CARD_LABEL))
+                            }
                             TripCardText.SPACE, TripCardText.AIDS -> CardLine(cardIcon(row.label), size, row.label) {
                                 FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                     row.value.split(", ").forEach { chip ->
@@ -3760,6 +3789,7 @@ private const val CARD_BUTTON_GROUND = 0.18f
 /** The windows the driver moves and sizes, by the name their place is kept under. */
 private const val CARD_WINDOW = "trip_card"
 private const val LIST_WINDOW = "way_list"
+private const val FIND_WINDOW = "find_point"
 
 /** A figure's touch room beside a small trip (the bottom line, the strip). */
 private val SMALL_TOUCH = 36.dp

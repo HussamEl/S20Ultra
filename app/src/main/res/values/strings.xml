@@ -417,5 +417,18 @@
     <string name="address_log_share">اضغط لمشاركتها</string>
     <string name="address_log_delete">حذف سجل العناوين</string>
     <string name="address_log_delete_confirm">حذف سجل العناوين؟ عدد العناوين: %d</string>
-    <string name="help_address_log">كل عنوان ذهبت إليه رحلاتك يُحفظ مرة واحدة على هذا الجوال فقط: المكان والشارع والرقم والمدينة كما كُتبت، مع عدد الأيام وآخر يوم. لا يُحفظ اسم راكب ولا بطاقة رحلة أبداً، ولا يُرسل شيء إلا حين تضغط «مشاركة» بنفسك. الغرض: تحسين طريقة نطق العناوين الطويلة واختصارها.</string>
+    <string name="help_address_log">كل عنوان ذهبت إليه رحلاتك يُحفظ مرة واحدة على هذا الجوال فقط: المكان والشارع والرقم والمدينة كما كُتبت، وإحداثيات العنوان حين وُجدت (لا مدخلك أبداً)، مع عدد الأيام وآخر يوم. لا يُحفظ اسم راكب ولا بطاقة رحلة أبداً، ولا يُرسل شيء إلا حين تضغط «مشاركة» بنفسك. الغرض: تحسين طريقة نطق العناوين الطويلة واختصارها.</string>
+    <string name="point_desc">الإحداثيات %1$s</string>
+    <string name="point_copy">انسخ الإحداثيات</string>
+    <string name="point_copied">نُسخت الإحداثيات</string>
+    <string name="point_clip_label">إحداثيات</string>
+    <string name="find_point_open">إحداثيات عنوان</string>
+    <string name="find_point_title">إحداثيات عنوان</string>
+    <string name="find_point_field">العنوان</string>
+    <string name="find_point_button">ابحث</string>
+    <string name="find_point_searching">جارٍ البحث…</string>
+    <string name="find_point_not_found">لم يوجد. اكتب الرمز البريدي أو المدينة أيضاً: لا تُخمَّن المدينة أبداً.</string>
+    <string name="find_point_no_answer">تعذّر البحث عن العنوان الآن (لا إنترنت؟). جرّب مرة أخرى.</string>
+    <string name="find_point_close">إغلاق</string>
+    <string name="find_point_hint">اكتب أي عنوان ثم «ابحث». تأتي الإحداثيات من سجل عناوين Lantmäteriet على هذا الجهاز، وإلا من بحث العناوين في النظام، وفقط حيث الرمز البريدي أو المدينة المكتوبان؛ لا تُخمَّن المدينة أبداً. ضغطة على الإحداثيات تنسخها. لا يُضاف شيء إلى المسار، ولا يُحفظ العنوان.</string>
 </resources>

@@ -32,6 +32,7 @@ import androidx.compose.ui.window.Dialog
 import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.core.youdrive.TripCardText
 import se.eldebosh.nastastopp.route.model.Stop
+import se.eldebosh.nastastopp.ui.PointText
 import se.eldebosh.nastastopp.ui.TouchTarget
 import se.eldebosh.nastastopp.ui.kindName
 import se.eldebosh.nastastopp.ui.ref
@@ -44,11 +45,12 @@ import se.eldebosh.nastastopp.ui.theme.AppTheme
  * passenger's name, the estimated time and the second one (the time agreed on a pick-up, the
  * latest asked for on a drop-off), then every field with YouDrive's label (Address, Phone number,
  * Space Type(s), Mobility Aids, Fare amount, Compensation, Eligibility, Instructions). A trip
- * read from a screenshot has no card: its time, kind and address. On the driver's phone only;
- * never said. Its × (301) or a tap beside it closes it.
+ * read from a screenshot has no card: its time, kind and address. Under the address, the trip's
+ * [point] (322; a tap copies it). On the driver's phone only; never said. Its × (301) or a tap
+ * beside it closes it.
  */
 @Composable
-fun TripCardDialog(stop: Stop, onDismiss: () -> Unit) {
+fun TripCardDialog(stop: Stop, onDismiss: () -> Unit, point: Pair<Double, Double>? = null) {
     val card = remember(stop.card) { stop.card?.let { TripCardText.of(it) } }
     val colors = AppTheme.colors
     val title = card?.title ?: listOfNotNull(stop.kind?.let { stringResource(kindName(it)) }, stop.time).joinToString(" ").ifEmpty { stop.displayText }
@@ -90,12 +92,14 @@ fun TripCardDialog(stop: Stop, onDismiss: () -> Unit) {
                             Text(row.label, style = MaterialTheme.typography.bodyMedium, color = colors.textMuted, modifier = Modifier.width(112.dp))
                         }
                         val value = if (row.label == TripCardText.PHONE) TripCardText.spacedPhone(row.value) else row.value
-                        Text(
-                            value,
-                            style = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Content),
-                            color = if (row.label == TripCardText.PHONE) colors.info else colors.text,
-                            modifier = Modifier.weight(1f),
-                        )
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                value,
+                                style = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Content),
+                                color = if (row.label == TripCardText.PHONE) colors.info else colors.text,
+                            )
+                            if (row.label == TripCardText.ADDRESS) point?.let { (lat, lng) -> PointText(lat, lng) }
+                        }
                     }
                 }
             }

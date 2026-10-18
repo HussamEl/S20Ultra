@@ -43,7 +43,9 @@ object YouDriveCards {
             // name is on its own line, so this is never the passenger's name.
             stop = stop.copy(place = placeBeforeStreet(stop))
         }
-        stop = withKnownTown(stop)
+        // A well-known place written without a town is asked for in its own town; another one keeps
+        // none: it is never given the town of the list's other trips.
+        stop = Places.withKnownTown(stop)
         // The times sit in the left column, before the name and address (a time in the notes
         // below does not count). The scheduled time comes first (YouDrive orders the route by
         // it); a second time is the booked one, which does not move when the schedule is re-planned.
@@ -62,16 +64,6 @@ object YouDriveCards {
         val full = stop.candidates.first().substringBefore(',').trim()
         if (street.isEmpty() || !full.endsWith(street)) return null
         return full.removeSuffix(street).trim().takeIf { TextNorm.letterCount(it) >= 3 }
-    }
-
-    /**
-     * A well-known place written without a town ("Centralsjukhuset huvudentrén,") is asked for in
-     * its own town. Another one keeps no town: it is never given the town of the list's other trips.
-     */
-    private fun withKnownTown(stop: ExtractedStop): ExtractedStop {
-        if (stop.parsedTown != null || stop.parsedPostalCode != null) return stop
-        val known = Places.known(stop.place) ?: return stop
-        return stop.copy(candidates = (listOf(known.candidate) + stop.candidates).distinct(), parsedTown = known.town, parsedTownKnown = true)
     }
 
     /** A line that can name a place: letters, no digits, not a label, time or fee. */

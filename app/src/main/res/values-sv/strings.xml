@@ -416,5 +416,18 @@
     <string name="address_log_share">Tryck för att dela dem</string>
     <string name="address_log_delete">Radera adressloggen</string>
     <string name="address_log_delete_confirm">Radera adressloggen? Adresser: %d</string>
-    <string name="help_address_log">Varje adress dina resor gick till sparas en gång, bara i den här telefonen: plats, gata, nummer och ort som de skrevs, med antal dagar och senaste dagen. Ett passagerarnamn eller resekort sparas aldrig, och inget skickas förrän du själv trycker Dela. Det är till för att förbättra hur långa adresser sägs och kortas.</string>
+    <string name="help_address_log">Varje adress dina resor gick till sparas en gång, bara i den här telefonen: plats, gata, nummer och ort som de skrevs, och adressens koordinater när den hittades (aldrig din ingång), med antal dagar och senaste dagen. Ett passagerarnamn eller resekort sparas aldrig, och inget skickas förrän du själv trycker Dela. Det är till för att förbättra hur långa adresser sägs och kortas.</string>
+    <string name="point_desc">Koordinater %1$s</string>
+    <string name="point_copy">Kopiera koordinaterna</string>
+    <string name="point_copied">Koordinaterna kopierade</string>
+    <string name="point_clip_label">Koordinater</string>
+    <string name="find_point_open">Koordinater för en adress</string>
+    <string name="find_point_title">Koordinater för en adress</string>
+    <string name="find_point_field">Adress</string>
+    <string name="find_point_button">Sök</string>
+    <string name="find_point_searching">Söker…</string>
+    <string name="find_point_not_found">Hittades inte. Skriv postnumret eller orten också: en ort gissas aldrig.</string>
+    <string name="find_point_no_answer">Adressökningen kunde inte svara nu (inget internet?). Försök igen.</string>
+    <string name="find_point_close">Stäng</string>
+    <string name="find_point_hint">Skriv valfri adress och tryck Sök. Koordinaterna kommer från Lantmäteriets adressregister i enheten, annars från systemets adressökning, och bara där postnumret eller orten du skrev finns; en ort gissas aldrig. Ett tryck på koordinaterna kopierar dem. Inget läggs till i rutten, och adressen sparas inte.</string>
 </resources>

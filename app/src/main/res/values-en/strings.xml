@@ -416,5 +416,18 @@
     <string name="address_log_share">Tap to share them</string>
     <string name="address_log_delete">Delete the address log</string>
     <string name="address_log_delete_confirm">Delete the address log? Addresses: %d</string>
-    <string name="help_address_log">Every address your trips went to is kept once, on this phone only: the place, street, number and town as written, with on how many days and the last day. A passenger\'s name or a trip card is never kept, and nothing is sent unless you tap Share yourself. It is for improving how long addresses are said and shortened.</string>
+    <string name="help_address_log">Every address your trips went to is kept once, on this phone only: the place, street, number and town as written, and the address\'s coordinates when it was found (never your entrance), with on how many days and the last day. A passenger\'s name or a trip card is never kept, and nothing is sent unless you tap Share yourself. It is for improving how long addresses are said and shortened.</string>
+    <string name="point_desc">Coordinates %1$s</string>
+    <string name="point_copy">Copy the coordinates</string>
+    <string name="point_copied">Coordinates copied</string>
+    <string name="point_clip_label">Coordinates</string>
+    <string name="find_point_open">Coordinates of an address</string>
+    <string name="find_point_title">Coordinates of an address</string>
+    <string name="find_point_field">Address</string>
+    <string name="find_point_button">Find</string>
+    <string name="find_point_searching">Searching…</string>
+    <string name="find_point_not_found">Not found. Write the postcode or the town too: a town is never guessed.</string>
+    <string name="find_point_no_answer">The address search could not answer now (no internet?). Try again.</string>
+    <string name="find_point_close">Close</string>
+    <string name="find_point_hint">Write any address, then Find. The coordinates come from Lantmäteriet\'s address register on this device, else from the system\'s address search, and only where the postcode or town you wrote is; a town is never guessed. A tap on the coordinates copies them. Nothing is added to the route, and the address is not kept.</string>
 </resources>

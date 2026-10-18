@@ -171,6 +171,16 @@ class RouteController(
             .ifEmpty { null }
     }
 
+    /**
+     * [stop]'s line of the address log ([logLine]) with the address's own point once it is found;
+     * never the driver's entrance, which stays on the phone ([Entrances]).
+     */
+    fun logEntry(stop: Stop): AddressLog.Line? {
+        val text = logLine(stop) ?: return null
+        val at = stop.geo?.takeIf { stop.isLocated }
+        return AddressLog.Line(text, at?.lat, at?.lng)
+    }
+
     /** The stop's named place: as YouDrive wrote it, or a well-known place written as the address ("Centralsjukhuset Karlstad"). */
     private fun placeOf(stop: Stop): String? = stop.place ?: stop.displayText.takeIf { Places.known(it) != null }
 
@@ -242,7 +252,7 @@ class RouteController(
                 val at = s.geo?.takeIf { s.isLocated }
                 val routeTo = at?.addressLine?.takeIf { it.isNotBlank() } ?: s.streetText
                 // The tablet's map goes to the driver's entrance when he set one, else to the address's point.
-                val point = entranceOf(s)?.takeIf { it.hasPoint }?.let { it.lat!! to it.lng!! } ?: at?.let { it.lat to it.lng }
+                val point = pointOf(s)
                 if (full) {
                     // A place of care by its short name, said in full when tapped.
                     val said = Places.spokenName(placeOf(s), localities::contains) ?: Places.shopName(s.place)
@@ -428,8 +438,7 @@ class RouteController(
         entranceOf(stop)?.takeIf { it.hasPoint }?.let { MapsUrlBuilder.point(it.lat!!, it.lng!!) } ?: stop.navigationText
 
     /** The point of [stop] for Google Maps: the driver's entrance, else the address's point; null when neither is known. */
-    fun pointOf(stop: Stop): Pair<Double, Double>? =
-        entranceOf(stop)?.takeIf { it.hasPoint }?.let { it.lat!! to it.lng!! } ?: stop.geo?.takeIf { stop.isLocated }?.let { it.lat to it.lng }
+    fun pointOf(stop: Stop): Pair<Double, Double>? = stop.pointWith(entranceOf(stop))
 
     /** Google Maps navigates to [stop] alone, by its point when known (never a search for its name), else its address. */
     fun navigateTo(stop: Stop) {
@@ -460,6 +469,12 @@ class RouteController(
 
     /** True if [e] is already one of the remaining trips (see [sameTrip]), or the start point. */
     fun hasTrip(e: ExtractedStop): Boolean = findTrip(e) != null
+
+    /**
+     * The point of YouDrive trip [e] when it is already one of the remaining trips or the start
+     * point ([findTrip], [pointOf]); null otherwise (a trip not in the list yet has none).
+     */
+    fun pointOfTrip(e: ExtractedStop): Pair<Double, Double>? = findTrip(e)?.let(::pointOf)
 
     private fun findTrip(e: ExtractedStop): Stop? {
         val r = _route.value ?: return null
@@ -512,7 +527,9 @@ class RouteController(
                 val old = base.depot
                 if (old != null && extractor.isSameAddress(old.toExtracted(), e)) {
                     if (old.time != e.time || old.displayText != e.displayText) {
-                        set(base.copy(depot = e.toStop(old.id)))
+                        // Written the same: the point already found stays.
+                        val fresh = e.toStop(old.id).let { if (it.displayText == old.displayText) it.copy(geoStatus = old.geoStatus, geo = old.geo) else it }
+                        set(base.copy(depot = fresh))
                         updated++
                     }
                 } else {
@@ -574,17 +591,7 @@ class RouteController(
     }
 
     /** [e] with the town the driver once gave its place ([PlaceMemory]), when it has none. */
-    private fun remembered(e: ExtractedStop): ExtractedStop {
-        if (e.parsedTown != null || e.parsedPostalCode != null || !PlaceMemory.isPlace(e.displayText)) return e
-        val given = places.recall(e.place ?: e.displayText)?.let { extractor.fromManualText(it) } ?: return e
-        if (given.parsedTown == null && given.parsedPostalCode == null) return e
-        return e.copy(
-            candidates = (given.candidates + e.candidates).distinct(),
-            parsedTown = given.parsedTown,
-            parsedPostalCode = given.parsedPostalCode,
-            parsedTownKnown = given.parsedTownKnown,
-        )
-    }
+    private fun remembered(e: ExtractedStop): ExtractedStop = places.withTown(e, extractor)
 
     /** [stop] inserted before the first later trip (after the current trip of an active route). */
     private fun insertByTime(list: List<Stop>, stop: Stop, active: Boolean): List<Stop> {
@@ -780,9 +787,9 @@ class RouteController(
         endInternal()
     }
 
-    /** Adds a trip of the active route to the history shown on the Home screen. */
+    /** Adds a trip of the active route to the history shown on the Home screen, with its point ([pointOf]). */
     private fun record(stop: Stop, completed: Boolean) {
-        history.add(stop.time, spokenName(stop), stop.displayText, done = completed)
+        history.add(stop.time, spokenName(stop), stop.displayText, done = completed, point = pointOf(stop))
     }
 
     private fun finish() {
@@ -834,11 +841,16 @@ class RouteController(
     @VisibleForTesting
     internal fun awaitPersisted() = runBlocking(persistDispatcher) {}
 
+    /**
+     * Finds the point of each stop still pending, one at a time, then the start point's. The start
+     * point's is only shown to the driver: it stays the start point, never a stop.
+     */
     private fun ensureGeocoding() {
         if (geocodeJob?.isActive == true) return
         geocodeJob = scope.launch {
             while (isActive) {
-                val stop = _route.value?.stops?.firstOrNull { it.geoStatus == GeoStatus.PENDING } ?: break
+                val r = _route.value ?: break
+                val stop = r.stops.firstOrNull { it.geoStatus == GeoStatus.PENDING } ?: r.depot?.takeIf { it.geoStatus == GeoStatus.PENDING } ?: break
                 val result = try {
                     geocoding.locate(stop.candidates, stop.parsedPostalCode, stop.parsedTown, GeoLogic.nameKeys(stop.name))
                 } catch (e: kotlinx.coroutines.CancellationException) {
@@ -857,11 +869,12 @@ class RouteController(
                     null
                 }
                 geoTries.remove(stop.id)
-                update { r ->
-                    r.copy(
-                        stops = r.stops.map { s ->
-                            if (s.id == stop.id && s.geoStatus == GeoStatus.PENDING && s.candidates == stop.candidates) applyGeo(s, result) else s
-                        },
+                val asked = { s: Stop -> s.id == stop.id && s.geoStatus == GeoStatus.PENDING && s.candidates == stop.candidates }
+                update { route ->
+                    route.copy(
+                        stops = route.stops.map { s -> if (asked(s)) applyGeo(s, result) else s },
+                        // The start point keeps its text as written: only its point is added.
+                        depot = route.depot?.let { d -> if (asked(d)) d.located(result) else d },
                     )
                 }
             }
@@ -877,9 +890,13 @@ class RouteController(
         val display = street?.takeIf { it.isNotEmpty() }?.let { s ->
             stop.candidates.firstOrNull { TextNorm.fold(it).startsWith(s) }
         } ?: located.candidate
-        return stop.copy(
-            displayText = display,
-            candidates = listOf(display),
+        return stop.located(located).copy(displayText = display, candidates = listOf(display))
+    }
+
+    /** This stop with [found]'s point (located), or not located when nothing was found; its text as it is. */
+    private fun Stop.located(found: LocateResult?): Stop {
+        val res = found?.result ?: return copy(geoStatus = GeoStatus.NOT_LOCATED, geo = null)
+        return copy(
             geoStatus = GeoStatus.LOCATED,
             geo = GeoPoint(
                 lat = res.lat,

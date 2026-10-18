@@ -97,6 +97,7 @@ import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.core.parse.TripTimes
 import se.eldebosh.nastastopp.core.route.Announcements
 import se.eldebosh.nastastopp.ui.DoneMarks
+import se.eldebosh.nastastopp.ui.PointText
 import se.eldebosh.nastastopp.ui.ref
 import se.eldebosh.nastastopp.ui.refCorner
 import se.eldebosh.nastastopp.ui.screens.PersonGlyph
@@ -413,8 +414,8 @@ private fun StreetRow(info: StreetInfo?, source: PanelSource, sayStreetOn: Boole
 /**
  * The trip shown (the next stop unless another is looked at), as on the display: over it its
  * passenger's figure, its time in the clock's style (230's look; 10) and its town and area (19);
- * its street and number large (13: a tap says them; a long press opens the display's map for
- * it); the passenger's first + last name (18, the phone only) and how it stands (11).
+ * it); its point under it (322, the phone only: a tap copies it); the passenger's first + last
+ * name (18, the phone only) and how it stands (11).
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -462,6 +463,8 @@ private fun Hero(item: DisplayItem, source: PanelSource, isNext: Boolean, now: L
                 )
                 .padding(vertical = 2.dp),
         )
+        // On the phone, the point the route goes to (a tablet's panel shows only what its display receives).
+        source.pointOf(item)?.let { (lat, lng) -> PointText(lat, lng, style = TextStyle(fontFamily = DigitFont, fontSize = 13.sp)) }
         Row(verticalAlignment = Alignment.CenterVertically) {
             source.fullName(item)?.let { name ->
                 Text(name, fontFamily = DisplayFont, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = colors.text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.ref(18).weight(1f, fill = false))

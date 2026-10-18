@@ -59,6 +59,7 @@ import se.eldebosh.nastastopp.geo.CurrentStreet
 import se.eldebosh.nastastopp.geo.Geocoding
 import se.eldebosh.nastastopp.geo.StreetCaller
 import se.eldebosh.nastastopp.overlay.FloatingPanel
+import se.eldebosh.nastastopp.overlay.LinkPanelSource
 import se.eldebosh.nastastopp.overlay.PanelActions
 import se.eldebosh.nastastopp.overlay.PanelSource
 import se.eldebosh.nastastopp.overlay.RoutePanelSource
@@ -504,6 +505,41 @@ class FloatingPanelRoboTest {
         assertEquals(LinkMessage.Remote(LinkMessage.Remote.Action.APPLY), sent.last())
         compose.onNodeWithTag("ref_286").performScrollTo().performClick()
         assertEquals(LinkMessage.Remote(LinkMessage.Remote.Action.CLOSE_MAP), sent.last())
+        c.end()
+    }
+
+    /**
+     * On the phone the trip shown has its point under its address (322), the one Maps goes to (the
+     * driver's entrance here, an invented point); a tap copies it. A tablet's panel shows only what
+     * its passenger display receives: no point.
+     */
+    @Test
+    fun thePhonesPanelShowsThePointToCopy() {
+        graph.settings.update { it.copy(overlayHidden = true) } // the app's own panel stays away
+        threeStops()
+        val c = graph.controller
+        c.setEntrance(c.route.value!!.stops.first(), 59.381234 to 13.501234, null)
+        c.start()
+        idle()
+        val actions = object : PanelActions {
+            override fun minimize() = Unit
+            override fun close() = Unit
+            override fun openApp() = Unit
+            override fun toggleSayStreet() = Unit
+            override fun toast(text: Int) = Unit
+            override fun barAt(bounds: androidx.compose.ui.geometry.Rect) = Unit
+        }
+        val phone = RoutePanelSource(c, graph.street, graph.announcer, graph.displayServer, graph.scope)
+        compose.setContent { FloatingPanel(phone, actions, sayStreetOn = true) }
+        compose.waitForIdle()
+        compose.onNodeWithTag("ref_322").assert(hasText("59.381234, 13.501234")).performClick()
+        compose.waitForIdle()
+        val clip = app.getSystemService(android.content.ClipboardManager::class.java).primaryClip!!
+        assertEquals("59.381234, 13.501234", clip.getItemAt(0).text.toString())
+        val shown = c.display.value.current!!
+        assertNotNull(phone.pointOf(shown))
+        assertNull("no point on a tablet's panel", LinkPanelSource(graph.displayClient, graph.announcer).pointOf(shown))
+        c.clearEntrances()
         c.end()
     }
 

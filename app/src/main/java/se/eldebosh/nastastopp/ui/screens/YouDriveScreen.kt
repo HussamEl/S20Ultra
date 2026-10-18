@@ -36,12 +36,14 @@ import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import se.eldebosh.nastastopp.R
+import se.eldebosh.nastastopp.core.youdrive.WatchedTrip
 import se.eldebosh.nastastopp.core.youdrive.YouDriveCards
 import se.eldebosh.nastastopp.ui.AppCard
 import se.eldebosh.nastastopp.ui.Chevron
 import se.eldebosh.nastastopp.ui.Hint
 import se.eldebosh.nastastopp.ui.KindLabel
 import se.eldebosh.nastastopp.ui.ListRow
+import se.eldebosh.nastastopp.ui.PointText
 import se.eldebosh.nastastopp.ui.TouchTarget
 import se.eldebosh.nastastopp.ui.ref
 import se.eldebosh.nastastopp.ui.refCorner
@@ -54,7 +56,8 @@ import java.time.format.DateTimeFormatter
 /**
  * The slim bar of YouDrive's window (the page itself fills the rest of the screen): back, title
  * with the status line, the watch bell and a menu (start page, reload, add all trips, check now,
- * log out). Added / cancelled trips appear under it with "add / remove" buttons.
+ * log out). Added / cancelled trips appear under it with "add / remove" buttons, and the point of
+ * one already in the route ([pointOf]).
  */
 @Composable
 fun YouDriveBar(
@@ -69,6 +72,8 @@ fun YouDriveBar(
     onApply: (YouDriveWatcher.PendingChange) -> Unit,
     onDismiss: (YouDriveWatcher.PendingChange) -> Unit,
     onLogout: () -> Unit,
+    /** The point of a trip already in the route (as the route uses it), else null. */
+    pointOf: (WatchedTrip) -> Pair<Double, Double>? = { null },
 ) {
     var confirmLogout by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
@@ -123,7 +128,7 @@ fun YouDriveBar(
                 }
             }
         }
-        state.changes.asReversed().forEach { ChangeRow(it, onApply, onDismiss) }
+        state.changes.asReversed().forEach { ChangeRow(it, pointOf(it.change.trip), onApply, onDismiss) }
         HorizontalDivider(color = AppTheme.colors.cardBorder)
     }
     if (confirmLogout) {
@@ -174,10 +179,11 @@ fun youDriveStatus(state: YouDriveWatcher.State): String {
     }
 }
 
-/** A trip added or cancelled on the page, with "add to / remove from my list" and "dismiss". */
+/** A trip added or cancelled on the page, with "add to / remove from my list" and "dismiss"; its [point] once it is in the route. */
 @Composable
 private fun ChangeRow(
     change: YouDriveWatcher.PendingChange,
+    point: Pair<Double, Double>?,
     onApply: (YouDriveWatcher.PendingChange) -> Unit,
     onDismiss: (YouDriveWatcher.PendingChange) -> Unit,
 ) {
@@ -223,6 +229,7 @@ private fun ChangeRow(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
+            point?.let { (lat, lng) -> PointText(lat, lng) }
         }
         TextButton(onClick = { onApply(change) }, modifier = Modifier.refCorner(if (added) 145 else 147).heightIn(min = TouchTarget)) {
             Text(stringResource(if (added) R.string.youdrive_add else R.string.youdrive_remove), color = AppTheme.colors.info, style = MaterialTheme.typography.labelLarge)
