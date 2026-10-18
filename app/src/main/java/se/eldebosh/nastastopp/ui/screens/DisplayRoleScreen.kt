@@ -146,11 +146,11 @@ fun DisplayRoleScreen(
     /** The controls the driver used on the phone's floating panel, and what this display's map shows, for it. */
     remote: Flow<LinkMessage.Remote>? = null,
     onMapView: ((LinkMessage.MapView) -> Unit)? = null,
-    /** The car moved in the last two minutes, how much it shakes now and how fast it goes (the display's motion band). */
+    /** The car moved in the last two minutes, how much it shakes now and how fast it goes (the display's flow, 297). */
     awake: Boolean = true,
     motion: (() -> Float)? = null,
     speed: () -> Float? = { null },
-    /** The motion band's look was switched by a long press on the display's top line. */
+    /** The flow's look was switched by a long press on the display's top line (298). */
     onMotionStyle: ((MotionStyle) -> Unit)? = null,
 ) {
     var showSetup by remember { mutableStateOf(false) }

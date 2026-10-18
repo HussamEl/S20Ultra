@@ -1258,14 +1258,16 @@ class ScreenshotsRoboTest {
     }
 
     /**
-     * The motion band (297) runs across the top line in each of its five looks, at a highway's speed
-     * and shaking, above an address it never moves; a long press on the line switches the look and
-     * names it for a moment.
+     * The flow (297) fills the screen behind everything in each of its seven looks, at a highway's
+     * speed and shaking; a long press on the top line (298) switches the look and names it for a
+     * moment, round to Automatic again.
      */
     @Test
     @Config(qualifiers = "en-w1400dp-h876dp-land-mdpi")
     fun theMotionBandFlowsWithTheCar() {
-        var style by mutableStateOf(MotionStyle.TRAILS)
+        var style by mutableStateOf(MotionStyle.AUTO)
+        // The flow's frames run only while the test drives the clock by hand.
+        compose.mainClock.autoAdvance = false
         compose.setContent {
             NastaTheme(Appearance.DAY) {
                 PassengerDisplayScreen(
@@ -1275,8 +1277,11 @@ class ScreenshotsRoboTest {
                 )
             }
         }
-        compose.waitForIdle()
-        compose.mainClock.autoAdvance = false
+        // Up to the highway's speed: AUTO has gone over to its highway look.
+        compose.mainClock.advanceTimeBy(8_000)
+        val root = compose.onRoot().fetchSemanticsNode().boundsInRoot
+        val flow = compose.onNodeWithTag("ref_297").fetchSemanticsNode().boundsInRoot
+        assertTrue("the flow fills the screen: $flow in $root", flow.width >= root.width - 1f && flow.height >= root.height * 0.9f)
         MotionStyle.entries.forEachIndexed { i, look ->
             assertEquals(look, style)
             compose.mainClock.advanceTimeBy(1_500)
@@ -1285,10 +1290,10 @@ class ScreenshotsRoboTest {
             compose.onNodeWithTag("ref_298").performTouchInput { longClick(Offset(width / 2f, height / 2f)) }
             compose.mainClock.advanceTimeBy(800)
         }
-        assertEquals("round again to the first look", MotionStyle.TRAILS, style)
-        compose.onNodeWithText("Light trails").assertExists()
+        assertEquals("round again to the first look", MotionStyle.AUTO, style)
+        compose.onNodeWithText("Automatic").assertExists()
         compose.mainClock.advanceTimeBy(3_000)
-        compose.onNodeWithText("Light trails").assertDoesNotExist()
+        compose.onNodeWithText("Automatic").assertDoesNotExist()
         compose.mainClock.autoAdvance = true
     }
 

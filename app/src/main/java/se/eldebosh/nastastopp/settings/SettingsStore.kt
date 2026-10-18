@@ -44,8 +44,8 @@ data class AppSettings(
     val tabletPanel: Boolean = false,
     /** The passenger display on this device is black (on) or light (223). */
     val displayDark: Boolean = true,
-    /** Display role: the look of the motion band on the top line (297), switched by a long press there. */
-    val motionStyle: MotionStyle = MotionStyle.TRAILS,
+    /** Display role: the look of the flow behind the display (297), switched by a long press on its top line (298). */
+    val motionStyle: MotionStyle = MotionStyle.AUTO,
     /**
      * Display role: the driver's own Google Maps key for the map on this tablet, or null. His own
      * keys (this and [mapmapKey]) are used only while the tablet is not connected to the company's
@@ -168,7 +168,8 @@ class SettingsStore(context: Context) : WindowPlaces {
         displaySpeaks = prefs.getBoolean(K_DISPLAY_SPEAKS, true),
         tabletPanel = prefs.getBoolean(K_TABLET_PANEL, false),
         displayDark = prefs.getBoolean(K_DISPLAY_DARK, true),
-        motionStyle = runCatching { MotionStyle.valueOf(prefs.getString(K_MOTION_STYLE, null) ?: "") }.getOrDefault(MotionStyle.TRAILS),
+        // A look the app no longer has reads as AUTO.
+        motionStyle = runCatching { MotionStyle.valueOf(prefs.getString(K_MOTION_STYLE, null) ?: "") }.getOrDefault(MotionStyle.AUTO),
         mapsKey = prefs.getString(K_MAPS_KEY, null),
         waySource = runCatching { WaySource.valueOf(prefs.getString(K_WAY_SOURCE, null) ?: "") }.getOrDefault(WaySource.MAPMAP),
         mapmapKey = prefs.getString(K_MAPMAP_KEY, null),
