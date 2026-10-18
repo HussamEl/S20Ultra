@@ -1,6 +1,7 @@
 package se.eldebosh.nastastopp.core.geo
 
 import se.eldebosh.nastastopp.core.parse.TextNorm
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Lantmäteriet's address register ("Belägenhetsadresser", CC BY 4.0) for the municipalities the
@@ -66,6 +67,14 @@ class AddressRegister private constructor(
 
     /** The post towns' keys: a municipality named as one of them (Karlstad) is read as the post town. */
     private val towns: Set<String> = streets.values.flatten().mapTo(HashSet()) { TextNorm.key(it.town) }
+
+    /** The streets of each postcode, of each post town (its key), and each municipality's name (by its key), made when a place is first asked for. */
+    private val byPostcode by lazy { streets.values.flatten().groupBy { it.postcode } }
+    private val byTown by lazy { streets.values.flatten().groupBy { TextNorm.key(it.town) } }
+    private val municipalityNames by lazy { streets.values.flatten().associate { TextNorm.key(it.municipality) to it.municipality } }
+
+    /** Where each postcode ("66530") or written town ("t:molkom") asked for lies, kept for the app's life. */
+    private val wheres = ConcurrentHashMap<String, Where>()
 
     val size: Int get() = streets.values.sumOf { list -> list.sumOf { it.houses } }
 
@@ -153,13 +162,12 @@ class AddressRegister private constructor(
      * postcode's post town). Taken only when the name is one place there; or, when it is no
      * place's name, written after its village ("Provby Provgården": the village, then the farm),
      * when the village is one place there and only one place of the farm's name lies within
-     * [NEAR_VILLAGE_M] of it. Near the
-     * postcode's or post town's own addresses first: a postcode may cross into another
-     * municipality, whose places of the same name lie far away. Anywhere in its municipalities
-     * only when none lies near (Glava is Arvika municipality's, far from Arvika's addresses). Two
-     * places of one name are never chosen between.
+     * [NEAR_VILLAGE_M] of it. Near the postcode's or post town's own addresses first: a postcode
+     * may cross into another municipality, whose places of the same name lie far away. Anywhere in
+     * its municipalities only when none lies near. Two places of one name are never chosen between.
      */
     private fun placed(written: String, digits: String?, place: String?): GeoResult? {
+        if (!mayBeAPlace(written)) return null
         val (municipalities, town, area) = municipalitiesOf(digits, place) ?: return null
         // The places of a name in those municipalities, with only their points in [near] when it is given.
         fun there(near: Area?): (String) -> List<Place> = { name ->
@@ -171,7 +179,7 @@ class AddressRegister private constructor(
         val nearFirst = listOfNotNull(area?.let { there(it) }, there(null))
         // A name that is a place's name is that place; split into a village and its farm only when it is none.
         val found = nearFirst.firstNotNullOfOrNull { p -> p(written).flatMap { place -> place.points.map { place.name to it } }.ifEmpty { null } }
-            ?: nearFirst.firstNotNullOfOrNull { p -> nearItsVillage(written, p).ifEmpty { null } }
+            ?: nearFirst.firstNotNullOfOrNull { p -> nearItsVillage(written, p, there(null)).ifEmpty { null } }
         val (name, point) = found?.singleOrNull() ?: return null
         return GeoResult(
             lat = point.first,
@@ -184,18 +192,32 @@ class AddressRegister private constructor(
         )
     }
 
+    /** Whether [written], or the words it splits into at a space ([nearItsVillage]), are place names at all. */
+    private fun mayBeAPlace(written: String): Boolean {
+        if (TextNorm.key(written) in places) return true
+        val words = written.trim().split(SPACES)
+        return (1 until words.size).any { cut ->
+            TextNorm.key(words.take(cut).joinToString(" ")) in places && TextNorm.key(words.drop(cut).joinToString(" ")) in places
+        }
+    }
+
     /**
      * [written] read as a village and a farm of it ("Provby Provgården", split at each space): the
-     * places of the farm's name within [NEAR_VILLAGE_M] of the village, the village being one place
-     * there, over every way of splitting it.
+     * places of the farm's name within [NEAR_VILLAGE_M] of the village, over every way of splitting
+     * it. The village is one place of [villages]; its farms are counted among all of [farms], so a
+     * second farm of the name near the village is never left out.
      */
-    private fun nearItsVillage(written: String, there: (String) -> List<Place>): List<Pair<String, Pair<Double, Double>>> {
+    private fun nearItsVillage(
+        written: String,
+        villages: (String) -> List<Place>,
+        farms: (String) -> List<Place>,
+    ): List<Pair<String, Pair<Double, Double>>> {
         val words = written.trim().split(SPACES)
         if (words.size < 2) return emptyList()
         return (1 until words.size).flatMap { cut ->
-            val village = there(words.take(cut).joinToString(" ")).singleOrNull() ?: return@flatMap emptyList()
+            val village = villages(words.take(cut).joinToString(" ")).singleOrNull() ?: return@flatMap emptyList()
             val at = village.points.singleOrNull() ?: return@flatMap emptyList()
-            there(words.drop(cut).joinToString(" ")).flatMap { farm ->
+            farms(words.drop(cut).joinToString(" ")).flatMap { farm ->
                 farm.points.filter { (lat, lng) -> GeoLogic.distanceMeters(at.first, at.second, lat, lng) <= NEAR_VILLAGE_M }
                     .map { "${village.name} ${farm.name}" to it }
             }
@@ -226,22 +248,20 @@ class AddressRegister private constructor(
      * town's addresses.
      */
     private fun municipalitiesOf(digits: String?, place: String?): Where? {
-        val all = streets.values.flatten()
-        return when {
-            digits != null -> {
-                val there = all.filter { it.postcode == digits }
-                if (there.isEmpty()) return null
-                Where(there.mapTo(HashSet()) { TextNorm.key(it.municipality) }, there.first().town, Area.around(there.flatMap { it.points() }))
-            }
-            place != null -> {
-                val there = all.filter { TextNorm.key(it.town) == place }
-                val asMunicipality = place.takeIf { it !in towns }
-                val named = there.firstOrNull()?.town ?: asMunicipality?.let { m -> all.firstOrNull { TextNorm.key(it.municipality) == m }?.municipality }
-                // A municipality written as the town has no area: all of it is the town.
-                Where(there.mapTo(HashSet()) { TextNorm.key(it.municipality) } + listOfNotNull(asMunicipality), named, Area.around(there.flatMap { it.points() }))
-            }
-            else -> null
+        val key = digits ?: place?.let { "t:$it" } ?: return null
+        wheres[key]?.let { return it }
+        val where = if (digits != null) {
+            val there = byPostcode[digits]
+            if (there.isNullOrEmpty()) return null
+            Where(there.mapTo(HashSet()) { TextNorm.key(it.municipality) }, there.first().town, Area.around(there.flatMap { it.points() }))
+        } else {
+            val there = byTown[place].orEmpty()
+            val asMunicipality = place?.takeIf { it !in towns }
+            val named = there.firstOrNull()?.town ?: asMunicipality?.let { municipalityNames[it] }
+            // A municipality written as the town has no area: all of it is the town.
+            Where(there.mapTo(HashSet()) { TextNorm.key(it.municipality) } + listOfNotNull(asMunicipality), named, Area.around(there.flatMap { it.points() }))
         }
+        return where.also { wheres[key] = it }
     }
 
     /**

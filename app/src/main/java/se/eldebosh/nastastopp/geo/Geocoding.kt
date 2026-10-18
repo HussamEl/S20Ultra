@@ -45,9 +45,13 @@ class Geocoding(context: Context) {
     suspend fun locate(candidates: List<String>, parsedPostal: String?, parsedTown: String?): LocateResult? {
         // Lantmäteriet's register first: on the phone, and it knows addresses the geocoder does not.
         val known = loaded ?: withContext(Dispatchers.IO) { register(appContext) }
-        for (candidate in candidates.take(MAX_CANDIDATES)) {
-            known.find(candidate, parsedPostal, parsedTown)?.let { return LocateResult(it, candidate) }
+        // Off the main thread: a place written by its name reads its postcode's or town's addresses.
+        val inRegister = withContext(Dispatchers.Default) {
+            candidates.take(MAX_CANDIDATES).firstNotNullOfOrNull { candidate ->
+                known.find(candidate, parsedPostal, parsedTown)?.let { LocateResult(it, candidate) }
+            }
         }
+        if (inRegister != null) return inRegister
         if (!isAvailable) return null
         val unplaced = parsedPostal == null && parsedTown == null
         var failed = false

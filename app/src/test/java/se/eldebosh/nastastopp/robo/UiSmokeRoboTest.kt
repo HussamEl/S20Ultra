@@ -90,6 +90,7 @@ class UiSmokeRoboTest {
             val pending = app.graph.controller.route.value?.stops?.any { it.geoStatus == se.eldebosh.nastastopp.route.model.GeoStatus.PENDING } == true
             if (!pending) return
             shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
+            Thread.sleep(2) // the address register is asked on a worker thread, in real time
         }
     }
 

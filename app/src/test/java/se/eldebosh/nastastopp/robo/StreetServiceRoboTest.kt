@@ -48,6 +48,7 @@ class StreetServiceRoboTest {
         var waited = 0
         while (graph.controller.route.value!!.stops.any { it.geoStatus == GeoStatus.PENDING } && waited++ < 2_000) {
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1)) // Robolectric's geocoder never answers
+            Thread.sleep(2) // the address register is asked on a worker thread, in real time
         }
         val located = graph.controller.route.value!!.stops.mapIndexed { i, s ->
             s.copy(geoStatus = GeoStatus.LOCATED, geo = GeoPoint(59.38 + i * 0.01, 13.50, "addr $i", locality = "Karlstad"))

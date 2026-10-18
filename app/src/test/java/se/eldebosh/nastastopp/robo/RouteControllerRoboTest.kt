@@ -53,11 +53,15 @@ class RouteControllerRoboTest {
 
     private fun idle() = shadowOf(Looper.getMainLooper()).idle()
 
-    /** Advances virtual time (Robolectric's Geocoder never answers, so each lookup times out). */
+    /**
+     * Advances virtual time (Robolectric's Geocoder never answers, so each lookup times out), and
+     * real time too: the address register is asked on a worker thread.
+     */
     private fun idleUntil(condition: () -> Boolean) {
         repeat(2_000) {
             if (condition()) return
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
+            Thread.sleep(2)
         }
         assertTrue("condition not reached", condition())
     }

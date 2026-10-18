@@ -175,6 +175,14 @@ class AddressRegisterTest {
         // A name that is a place's name is that place, near or not: never split into a village and its farm.
         val named = streets.withPlaces(places + "\nTvåby Provgården|Karlstad|59.81:13.91")
         assertEquals(59.81, named.find("Tvåby Provgården", "665 30", null)!!.lat, 1e-9)
+        // Two places of the name near the postcode's addresses: neither.
+        val two = streets.withPlaces(places + "\nProvtorp|Hammarö|59.30:13.41;59.33:13.41")
+        assertNull(two.find("Provtorp", "665 30", null))
+        // A second farm of the name near the village counts though it lies outside the postcode's area.
+        val edge = streets.withPlaces(places + "\nNyby|Hammarö|59.345:13.40\nDubbeltorp|Hammarö|59.34:13.40;59.36:13.40")
+        assertNull(edge.find("Nyby Dubbeltorp", "665 30", null))
+        // Words that are no place's name: none.
+        assertNull(across.find("Ingen Sådan Plats", "665 30", null))
     }
 
     @Test

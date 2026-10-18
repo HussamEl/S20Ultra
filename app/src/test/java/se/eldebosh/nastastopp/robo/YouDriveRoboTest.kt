@@ -45,6 +45,7 @@ class YouDriveRoboTest {
         repeat(2_000) {
             if (graph.controller.route.value?.stops?.none { it.geoStatus == GeoStatus.PENDING } != false) return
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
+            Thread.sleep(2) // the address register is asked on a worker thread, in real time
         }
     }
 
