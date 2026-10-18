@@ -208,6 +208,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.core.display.DisplayItem
 import se.eldebosh.nastastopp.core.display.DisplaySnapshot
+import se.eldebosh.nastastopp.core.display.FlowScene
 import se.eldebosh.nastastopp.core.display.MotionStyle
 import se.eldebosh.nastastopp.core.display.TimeStatus
 import se.eldebosh.nastastopp.core.geo.GeoLogic
@@ -295,12 +296,12 @@ fun PassengerDisplayScreen(
     onMapView: ((LinkMessage.MapView) -> Unit)? = null,
     /** The car moved in the last two minutes (the tablet's motion): the moments and the map's flights come only then. */
     awake: Boolean = true,
-    /** How much the car shakes now (0–1), for the motion band on the top line; null without a sensor. */
+    /** How much the car shakes now (0–1), for the flow behind the screen (297); null without a sensor (no flow). */
     motion: (() -> Float)? = null,
-    /** The tablet's GPS speed now (m/s), for the motion band; null while there is none. */
+    /** The tablet's GPS speed now (m/s), for the flow; null while there is none. */
     speed: () -> Float? = { null },
-    /** The motion band's look (297), and the driver's long press on the top line that switches it. */
-    motionStyle: MotionStyle = MotionStyle.TRAILS,
+    /** The flow's look (297), and the driver's long press on the top line that switches it. */
+    motionStyle: MotionStyle = MotionStyle.AUTO,
     onMotionStyle: ((MotionStyle) -> Unit)? = null,
     /**
      * Each part of a next-stop announcement once this device's voice has said it
@@ -561,6 +562,28 @@ fun PassengerDisplayScreen(
     LaunchedEffect(busy) { moments.paused = busy }
     LaunchedEffect(focus, quietShow) { moments.held = focus && quietShow }
     val lineHidden = focus || browse.open
+    // The top line's signs, hidden until a tap or a swipe down on the line (298) shows them for a while.
+    var topShown by remember { mutableStateOf(false) }
+    var topCalls by remember { mutableIntStateOf(0) }
+    LaunchedEffect(topShown, topCalls) {
+        if (!topShown) return@LaunchedEffect
+        delay(TOP_SHOWN_MS)
+        topShown = false
+    }
+    val showTop = {
+        topShown = true
+        topCalls++
+    }
+    // How much of the flow (297) what the display shows leaves, and how far it keeps to the edges:
+    // none on the driver's map (its order list lies on it), little under the trip card, at the
+    // edges while a trip or a moment fills the middle, all of it at home.
+    val flowScene = when {
+        held || (moments.shown == Moments.Info.FOCUS && moments.infoShown) -> FlowScene.MAP
+        openCard != null -> FlowScene.WINDOW
+        focus -> FlowScene.FOCUS
+        moments.showing -> FlowScene.MOMENT
+        else -> FlowScene.HOME
+    }
     val line by animateFloatAsState(if (lineHidden) 0f else 1f, tween(if (lineHidden) CLOCK_FADE_MS else CLOCK_BACK_MS), label = "line")
     val chrome by animateFloatAsState(if (focus) 0f else 1f, tween(if (focus) CLOCK_FADE_MS else CLOCK_BACK_MS), label = "chrome")
     // Black (or light, 223); Swedish for the passengers, read left to right whatever the app's language.
@@ -588,6 +611,15 @@ fun PassengerDisplayScreen(
         val bottomPad = with(density) { (minuteSize * (SECONDS_DROP + SECOND_SHARE * DIGIT_HEIGHT)).toDp() } + SECONDS_CLEAR
         // The clock at the bottom, as laid out (the coming trips follow it).
         var clockLine by remember { mutableStateOf(IntSize.Zero) }
+        // The flow behind everything (297), over the whole screen and above its ground: the
+        // tablet's motion, never over the text it keeps clear of.
+        if (motion != null) {
+            FlowLayer(
+                motionStyle, motion, speed, awake, flowScene, signs = topShown,
+                modifier = Modifier.fillMaxSize().refCorner(297),
+                ground = { ground.value },
+            )
+        }
         // The map lies under everything, unseen until its moment, so it loads once and stays ready.
         if (routeMap != null) {
             MapLayer(routeMap, moments, held, from = { if (pinAt.isSpecified) pinAt - screen.topLeft else Offset.Unspecified })
@@ -600,19 +632,7 @@ fun PassengerDisplayScreen(
         ) {
             // The top line, small and quiet: the connection at the left, the signs and the battery
             // at the right, hidden until a tap or a swipe down on the line (298) shows them for a
-            // while; the motion band (297) always across it, behind them, and a long press switches
-            // its look. The address starts just under it.
-            var topShown by remember { mutableStateOf(false) }
-            var topCalls by remember { mutableIntStateOf(0) }
-            LaunchedEffect(topShown, topCalls) {
-                if (!topShown) return@LaunchedEffect
-                delay(TOP_SHOWN_MS)
-                topShown = false
-            }
-            val showTop = {
-                topShown = true
-                topCalls++
-            }
+            // while; a long press switches the flow's look (297). The address starts just under it.
             val reveal = stringResource(R.string.display_show_signs)
             // The look just chosen by a long press, named on the line for a moment.
             var styleNamed by remember { mutableStateOf(false) }
@@ -630,9 +650,6 @@ fun PassengerDisplayScreen(
                 }
             })
             Box(Modifier.fillMaxWidth()) {
-            if (motion != null) {
-                MotionBand(motionStyle, motion, speed, awake, dim = topShown, modifier = Modifier.matchParentSize().refCorner(297))
-            }
             if (styleNamed) {
                 Text(
                     stringResource(motionStyle.label),
@@ -3552,7 +3569,7 @@ private const val HOME_BEAT_MS = 700
 /** The top line's signs show this long after a tap or a swipe down on it. */
 private const val TOP_SHOWN_MS = 10_000L
 
-/** The motion band's look stays named on the top line this long after a long press switches it. */
+/** The flow's look stays named on the top line this long after a long press switches it. */
 private const val STYLE_NAMED_MS = 2_500L
 
 /** The battery sign: its size, and the percent at which it turns red. */

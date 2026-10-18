@@ -13,8 +13,8 @@ import se.eldebosh.nastastopp.core.display.CarStillness
 
 /**
  * The tablet's accelerometer, while the passenger display is in sight ([start], [stop]): how much
- * the car shakes ([level], for the display's motion band) and whether it moved in the last two
- * minutes ([awake], with the GPS speed given to [onSpeed], kept as [speed] for the band). No
+ * the car shakes ([level], for the display's flow) and whether it moved in the last two
+ * minutes ([awake], with the GPS speed given to [onSpeed], kept as [speed] for the flow). No
  * permission of its own; nothing is stored.
  */
 class CarMotion(context: Context) {
