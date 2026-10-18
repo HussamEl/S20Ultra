@@ -33,6 +33,17 @@ object Places {
     }
 
     /**
+     * [stop], written without a town or postcode, asked for in its well-known [place]'s own town
+     * first ("Centralsjukhuset huvudentrén," in Karlstad). Any other place keeps no town: it is
+     * never given one by a guess.
+     */
+    fun withKnownTown(stop: ExtractedStop, place: String? = stop.place): ExtractedStop {
+        if (stop.parsedTown != null || stop.parsedPostalCode != null) return stop
+        val known = known(place) ?: return stop
+        return stop.copy(candidates = (listOf(known.candidate) + stop.candidates).distinct(), parsedTown = known.town, parsedTownKnown = true)
+    }
+
+    /**
      * The name the passengers may see and hear ("Kils Vårdcentral", "Centralsjukhuset"), or null
      * when [place] is not a place of care. Only the care word itself and the name before it (a
      * town, [isLocality], or a district: "Kils", "Herrhagens") are kept, never a word that tells a

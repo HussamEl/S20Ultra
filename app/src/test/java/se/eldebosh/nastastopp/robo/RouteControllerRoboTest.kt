@@ -152,6 +152,40 @@ class RouteControllerRoboTest {
     }
 
     /**
+     * The start point's point is found as a stop's is, only to be shown to the driver: it keeps its
+     * text as written, stays the start point (never a stop, never on the passenger display or in
+     * Maps), and keeps its point when YouDrive sends it again with another time (the register's
+     * own addresses).
+     */
+    @Test
+    fun theStartPointIsLocatedButStaysTheStartPoint() {
+        val c = graph.controller
+        fun list(start: String) = graph.extractor.extract(
+            listOf("2026-09-29", start, "Pull-out", "Västra Torggatan 12, Karlstad", "06:55", "Pick-up", "Anna Testsson", "Järnvägsgatan 6, Storfors"),
+        )
+        assertEquals(1, c.addExtracted(list("06:42")))
+        val written = c.route.value!!.depot!!.displayText
+        idleUntil { c.route.value!!.let { r -> r.depot!!.geoStatus != GeoStatus.PENDING && r.stops.none { it.geoStatus == GeoStatus.PENDING } } }
+        val r = c.route.value!!
+        val depot = r.depot!!
+        assertEquals(GeoStatus.LOCATED, depot.geoStatus)
+        assertEquals(written, depot.displayText)
+        assertNotNull(c.pointOf(depot))
+        assertEquals(listOf(TripKind.PICK_UP), r.stops.map { it.kind })
+        val shown = c.display.value.let { listOfNotNull(it.current) + it.upcoming + it.earlier }
+        assertTrue("the start point is not on the passenger display", shown.none { it.lat == depot.geo!!.lat && it.lng == depot.geo!!.lng })
+        // Sent again by YouDrive with another time: the same start point, its point kept.
+        c.syncTrips(list("06:45"))
+        assertEquals(depot.geo, c.route.value!!.depot!!.geo)
+        assertEquals("06:45", c.route.value!!.depot!!.time)
+        assertTrue(c.start())
+        idle()
+        val url = shadowOf(app).nextStartedActivity.dataString!!
+        assertFalse("Maps is not sent to the start point: $url", url.contains("Torggatan"))
+        c.end()
+    }
+
+    /**
      * "Add all trips" is a sync: a list read from screenshots (booked instead of scheduled times,
      * no names, a copy of the same trip) is brought up to date, never doubled (invented data).
      */

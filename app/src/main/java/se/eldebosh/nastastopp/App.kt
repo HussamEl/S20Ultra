@@ -17,6 +17,7 @@ import se.eldebosh.nastastopp.core.parse.AddressExtractor
 import se.eldebosh.nastastopp.core.parse.Localities
 import se.eldebosh.nastastopp.geo.CurrentStreet
 import se.eldebosh.nastastopp.geo.Geocoding
+import se.eldebosh.nastastopp.geo.PointFinder
 import se.eldebosh.nastastopp.geo.StreetCaller
 import se.eldebosh.nastastopp.geo.StreetMapStore
 import se.eldebosh.nastastopp.importer.ScreenshotImporter
@@ -58,15 +59,20 @@ class AppGraph(app: Application) {
     /** Finds the stops' points; Lantmäteriet's addresses are read in the background at the start, ready for the first route. */
     val geocoding = Geocoding(app).also { scope.launch(Dispatchers.IO) { Geocoding.register(app) } }
     val history = TripHistory(app, settings, scope)
-    val controller = RouteController(app, scope, repository, settings, geocoding, announcer, maps, localities, extractor, history, StoredPlaceMemory(app), StoredEntrances(app), districts)
+    /** The towns the driver gave places written without one. */
+    private val placeMemory = StoredPlaceMemory(app)
+    val controller = RouteController(app, scope, repository, settings, geocoding, announcer, maps, localities, extractor, history, placeMemory, StoredEntrances(app), districts)
     val notifier = RouteNotifier(app, controller, settings, scope)
+
+    /** Finds any address's point for the driver (323–333), on the phone and the tablet alike; never touches the route. */
+    val pointFinder = PointFinder(extractor, placeMemory) { candidates, postal, town -> geocoding.locate(candidates, postal, town) }
 
     /** The addresses the routes went to (never a name), for the driver to share (Settings 302). */
     val addressLog = AddressLog(app).also { log ->
         // A fault in the log never stops the route: the addresses are then simply not kept.
         scope.launch {
             controller.route.collect { r ->
-                runCatching { log.record(r?.stops.orEmpty().mapNotNull(controller::logLine)) }
+                runCatching { log.record(r?.stops.orEmpty().mapNotNull(controller::logEntry)) }
                     .onFailure { DebugLog.w(it) { "address log skipped" } }
             }
         }

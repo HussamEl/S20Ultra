@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import se.eldebosh.nastastopp.route.model.Stop
 import se.eldebosh.nastastopp.util.DebugLog
 import se.eldebosh.nastastopp.util.writeWhole
 import java.io.File
@@ -30,6 +31,13 @@ data class Entrance(
 ) {
     val hasPoint: Boolean get() = lat != null && lng != null
 }
+
+/**
+ * The point the app uses for this stop: the driver's [entrance] for its address when it has one,
+ * else the address's own point once found; null while neither is known (pending, not found).
+ */
+fun Stop.pointWith(entrance: Entrance?): Pair<Double, Double>? =
+    entrance?.takeIf { it.hasPoint }?.let { it.lat!! to it.lng!! } ?: geo?.takeIf { isLocated }?.let { it.lat to it.lng }
 
 /**
  * The driver's entrances by address ([se.eldebosh.nastastopp.route.model.Stop.entranceKey]: street,

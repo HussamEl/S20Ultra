@@ -2,6 +2,8 @@ package se.eldebosh.nastastopp.route
 
 import android.content.Context
 import androidx.core.content.edit
+import se.eldebosh.nastastopp.core.parse.AddressExtractor
+import se.eldebosh.nastastopp.core.parse.ExtractedStop
 import se.eldebosh.nastastopp.core.parse.TextNorm
 
 /**
@@ -29,6 +31,22 @@ interface PlaceMemory {
 
         fun key(place: String): String = TextNorm.key(place)
     }
+}
+
+/**
+ * [e] with the town the driver once gave its place, when it is written without one: what he
+ * typed is read again ([extractor]) and asked first. Any other stop as it is.
+ */
+fun PlaceMemory.withTown(e: ExtractedStop, extractor: AddressExtractor): ExtractedStop {
+    if (e.parsedTown != null || e.parsedPostalCode != null || !PlaceMemory.isPlace(e.displayText)) return e
+    val given = recall(e.place ?: e.displayText)?.let { extractor.fromManualText(it) } ?: return e
+    if (given.parsedTown == null && given.parsedPostalCode == null) return e
+    return e.copy(
+        candidates = (given.candidates + e.candidates).distinct(),
+        parsedTown = given.parsedTown,
+        parsedPostalCode = given.parsedPostalCode,
+        parsedTownKnown = given.parsedTownKnown,
+    )
 }
 
 /** [PlaceMemory] in the app's own preferences. */
