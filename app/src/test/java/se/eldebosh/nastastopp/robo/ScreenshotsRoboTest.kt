@@ -216,11 +216,12 @@ class ScreenshotsRoboTest {
             overlayPermission = true, overlayHidden = false, onOverlayVisible = {}, onOverlayPermission = {}, onAddTile = {},
             history = listOf(
                 HistoryEntry(1, "07:10", "Kristinehamn", "Kungsgatan 22, 68131 Kristinehamn", now - 3_600_000),
-                HistoryEntry(2, "06:45", "Karlstad", "Storgatan 14, 65224 Karlstad", now - 5_000_000, done = false),
+                HistoryEntry(2, "06:45", "Karlstad", "Storgatan 14, 65224 Karlstad", now - 5_000_000, done = false, lat = 59.381234, lng = 13.501234),
             ),
             historyRetentionHours = 12,
             onClearHistory = {},
             youDrive = { YouDriveCard(youDriveState, watching = true) {} },
+            onFindPoint = {},
         )
     }
 
@@ -248,6 +249,7 @@ class ScreenshotsRoboTest {
             street = null,
             onSpeakStreet = {}, onBack = {}, onNext = {}, onPreviousTrip = {}, onRepeat = {}, onOpenMaps = {},
             onEdit = {}, onEnd = {}, onOpenDisplay = {}, onToggleOverlay = {},
+            onFindPoint = {},
         )
     }
 

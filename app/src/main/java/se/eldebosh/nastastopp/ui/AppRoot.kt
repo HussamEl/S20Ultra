@@ -65,6 +65,7 @@ import se.eldebosh.nastastopp.core.route.Announcements
 import se.eldebosh.nastastopp.route.model.Stop
 import se.eldebosh.nastastopp.ui.screens.ActiveRouteScreen
 import se.eldebosh.nastastopp.ui.screens.DisplayRoleScreen
+import se.eldebosh.nastastopp.ui.screens.FindPointDialog
 import se.eldebosh.nastastopp.ui.screens.PassengerDisplayScreen
 import se.eldebosh.nastastopp.link.Bluetooth
 import se.eldebosh.nastastopp.link.LinkAvailability
@@ -117,6 +118,8 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
     val youDrive by graph.youDrive.state.collectAsStateWithLifecycle()
     val importing = importState is ImportUi.Running
     val snackbar = remember { SnackbarHostState() }
+    // The find tool's window (326), from the home (323) or the route screen (324).
+    var findingPoint by remember { mutableStateOf(false) }
     var resumeTick by remember { mutableIntStateOf(0) }
     val screen = stack.last()
 
@@ -262,6 +265,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             historyRetentionHours = settings.historyRetentionHours,
                             onClearHistory = { graph.history.clear() },
                             youDrive = { YouDriveCard(youDrive, settings.youDriveWatch) { vm.openYouDrive() } },
+                            onFindPoint = { findingPoint = true },
                         )
                         Screen.REVIEW -> ReviewScreen(
                             route = route,
@@ -317,6 +321,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 entranceOf = { entrances[it.entranceKey] },
                                 onNavigateStop = { controller.navigateTo(it) },
                                 onStreetViewStop = { controller.streetViewAt(it) },
+                                onFindPoint = { findingPoint = true },
                             )
                             // Look up the current street while this screen is shown.
                             DisposableEffect(Unit) {
@@ -341,6 +346,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 dark = settings.displayDark,
                                 onToggleLook = { graph.settings.update { it.copy(displayDark = !it.displayDark) } },
                                 places = graph.settings,
+                                onFind = graph.pointFinder::find,
                             )
                             // The passengers look at this screen: the driver's floating panel stays away.
                             DisposableEffect(Unit) {
@@ -537,6 +543,8 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 // From this screen: Back in Google's app comes back to the display.
                                 onEarth = { lat, lng -> graph.maps.openEarth(lat, lng, context) },
                                 onStreetPhotos = { lat, lng -> graph.maps.open(MapsUrlBuilder.streetViewUrl(lat, lng), context) },
+                                // Any address's point for the driver: this tablet's own register and geocoder.
+                                onFind = graph.pointFinder::find,
                             )
                         }
                         Screen.SETTINGS -> SettingsScreen(
@@ -620,6 +628,8 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
             SnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 180.dp))
         }
     }
+
+    if (findingPoint) FindPointDialog(onFind = graph.pointFinder::find, onDismiss = { findingPoint = false })
 
     importError?.let { err ->
         AlertDialog(

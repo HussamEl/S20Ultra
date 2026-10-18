@@ -47,6 +47,7 @@ import se.eldebosh.nastastopp.ui.CardDivider
 import se.eldebosh.nastastopp.ui.Chevron
 import se.eldebosh.nastastopp.ui.HelpDot
 import se.eldebosh.nastastopp.ui.ListRow
+import se.eldebosh.nastastopp.ui.PointText
 import se.eldebosh.nastastopp.ui.SectionTitle
 import se.eldebosh.nastastopp.ui.TouchTarget
 import se.eldebosh.nastastopp.ui.explain
@@ -84,6 +85,8 @@ fun HomeScreen(
     onClearHistory: () -> Unit,
     /** The YouDrive card (trip-change alerts), number 25. */
     youDrive: @Composable () -> Unit = {},
+    /** Opens the window that finds any address's coordinates (323). */
+    onFindPoint: (() -> Unit)? = null,
 ) {
     var confirmClear by remember { mutableStateOf(false) }
     var confirmClearHistory by remember { mutableStateOf(false) }
@@ -91,16 +94,30 @@ fun HomeScreen(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // Header: name + "?" (what the app does), Settings and Help as small icons.
+        // Header: name + "?" (what the app does), the find tool, Settings and Help as small icons.
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
             // Logo mark: the app icon's black pin on taxi yellow.
             Box(Modifier.size(36.dp).clip(MaterialTheme.shapes.small).background(AppTheme.colors.accent), contentAlignment = Alignment.Center) {
                 Icon(painterResource(R.drawable.ic_pin), contentDescription = null, tint = AppTheme.colors.onAccent, modifier = Modifier.size(22.dp))
             }
             Spacer(Modifier.width(10.dp))
-            Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineMedium, color = AppTheme.colors.text)
-            HelpDot(R.string.home_subtitle, Modifier.refCorner(20), title = stringResource(R.string.app_name))
-            Spacer(Modifier.weight(1f))
+            // The name gives way on a narrow screen: the icons keep their whole size.
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                Text(
+                    stringResource(R.string.app_name),
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = AppTheme.colors.text,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                HelpDot(R.string.home_subtitle, Modifier.refCorner(20), title = stringResource(R.string.app_name))
+            }
+            if (onFindPoint != null) {
+                IconButton(onClick = onFindPoint, modifier = Modifier.refCorner(323).size(TouchTarget)) {
+                    Icon(painterResource(R.drawable.ic_find_point), contentDescription = stringResource(R.string.find_point_open), modifier = Modifier.size(22.dp))
+                }
+            }
             IconButton(onClick = onSettings, modifier = Modifier.refCorner(31).size(TouchTarget)) {
                 Icon(painterResource(R.drawable.ic_settings), contentDescription = stringResource(R.string.home_settings), modifier = Modifier.size(22.dp))
             }
@@ -308,6 +325,8 @@ private fun HistorySection(history: List<HistoryEntry>, retentionHours: Int, onC
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    // The point the trip went to, kept with it: a tap copies it.
+                    if (e.lat != null && e.lng != null) PointText(e.lat, e.lng)
                 }
                 Spacer(Modifier.width(8.dp))
                 Text(

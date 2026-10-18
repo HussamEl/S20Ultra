@@ -30,6 +30,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import se.eldebosh.nastastopp.App
 import se.eldebosh.nastastopp.MainActivity
 import se.eldebosh.nastastopp.R
+import se.eldebosh.nastastopp.core.youdrive.WatchedTrip
 import se.eldebosh.nastastopp.core.youdrive.YouDriveCards
 import se.eldebosh.nastastopp.service.Notifications
 import se.eldebosh.nastastopp.settings.SettingsStore
@@ -105,6 +106,10 @@ class YouDriveActivity : ComponentActivity() {
     private fun Bar() {
         val settings by graph.settings.state.collectAsStateWithLifecycle()
         val state by graph.youDrive.state.collectAsStateWithLifecycle()
+        // A change's point once its trip is in the route: read again when the route or an entrance changes.
+        val route by graph.controller.route.collectAsStateWithLifecycle()
+        val entrances by graph.controller.savedEntrances.collectAsStateWithLifecycle()
+        val pointOf = remember(route, entrances) { { trip: WatchedTrip -> trip.stop?.let(graph.controller::pointOfTrip) } }
         SideEffect { RefNumbers.enabled = settings.showRefNumbers }
         val explainResources = remember(settings.explanationsArabic, settings.uiLanguage) {
             LocaleHelper.explanationContext(this, settings.uiLanguage, settings.explanationsArabic)
@@ -133,6 +138,7 @@ class YouDriveActivity : ComponentActivity() {
                         onApply = ::apply,
                         onDismiss = { graph.youDrive.dismiss(it.id) },
                         onLogout = ::logout,
+                        pointOf = pointOf,
                     )
                 }
             }

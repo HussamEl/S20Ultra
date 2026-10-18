@@ -54,6 +54,7 @@ import se.eldebosh.nastastopp.core.nav.MapmapApi
 import se.eldebosh.nastastopp.core.nav.RoutesApi
 import se.eldebosh.nastastopp.core.nav.WaySource
 import se.eldebosh.nastastopp.core.route.Announcement
+import se.eldebosh.nastastopp.geo.PointFinder
 import se.eldebosh.nastastopp.link.DisplayLinkClient
 import se.eldebosh.nastastopp.link.PairedDevice
 import se.eldebosh.nastastopp.settings.AppSettings
@@ -152,6 +153,8 @@ fun DisplayRoleScreen(
     speed: () -> Float? = { null },
     /** The motion band's look was switched by a long press on the display's top line. */
     onMotionStyle: ((MotionStyle) -> Unit)? = null,
+    /** Finds any address's point for the driver (the display's sign 325 and its window). */
+    onFind: (suspend (String) -> PointFinder.Answer)? = null,
 ) {
     var showSetup by remember { mutableStateOf(false) }
     val blocked = !bluetoothReady || paired.isEmpty() ||
@@ -191,6 +194,7 @@ fun DisplayRoleScreen(
             speed = speed,
             motionStyle = settings.motionStyle,
             onMotionStyle = onMotionStyle,
+            onFind = onFind,
         )
         return
     }

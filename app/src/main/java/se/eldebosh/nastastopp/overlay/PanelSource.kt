@@ -19,6 +19,7 @@ import se.eldebosh.nastastopp.core.route.Announcement
 import se.eldebosh.nastastopp.geo.CurrentStreet
 import se.eldebosh.nastastopp.link.DisplayLinkClient
 import se.eldebosh.nastastopp.route.RouteController
+import se.eldebosh.nastastopp.route.model.Stop
 import se.eldebosh.nastastopp.tts.Announcer
 
 /** The next trip as the floating panel shows it. */
@@ -68,6 +69,12 @@ interface PanelSource {
     /** The passenger's first + last name on [item]: only on the driver's own phone, never on a tablet. */
     fun fullName(item: DisplayItem): String? = null
 
+    /**
+     * [item]'s point as the route uses it ([RouteController.pointOf]), for the driver to copy: only
+     * on the driver's own phone. A tablet's panel shows only what its passenger display receives.
+     */
+    fun pointOf(item: DisplayItem): Pair<Double, Double>? = null
+
     /** Says [announcement] on this device (a trip tapped on the panel). */
     fun say(announcement: Announcement)
 
@@ -99,10 +106,14 @@ class RoutePanelSource(
 
     override val snapshot: StateFlow<DisplaySnapshot?> = controller.display
 
-    override fun fullName(item: DisplayItem): String? {
+    override fun fullName(item: DisplayItem): String? = stopOf(item)?.name
+
+    override fun pointOf(item: DisplayItem): Pair<Double, Double>? = stopOf(item)?.let(controller::pointOf)
+
+    private fun stopOf(item: DisplayItem): Stop? {
         val r = controller.route.value ?: return null
         val id = item.id ?: return null
-        return (r.stops + r.completed).firstOrNull { it.id == id }?.name
+        return (r.stops + r.completed).firstOrNull { it.id == id }
     }
 
     override fun say(announcement: Announcement) = announcer.speak(announcement)
