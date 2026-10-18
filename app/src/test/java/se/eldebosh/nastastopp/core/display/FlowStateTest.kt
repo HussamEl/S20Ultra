@@ -195,4 +195,33 @@ class FlowStateTest {
     private companion object {
         const val FRAME_MS = 16f
     }
+
+    /** Without a position the shaking stands for the speed, but it is never read as speeding up or braking. */
+    @Test
+    fun theShakingAndALostPositionAreNoAcceleration() {
+        val s = FlowState()
+        repeat(20) { i -> s.drive(0.5f, null, level = if (i % 2 == 0) 0.15f else 0.45f) }
+        assertTrue("shaking without GPS: ${s.push}", kotlin.math.abs(s.push) < 0.1f)
+        s.drive(10f, 90f)
+        s.drive(1f, null, level = 0.1f)
+        assertTrue("the position lost at 90 km/h: ${s.push}", kotlin.math.abs(s.push) < 0.1f)
+        s.drive(2f, 90f)
+        assertTrue("the position back at 90 km/h: ${s.push}", kotlin.math.abs(s.push) < 0.1f)
+        s.drive(3f, 60f)
+        assertTrue("braking by GPS still reads as braking: ${s.push}", s.push < -0.1f)
+    }
+
+    /** The driver's map hides the flow within about a second, so it is not drawn under the map. */
+    @Test
+    fun theMapHidesItWithinASecond() {
+        val s = FlowState()
+        s.drive(10f, 60f)
+        assertTrue(s.visible(MotionStyle.AUTO))
+        s.drive(1.2f, 60f, scene = FlowScene.MAP)
+        assertFalse("still drawn under the map: ${s.shown}", s.visible(MotionStyle.AUTO))
+        assertEquals(0f, s.strength, 0f)
+        s.drive(4f, 60f, awake = false)
+        s.drive(3f, 60f, awake = false, scene = FlowScene.HOME)
+        assertEquals("stood two minutes: it ends at nothing", 0f, s.wake, 0f)
+    }
 }

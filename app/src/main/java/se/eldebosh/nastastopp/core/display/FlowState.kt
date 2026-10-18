@@ -1,5 +1,6 @@
 package se.eldebosh.nastastopp.core.display
 
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
@@ -35,7 +36,9 @@ enum class FlowScene(val strength: Float, val edges: Float) {
  *   for it (a car that shakes is moving), up to a town's speed.
  * - [accel] (m/s²) is the smoothed speed's change, smoothed again over 0.4 s: positive while the
  *   car speeds up (the marks stretch and brighten, the vanishing point comes a little lower),
- *   negative while it brakes (the marks compress).
+ *   negative while it brakes (the marks compress). It is read from the GPS speed alone, smoothed
+ *   apart ([gpsKmh]) and kept through a short loss of the position: the shaking's stand-in, or a
+ *   position that goes and comes back, is no speeding up or braking.
  * - [shake] follows the accelerometer's shaking (0–1); it jitters the vanishing point and strokes.
  * - [travel] is how far the flow has run toward the top, faster with the speed; [ripple] runs
  *   faster still as the pace rises, for the waves along the marks. Both are summed frame by frame
@@ -43,7 +46,9 @@ enum class FlowScene(val strength: Float, val edges: Float) {
  *   doubles, so hours of driving never blur them.
  * - [shown]: transparent at a stand and fully shown from about 50 km/h, times what the display
  *   leaves of it ([FlowScene], eased over 0.8 s; a little less while the top line's signs show),
- *   times [wake] (it fades out once the car has stood two minutes).
+ *   times [wake] (it fades out once the car has stood two minutes). Both easings arrive (they
+ *   end on their target once within [ARRIVED]), and the driver's map hides it over 0.25 s, so
+ *   it stops being drawn within about a second of the map opening.
  * - [autoLook] is AUTO's look by the speed, with hysteresis so it never flaps at a boundary; the
  *   looks crossfade over about 1.5 s ([weight]).
  */
@@ -69,6 +74,9 @@ class FlowState {
         private set
     var autoLook = MotionStyle.WAKE
         private set
+    /** The GPS speed alone, smoothed as [kmh] is; null without a position for longer than [GPS_GAP_MS]. */
+    private var gpsKmh: Float? = null
+    private var noGpsMs = 0f
     private val mix = FloatArray(AUTO_LOOKS.size).also { it[AUTO_LOOKS.indexOf(MotionStyle.WAKE)] = 1f }
 
     /** 0 at a stand, 1 at a highway's speed. */
@@ -89,18 +97,29 @@ class FlowState {
         seconds = nowS
         val dt = min(dtMs, MAX_STEP_MS)
         if (dt <= 0f) return
-        val target = speedMps?.let { max(0f, it) * MPS_TO_KMH } ?: (min(1f, level * SHAKE_TO_SPEED) * TOWN_KMH)
-        val before = kmh
+        val gps = speedMps?.let { max(0f, it) * MPS_TO_KMH }
+        val target = gps ?: (min(1f, level * SHAKE_TO_SPEED) * TOWN_KMH)
         kmh += (target - kmh) * follow(dt, SPEED_FOLLOW_MS)
-        val change = (kmh - before) / MPS_TO_KMH / (dt / 1000f)
+        val change = if (gps == null) {
+            noGpsMs += dt
+            if (noGpsMs > GPS_GAP_MS) gpsKmh = null
+            0f
+        } else {
+            noGpsMs = 0f
+            val last = gpsKmh
+            val now = if (last == null) gps else last + (gps - last) * follow(dt, SPEED_FOLLOW_MS)
+            gpsKmh = now
+            if (last == null) 0f else (now - last) / MPS_TO_KMH / (dt / 1000f)
+        }
         accel += (change - accel) * follow(dt, ACCEL_FOLLOW_MS)
         shake += (level.coerceIn(0f, 1f) - shake) * follow(dt, SHAKE_FOLLOW_MS)
         val run = dt / 1000.0 * kmh / FLOW_KMH
         travel += run
         ripple += run * (1f + RIPPLE_PACE * pace)
-        wake += ((if (awake) 1f else 0f) - wake) * follow(dt, WAKE_MS)
+        wake = ease(wake, if (awake) 1f else 0f, follow(dt, WAKE_MS))
         val leaves = scene.strength * (if (signs) SIGNS_SHOWN else 1f)
-        strength += (leaves - strength) * follow(dt, SCENE_MS)
+        // Hidden (the driver's map) faster: the map covers it, and it is not drawn on under it.
+        strength = ease(strength, leaves, follow(dt, if (leaves == 0f) HIDE_MS else SCENE_MS))
         edges += (scene.edges - edges) * follow(dt, SCENE_MS)
         autoLook = nextAutoLook(autoLook, kmh)
         for (i in AUTO_LOOKS.indices) {
@@ -181,13 +200,17 @@ class FlowState {
         /** Speeding up or braking this hard (m/s²) stretches or compresses the marks the most. */
         private const val FULL_PUSH = 2.5f
 
-        /** How the readings follow: the speed over 1.5 s, its change over 0.4 s, the shaking over 0.1 s, the look over 1.5 s, the display's scene over 0.8 s, the car's rest over 1.5 s. */
+        /** How the readings follow: the speed over 1.5 s, its change over 0.4 s, the shaking over 0.1 s, the look over 1.5 s, the display's scene over 0.8 s (hidden over 0.25 s), the car's rest over 1.5 s. */
         private const val SPEED_FOLLOW_MS = 1_500f
         private const val ACCEL_FOLLOW_MS = 400f
         private const val SHAKE_FOLLOW_MS = 100f
         private const val LOOK_MS = 1_500f
         private const val SCENE_MS = 800f
+        private const val HIDE_MS = 250f
         private const val WAKE_MS = 1_500f
+
+        /** A position lost for longer than this starts its speed afresh when it comes back. */
+        private const val GPS_GAP_MS = 3_000f
 
         /** A longer gap between frames (a pause, a hidden flow's slower steps) counts as this. */
         private const val MAX_STEP_MS = 250f
@@ -210,6 +233,15 @@ class FlowState {
         const val CLEAR_THINNED = 0.6f
 
         private fun follow(dt: Float, ms: Float) = min(1f, dt / ms)
+
+        /** An easing this near its target ends on it. */
+        const val ARRIVED = 0.02f
+
+        /** [from] eased toward [to] by [share], ending on [to] once within [ARRIVED]. */
+        private fun ease(from: Float, to: Float, share: Float): Float {
+            val next = from + (to - from) * share
+            return if (abs(to - next) < ARRIVED) to else next
+        }
 
         private fun smoothstep(from: Float, to: Float, x: Float): Float {
             val t = ((x - from) / (to - from)).coerceIn(0f, 1f)
