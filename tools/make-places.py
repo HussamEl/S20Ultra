@@ -7,15 +7,18 @@ so the app finds a place written by its name ("Glava, Arvika") on the phone, aft
 register and before Android's geocoder. Names of water, terrain and tracts are left out.
 
 The file is the GeoPackage the driver brings (ortnamn_se.gpkg, inside its zip). Each name keeps its
-municipality and its point, turned from SWEREF 99 TM (EPSG:3006) into WGS 84 with 5 decimals. A name
-written for two places of one municipality more than a kilometre apart is left out, never chosen
-between. No names of people. Run by hand when the driver brings a newer file (needs
+municipality and its points, turned from SWEREF 99 TM (EPSG:3006) into WGS 84 with 5 decimals; points
+of one name within a kilometre of each other are one place. Where a town (a "tätort") has the name,
+the town is the place (Molkom, not the farm Molkom beside it). A name of two or more places in one
+municipality (22 farms called Haget in Arvika) keeps each place's point: the app takes it alone
+only when it is one place, and a farm written after its village ("Provby Provgården") only near that
+village, never chosen between. No names of people. Run by hand when the driver brings a newer file (needs
 `pip install pyproj`):
 
     python3 tools/make-places.py ortnamn_se.gpkg
 
-The file has a line per name of a municipality:
-    <name>|<municipality>|<lat>:<lng>
+The file has a line per name of a municipality, with one point per place of that name:
+    <name>|<municipality>|<lat>:<lng>[;<lat>:<lng>…]
 """
 import math
 import sqlite3
@@ -74,23 +77,33 @@ def main(path):
             continue
         places[(name, municipality)].append((kind, *point(geom)))
 
-    kept = dropped = 0
-    lines = ["# Lantmäteriet, Ortnamn (CC BY 4.0). name|municipality|lat:lng"]
+    single = several = 0
+    lines = ["# Lantmäteriet, Ortnamn (CC BY 4.0). name|municipality|lat:lng[;lat:lng…] (one point per place of the name)"]
     for (name, municipality), found in sorted(places.items()):
         towns = [(x, y) for kind, x, y in found if kind == TOWN]
-        xys = towns or [(x, y) for _, x, y in found]
-        x0, y0 = xys[0]
-        if any(math.hypot(x - x0, y - y0) > SAME_PLACE_M for x, y in xys):
-            dropped += 1
-            continue
-        x = sum(p[0] for p in xys) / len(xys)
-        y = sum(p[1] for p in xys) / len(xys)
-        lng, lat = TO_DEGREES.transform(x, y)
-        lines.append(f"{name}|{municipality}|{lat:.5f}:{lng:.5f}")
-        kept += 1
+        spots = places_of(towns or [(x, y) for _, x, y in found])
+        written = ";".join(f"{lat:.5f}:{lng:.5f}" for lng, lat in (TO_DEGREES.transform(x, y) for x, y in spots))
+        lines.append(f"{name}|{municipality}|{written}")
+        if len(spots) == 1:
+            single += 1
+        else:
+            several += 1
     with open(OUT, "w", encoding="utf-8") as out:
         out.write("\n".join(lines) + "\n")
-    print(f"{kept} places kept, {dropped} names left out (two places in one municipality)")
+    print(f"{single} names of one place, {several} names of several places in one municipality")
+
+
+def places_of(xys):
+    """The places a name's points make: points within SAME_PLACE_M of a place's first one are that place (their middle)."""
+    groups = []
+    for x, y in xys:
+        for g in groups:
+            if math.hypot(x - g[0][0], y - g[0][1]) <= SAME_PLACE_M:
+                g.append((x, y))
+                break
+        else:
+            groups.append([(x, y)])
+    return [(sum(p[0] for p in g) / len(g), sum(p[1] for p in g) / len(g)) for g in groups]
 
 
 if __name__ == "__main__":

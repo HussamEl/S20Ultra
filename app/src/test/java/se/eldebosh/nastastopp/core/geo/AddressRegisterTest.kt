@@ -92,12 +92,14 @@ class AddressRegisterTest {
     // Invented place names, laid out as tools/make-places.py writes them.
     private val placed = sample.withPlaces(
         """
-        # name|municipality|lat:lng
+        # name|municipality|lat:lng[;lat:lng…]
         Provby|Karlstad|59.70:13.60
         Exempelby|Hammarö|59.31:13.45
         Tvåby|Karlstad|59.50:13.40
         Tvåby|Hammarö|59.30:13.44
         Provgårdens skola|Karlstad|59.99:13.99
+        Provgården|Karlstad|59.705:13.605;59.90:13.90
+        Dubbelgården|Karlstad|59.69:13.60;59.71:13.60
         """.trimIndent(),
     )
 
@@ -120,6 +122,59 @@ class AddressRegisterTest {
         assertNull(placed.find("Provby", null, "Kil"))
         // The address register's popular name comes first.
         assertEquals(59.61, placed.find("Provgårdens skola", null, "Molkom")!!.lat, 1e-9)
+    }
+
+    /**
+     * A farm written after its village ("Provby Provgården") is the one place of its name near the
+     * village; a name of two places is never taken alone, nor two farms near one village.
+     */
+    @Test
+    fun aFarmWrittenAfterItsVillageIsTheOneNearIt() {
+        val found = placed.find("Provby Provgården, 655 60 Molkom", "655 60", "Molkom")!!
+        assertEquals(59.705, found.lat, 1e-9)
+        assertEquals("Provby Provgården, Molkom", found.addressLine)
+        assertEquals(59.705, placed.find("provby  provgården", null, "Molkom")!!.lat, 1e-9)
+        // The farm alone has two places in the municipality: never chosen between.
+        assertNull(placed.find("Provgården", null, "Molkom"))
+        // Two places of the farm's name near the village: neither.
+        assertNull(placed.find("Provby Dubbelgården", null, "Molkom"))
+        // A village of another municipality, or none written: none.
+        assertNull(placed.find("Provby Provgården", null, "Skoghall"))
+        assertNull(placed.find("Provby Provgården", null, null))
+    }
+
+    /**
+     * A postcode across two municipalities: the place near its own addresses, never a namesake far
+     * away in the other municipality; anywhere in them only when none lies near.
+     */
+    @Test
+    fun aPostcodeAcrossTwoMunicipalitiesTakesThePlaceNearItsAddresses() {
+        val streets = AddressRegister.parse(
+            """
+            Storgatan|Provby|66530|Hammarö|1:59.30:13.40;9:59.32:13.42
+            Lindvägen|Provby|66530|Karlstad|2:59.31:13.43
+            """.trimIndent(),
+        )
+        val places = """
+            Tvåby|Hammarö|59.305:13.405
+            Tvåby|Karlstad|59.80:13.90
+            Provgården|Hammarö|59.31:13.41;59.60:13.60
+            Exempelby|Karlstad|59.85:13.95
+        """.trimIndent()
+        val across = streets.withPlaces(places)
+        val farm = across.find("Tvåby Provgården", "665 30", null)!!
+        assertEquals(59.31, farm.lat, 1e-9)
+        assertEquals("Tvåby Provgården, Provby", farm.addressLine)
+        assertEquals(59.305, across.find("Tvåby", "665 30", null)!!.lat, 1e-9)
+        assertEquals(59.305, across.find("Tvåby", null, "Provby")!!.lat, 1e-9)
+        // None near the postcode's addresses: the one place of the name in its municipalities.
+        assertEquals(59.85, across.find("Exempelby", "665 30", null)!!.lat, 1e-9)
+        // The farm alone has two places, one near: the near one; with no postcode or town, none.
+        assertEquals(59.31, across.find("Provgården", "665 30", null)!!.lat, 1e-9)
+        assertNull(across.find("Tvåby Provgården", null, null))
+        // A name that is a place's name is that place, near or not: never split into a village and its farm.
+        val named = streets.withPlaces(places + "\nTvåby Provgården|Karlstad|59.81:13.91")
+        assertEquals(59.81, named.find("Tvåby Provgården", "665 30", null)!!.lat, 1e-9)
     }
 
     @Test
@@ -161,5 +216,8 @@ class AddressRegisterTest {
         assertEquals(59.597, register.find("Molkom", null, "Karlstad")!!.lat, 1e-3)
         // Never a namesake of another municipality.
         assertNull(register.find("Glava", null, "Örebro"))
+        // Names of several places in one municipality keep each place's point.
+        val several = asset(AddressRegister.PLACES_ASSET).lineSequence().count { !it.startsWith("#") && it.substringAfterLast('|').contains(';') }
+        assertTrue(several > 1_000)
     }
 }
