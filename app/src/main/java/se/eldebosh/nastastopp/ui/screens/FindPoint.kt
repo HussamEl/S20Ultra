@@ -59,6 +59,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import se.eldebosh.nastastopp.R
 import se.eldebosh.nastastopp.geo.PointFinder
@@ -84,9 +85,15 @@ private class FindState(private val onFind: suspend (String) -> PointFinder.Answ
 
     val canFind: Boolean get() = text.isNotBlank() && !searching
 
-    /** A new text clears the answer to the one before. */
+    /** The search under way, for the text it was started for. */
+    private var search: Job? = null
+
+    /** A new text clears the answer to the one before, and stops a search for the one before. */
     fun type(typed: String) {
-        if (typed != text) answer = null
+        if (typed != text) {
+            answer = null
+            search?.cancel()
+        }
         text = typed
     }
 
@@ -94,9 +101,12 @@ private class FindState(private val onFind: suspend (String) -> PointFinder.Answ
         if (!canFind) return
         searching = true
         answer = null
-        scope.launch {
+        val asked = text
+        search = scope.launch {
             try {
-                answer = onFind(text)
+                val found = onFind(asked)
+                // Only the answer for the text still in the field.
+                if (text == asked) answer = found
             } finally {
                 searching = false
             }

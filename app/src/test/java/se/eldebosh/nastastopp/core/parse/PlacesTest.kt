@@ -47,6 +47,9 @@ class PlacesTest {
         assertEquals("Centralsjukhuset, huvudentrén", Places.spokenName("Centralsjukhuset Huvudentrén", isLocality))
         assertEquals("Karlstad", Places.known("Centralsjukhuset Huvudentrén")?.town)
         assertEquals("Centralsjukhuset, Karlstad", Places.known("CENTRALSJUKHUSET")?.candidate)
+        // As the driver's screens write it, too (typed into the find tool).
+        assertEquals("Karlstad", Places.known("C-Sjukhuset Huvudentrén")?.town)
+        assertNull(Places.known("Arvika sjukhus"))
     }
 
     /** Wherever it is written, the hospital is written short. */

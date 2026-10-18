@@ -27,6 +27,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -59,6 +60,7 @@ import se.eldebosh.nastastopp.route.model.Stop
 import se.eldebosh.nastastopp.settings.Appearance
 import se.eldebosh.nastastopp.settings.WindowPlaces
 import se.eldebosh.nastastopp.ui.PointText
+import se.eldebosh.nastastopp.ui.screens.FindPointDialog
 import se.eldebosh.nastastopp.ui.screens.PassengerDisplayScreen
 import se.eldebosh.nastastopp.ui.screens.ReviewScreen
 import se.eldebosh.nastastopp.ui.theme.NastaTheme
@@ -150,6 +152,45 @@ class FindPointRoboTest {
         compose.waitForIdle()
         compose.onNodeWithTag("ref_53").assertExists()
         compose.onNode(hasTestTag("ref_322") and hasAnyAncestor(isDialog())).assertExists()
+        // Another address typed: the point of the one before is no longer shown beside it.
+        compose.onNodeWithTag("ref_53").performTextReplacement("Strandvägen 3, 665 30 Kil")
+        compose.waitForIdle()
+        compose.onNode(hasTestTag("ref_322") and hasAnyAncestor(isDialog())).assertDoesNotExist()
+        compose.onNodeWithTag("ref_53").performTextReplacement("Storgatan 14, 652 24 Karlstad")
+        compose.waitForIdle()
+        compose.onNode(hasTestTag("ref_322") and hasAnyAncestor(isDialog())).assertExists()
+    }
+
+    /** An answer for a text the driver has since changed is never shown under the new text. */
+    @Test
+    fun anAnswerForAnEarlierTextIsDropped() {
+        val first = CompletableDeferred<PointFinder.Answer>()
+        val asked = ArrayList<String>()
+        compose.setContent {
+            NastaTheme(Appearance.DAY) {
+                FindPointDialog(
+                    onFind = { text ->
+                        asked += text
+                        if (asked.size == 1) first.await() else PointFinder.Answer.Found("Hamngatan 7, 663 30 Skoghall", 59.391234, 13.491234)
+                    },
+                    onDismiss = {},
+                )
+            }
+        }
+        compose.onNodeWithTag("ref_328").performTextReplacement("Storgatan 14, 652 24 Karlstad")
+        compose.onNodeWithTag("ref_329").performClick()
+        compose.waitForIdle()
+        // Corrected while the first search is still out: it is stopped, and Find works again.
+        compose.onNodeWithTag("ref_328").performTextReplacement("Hamngatan 7, 663 30 Skoghall")
+        compose.waitForIdle()
+        first.complete(PointFinder.Answer.Found("Storgatan 14, 652 24 Karlstad", 59.381234, 13.501234))
+        compose.waitForIdle()
+        compose.onNodeWithText(point).assertDoesNotExist()
+        compose.onNodeWithTag("ref_329").assertIsEnabled().performClick()
+        compose.waitForIdle()
+        assertEquals(listOf("Storgatan 14, 652 24 Karlstad", "Hamngatan 7, 663 30 Skoghall"), asked)
+        compose.onNodeWithText("59.391234, 13.491234").assertExists()
+        compose.onNodeWithText(point).assertDoesNotExist()
     }
 
     @Test

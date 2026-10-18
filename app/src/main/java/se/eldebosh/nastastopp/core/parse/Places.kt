@@ -26,10 +26,13 @@ object Places {
     /** [text] as it is written on the screens: a well-known place by its short name ("Centralsjukhuset Karlstad" → "C-Sjukhuset Karlstad"). */
     fun written(text: String): String = KNOWN.fold(text) { t, k -> t.replace(Regex("(?i)\\b${k.word}\\b"), k.short) }
 
-    /** The well-known place named in [place], or null. */
+    /** The well-known place named in [place], by its name or as the screens write it ("C-Sjukhuset"), or null. */
     fun known(place: String?): Known? {
         val words = words(place ?: return null)
-        return KNOWN.firstOrNull { k -> words.any { it == k.word } }
+        return KNOWN.firstOrNull { k ->
+            val short = words(k.short)
+            words.any { it == k.word } || words.windowed(short.size).any { it == short }
+        }
     }
 
     /**

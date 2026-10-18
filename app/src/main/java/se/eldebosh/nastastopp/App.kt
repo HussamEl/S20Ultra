@@ -65,7 +65,7 @@ class AppGraph(app: Application) {
     val notifier = RouteNotifier(app, controller, settings, scope)
 
     /** Finds any address's point for the driver (323–333), on the phone and the tablet alike; never touches the route. */
-    val pointFinder = PointFinder(extractor, placeMemory) { candidates, postal, town -> geocoding.locate(candidates, postal, town) }
+    val pointFinder = PointFinder(extractor, placeMemory) { candidates, postal, town -> geocoding.locate(candidates, postal, town, remember = false) }
 
     /** The addresses the routes went to (never a name), for the driver to share (Settings 302). */
     val addressLog = AddressLog(app).also { log ->

@@ -43,8 +43,15 @@ class Geocoding(context: Context) {
      * only when it is in one town ([GeoLogic.inOneTown]): a town is never guessed. The words of
      * the passenger's name ([names], [GeoLogic.nameKeys]) are left out of a candidate's start
      * ([GeoLogic.withoutLeadingNames]): never read as a village, never sent to the geocoder.
+     * Without [remember] (the find tool) neither the questions nor the answers are kept.
      */
-    suspend fun locate(candidates: List<String>, parsedPostal: String?, parsedTown: String?, names: Set<String> = emptySet()): LocateResult? {
+    suspend fun locate(
+        candidates: List<String>,
+        parsedPostal: String?,
+        parsedTown: String?,
+        names: Set<String> = emptySet(),
+        remember: Boolean = true,
+    ): LocateResult? {
         val asked = candidates.map { GeoLogic.withoutLeadingNames(it, names) }.distinct().take(MAX_CANDIDATES)
         // Lantmäteriet's register first: on the phone, and it knows addresses the geocoder does not.
         val known = loaded ?: withContext(Dispatchers.IO) { register(appContext) }
@@ -60,7 +67,7 @@ class Geocoding(context: Context) {
         var failed = false
         for (candidate in asked) {
             // A failed question (offline, busy) does not end the search: the next candidate is asked.
-            val results = lookup(candidate, unplaced)
+            val results = lookup(candidate, unplaced, remember)
             if (results == null) {
                 failed = true
                 continue
@@ -76,13 +83,16 @@ class Geocoding(context: Context) {
         return null
     }
 
-    /** Returns results (possibly empty), or null if the geocoder is unavailable / failed; in Värmland when [varmland]. */
-    private suspend fun lookup(query: String, varmland: Boolean = false): List<GeoResult>? {
+    /**
+     * Returns results (possibly empty), or null if the geocoder is unavailable / failed; in Värmland
+     * when [varmland]; kept for the next same question only when [remember].
+     */
+    private suspend fun lookup(query: String, varmland: Boolean = false, remember: Boolean = true): List<GeoResult>? {
         val key = if (varmland) "$query|V" else query
         cache[key]?.let { return it }
         val addresses = withTimeoutOrNull(TIMEOUT_MS) { rawLookup(query, varmland) } ?: return null
         val results = addresses.mapNotNull { it.toResult() }
-        cache[key] = results
+        if (remember) cache[key] = results
         return results
     }
 

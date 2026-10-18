@@ -11,6 +11,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -160,9 +161,9 @@ private class FlowPen {
     val streakAlpha = FloatArray(STREAKS_MOST) { rnd(it, 5) }
     val streakWidth = FloatArray(STREAKS_MOST) { rnd(it, 6) }
 
-    /** The middle's clearing, made again only when its size or strength changes. */
-    var clearing: Brush? = null
-    var clearingKey = Long.MIN_VALUE
+    /** The middle's cut's soft sides and corners, made again only when its box or strength changes. */
+    var cut: Array<Brush>? = null
+    var cutKey = Long.MIN_VALUE
 }
 
 /** One stroke of the flow, unless it would not be seen. */
@@ -313,25 +314,53 @@ private fun DrawScope.wake(s: FlowState, color: Color, base: Float, vx: Float) {
 }
 
 /**
- * The middle kept clear: the flow is cut away over where the text stands, most at the middle and
- * thinning out to the edges, and further out the larger the text ([FlowState.clearing],
- * [FlowState.clearingReach]). Only its alpha counts.
+ * The middle kept clear: the flow is cut away in full over the box where the text stands
+ * ([FlowState.clearHalfWidth], [FlowState.clearHalfHeight], at [FlowState.clearing]), and the cut
+ * thins out beyond it over [FlowState.CLEAR_FEATHER]: a box with soft sides (straight gradients)
+ * and soft corners (round ones), so no part of a large time or address is left under the flow.
+ * Only its alpha counts.
  */
 private fun DrawScope.clearMiddle(pen: FlowPen, s: FlowState, color: Color) {
+    val w = size.width
+    val h = size.height
     val clear = s.clearing
-    val reach = s.clearingReach
-    val key = (size.width.roundToInt().toLong() shl 40) or (size.height.roundToInt().toLong() shl 16) or (clear * 1000f).roundToInt().toLong()
-    val brush = pen.clearing?.takeIf { pen.clearingKey == key } ?: Brush.radialGradient(
-        0f to color.copy(alpha = clear),
-        reach to color.copy(alpha = clear * FlowState.CLEAR_THINNED),
-        1f to color.copy(alpha = 0f),
-        center = Offset(size.width / 2f, size.height / 2f),
-        radius = max(size.width, size.height) / 2f,
+    val halfW = w / 2f * s.clearHalfWidth
+    val halfH = h / 2f * s.clearHalfHeight
+    val f = min(w, h) / 2f * FlowState.CLEAR_FEATHER
+    val l = w / 2f - halfW
+    val r = w / 2f + halfW
+    val t = h / 2f - halfH
+    val b = h / 2f + halfH
+    val solid = color.copy(alpha = clear)
+    val none = color.copy(alpha = 0f)
+    // Rounded so an easing box is not made again every frame.
+    val key = ((w.roundToInt().toLong() and 0xFFFF) shl 48) or ((h.roundToInt().toLong() and 0xFFFF) shl 32) or
+        ((halfW.roundToInt().toLong() and 0xFFFF) shl 16) or ((halfH.roundToInt().toLong() and 0xFFF) shl 4) or
+        (clear * 15f).roundToInt().toLong()
+    val cut = pen.cut?.takeIf { pen.cutKey == key } ?: arrayOf(
+        Brush.horizontalGradient(listOf(none, solid), startX = l - f, endX = l),
+        Brush.horizontalGradient(listOf(solid, none), startX = r, endX = r + f),
+        Brush.verticalGradient(listOf(none, solid), startY = t - f, endY = t),
+        Brush.verticalGradient(listOf(solid, none), startY = b, endY = b + f),
+        Brush.radialGradient(listOf(solid, none), center = Offset(l, t), radius = f),
+        Brush.radialGradient(listOf(solid, none), center = Offset(r, t), radius = f),
+        Brush.radialGradient(listOf(solid, none), center = Offset(l, b), radius = f),
+        Brush.radialGradient(listOf(solid, none), center = Offset(r, b), radius = f),
     ).also {
-        pen.clearing = it
-        pen.clearingKey = key
+        pen.cut = it
+        pen.cutKey = key
     }
-    drawRect(brush, blendMode = BlendMode.DstOut)
+    val box = Size(r - l, b - t)
+    drawRect(solid, Offset(l, t), box, blendMode = BlendMode.DstOut)
+    drawRect(cut[0], Offset(l - f, t), Size(f, box.height), blendMode = BlendMode.DstOut)
+    drawRect(cut[1], Offset(r, t), Size(f, box.height), blendMode = BlendMode.DstOut)
+    drawRect(cut[2], Offset(l, t - f), Size(box.width, f), blendMode = BlendMode.DstOut)
+    drawRect(cut[3], Offset(l, b), Size(box.width, f), blendMode = BlendMode.DstOut)
+    val corner = Size(f, f)
+    drawRect(cut[4], Offset(l - f, t - f), corner, blendMode = BlendMode.DstOut)
+    drawRect(cut[5], Offset(r, t - f), corner, blendMode = BlendMode.DstOut)
+    drawRect(cut[6], Offset(l - f, b), corner, blendMode = BlendMode.DstOut)
+    drawRect(cut[7], Offset(r, b), corner, blendMode = BlendMode.DstOut)
 }
 
 /** The looks drawn, AUTO's three among them. */

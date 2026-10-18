@@ -485,7 +485,8 @@ private fun AddressDialog(
                     minLines = 2,
                     modifier = Modifier.ref(53).fillMaxWidth(),
                 )
-                addressPoint?.let { (lat, lng) -> PointText(lat, lng) }
+                // The saved address's point, only while the field still holds that address.
+                addressPoint?.takeIf { text.trim() == initial.trim() }?.let { (lat, lng) -> PointText(lat, lng) }
                 OutlinedTextField(
                     value = time,
                     onValueChange = { time = it; timeError = false },

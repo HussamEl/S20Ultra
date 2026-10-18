@@ -19,7 +19,7 @@ enum class FlowScene(val strength: Float, val edges: Float) {
     FOCUS(0.55f, 0.85f),
 
     /** A minute's moment: the time, the weather or the travel time large in the middle. */
-    MOMENT(0.5f, 0.5f),
+    MOMENT(0.5f, 0.85f),
 
     /** A window over the display: the trip card (235). */
     WINDOW(0.3f, 0.6f),
@@ -149,11 +149,17 @@ class FlowState {
      */
     val vanishY: Float get() = -(HORIZON - HORIZON_PUSH * push) + shake * VANISH_SHAKE_Y * sin(seconds * VANISH_JITTER_Y)
 
-    /** How much of the flow the middle's clearing takes away at the screen's middle, 0–1: more when the text is large. */
-    val clearing: Float get() = CLEAR_MIDDLE + CLEAR_EDGES * edges
+    /** How much of the flow the cut takes away over where the text stands, 0–1: all of it while text is shown large. */
+    val clearing: Float get() = min(1f, CLEAR_MIDDLE + CLEAR_EDGES * edges)
 
-    /** Where (a share of the clearing's radius) it has thinned to [CLEAR_THINNED] of itself: further out when the text is large. */
-    val clearingReach: Float get() = REACH_MIDDLE + REACH_EDGES * edges
+    /**
+     * The box the cut takes in full, around the screen's middle, as shares of its half-width and
+     * half-height: at home the next stop's time and address, and the whole box the large time or
+     * address can fill (90 % of the width, 74 % of the height) once a trip or moment is shown large.
+     * Beyond it the cut thins out over [CLEAR_FEATHER] of the shorter half-side.
+     */
+    val clearHalfWidth: Float get() = CLEAR_W + CLEAR_W_EDGES * edges
+    val clearHalfHeight: Float get() = CLEAR_H + CLEAR_H_EDGES * edges
 
     companion object {
         /** AUTO's looks, slow to fast. */
@@ -223,14 +229,16 @@ class FlowState {
         private const val VANISH_JITTER_X = 23f
         private const val VANISH_JITTER_Y = 31f
 
-        /** The middle's clearing: its strength and reach at no edges, and how much more each takes at full edges. */
-        private const val CLEAR_MIDDLE = 0.55f
+        /** The middle's cut: its strength and box at no edges, and how much more each takes at full edges. */
+        private const val CLEAR_MIDDLE = 0.8f
         private const val CLEAR_EDGES = 0.4f
-        private const val REACH_MIDDLE = 0.55f
-        private const val REACH_EDGES = 0.25f
+        private const val CLEAR_W = 0.5f
+        private const val CLEAR_W_EDGES = 0.5f
+        private const val CLEAR_H = 0.4f
+        private const val CLEAR_H_EDGES = 0.45f
 
-        /** The clearing's share at [clearingReach]. */
-        const val CLEAR_THINNED = 0.6f
+        /** How far beyond its box the cut thins out to nothing: a share of the screen's shorter half-side. */
+        const val CLEAR_FEATHER = 0.3f
 
         private fun follow(dt: Float, ms: Float) = min(1f, dt / ms)
 
