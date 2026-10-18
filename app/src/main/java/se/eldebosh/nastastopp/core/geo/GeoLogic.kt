@@ -151,6 +151,34 @@ object GeoLogic {
         return true
     }
 
+    /**
+     * The keys of the words of a passenger's [name] ("Anna Testsson": "anna", "testsson"; a
+     * double name both whole and in its parts), for leaving them out of an address
+     * ([withoutLeadingNames]) or a line of the address log.
+     */
+    fun nameKeys(name: String?): Set<String> =
+        name.orEmpty().split(' ').flatMap { listOf(it) + it.split('-') }.map { TextNorm.key(it) }.filter { it.length > 1 }.toSet()
+
+    /**
+     * [candidate] without the words of the passenger's name ([names], their [nameKeys]) at its start
+     * ("Testsson Provgården, 655 60 Molkom" is "Provgården, 655 60 Molkom"): a name glued before an
+     * address is never read as a village of it, nor asked of a geocoder. Unchanged when no word with
+     * letters would be left before the first comma (a village address "Berg 12" of a passenger
+     * called Berg).
+     */
+    fun withoutLeadingNames(candidate: String, names: Set<String>): String {
+        if (names.isEmpty()) return candidate
+        val head = candidate.substringBefore(',')
+        val words = head.trim().split(SPACES).filter { it.isNotEmpty() }
+        val named = words.takeWhile { TextNorm.key(it) in names }.size
+        if (named == 0) return candidate
+        val kept = words.drop(named).joinToString(" ")
+        if (TextNorm.letterCount(kept) < 2) return candidate
+        return kept + candidate.substring(head.length)
+    }
+
+    private val SPACES = Regex("""\s+""")
+
     /** Great-circle distance in metres. */
     fun distanceMeters(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Double {
         val r = 6_371_000.0

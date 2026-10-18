@@ -250,7 +250,7 @@
 | `ocr/OcrEngine.kt` | ML Kit + التقسيم، ومراحل الفشل (`ReadStage`). |
 | `importer/ScreenshotImporter.kt` | الصور ← OCR ← الاستخراج. |
 | `geo/Geocoding.kt` | `locate` (العنوان ← الإحداثيات: سجل Lantmäteriet أولاً ثم الـ geocoder) و`reverse` (الإحداثيات ← العناوين القريبة). |
-| `core/geo/AddressRegister.kt` | سجل عناوين Lantmäteriet (`assets/addresses.txt`): `find` بالشارع والرقم، أو بالاسم الشائع لمكان بلا رقم (`named`: سطور `@`، مكان واحد فقط، عناوينه ضمن 250 م)، حيث الرمز البريدي أو المدينة المكتوبة فقط (`inTown`)؛ ثم في أسماء الأماكن (`withPlaces`، `assets/places.txt` من `tools/make-places.py`: Ortnamn، اسم وبلدية ونقطة) داخل بلديات الرمز أو المدينة المكتوبة فقط، وأولاً قرب عناوينها (`placed`، `Area`، مكان واحد)، أو مزرعة قرب قريتها المكتوبة قبلها (`nearItsVillage`، ضمن 2 كم). |
+| `core/geo/AddressRegister.kt` | سجل عناوين Lantmäteriet (`assets/addresses.txt`): `find` بالشارع والرقم، أو بالاسم الشائع لمكان بلا رقم (`named`: سطور `@`، مكان واحد فقط، عناوينه ضمن 250 م)، حيث الرمز البريدي أو المدينة المكتوبة فقط (`inTown`)؛ ثم في أسماء الأماكن (`withPlaces`، `assets/places.txt` من `tools/make-places.py`: Ortnamn، اسم وبلدية ونقطة) داخل بلديات الرمز أو المدينة المكتوبة فقط، وأولاً قرب عناوينها (`placed`، `Area`، مكان واحد)، أو مزرعة قرب قريتها المكتوبة قبلها (`nearItsVillage`، ضمن 2 كم). وكلمات اسم الراكب في أول العنوان تُحذف قبل البحث (`GeoLogic.withoutLeadingNames` في `Geocoding.locate`). |
 | `geo/CurrentStreet.kt` | الشارع الحالي والسرعة (القسم 5). |
 | `geo/StreetMapStore.kt` | تنزيل خريطة الشوارع وحفظها وتحميلها (`OverpassDownload`). |
 | `geo/StreetCaller.kt` | نطق الشارع عند تغيّره. |

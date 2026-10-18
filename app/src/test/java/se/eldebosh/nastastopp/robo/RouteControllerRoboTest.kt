@@ -218,6 +218,21 @@ class RouteControllerRoboTest {
      * gets only the next stop's last name. A name is never in an announcement, the route
      * notification or the history (invented data).
      */
+    /** A passenger's surname glued before a place's name is never read as the place, and never kept with it. */
+    @Test
+    fun aSurnameBeforeAPlaceIsLeftOut() {
+        val lines = listOf(
+            "2026-09-29",
+            "06:55", "Pick-up", "Anna Testsson", "Testsson Grava kyrka, Karlstad",
+        )
+        val c = graph.controller
+        assertEquals(1, c.addExtracted(graph.extractor.extract(lines)))
+        idleUntil { c.route.value!!.stops.none { it.geoStatus == GeoStatus.PENDING } }
+        val stop = c.route.value!!.stops.single()
+        assertEquals(GeoStatus.LOCATED, stop.geoStatus)
+        assertFalse("shown: ${stop.displayText}", stop.displayText.contains("Testsson"))
+    }
+
     @Test
     fun namesStayOnTheDriversScreens() {
         val tts = readyTts()

@@ -40,14 +40,17 @@ class Geocoding(context: Context) {
      * Tries [candidates] in order, in Lantmäteriet's register, then with the geocoder. A result matching the written postal code or town wins
      * ([GeoLogic.choose]); an answer in another place is never used, and the next candidate is
      * tried. Without a postal code or town the stop is looked for in Värmland only, and taken
-     * only when it is in one town ([GeoLogic.inOneTown]): a town is never guessed.
+     * only when it is in one town ([GeoLogic.inOneTown]): a town is never guessed. The words of
+     * the passenger's name ([names], [GeoLogic.nameKeys]) are left out of a candidate's start
+     * ([GeoLogic.withoutLeadingNames]): never read as a village, never sent to the geocoder.
      */
-    suspend fun locate(candidates: List<String>, parsedPostal: String?, parsedTown: String?): LocateResult? {
+    suspend fun locate(candidates: List<String>, parsedPostal: String?, parsedTown: String?, names: Set<String> = emptySet()): LocateResult? {
+        val asked = candidates.map { GeoLogic.withoutLeadingNames(it, names) }.distinct().take(MAX_CANDIDATES)
         // Lantmäteriet's register first: on the phone, and it knows addresses the geocoder does not.
         val known = loaded ?: withContext(Dispatchers.IO) { register(appContext) }
         // Off the main thread: a place written by its name reads its postcode's or town's addresses.
         val inRegister = withContext(Dispatchers.Default) {
-            candidates.take(MAX_CANDIDATES).firstNotNullOfOrNull { candidate ->
+            asked.firstNotNullOfOrNull { candidate ->
                 known.find(candidate, parsedPostal, parsedTown)?.let { LocateResult(it, candidate) }
             }
         }
@@ -55,7 +58,7 @@ class Geocoding(context: Context) {
         if (!isAvailable) return null
         val unplaced = parsedPostal == null && parsedTown == null
         var failed = false
-        for (candidate in candidates.take(MAX_CANDIDATES)) {
+        for (candidate in asked) {
             // A failed question (offline, busy) does not end the search: the next candidate is asked.
             val results = lookup(candidate, unplaced)
             if (results == null) {

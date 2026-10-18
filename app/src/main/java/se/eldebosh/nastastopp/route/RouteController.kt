@@ -163,7 +163,7 @@ class RouteController(
         val text = listOfNotNull(stop.place?.takeIf { !TextNorm.fold(street).contains(TextNorm.fold(it)) }, street, town).joinToString(", ")
         // Any word of the passenger's name is left out, word by word (no pattern: Android's
         // regular expressions differ from the computer's the tests run on).
-        val named = stop.name.orEmpty().split(' ').map { TextNorm.key(it) }.filter { it.length > 1 }.toSet()
+        val named = GeoLogic.nameKeys(stop.name)
         return text.split(", ")
             .map { part -> part.split(' ').filter { it.isNotBlank() && TextNorm.key(it) !in named }.joinToString(" ") }
             .filter { it.isNotBlank() }
@@ -840,7 +840,7 @@ class RouteController(
             while (isActive) {
                 val stop = _route.value?.stops?.firstOrNull { it.geoStatus == GeoStatus.PENDING } ?: break
                 val result = try {
-                    geocoding.locate(stop.candidates, stop.parsedPostalCode, stop.parsedTown)
+                    geocoding.locate(stop.candidates, stop.parsedPostalCode, stop.parsedTown, GeoLogic.nameKeys(stop.name))
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (_: GeocoderFailed) {

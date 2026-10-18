@@ -83,6 +83,24 @@ class GeoLogicTest {
 
     private fun at(lat: Double, lng: Double, town: String?) = GeoResult(lat, lng, null, null, town, null, null)
 
+    /** A passenger's name glued before an address is left out of what is looked for. */
+    @Test
+    fun aNameBeforeTheAddressIsLeftOut() {
+        val names = GeoLogic.nameKeys("Anna Testsson")
+        assertEquals(setOf("anna", "testsson"), names)
+        assertEquals("Provgården, 655 60 Molkom", GeoLogic.withoutLeadingNames("Testsson Provgården, 655 60 Molkom", names))
+        assertEquals("Provby Provgården, Molkom", GeoLogic.withoutLeadingNames("Anna  TESTSSON Provby Provgården, Molkom", names))
+        // Only at the start, and only whole words.
+        assertEquals("Provby Testsson, Molkom", GeoLogic.withoutLeadingNames("Provby Testsson, Molkom", names))
+        assertEquals("Testssonsvägen 3, Karlstad", GeoLogic.withoutLeadingNames("Testssonsvägen 3, Karlstad", names))
+        // Nothing with letters would be left: unchanged (a village address of a passenger called so).
+        assertEquals("Testsson 12, 655 60 Molkom", GeoLogic.withoutLeadingNames("Testsson 12, 655 60 Molkom", names))
+        assertEquals("Testsson Provgården", GeoLogic.withoutLeadingNames("Testsson Provgården", emptySet()))
+        // A double name counts whole and in its parts.
+        assertEquals(setOf("bengtfrida", "bengt", "frida", "provare"), GeoLogic.nameKeys("Bengt-Frida Provare"))
+        assertEquals(emptySet<String>(), GeoLogic.nameKeys(null))
+    }
+
     /** A place written without a town is taken only when it is in one town in Värmland: never a guess. */
     @Test
     fun aPlaceWithoutATownMustBeInOneTown() {
