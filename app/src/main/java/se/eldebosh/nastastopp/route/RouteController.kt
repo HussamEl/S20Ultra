@@ -458,8 +458,35 @@ class RouteController(
         if (idx <= 0) r else r.copy(stops = r.stops.drop(idx))
     }
 
-    /** Undo for delete / delete-all-above: puts a previous stop list back. */
-    fun restoreStops(previous: List<Stop>) {
+    /**
+     * Undo for delete / delete-all-above: puts back only [removed], each one before the first stop
+     * that followed it in [before] and is still in the list (else last). A stop already in the list
+     * or done since stays as it is, and every other change since stays. Out of the review screen,
+     * an active route says its next stops again and opens Maps again when they changed (the
+     * driver's tap). [createdAtMs] is the route the delete was made on: another route is left alone.
+     */
+    fun undoDelete(createdAtMs: Long, removed: List<Stop>, before: List<Stop>) {
+        if (_route.value?.createdAtMs != createdAtMs) return
+        val editing = editBaseline != null
+        if (!editing) beginEdit()
+        update { r ->
+            val known = (r.stops + r.completed).mapTo(HashSet()) { it.id }
+            val stops = r.stops.toMutableList()
+            for (stop in removed) {
+                if (!known.add(stop.id)) continue
+                val followers = before.dropWhile { it.id != stop.id }.drop(1)
+                val at = followers.firstNotNullOfOrNull { f -> stops.indexOfFirst { it.id == f.id }.takeIf { it >= 0 } } ?: stops.size
+                stops.add(at, stop)
+            }
+            r.copy(stops = stops)
+        }
+        ensureGeocoding()
+        if (!editing) finishEdit()
+    }
+
+    /** Puts [previous] in place of the remaining stops, as they are (tests set up located stops with it). */
+    @VisibleForTesting
+    internal fun restoreStops(previous: List<Stop>) {
         update { r -> r.copy(stops = previous) }
         ensureGeocoding()
     }

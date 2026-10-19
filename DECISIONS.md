@@ -127,7 +127,7 @@ Every dialog, toast, sound and Maps launch follows a driver action. The only exc
 - Editing an active route re-launches Maps if the first 10 stops changed, and re-announces if the next stop changed.
 - **Back** undoes the last Next: the previous trip becomes current, its history entry is removed, and Maps is re-launched only if its batch starts at the current trip (`batchStartStopId`).
 - A **Pull-out** card is the start point (`RouteData.depot`): shown above the list, never sent to Maps or announced.
-- "Sort by time" is a button, not automatic: the driver's order may be deliberate. Deletes show an Undo snackbar.
+- "Sort by time" is a button, not automatic: the driver's order may be deliberate. Deletes show an Undo snackbar; Undo puts back only what was deleted, in its place, and keeps every change made since.
 - "Avsluta" keeps the open trips in "Previous trips" as "not completed"; drivers often end instead of pressing Next at the last stop.
 
 ## 9. YouDrive

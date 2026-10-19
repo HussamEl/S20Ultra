@@ -120,6 +120,128 @@ class RouteControllerRoboTest {
         assertEquals(second.id, c.route.value!!.stops[1].id)
     }
 
+    private val fourLines = listOf(
+        "Storgatan 14, 65224 Karlstad",
+        "Järnvägsgatan 3B, 68830 Storfors",
+        "Lindvägen 9, 66430 Grums",
+        "Kyrkogatan 2, 65224 Karlstad",
+    )
+
+    private fun stopIds() = graph.controller.route.value!!.stops.map { it.id }
+
+    /** Undo of one delete puts back that stop only, in its old place; a later delete stays (invented data). */
+    @Test
+    fun undoPutsBackOnlyWhatWasDeleted() {
+        val c = graph.controller
+        assertEquals(4, c.addExtracted(graph.extractor.extract(fourLines)))
+        val made = c.route.value!!.createdAtMs
+        val (a, b, third, fourth) = c.route.value!!.stops
+        val beforeA = c.route.value!!.stops
+        c.delete(a.id)
+        val beforeB = c.route.value!!.stops
+        c.delete(b.id)
+        c.undoDelete(made, listOf(a), beforeA)
+        assertEquals(listOf(a.id, third.id, fourth.id), stopIds())
+        // Tapped again, or for another route: nothing changes.
+        c.undoDelete(made, listOf(a), beforeA)
+        c.undoDelete(made + 1, listOf(b), beforeB)
+        assertEquals(listOf(a.id, third.id, fourth.id), stopIds())
+        c.undoDelete(made, listOf(b), beforeB)
+        assertEquals(listOf(a.id, b.id, third.id, fourth.id), stopIds())
+    }
+
+    /** What the driver or the geocoder changed after a delete survives its Undo (invented data). */
+    @Test
+    fun undoKeepsTheChangesMadeSinceTheDelete() {
+        val c = graph.controller
+        assertEquals(4, c.addExtracted(graph.extractor.extract(fourLines)))
+        val made = c.route.value!!.createdAtMs
+        val (a, b, third, fourth) = c.route.value!!.stops
+        val before = c.route.value!!.stops
+        c.delete(a.id)
+        c.move(2, 0)
+        assertTrue(c.editText(third.id, third.displayText, "09:15"))
+        // Located meanwhile.
+        c.restoreStops(c.route.value!!.stops.map { it.copy(geoStatus = GeoStatus.LOCATED, geo = GeoPoint(59.38, 13.5, "addr", locality = "Karlstad")) })
+        c.undoDelete(made, listOf(a), before)
+        val stops = c.route.value!!.stops
+        assertEquals(listOf(fourth.id, a.id, b.id, third.id), stops.map { it.id })
+        assertEquals("09:15", stops.last().time)
+        assertEquals(listOf(GeoStatus.LOCATED, GeoStatus.LOCATED, GeoStatus.LOCATED), stops.filter { it.id != a.id }.map { it.geoStatus })
+    }
+
+    /**
+     * On an active route, the current trip deleted in the review and undone after a Next comes back
+     * as the current trip: it is said and Maps opens from it, and the trip done since stays done
+     * only (invented data).
+     */
+    @Test
+    fun undoOnAnActiveRouteSaysTheTripAndOpensMaps() {
+        val tts = readyTts()
+        val c = graph.controller
+        assertEquals(3, c.addExtracted(graph.extractor.extract(fourLines.take(3))))
+        idleUntil { c.route.value!!.stops.none { it.geoStatus == GeoStatus.PENDING } }
+        val made = c.route.value!!.createdAtMs
+        val (a, b, third) = c.route.value!!.stops
+        assertTrue(c.start())
+        idle()
+        assertNotNull(shadowOf(app).nextStartedActivity)
+
+        c.beginEdit()
+        val before = c.route.value!!.stops
+        c.delete(a.id)
+        c.finishEdit()
+        idle()
+        assertTrue(tts.lastAnnouncement.orEmpty(), tts.lastAnnouncement.orEmpty().startsWith("Nästa stopp: Järnvägsgatan 3B"))
+        assertNotNull(shadowOf(app).nextStartedActivity)
+        c.next()
+        idle()
+
+        c.undoDelete(made, listOf(a), before)
+        idle()
+        val r = c.route.value!!
+        assertEquals(listOf(a.id, third.id), r.stops.map { it.id })
+        assertEquals(listOf(b.id), r.completed.map { it.id })
+        assertTrue(tts.lastAnnouncement.orEmpty(), tts.lastAnnouncement.orEmpty().startsWith("Nästa stopp: Storgatan 14"))
+        val url = shadowOf(app).nextStartedActivity?.dataString
+        assertTrue("Maps again: $url", url != null && url.contains("Storgatan%2014") && !url.contains("J%C3%A4rnv%C3%A4gsgatan"))
+        c.end()
+    }
+
+    /**
+     * Undo while the review is still open says nothing and opens nothing: leaving the review
+     * compares the list with how it was when the review opened (invented data).
+     */
+    @Test
+    fun undoInTheReviewWaitsForTheReviewToClose() {
+        val tts = readyTts()
+        val c = graph.controller
+        assertEquals(3, c.addExtracted(graph.extractor.extract(fourLines.take(3))))
+        idleUntil { c.route.value!!.stops.none { it.geoStatus == GeoStatus.PENDING } }
+        val made = c.route.value!!.createdAtMs
+        val (a, b, third) = c.route.value!!.stops
+        assertTrue(c.start())
+        idle()
+        assertNotNull(shadowOf(app).nextStartedActivity)
+        val said = tts.spokenTextList.size
+
+        c.beginEdit()
+        val before = c.route.value!!.stops
+        c.delete(a.id)
+        c.undoDelete(made, listOf(a), before)
+        idle()
+        assertEquals(listOf(a.id, b.id, third.id), stopIds())
+        assertEquals(said, tts.spokenTextList.size)
+        assertNull(shadowOf(app).nextStartedActivity)
+
+        c.move(2, 1)
+        c.finishEdit()
+        idle()
+        assertTrue(tts.lastAnnouncement.orEmpty(), tts.lastAnnouncement.orEmpty().startsWith("Nästa stopp: Storgatan 14, Karlstad. Lindvägen 9"))
+        assertNotNull(shadowOf(app).nextStartedActivity)
+        c.end()
+    }
+
     /** A YouDrive list: the grey "Pull-out" is the start point, not a stop (invented data). */
     @Test
     fun pullOutBecomesTheStartPointNotAStop() {

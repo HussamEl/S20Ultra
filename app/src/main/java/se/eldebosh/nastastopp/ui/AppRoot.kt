@@ -274,15 +274,21 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                             onBack = { vm.back() },
                             onMove = { from, to -> controller.move(from, to) },
                             onDelete = { stop ->
-                                val before = route?.stops.orEmpty()
+                                val made = controller.route.value?.createdAtMs
+                                val before = controller.route.value?.stops.orEmpty()
                                 controller.delete(stop.id)
-                                vm.message(UiMessage(R.string.deleted_stop, undo = { controller.restoreStops(before) }))
+                                val left = controller.route.value?.stops.orEmpty().mapTo(HashSet()) { it.id }
+                                val removed = before.filterNot { it.id in left }
+                                vm.message(UiMessage(R.string.deleted_stop, undo = { made?.let { controller.undoDelete(it, removed, before) } }))
                             },
                             onDeleteAbove = { stop ->
-                                val before = route?.stops.orEmpty()
+                                val made = controller.route.value?.createdAtMs
+                                val before = controller.route.value?.stops.orEmpty()
                                 val count = before.indexOfFirst { it.id == stop.id }
                                 controller.deleteAllAbove(stop.id)
-                                vm.message(UiMessage(R.string.deleted_many, count, undo = { controller.restoreStops(before) }))
+                                val left = controller.route.value?.stops.orEmpty().mapTo(HashSet()) { it.id }
+                                val removed = before.filterNot { it.id in left }
+                                vm.message(UiMessage(R.string.deleted_many, count, undo = { made?.let { controller.undoDelete(it, removed, before) } }))
                             },
                             onEdit = { stop, text, time -> controller.editText(stop.id, text, time) },
                             onRetry = { stop -> controller.retryLocate(stop.id) },
