@@ -84,9 +84,8 @@ data class Stop(
      */
     val streetText: String
         get() {
-            val names = GeoLogic.nameKeys(name)
-            val shown = candidates.map { GeoLogic.withoutLeadingNames(it, names) }
-            val text = GeoLogic.withoutLeadingNames(displayText, names)
+            val shown = candidates.map { GeoLogic.withoutLeadingNames(it, name) }
+            val text = GeoLogic.withoutLeadingNames(displayText, name)
             val core = TripWatch.streetAddress(shown, text).substringBefore(',').trim()
             return shown.filter { it.startsWith(core) }.maxByOrNull { it.length } ?: text
         }

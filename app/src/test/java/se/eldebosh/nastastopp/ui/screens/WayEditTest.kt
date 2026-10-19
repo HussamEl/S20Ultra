@@ -81,5 +81,8 @@ class WayEditTest {
         val ahead = listOf(drop, x, pick, t(4, null, null), t(5, TripKind.DROP_OFF, 0))
         assertEquals(mapOf(0 to 1), inCarBefore(ahead, listOf(drop, x, pick)))
         assertEquals(mapOf(0 to 0), inCarBefore(ahead, listOf(pick, x)))
+        // The return trip's drop-off lies beyond the trips the tablet has: still in the car.
+        val cut = listOf(drop, x, pick, t(4, null, null))
+        assertEquals(mapOf(0 to 1), inCarBefore(cut, listOf(drop, x)))
     }
 }

@@ -172,11 +172,35 @@ internal fun suggestOrder(map: RouteMap, shown: List<DisplayItem>, fromNext: Boo
 /**
  * Who is in the car where [way] starts in [ahead] (the trips still to come, the next first; the way
  * starts at the first of its trips there): a way cut from the route is judged from there, as the
- * phone judges the whole route ([OrderPlanner.inCarBefore]).
+ * phone judges the whole route. [ahead] is itself cut from the route (the next 8 trips), so a
+ * passenger in the car at its start is one whose drop-offs run ahead of their pick-ups along it, by
+ * the most they do: a return trip whose drop-off lies beyond it never cancels them out.
  */
 internal fun inCarBefore(ahead: List<DisplayItem>, way: List<DisplayItem>): Map<Int, Int> {
     val at = way.mapNotNull { w -> ahead.indexOfFirst { it.sameTrip(w) }.takeIf { it >= 0 } }.minOrNull() ?: 0
-    return OrderPlanner.inCarBefore(plannerTrips(ahead), at)
+    val trips = plannerTrips(ahead)
+    val lead = HashMap<Int, Int>()
+    val car = HashMap<Int, Int>()
+    for (t in trips) {
+        val r = t.rider ?: continue
+        val step = when (t.pickUp) {
+            false -> 1
+            true -> -1
+            null -> continue
+        }
+        val n = (lead[r] ?: 0) + step
+        lead[r] = n
+        car[r] = maxOf(car[r] ?: 0, n)
+    }
+    for (t in trips.take(at)) {
+        val r = t.rider ?: continue
+        when (t.pickUp) {
+            true -> car[r] = (car[r] ?: 0) + 1
+            false -> car[r] = ((car[r] ?: 0) - 1).coerceAtLeast(0)
+            null -> Unit
+        }
+    }
+    return car
 }
 
 /** The trips for [OrderPlanner]: booked time, pick-up or drop-off, passenger's number. */

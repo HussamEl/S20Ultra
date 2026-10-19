@@ -40,19 +40,19 @@ class Geocoding(context: Context) {
      * Tries [candidates] in order, in Lantmäteriet's register, then with the geocoder. A result matching the written postal code or town wins
      * ([GeoLogic.choose]); an answer in another place is never used, and the next candidate is
      * tried. Without a postal code or town the stop is looked for in Värmland only, and taken
-     * only when it is in one town ([GeoLogic.inOneTown]): a town is never guessed. The words of
-     * the passenger's name ([names], [GeoLogic.nameKeys]) are left out of a candidate's start
-     * ([GeoLogic.withoutLeadingNames]): never read as a village, never sent to the geocoder.
+     * only when it is in one town ([GeoLogic.inOneTown]): a town is never guessed. The passenger's
+     * [name] glued at a candidate's start is left out ([GeoLogic.withoutLeadingNames]): never read
+     * as a village, never sent to the geocoder.
      * Without [remember] (the find tool) neither the questions nor the answers are kept.
      */
     suspend fun locate(
         candidates: List<String>,
         parsedPostal: String?,
         parsedTown: String?,
-        names: Set<String> = emptySet(),
+        name: String? = null,
         remember: Boolean = true,
     ): LocateResult? {
-        val asked = candidates.map { GeoLogic.withoutLeadingNames(it, names) }.distinct().take(MAX_CANDIDATES)
+        val asked = candidates.map { GeoLogic.withoutLeadingNames(it, name) }.distinct().take(MAX_CANDIDATES)
         // Lantmäteriet's register first: on the phone, and it knows addresses the geocoder does not.
         val known = loaded ?: withContext(Dispatchers.IO) { register(appContext) }
         // Off the main thread: a place written by its name reads its postcode's or town's addresses.

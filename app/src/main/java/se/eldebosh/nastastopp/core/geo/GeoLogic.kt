@@ -160,19 +160,24 @@ object GeoLogic {
         name.orEmpty().split(' ').flatMap { listOf(it) + it.split('-') }.map { TextNorm.key(it) }.filter { it.length > 1 }.toSet()
 
     /**
-     * [candidate] without the words of the passenger's name ([names], their [nameKeys]) at its start
-     * ("Testsson Provgården, 655 60 Molkom" is "Provgården, 655 60 Molkom"): a name glued before an
-     * address is never read as a village of it, nor asked of a geocoder. Unchanged when no word with
-     * letters would be left before the first comma (a village address "Berg 12" of a passenger
-     * called Berg).
+     * [candidate] without the passenger's name ([name]) glued at its start ("Testsson Provgården,
+     * 655 60 Molkom" is "Provgården, 655 60 Molkom"; "Anna Testsson Storgatan 14" is "Storgatan
+     * 14"): a name glued before an address is never read as a village of it, said, shown to the
+     * passengers or asked of a geocoder. The words cut are the name's, and among them its last name,
+     * so a street named after a person keeps its first word ("Anna Leks väg 3" of a passenger
+     * called Anna). Unchanged when no word with letters would be left before the first comma (a
+     * village address "Berg 12" of a passenger called Berg).
      */
-    fun withoutLeadingNames(candidate: String, names: Set<String>): String {
+    fun withoutLeadingNames(candidate: String, name: String?): String {
+        val names = nameKeys(name)
         if (names.isEmpty()) return candidate
         val head = candidate.substringBefore(',')
         val words = head.trim().split(SPACES).filter { it.isNotEmpty() }
-        val named = words.takeWhile { TextNorm.key(it) in names }.size
-        if (named == 0) return candidate
-        val kept = words.drop(named).joinToString(" ")
+        val named = words.takeWhile { TextNorm.key(it) in names }
+        if (named.isEmpty()) return candidate
+        val surname = nameKeys(name?.trim()?.substringAfterLast(' '))
+        if (named.none { TextNorm.key(it) in surname }) return candidate
+        val kept = words.drop(named.size).joinToString(" ")
         if (TextNorm.letterCount(kept) < 2) return candidate
         return kept + candidate.substring(head.length)
     }

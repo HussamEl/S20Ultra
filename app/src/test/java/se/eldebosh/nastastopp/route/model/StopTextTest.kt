@@ -30,6 +30,19 @@ class StopTextTest {
     }
 
     @Test
+    fun aStreetNamedAfterAPersonKeepsItsFirstWord() {
+        // The passenger's first name begins the street's own name: no glued name, kept whole.
+        val stop = Stop(
+            id = 1,
+            displayText = "Anna Provares väg 3, 652 24 Karlstad",
+            candidates = listOf("Anna Provares väg 3, 652 24 Karlstad"),
+            name = "Anna Testsson",
+        )
+        assertEquals("Anna Provares väg 3, 652 24 Karlstad", stop.streetText)
+        assertEquals(stop.copy(name = null).entranceKey, stop.entranceKey)
+    }
+
+    @Test
     fun anAddressThatIsOnlyTheNameIsKept() {
         // A village address that is the passenger's surname: nothing with letters would be left.
         val stop = Stop(id = 1, displayText = "Testsson 12, Karlstad", candidates = listOf("Testsson 12, Karlstad"), name = "Anna Testsson")

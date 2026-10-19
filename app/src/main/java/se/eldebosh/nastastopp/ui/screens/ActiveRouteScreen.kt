@@ -110,6 +110,8 @@ fun ActiveRouteScreen(
     /** The route notification's Avsluta asked to end the route: the question is shown, then [onEndAsked]. */
     endAsked: Boolean = false,
     onEndAsked: () -> Unit = {},
+    /** "End the route?" answered by keeping the route (84, or dismissed). */
+    onEndKept: () -> Unit = {},
 ) {
     // Keep the screen on while this screen is visible.
     val view = LocalView.current
@@ -243,11 +245,11 @@ fun ActiveRouteScreen(
     }
     if (confirmEnd) {
         AlertDialog(
-            onDismissRequest = { confirmEnd = false },
+            onDismissRequest = { confirmEnd = false; onEndKept() },
             title = { Text(stringResource(R.string.confirm_end_title)) },
             text = { Text(stringResource(R.string.confirm_end_text)) },
             confirmButton = { TextButton(onClick = { confirmEnd = false; onEnd() }, modifier = Modifier.ref(83)) { Text(stringResource(R.string.btn_end)) } },
-            dismissButton = { TextButton(onClick = { confirmEnd = false }, modifier = Modifier.ref(84)) { Text(stringResource(R.string.cancel)) } },
+            dismissButton = { TextButton(onClick = { confirmEnd = false; onEndKept() }, modifier = Modifier.ref(84)) { Text(stringResource(R.string.cancel)) } },
         )
     }
 }

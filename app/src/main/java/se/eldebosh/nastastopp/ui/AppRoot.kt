@@ -317,7 +317,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 onRepeat = { controller.repeat() },
                                 onOpenMaps = { controller.openMaps() },
                                 onEdit = { vm.navigate(Screen.REVIEW) },
-                                onEnd = { controller.end() },
+                                onEnd = { vm.endConfirmed(); controller.end() },
                                 overlayAvailable = remember(resumeTick) { SystemIntents.canDrawOverlays(context) },
                                 overlayHidden = settings.overlayHidden,
                                 street = street,
@@ -331,6 +331,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 onFindPoint = { findingPoint = true },
                                 endAsked = endAsked,
                                 onEndAsked = { vm.endAsked.value = false },
+                                onEndKept = vm::endKept,
                             )
                             // Look up the current street while this screen is shown.
                             DisposableEffect(Unit) {

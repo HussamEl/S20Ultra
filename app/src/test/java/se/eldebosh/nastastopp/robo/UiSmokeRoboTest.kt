@@ -57,6 +57,7 @@ import se.eldebosh.nastastopp.settings.EnrollResult
 import se.eldebosh.nastastopp.link.DisplayLinkClient
 import se.eldebosh.nastastopp.service.Notifications
 import se.eldebosh.nastastopp.ui.MainViewModel
+import se.eldebosh.nastastopp.ui.Screen
 import se.eldebosh.nastastopp.ui.screens.DisplayRoleScreen
 import se.eldebosh.nastastopp.ui.theme.NastaTheme
 import java.io.File
@@ -460,6 +461,41 @@ class UiSmokeRoboTest {
             compose.onNodeWithTag("ref_83").performClick()
             compose.waitForIdle()
             assertFalse("ended", app.graph.controller.isActive)
+        }
+        app.graph.controller.clear()
+        app.graph.history.clear()
+    }
+
+    /** Avsluta over a review with changes: nothing is said and Maps stays shut until the route is kept. */
+    @Test
+    fun theEndQuestionOverAReviewOpensNoMapsUntilKept() {
+        app.graph.settings.update { it.copy(onboardingDone = true) }
+        app.graph.controller.addManual("Storgatan 14, 65224 Karlstad")
+        app.graph.controller.addManual("Järnvägsgatan 3B, 68830 Storfors")
+        settleGeocoding()
+        app.graph.controller.start()
+        shadowOf(Looper.getMainLooper()).idle()
+        fun mapsStarted(): Boolean {
+            var any = false
+            while (true) {
+                val next = shadowOf(app).nextStartedActivity ?: break
+                if (next.action == android.content.Intent.ACTION_VIEW) any = true
+            }
+            return any
+        }
+        mapsStarted()
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            shadowOf(Looper.getMainLooper()).idle()
+            scenario.onActivity { activityContext = it }
+            val vm = { a: MainActivity -> androidx.lifecycle.ViewModelProvider(a)[MainViewModel::class.java] }
+            scenario.onActivity { vm(it).navigate(Screen.REVIEW) }
+            app.graph.controller.move(0, 1)
+            scenario.onActivity { vm(it).askEnd() }
+            compose.waitForIdle()
+            assertFalse("no Maps over the question", mapsStarted())
+            compose.onNodeWithTag("ref_84").performClick()
+            compose.waitForIdle()
+            assertTrue("kept: the review's new order goes to Maps", mapsStarted())
         }
         app.graph.controller.clear()
         app.graph.history.clear()

@@ -317,7 +317,7 @@ class RouteController(
     fun editText(id: Long, text: String, time: String? = null): Boolean {
         val current = _route.value?.stops?.firstOrNull { it.id == id } ?: return false
         // The passenger's name typed before the address is left out as when the stop was added.
-        val typed = GeoLogic.withoutLeadingNames(text.trim(), GeoLogic.nameKeys(current.name))
+        val typed = GeoLogic.withoutLeadingNames(text.trim(), current.name)
         if (typed == current.displayText) {
             update { r -> r.copy(stops = r.stops.map { if (it.id == id) it.copy(time = time) else it }) }
             return true
@@ -632,11 +632,10 @@ class RouteController(
      * Google or kept in the history, whether the stop is found or not.
      */
     private fun withoutName(e: ExtractedStop): ExtractedStop {
-        val names = GeoLogic.nameKeys(e.name)
-        if (names.isEmpty()) return e
+        if (e.name.isNullOrBlank()) return e
         return e.copy(
-            displayText = GeoLogic.withoutLeadingNames(e.displayText, names),
-            candidates = e.candidates.map { GeoLogic.withoutLeadingNames(it, names) }.distinct(),
+            displayText = GeoLogic.withoutLeadingNames(e.displayText, e.name),
+            candidates = e.candidates.map { GeoLogic.withoutLeadingNames(it, e.name) }.distinct(),
         )
     }
 
@@ -914,7 +913,7 @@ class RouteController(
                 val r = _route.value ?: break
                 val stop = r.stops.firstOrNull { it.geoStatus == GeoStatus.PENDING } ?: r.depot?.takeIf { it.geoStatus == GeoStatus.PENDING } ?: break
                 val result = try {
-                    geocoding.locate(stop.candidates, stop.parsedPostalCode, stop.parsedTown, GeoLogic.nameKeys(stop.name))
+                    geocoding.locate(stop.candidates, stop.parsedPostalCode, stop.parsedTown, stop.name)
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (_: GeocoderFailed) {

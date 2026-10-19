@@ -146,18 +146,35 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** True while the route screen is to ask "End the route?" (the route notification's Avsluta). */
     val endAsked = MutableStateFlow(false)
 
+    /** A review that [askEnd] left, finished only once the route is kept ([endKept]). */
+    private var reviewLeftForEnd = false
+
     /**
      * The route notification's Avsluta: the route screen, asking first (83 ends the route, 84 keeps
-     * it). A review left this way is finished as "Back to route" finishes it.
+     * it). A review left this way is finished as "Back to route" finishes it, but only when the
+     * route is kept: nothing is said and Maps does not open over the question.
      */
     fun askEnd() {
         if (graph.settings.current.role != DeviceRole.CONTROLLER || !graph.controller.isActive) return
         val s = _stack.value
         if (s.lastOrNull() != Screen.ACTIVE) {
-            if (Screen.REVIEW in s) graph.controller.finishEdit()
+            reviewLeftForEnd = reviewLeftForEnd || Screen.REVIEW in s
             _stack.value = listOf(Screen.HOME, Screen.ACTIVE)
         }
         endAsked.value = true
+    }
+
+    /** "End the route?" answered by keeping it (84, or the dialog dismissed): the review [askEnd] left is finished now. */
+    fun endKept() {
+        if (reviewLeftForEnd) {
+            reviewLeftForEnd = false
+            graph.controller.finishEdit()
+        }
+    }
+
+    /** The route ended from the question: a review [askEnd] left needs no finishing. */
+    fun endConfirmed() {
+        reviewLeftForEnd = false
     }
 
     /** Shows the list after trips were added from YouDrive. */
