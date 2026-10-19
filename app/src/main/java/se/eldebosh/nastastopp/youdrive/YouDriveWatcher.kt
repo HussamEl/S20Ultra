@@ -400,8 +400,12 @@ class YouDriveWatcher(
             val page = runCatching { json.decodeFromString<PageReading>(json.decodeFromString<String?>(result ?: "null") ?: "{}") }.getOrNull()
             if (!page?.f.isNullOrBlank()) DebugLog.d { "login form moved back on screen (${page.f.trim().take(60)})" }
             val loginForm = page?.p ?: false
-            onPageText(page?.t.orEmpty(), cards = page?.c.orEmpty(), loginForm = loginForm)
-            signInIfWanted(web, loginForm)
+            val text = page?.t.orEmpty()
+            // A blank or unreadable page (a new page, or one reloading, before it has drawn) says
+            // nothing about the login.
+            val signedIn = !loginForm && text.isNotBlank() && !TripWatch.looksLoggedOut(text)
+            onPageText(text, cards = page?.c.orEmpty(), loginForm = loginForm)
+            signInIfWanted(web, loginForm, signedIn)
         }
     }
 
@@ -410,8 +414,8 @@ class YouDriveWatcher(
      * from the login saved on this phone if YouDrive's own "Remember me" left it empty. Only on
      * YouDrive's own https page; the script checks that again inside the page.
      */
-    private fun signInIfWanted(web: WebView, loginForm: Boolean) {
-        if (!autoSignIn.onReading(loginForm, settings.current.youDriveAutoSignIn, System.currentTimeMillis())) {
+    private fun signInIfWanted(web: WebView, loginForm: Boolean, signedIn: Boolean) {
+        if (!autoSignIn.onReading(loginForm, signedIn, settings.current.youDriveAutoSignIn, System.currentTimeMillis())) {
             if (autoSignIn.gaveUp && loginForm) problem(appContext.getString(R.string.youdrive_sign_in_failed))
             return
         }

@@ -10,7 +10,9 @@ import kotlinx.serialization.json.JsonPrimitive
  * With the switch on, each reading that shows the login form may press Login, but only
  * [MAX_TRIES] times in a row and [RETRY_MS] apart. A login that does not work (a changed
  * password) is not tried over and over, so the account is never locked by the app. After the
- * driver logs out in the app, nothing is tried until he has signed in himself once.
+ * driver logs out in the app, nothing is tried until he has signed in himself once. Only a page
+ * that shows YouDrive's own content counts as signed in: the blank page of a reload counts as
+ * neither, so it never ends that pause or starts the tries again.
  */
 class AutoSignIn(private val maxTries: Int = MAX_TRIES, private val retryMs: Long = RETRY_MS) {
     private var tries = 0
@@ -21,14 +23,21 @@ class AutoSignIn(private val maxTries: Int = MAX_TRIES, private val retryMs: Lon
     var gaveUp = false
         private set
 
-    /** One reading of the page: true when Login should be pressed now. */
-    fun onReading(loginForm: Boolean, enabled: Boolean, nowMs: Long): Boolean {
+    /**
+     * One reading of the page: true when Login should be pressed now. [signedIn]: the page shows
+     * YouDrive's own content (text, no login form). A blank or unreadable page (a new page, or one
+     * reloading, before it has drawn) is neither signed in nor a login form: it ends no pause and
+     * starts no new tries.
+     */
+    fun onReading(loginForm: Boolean, signedIn: Boolean, enabled: Boolean, nowMs: Long): Boolean {
         if (!loginForm) {
-            // Signed in (or another page): start afresh next time.
-            tries = 0
-            lastTryMs = null
-            gaveUp = false
-            paused = false
+            if (signedIn) {
+                // Signed in: start afresh next time.
+                tries = 0
+                lastTryMs = null
+                gaveUp = false
+                paused = false
+            }
             return false
         }
         if (!enabled || paused || gaveUp) return false
