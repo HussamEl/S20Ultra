@@ -35,11 +35,26 @@ object StreetLookup {
      * Without the street map: the street of an address found by the geocoder counts only if
      * that address lies within [maxM] of the position. The nearest address is often on a side
      * street or across a crossing; then only the area is kept, and no street is guessed.
+     *
+     * The area is Karlstad's own district where the position lies in one ([Districts.district]);
+     * in Karlstad outside them only the town, never the geocoder's neighbourhood; elsewhere the
+     * geocoder's neighbourhood, else its town.
      */
-    fun pickNear(results: List<GeoResult>, lat: Double, lng: Double, maxM: Double = NEAR_ADDRESS_M): StreetInfo? {
-        val any = pick(results) ?: return null
+    fun pickNear(
+        results: List<GeoResult>,
+        lat: Double,
+        lng: Double,
+        districts: Districts = Districts.EMPTY,
+        maxM: Double = NEAR_ADDRESS_M,
+    ): StreetInfo? {
+        val r = results.firstOrNull { !it.thoroughfare.isNullOrBlank() } ?: results.firstOrNull() ?: return null
+        val loc = r.locality?.trim()?.takeIf { it.isNotEmpty() }
+        val sub = r.subLocality?.trim()?.takeIf { it.isNotEmpty() }
+        val area = districts.district(lat, lng, null, loc, sub) ?: loc
         val close = results.filter { !it.thoroughfare.isNullOrBlank() && GeoLogic.distanceMeters(lat, lng, it.lat, it.lng) <= maxM }
-        return StreetInfo(close.firstOrNull()?.thoroughfare?.trim(), any.area)
+        val street = close.firstOrNull()?.thoroughfare?.trim()
+        if (street == null && area == null) return null
+        return StreetInfo(street, area)
     }
 
     /** How far the address the geocoder found may lie from the position ([pickNear]). */

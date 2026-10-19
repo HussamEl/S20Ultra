@@ -30,7 +30,8 @@ import kotlin.math.roundToInt
  *   street (the floating button or the route screen);
  * - either way a new street is taken only after two readings agree ([StreetTracker]).
  * The area (district) is Karlstad's own where the position lies in one of its districts
- * ([Districts]), else the geocoder's.
+ * ([Districts]); in Karlstad outside them only the town, never the geocoder's neighbourhood;
+ * elsewhere the geocoder's ([StreetLookup.pickNear]).
  */
 class CurrentStreet(
     private val scope: CoroutineScope,
@@ -79,7 +80,7 @@ class CurrentStreet(
         lastLookup = fix
         job = scope.launch {
             val info = try {
-                lookup(fix.lat, fix.lng)?.let { StreetLookup.pickNear(it, fix.lat, fix.lng) }
+                lookup(fix.lat, fix.lng)?.let { StreetLookup.pickNear(it, fix.lat, fix.lng, districts) }
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
@@ -87,7 +88,7 @@ class CurrentStreet(
             }
             lastFailed = info == null
             if (info == null) return@launch
-            area = districts.at(fix.lat, fix.lng) ?: info.area ?: area
+            area = info.area
             // Without the map, the geocoder's street (if its address is close enough) is the reading.
             publish(if (map == null) tracker.onReading(info.street, clockMs()) else tracker.current)
         }
