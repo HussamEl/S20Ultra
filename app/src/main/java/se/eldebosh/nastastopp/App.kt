@@ -70,7 +70,9 @@ class AppGraph(app: Application) {
     /** The addresses the routes went to (never a name), for the driver to share (Settings 302). */
     val addressLog = AddressLog(app).also { log ->
         // A fault in the log never stops the route: the addresses are then simply not kept.
-        scope.launch {
+        // Off the main thread: the log is kept until the driver deletes it, and each change
+        // rewrites the whole file. One collector, so the records stay in order.
+        scope.launch(Dispatchers.IO) {
             controller.route.collect { r ->
                 runCatching { log.record(r?.stops.orEmpty().mapNotNull(controller::logEntry)) }
                     .onFailure { DebugLog.w(it) { "address log skipped" } }
