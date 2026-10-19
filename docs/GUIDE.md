@@ -266,7 +266,7 @@
 | `overlay/OverlayTileService.kt` | مربع «Floating button» في الإعدادات السريعة. |
 | `service/Notifications.kt` | القنوات، وإشعار المسار، وتنبيهات YouDrive، وإشعار «الزر العائم مغلق». |
 | `service/RouteNotifier.kt` | يُبقي إشعار المسار متزامناً. |
-| `service/RouteActionReceiver.kt` | أزرار الإشعار: Nästa / Upprepa / Avsluta / إظهار الزر العائم. |
+| `service/RouteActionReceiver.kt` | أزرار الإشعار: Nästa / Upprepa / إظهار الزر العائم. أما Avsluta فيفتح سؤال إنهاء المسار في شاشة المسار (83 ينهيه، 84 يبقيه)، ولا ينهي المسار وحده. |
 | `link/Bluetooth.kt`، `DisplayLinkServer.kt`، `DisplayLinkClient.kt` | شاشة الركاب عبر البلوتوث (القسم 8). |
 | `weather/WeatherWidgets.kt` | استضافة ودجيت تطبيق طقس على التابلت (`AppWidgetHost`): الاختيار والربط والإعداد والعرض (207). |
 | `weather/WeatherSource.kt` | يجلب طقس SMHI كل 30 دقيقة ما دامت شاشة ركاب تعرض مساراً (`AppGraph` يقرر `want`). |

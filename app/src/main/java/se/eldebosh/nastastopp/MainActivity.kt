@@ -66,11 +66,15 @@ class MainActivity : ComponentActivity() {
         handleOpenIntent(intent)
     }
 
-    /** Opens YouDrive's window, or the list review after trips were added from YouDrive. */
+    /**
+     * Opens YouDrive's window, the list review after trips were added from YouDrive, or the route
+     * screen's "End the route?" (the route notification's Avsluta).
+     */
     private fun handleOpenIntent(intent: Intent?) {
         when (intent?.getStringExtra(Notifications.EXTRA_OPEN)) {
             Notifications.OPEN_YOUDRIVE -> vm.openYouDrive()
             Notifications.OPEN_REVIEW -> vm.openReview()
+            Notifications.OPEN_END -> vm.askEnd()
             else -> return
         }
         intent.removeExtra(Notifications.EXTRA_OPEN)

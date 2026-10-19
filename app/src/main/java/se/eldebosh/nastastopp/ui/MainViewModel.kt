@@ -143,6 +143,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         app.startActivity(Intent(app, YouDriveActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
+    /** True while the route screen is to ask "End the route?" (the route notification's Avsluta). */
+    val endAsked = MutableStateFlow(false)
+
+    /**
+     * The route notification's Avsluta: the route screen, asking first (83 ends the route, 84 keeps
+     * it). A review left this way is finished as "Back to route" finishes it.
+     */
+    fun askEnd() {
+        if (graph.settings.current.role != DeviceRole.CONTROLLER || !graph.controller.isActive) return
+        val s = _stack.value
+        if (s.lastOrNull() != Screen.ACTIVE) {
+            if (Screen.REVIEW in s) graph.controller.finishEdit()
+            _stack.value = listOf(Screen.HOME, Screen.ACTIVE)
+        }
+        endAsked.value = true
+    }
+
     /** Shows the list after trips were added from YouDrive. */
     fun openReview() {
         if (current == Screen.ONBOARDING) resetTo(Screen.HOME)

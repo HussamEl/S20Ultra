@@ -55,6 +55,8 @@ import se.eldebosh.nastastopp.settings.DeviceRole
 import se.eldebosh.nastastopp.settings.DeviceState
 import se.eldebosh.nastastopp.settings.EnrollResult
 import se.eldebosh.nastastopp.link.DisplayLinkClient
+import se.eldebosh.nastastopp.service.Notifications
+import se.eldebosh.nastastopp.ui.MainViewModel
 import se.eldebosh.nastastopp.ui.screens.DisplayRoleScreen
 import se.eldebosh.nastastopp.ui.theme.NastaTheme
 import java.io.File
@@ -422,6 +424,45 @@ class UiSmokeRoboTest {
             compose.onNodeWithText(s(R.string.active_counts, 0, 2)).assertExists()
         }
         app.graph.controller.end()
+    }
+
+    /**
+     * The route notification's Avsluta, beside Nästa in the shade, never ends the route itself: it
+     * opens the route screen's "End the route?" (83 ends it, 84 keeps it).
+     */
+    @Test
+    fun theNotificationsEndAsksFirst() {
+        app.graph.settings.update { it.copy(onboardingDone = true) }
+        app.graph.controller.addManual("Storgatan 14, 65224 Karlstad")
+        app.graph.controller.addManual("Järnvägsgatan 3B, 68830 Storfors")
+        settleGeocoding()
+        app.graph.controller.start()
+        shadowOf(Looper.getMainLooper()).idle()
+        val notification = shadowOf(app.getSystemService(android.app.NotificationManager::class.java)).getNotification(Notifications.ID_ROUTE)
+        val end = shadowOf(notification.actions[2].actionIntent)
+        assertTrue("an activity, not a broadcast", end.isActivityIntent)
+        assertEquals(Notifications.OPEN_END, end.savedIntent.getStringExtra(Notifications.EXTRA_OPEN))
+        // A tap on the notification itself only opens the app.
+        assertNull(shadowOf(notification.contentIntent).savedIntent.getStringExtra(Notifications.EXTRA_OPEN))
+        ActivityScenario.launch<MainActivity>(end.savedIntent).use { scenario ->
+            shadowOf(Looper.getMainLooper()).idle()
+            scenario.onActivity { activityContext = it }
+            compose.waitForIdle()
+            assertTrue("asked, not ended", app.graph.controller.isActive)
+            compose.onNodeWithTag("ref_84").performClick()
+            compose.waitForIdle()
+            assertTrue("kept", app.graph.controller.isActive)
+            compose.onNodeWithTag("ref_83").assertDoesNotExist()
+            compose.onNodeWithText(s(R.string.btn_next)).assertExists()
+            // Asked again: this time the driver ends it.
+            scenario.onActivity { androidx.lifecycle.ViewModelProvider(it)[MainViewModel::class.java].askEnd() }
+            compose.waitForIdle()
+            compose.onNodeWithTag("ref_83").performClick()
+            compose.waitForIdle()
+            assertFalse("ended", app.graph.controller.isActive)
+        }
+        app.graph.controller.clear()
+        app.graph.history.clear()
     }
 
     @Test

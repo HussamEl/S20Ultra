@@ -129,6 +129,7 @@ Every dialog, toast, sound and Maps launch follows a driver action. The only exc
 - A **Pull-out** card is the start point (`RouteData.depot`): shown above the list, never sent to Maps or announced.
 - "Sort by time" is a button, not automatic: the driver's order may be deliberate. Deletes show an Undo snackbar; Undo puts back only what was deleted, in its place, and keeps every change made since.
 - "Avsluta" keeps the open trips in "Previous trips" as "not completed"; drivers often end instead of pressing Next at the last stop.
+- The route notification's "Avsluta" asks first, like End (82): it opens the route screen's "End the route?" (83 ends, 84 keeps the route). In the shade it sits beside Nästa, which the driver taps while driving, and an ended route cannot be undone.
 
 ## 9. YouDrive
 

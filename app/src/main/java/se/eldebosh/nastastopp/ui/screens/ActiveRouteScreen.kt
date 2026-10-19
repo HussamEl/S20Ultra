@@ -107,6 +107,9 @@ fun ActiveRouteScreen(
     onStreetViewStop: ((Stop) -> Unit)? = null,
     /** Opens the window that finds any address's coordinates (324). */
     onFindPoint: (() -> Unit)? = null,
+    /** The route notification's Avsluta asked to end the route: the question is shown, then [onEndAsked]. */
+    endAsked: Boolean = false,
+    onEndAsked: () -> Unit = {},
 ) {
     // Keep the screen on while this screen is visible.
     val view = LocalView.current
@@ -115,6 +118,12 @@ fun ActiveRouteScreen(
         onDispose { view.keepScreenOn = false }
     }
     var confirmEnd by remember { mutableStateOf(false) }
+    LaunchedEffect(endAsked) {
+        if (endAsked) {
+            confirmEnd = true
+            onEndAsked()
+        }
+    }
     val current = route.stops.firstOrNull()
     val listState = rememberLazyListState()
     // Keep one completed trip (or the start point) visible above the current one.

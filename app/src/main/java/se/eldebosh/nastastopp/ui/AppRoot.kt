@@ -116,6 +116,7 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
     val youDriveLoginSaved by graph.youDriveLogin.saved.collectAsStateWithLifecycle()
     val streetMap by graph.streetMap.state.collectAsStateWithLifecycle()
     val youDrive by graph.youDrive.state.collectAsStateWithLifecycle()
+    val endAsked by vm.endAsked.collectAsStateWithLifecycle()
     val importing = importState is ImportUi.Running
     val snackbar = remember { SnackbarHostState() }
     // The find tool's window (326), from the home (323) or the route screen (324).
@@ -328,6 +329,8 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 onNavigateStop = { controller.navigateTo(it) },
                                 onStreetViewStop = { controller.streetViewAt(it) },
                                 onFindPoint = { findingPoint = true },
+                                endAsked = endAsked,
+                                onEndAsked = { vm.endAsked.value = false },
                             )
                             // Look up the current street while this screen is shown.
                             DisposableEffect(Unit) {
