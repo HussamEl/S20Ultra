@@ -501,15 +501,18 @@ private fun ComingRow(all: List<DisplayItem>, home: Int, shown: DisplayItem, now
     val list = rememberLazyListState(initialFirstVisibleItemIndex = home.coerceAtMost(all.lastIndex))
     val snap = rememberSnapFlingBehavior(list, SnapPosition.Start)
     // A swipe settles on a trip: shown above (the next stop's is the one before the first shown).
+    // The trips and the pick are read as they are when it settles, never as the row first had them:
+    // Next, an order used or a YouDrive sync changes them while the panel stays open.
     var swiped by remember { mutableStateOf(false) }
+    val trips by rememberUpdatedState(all)
+    val pick by rememberUpdatedState(onPick)
     LaunchedEffect(list) {
         snapshotFlow { list.isScrollInProgress }.collect { moving ->
             if (moving) {
                 swiped = true
             } else if (swiped) {
                 swiped = false
-                val first = list.firstVisibleItemIndex
-                all.getOrNull(first)?.let { onPick(it) }
+                trips.getOrNull(list.firstVisibleItemIndex)?.let { pick(it) }
             }
         }
     }

@@ -10,6 +10,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.TextView
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasText
@@ -21,6 +23,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeLeft
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
@@ -50,6 +53,8 @@ import se.eldebosh.nastastopp.App
 import se.eldebosh.nastastopp.AppGraph
 import se.eldebosh.nastastopp.MainActivity
 import se.eldebosh.nastastopp.R
+import se.eldebosh.nastastopp.core.display.DisplayItem
+import se.eldebosh.nastastopp.core.display.DisplaySnapshot
 import se.eldebosh.nastastopp.core.geo.Fix
 import se.eldebosh.nastastopp.core.geo.GeoResult
 import se.eldebosh.nastastopp.core.geo.StreetInfo
@@ -572,6 +577,55 @@ class FloatingPanelRoboTest {
         assertNull("no point on a tablet's panel", LinkPanelSource(graph.displayClient, graph.announcer).pointOf(shown))
         c.clearEntrances()
         c.end()
+    }
+
+    /**
+     * A swipe on the coming trips settles on a trip of the route as it is now, not as the row first
+     * had it: after two Nexts with the panel open, the trip shown above and on the display is the
+     * one the row stops at (invented streets).
+     */
+    @Test
+    fun aSwipeAfterTheTripsMovedShowsTheTripItStopsAt() {
+        fun item(n: Int, done: Boolean = false) = DisplayItem(time = "%02d:%02d".format(8 + n / 6, n % 6 * 10), title = "Storgatan $n", id = n.toLong(), doneHere = done)
+        fun snapshot(first: Int) = DisplaySnapshot(
+            active = true,
+            earlier = (first until first + 7).map { item(it, done = true) },
+            current = item(first + 7),
+            upcoming = (first + 8 until first + 15).map { item(it) },
+            remaining = 8,
+        )
+        val shown = MutableStateFlow<DisplaySnapshot?>(snapshot(2))
+        val sent = ArrayList<LinkMessage.Remote>()
+        val real = RoutePanelSource(graph.controller, graph.street, graph.announcer, graph.displayServer, graph.scope)
+        val source = object : PanelSource by real {
+            override val snapshot: StateFlow<DisplaySnapshot?> = shown
+
+            override fun remote(message: LinkMessage.Remote) {
+                sent += message
+            }
+        }
+        val actions = object : PanelActions {
+            override fun minimize() = Unit
+            override fun close() = Unit
+            override fun openApp() = Unit
+            override fun toggleSayStreet() = Unit
+            override fun toast(text: Int) = Unit
+            override fun barAt(bounds: androidx.compose.ui.geometry.Rect) = Unit
+        }
+        compose.setContent { FloatingPanel(source, actions, sayStreetOn = true) }
+        compose.waitForIdle()
+        // Two Nexts: every trip is two places further along the row.
+        shown.value = snapshot(4)
+        compose.waitForIdle()
+        compose.onAllNodesWithTag("ref_277")[0].performTouchInput { swipeLeft() }
+        compose.waitForIdle()
+        // The trip the row stopped at: the first one at its start.
+        val first = compose.onAllNodesWithTag("ref_277").fetchSemanticsNodes().minBy { it.positionInRoot.x }
+        val texts = first.config.getOrNull(SemanticsProperties.Text).orEmpty().map { it.text }
+        val settled = shown.value!!.let { it.earlier + listOfNotNull(it.current) + it.upcoming }.single { it.title in texts }
+        assertTrue("the row moved", settled.id != 9L)
+        assertEquals(LinkMessage.Remote(LinkMessage.Remote.Action.SHOW_TRIP, id = settled.id), sent.last())
+        compose.onNodeWithTag("ref_13").assert(hasText(settled.title))
     }
 
     /**
