@@ -71,6 +71,8 @@ import se.eldebosh.nastastopp.overlay.RoutePanelSource
 import se.eldebosh.nastastopp.route.model.GeoStatus
 import se.eldebosh.nastastopp.service.Notifications
 import se.eldebosh.nastastopp.service.RouteActionReceiver
+import se.eldebosh.nastastopp.ui.MainViewModel
+import se.eldebosh.nastastopp.ui.Screen
 import se.eldebosh.nastastopp.util.LocaleHelper
 import se.eldebosh.nastastopp.util.TimeLabels
 
@@ -476,6 +478,38 @@ class FloatingPanelRoboTest {
             app.moveToState(Lifecycle.State.CREATED)
             idle()
             assertEquals(1, overlays.size)
+        }
+        graph.controller.end()
+    }
+
+    /**
+     * The phone's own passenger display keeps the panel away only while it is in sight: when the
+     * driver leaves the app for Maps from it, the panel is back over Maps.
+     */
+    @Test
+    fun panelComesBackOverMapsWhenTheAppLeavesThePassengerDisplay() {
+        ShadowSettings.setCanDrawOverlays(true)
+        threeStops()
+        graph.controller.start()
+        idle()
+        assertEquals(1, overlays.size)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            idle()
+            scenario.onActivity { androidx.lifecycle.ViewModelProvider(it)[MainViewModel::class.java].navigate(Screen.DISPLAY_LOCAL) }
+            compose.waitForIdle()
+            idle()
+            assertTrue("no panel over the passenger display", overlays.isEmpty())
+            // The driver leaves for Maps (Nästa in the notification, or the app switcher).
+            scenario.moveToState(Lifecycle.State.CREATED)
+            compose.waitForIdle()
+            idle()
+            assertEquals("the panel is back over Maps", 1, overlays.size)
+            assertNull("not the \"closed\" reminder: the driver did not close it", reminder())
+            // Back in the app, on the passenger display: the panel stays away again.
+            scenario.moveToState(Lifecycle.State.RESUMED)
+            compose.waitForIdle()
+            idle()
+            assertTrue("no panel over the passenger display", overlays.isEmpty())
         }
         graph.controller.end()
     }

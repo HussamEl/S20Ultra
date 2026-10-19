@@ -357,14 +357,15 @@ fun AppRoot(vm: MainViewModel, onRecreate: () -> Unit) {
                                 places = graph.settings,
                                 onFind = graph.pointFinder::find,
                             )
-                            // The passengers look at this screen: the driver's floating panel stays away.
-                            DisposableEffect(Unit) {
+                            // The passengers look at this screen: the driver's floating panel stays away while it
+                            // is in sight, and comes back over Maps when the app goes to the background.
+                            LifecycleStartEffect(Unit) {
                                 graph.overlay.suppress(DISPLAY_KEY, true)
+                                onStopOrDispose { graph.overlay.suppress(DISPLAY_KEY, false) }
+                            }
+                            DisposableEffect(Unit) {
                                 graph.localDisplays.value++
-                                onDispose {
-                                    graph.overlay.suppress(DISPLAY_KEY, false)
-                                    graph.localDisplays.value--
-                                }
+                                onDispose { graph.localDisplays.value-- }
                             }
                         }
                         Screen.DISPLAY_ROLE -> {
