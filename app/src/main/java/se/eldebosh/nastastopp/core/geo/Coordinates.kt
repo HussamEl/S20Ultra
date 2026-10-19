@@ -8,19 +8,29 @@ import java.util.Locale
  * A point the driver types or pastes for a stop's entrance: decimal degrees ("59.381234,
  * 13.501234"), degrees, minutes and seconds as Google Maps writes them (59°22'48.0"N
  * 13°30'00.0"E), or a Google Maps link holding a point ("…/@59.527,13.127,17z",
- * "…?query=59.381234%2C13.501234"). Only a point in Sweden is taken.
+ * "…?query=59.381234%2C13.501234"). A place link's own point ("…/data=…!3d59.3894955!4d13.4864886")
+ * wins over its "@lat,lng" and over a name in degrees, minutes and seconds. Only a point in
+ * Sweden is taken.
  */
 object Coordinates {
 
     /** The point in [text] (latitude, longitude), or null. */
     fun parse(text: String): Pair<Double, Double>? {
         val decoded = runCatching { URLDecoder.decode(text.replace("+", " "), StandardCharsets.UTF_8.name()) }.getOrDefault(text)
-        val point = dms(decoded) ?: decimal(decoded) ?: return null
+        val point = place(decoded) ?: dms(decoded) ?: decimal(decoded) ?: return null
         return point.takeIf { (lat, lng) -> lat in LAT_MIN..LAT_MAX && lng in LNG_MIN..LNG_MAX }
     }
 
     /** "59.381234, 13.501234": six decimals, a point and a comma, whatever the phone's language. */
     fun format(lat: Double, lng: Double): String = String.format(Locale.ROOT, "%.6f, %.6f", lat, lng)
+
+    /**
+     * A Google Maps place link's own point ("…/data=…!3d59.3894955!4d13.4864886"). Its "@lat,lng" is
+     * the camera, shifted to clear the side panel, and a dropped pin's name in degrees, minutes and
+     * seconds is rounded.
+     */
+    private fun place(text: String): Pair<Double, Double>? =
+        PLACE.find(text)?.let { m -> m.groupValues[1].toDouble() to m.groupValues[2].toDouble() }
 
     private fun dms(text: String): Pair<Double, Double>? {
         val parts = DMS.findAll(text).toList()
@@ -45,6 +55,7 @@ object Coordinates {
         return null
     }
 
+    private val PLACE = Regex("""!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)""")
     private val DMS = Regex("""(\d{1,3})\s*[°º]\s*(?:(\d{1,2})\s*['′’]\s*)?(?:(\d{1,2}(?:[.,]\d+)?)\s*(?:["″”]|'')\s*)?([NSEWÖO])""", RegexOption.IGNORE_CASE)
     private val DECIMAL_DOT = Regex("""(-?\d{1,2}\.\d{3,})\s*[,;\s]\s*(-?\d{1,3}\.\d{3,})""")
     private val DECIMAL_COMMA = Regex("""(\d{1,2},\d{3,})\s+(\d{1,3},\d{3,})""")

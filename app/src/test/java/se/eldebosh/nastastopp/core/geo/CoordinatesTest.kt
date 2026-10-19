@@ -25,6 +25,10 @@ class CoordinatesTest {
         assertPoint(59.381234, 13.501234, "59,381234 13,501234")
         assertPoint(59.381234, 13.501234, "https://www.google.com/maps/search/?api=1&query=59.381234%2C13.501234")
         assertPoint(59.3812, 13.5012, "https://www.google.com/maps/@59.3812,13.5012,17z")
+        // A place link: its own point, not the camera's "@lat,lng" shifted west of it.
+        assertPoint(59.3894955, 13.4864886, "https://www.google.com/maps/place/Provby+V%C3%A5rdcentral/@59.3894955,13.4839137,17z/data=!3m1!4b1!4m6!3m5!1s0x0:0x0!8m2!3d59.3894955!4d13.4864886")
+        // A dropped pin: its exact point wins over its name in rounded degrees, minutes and seconds.
+        assertPoint(59.381234, 13.501234, "https://www.google.com/maps/place/59%C2%B022'52.4%22N+13%C2%B030'04.4%22E/@59.381234,13.498659,17z/data=!3m1!4b1!4m4!3m3!8m2!3d59.381234!4d13.501234")
     }
 
     /** Nothing that is not a point in Sweden. */

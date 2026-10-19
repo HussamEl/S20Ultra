@@ -220,7 +220,7 @@
 | `geo/StreetMapPart.kt` | طرق مربع تنزيل واحد، تُحفظ على القرص حتى تكتمل الخريطة، و`RoadSink`. |
 | `route/Announcements.kt` | نصوص الإعلانات السويدية والإنجليزية. |
 | `route/MapsUrlBuilder.kt` | روابط Google Maps (بلا مفتاح ولا كلفة): الاتجاهات بـ 10 محطات على الأكثر؛ `navigateUrl` لمحطة واحدة (`dir_action=navigate`)؛ `streetViewUrl` (`map_action=pano`)؛ `point(lat, lng)` بست خانات عشرية. |
-| `geo/Coordinates.kt` | `parse`: نقطة يلصقها السائق من Google Maps (درجات ودقائق وثوانٍ، أو عشرية بنقطة أو فاصلة، أو رابط)، داخل حدود السويد فقط؛ و`format`. |
+| `geo/Coordinates.kt` | `parse`: نقطة يلصقها السائق من Google Maps (درجات ودقائق وثوانٍ، أو عشرية بنقطة أو فاصلة، أو رابط؛ ومن رابط مكان نقطته نفسها `!3d…!4d…` قبل `@lat,lng` الذي هو مركز الكاميرا)، داخل حدود السويد فقط؛ و`format`. |
 | `link/LinkProtocol.kt`، `LinkTargets.kt` | رسائل JSON سطراً سطراً بين الجوال والتابلت، وترتيب الأجهزة المقترنة. |
 | `display/DisplaySnapshot.kt` | ما تعرضه شاشة الركاب: `DisplayItem(time, title, subtitle)`، و`weather` و`eta`. `title` شارع ورقم، أو اسم مكان الرعاية القصير («C-Sjukhuset»)، و`said` كيف يُقال حين يختلف («Centralsjukhuset, huvudentrén»). `place` (وجهة خريطة التابلت) يبدأ من الشارع، لا اسم دار رعاية قبله. |
 | `display/TimeStatus.kt` | حالة وقت المحطة التالية: ON_TIME / SOON / DUE / LATE / VERY_LATE من الدقائق المتبقية (للون نقطتي الساعة في شاشة الركاب ولكبسولة الزر العائم)، و`countdown` («7:42»، «+3:10»). |
