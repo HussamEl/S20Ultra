@@ -1,6 +1,7 @@
 package se.eldebosh.nastastopp.route.model
 
 import kotlinx.serialization.Serializable
+import se.eldebosh.nastastopp.core.geo.GeoLogic
 import se.eldebosh.nastastopp.core.parse.Places
 import se.eldebosh.nastastopp.core.parse.TextNorm
 import se.eldebosh.nastastopp.core.parse.TripKind
@@ -76,12 +77,18 @@ data class Stop(
 
     /**
      * The fullest address that starts at the street ("Strandvägen 3, 665 30 Kil"): without a
-     * place or surname written before it; a place without a street as written.
+     * place, or the passenger's name or a surname, written before it; a place without a street as
+     * written. The name's words are left out here too ([GeoLogic.withoutLeadingNames]), so a stop
+     * that kept them (one the driver typed, or saved before they were left out as it was added)
+     * never says, shows or sends them.
      */
     val streetText: String
         get() {
-            val core = TripWatch.streetAddress(candidates, displayText).substringBefore(',').trim()
-            return candidates.filter { it.startsWith(core) }.maxByOrNull { it.length } ?: displayText
+            val names = GeoLogic.nameKeys(name)
+            val shown = candidates.map { GeoLogic.withoutLeadingNames(it, names) }
+            val text = GeoLogic.withoutLeadingNames(displayText, names)
+            val core = TripWatch.streetAddress(shown, text).substringBefore(',').trim()
+            return shown.filter { it.startsWith(core) }.maxByOrNull { it.length } ?: text
         }
 
     /** Written without a town, postal code or house number ("Sjukhuset Huvudentrén"): the town is not known. */

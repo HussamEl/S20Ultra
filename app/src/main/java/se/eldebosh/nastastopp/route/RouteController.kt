@@ -116,9 +116,9 @@ class RouteController(
     /**
      * A stop's street and number as said aloud and shown beside its time on the panel
      * ("Storgatan 14"). A surname that some lists put before the street ("Andersson Storgatan 14")
-     * is left out, so a name is never spoken.
+     * is left out ([Stop.streetText]), so a name is never spoken.
      */
-    fun streetOf(stop: Stop): String = DisplayItem.streetPart(TripWatch.streetAddress(stop.candidates, stop.displayText))
+    fun streetOf(stop: Stop): String = DisplayItem.streetPart(stop.streetText)
 
     /**
      * The next stop in full, for the announcement: its street and number, district and town. A

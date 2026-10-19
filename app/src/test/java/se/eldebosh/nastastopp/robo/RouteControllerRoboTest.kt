@@ -488,6 +488,52 @@ class RouteControllerRoboTest {
     }
 
     /**
+     * A stop that still holds the surname before its place (a route saved before it was left out as
+     * the stop was added, or a line the driver typed) never says, shows or sends it either: the
+     * stop's street address leaves it out ([Stop.streetText]). Invented data.
+     */
+    @Test
+    fun aStopThatKeptTheSurnameNeverSaysIt() {
+        val tts = readyTts()
+        val c = graph.controller
+        val lines = listOf(
+            "2026-09-29",
+            "06:55", "Pick-up", "Anna Testsson", "Provby 12, Karlstad",
+            "07:09", "Drop-off", "Anna Testsson", "Järnvägsgatan 3B, 68830 Storfors",
+        )
+        assertEquals(2, c.addExtracted(graph.extractor.extract(lines)))
+        idleUntil { c.route.value!!.stops.none { it.geoStatus == GeoStatus.PENDING } }
+        val stops = c.route.value!!.stops
+        val kept = stops.first().copy(displayText = "Testsson Provby 12, Karlstad", candidates = listOf("Testsson Provby 12, Karlstad"), geoStatus = GeoStatus.NOT_LOCATED)
+        c.restoreStops(listOf(kept) + stops.drop(1))
+
+        assertTrue(c.start())
+        idle()
+        assertFalse("spoken: ${tts.lastAnnouncement}", tts.lastAnnouncement.orEmpty().contains("Testsson"))
+        assertTrue("spoken: ${tts.lastAnnouncement}", tts.lastAnnouncement.orEmpty().contains("Provby 12"))
+        val maps = shadowOf(app).nextStartedActivity?.dataString.orEmpty()
+        assertTrue("Maps: $maps", maps.contains("Provby%2012"))
+        assertFalse("Maps: $maps", maps.contains("Testsson"))
+        assertFalse("notification", routeNotificationTexts().any { it.contains("Testsson") })
+        val next = c.display.value.current
+        assertNotNull(next)
+        assertFalse("title: ${next!!.title}", next.title.contains("Testsson"))
+        assertFalse("place: ${next.place}", next.place.orEmpty().contains("Testsson"))
+        assertTrue(c.speakStopStreet())
+        idle()
+        assertEquals("Provby 12", tts.lastAnnouncement)
+        // The driver's own screens keep the name and the line as read.
+        val stop = c.route.value!!.stops.first()
+        assertEquals("Anna Testsson", stop.name)
+        assertEquals("Testsson Provby 12, Karlstad", stop.shownAddress)
+        c.next()
+        idle()
+        assertTrue(graph.history.entries.value.isNotEmpty())
+        assertFalse("history", graph.history.entries.value.toString().contains("Testsson"))
+        c.end()
+    }
+
+    /**
      * The passenger's name (first + last) is for the driver's own screens; the passenger display
      * gets only the next stop's last name. A name is never in an announcement, the route
      * notification or the history (invented data).
