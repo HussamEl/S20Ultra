@@ -71,29 +71,14 @@ import se.eldebosh.nastastopp.util.TimeLabels
 
 /**
  * Optional floating panel over Google Maps (needs SYSTEM_ALERT_WINDOW), shown while a route is
- * active. One card of smoked glass that reads on any map or wallpaper (design: see [glass]):
- *
- *     ┌──────────────────────────────────────┐
- *     │ 13:14  1/11                  (–)  (×) │   clock, trip n/total, minimise, close
- *     │  ⎛45⎞ ┌────────────────────────────┐ │   the speed (km/h) in its own circle;
- *     │  ⎝  ⎠ │ Drottninggatan         (🔊) │ │   the street we are on (tap = say it; 🔊 =
- *     │       │ Centrum                    │ │   say each new street by itself: on / off)
- *     │       └────────────────────────────┘ │
- *     │ ┌──────────────────────────────────┐ │
- *     │ ▌ [14:33] Storgatan 14             │ │   the next trip: time, the stop's street (tap = say it),
- *     │ ▌ Anna Testsson         ● in 7 min │ │   passenger and on-time status
- *     │ ▌ Karlstad                         │ │   and town; the stripe: its kind's colour
- *     │ └──────────────────────────────────┘ │
- *     │ [⏮ Back] [═════════ ⏭ Next ════════] │   compact; Next is the bright one
- *     └──────────────────────────────────────┘
- *
- * It follows the UI language (Arabic: mirrored). Next: tap = "Nästa", long-press = repeat. Back:
- * undo the last "Nästa". The street bar: tap = say the street, long-press = repeat. The stop's
- * street: tap = say its street and number. "–" shrinks it to a small glass capsule with a
- * countdown to the trip and a chevron at each side for Back and Next (tap the capsule to
- * expand); "×" closes it, and it comes back from the notification
- * that appears, the Quick Settings tile or the app. Everything can be dragged; the position is
- * remembered and kept on screen.
+ * active. Full, it is [FloatingPanel] (Compose, in the passenger display's look; its parts are drawn
+ * there) in a window moved by its bar and sized from any edge or corner, width and height apart
+ * ([PanelFrame]); its place and size are kept ([SettingsStore.overlaySize]) and it stays on screen.
+ * "–" shrinks it to a small capsule of smoked glass, built with Views ([PanelColors]), with a
+ * countdown to the trip and a chevron at each side for Back and Next (tap the capsule to expand);
+ * "×" closes it, and it comes back from the notification that appears, the Quick Settings tile or
+ * the app. It steps aside while the passenger display is on the phone, while a dialog of the app is
+ * open and while the app itself is in front ([suppress]).
  *
  * The phone's panel shows its own route ([RoutePanelSource]). A tablet can show the same panel
  * over its passenger display ([LinkPanelSource]): without the passenger's name and without the

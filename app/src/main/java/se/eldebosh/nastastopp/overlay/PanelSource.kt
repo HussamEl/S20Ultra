@@ -28,7 +28,6 @@ data class PanelTrip(
     val time: String?,
     /** The stop's street and number (a tap says them). */
     val street: String,
-    val town: String?,
     /** The passenger's first + last name: only on the driver's own phone, never on a tablet. */
     val name: String?,
     val kind: TripKind?,
@@ -142,8 +141,6 @@ class RoutePanelSource(
         return PanelTrip(
             time = current.time,
             street = Places.written(controller.streetOf(current)),
-            // The town only, without the postal code.
-            town = current.displayText.substringAfter(',', "").replace(POSTAL_CODE, "").trim(' ', ',').ifEmpty { null },
             name = current.name,
             kind = current.kind,
             done = r.completedCount,
@@ -164,10 +161,6 @@ class RoutePanelSource(
 
     override fun sayStreet() {
         if (!controller.speakStreet(street.state.value)) controller.repeat()
-    }
-
-    private companion object {
-        val POSTAL_CODE = Regex("""\b\d{3}\s?\d{2}\b""")
     }
 }
 
@@ -196,7 +189,6 @@ class LinkPanelSource(private val client: DisplayLinkClient, private val announc
         return PanelTrip(
             time = current.time,
             street = current.title,
-            town = current.subtitle,
             name = null,
             kind = current.kind,
             done = s.completed,
