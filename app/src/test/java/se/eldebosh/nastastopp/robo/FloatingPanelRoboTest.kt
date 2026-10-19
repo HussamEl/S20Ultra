@@ -357,13 +357,44 @@ class FloatingPanelRoboTest {
         street.onFix(fix(20, 5.0))
         idle()
         assertEquals("throttled", 2, calls.size)
-        answer = null // geocoder failed: the last street stays
+        answer = null // geocoder failed: the last street stays (within the 20 s hold)
         street.onFix(fix(30, 200.0))
         idle()
         assertEquals(3, calls.size)
         assertEquals("Drottninggatan", street.state.value!!.street)
         street.reset()
         assertNull(street.state.value)
+        street.want("test", false)
+    }
+
+    /**
+     * Without the street map a failed lookup is no road: the street stays for the 20 s hold, then
+     * goes while no lookup confirms it; the area stays.
+     */
+    @Test
+    fun aStreetNoLookupConfirmsGoesAfterTheHold() {
+        var now = 1_000_000L
+        var answer: List<GeoResult>? = listOf(GeoResult(59.38, 13.5, null, null, "Kil", "Centrum", "Drottninggatan"))
+        val street = CurrentStreet(graph.scope, clockMs = { now }) { lat, lng -> answer?.map { it.copy(lat = lat, lng = lng) } }
+        street.want("test", true)
+        fun fix(s: Long, m: Double) = Fix(s * 1000, 59.38 + m / 111_195.0, 13.5, null, 5f)
+
+        street.onFix(fix(0, 0.0))
+        idle()
+        now += 10_000
+        street.onFix(fix(10, 0.0)) // the confirming reading
+        idle()
+        assertEquals(StreetInfo("Drottninggatan", "Centrum"), street.state.value)
+        answer = null // no mobile data: every lookup fails
+        now += 10_000
+        street.onFix(fix(20, 100.0))
+        idle()
+        assertEquals("within the hold", StreetInfo("Drottninggatan", "Centrum"), street.state.value)
+        now += 15_000
+        street.onFix(fix(35, 200.0))
+        idle()
+        assertEquals("no name once no lookup confirms it", StreetInfo(null, "Centrum"), street.state.value)
+        street.reset()
         street.want("test", false)
     }
 

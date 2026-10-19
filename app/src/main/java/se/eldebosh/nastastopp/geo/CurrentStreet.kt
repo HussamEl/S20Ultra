@@ -87,10 +87,10 @@ class CurrentStreet(
                 null
             }
             lastFailed = info == null
-            if (info == null) return@launch
-            area = info.area
-            // Without the map, the geocoder's street (if its address is close enough) is the reading.
-            publish(if (map == null) tracker.onReading(info.street, clockMs()) else tracker.current)
+            if (info != null) area = info.area
+            // Without the map, the geocoder's street (if its address is close enough) is the reading;
+            // a failed lookup is no road, so the hold clears a street no lookup confirms.
+            publish(if (map == null) tracker.onReading(info?.street, clockMs()) else tracker.current)
         }
     }
 
