@@ -933,7 +933,7 @@ class RouteController(
 
     companion object {
         /** Two readings of one YouDrive trip are at most this many minutes apart (see [sameTrip]). */
-        const val SAME_TRIP_MIN = 45
+        const val SAME_TRIP_MIN = TripWatch.SAME_TRIP_MIN
 
         /** A stop is asked this many times while the geocoder fails, waiting longer each time. */
         private const val GEO_TRIES = 3

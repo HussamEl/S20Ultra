@@ -109,6 +109,27 @@ class YouDriveRoboTest {
         graph.settings.update { it.copy(youDriveWatch = false) }
     }
 
+    /**
+     * YouDrive re-plans a card that shows one time (a drop-off): no alert is raised, so no Add
+     * and Remove can take the trip out of the route (invented data).
+     */
+    @Test
+    fun aReplannedOneTimeCardRaisesNoAlert() {
+        graph.settings.update { it.copy(youDriveWatch = true) }
+        val w = graph.youDrive
+        val morning = LocalTime.of(9, 0)
+        val pickUp = "10:18\n10:20\nPick-up\nCecilia Maria Exempel\nSKOLGATAN 6F, 65224 KARLSTAD\nHLI, RU1, BEN1"
+        fun dropOff(time: String) = "$time\nDrop-off\nCecilia Maria Exempel\nSjukhuset huvudentrén,\nHLI, RU1, BEN1\nCompensation 42.47 KR"
+        w.onPageText("YouDrive", nowTime = morning, cards = listOf(pickUp, dropOff("10:37")))
+        assertEquals(2, graph.controller.importTrips(w.state.value.trips.mapNotNull { it.stop }))
+        w.onPageText("YouDrive", nowTime = morning, cards = listOf(pickUp, dropOff("10:50")))
+        w.onPageText("YouDrive", nowTime = morning, cards = listOf(pickUp, dropOff("10:50")))
+        assertTrue("no alerts: ${w.state.value.changes}", w.state.value.changes.isEmpty())
+        assertTrue(notifications().none { it.channelId == Notifications.CHANNEL_TRIPS })
+        assertEquals(listOf("10:18", "10:37"), graph.controller.route.value!!.stops.map { it.time })
+        graph.settings.update { it.copy(youDriveWatch = false) }
+    }
+
     @Test
     fun activeRouteKeepsItsCurrentTripAndAnnouncesOnlyWhenTheNextOnesChange() {
         graph.controller.addManual("Storgatan 14, 65224 Karlstad", "12:30")
