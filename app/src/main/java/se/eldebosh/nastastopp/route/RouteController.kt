@@ -503,8 +503,10 @@ class RouteController(
      */
     fun pointOfTrip(e: ExtractedStop): Pair<Double, Double>? = findTrip(e)?.let(::pointOf)
 
-    private fun findTrip(e: ExtractedStop): Stop? {
+    private fun findTrip(found: ExtractedStop): Stop? {
         val r = _route.value ?: return null
+        // The stops were made without the passenger's name before the address: compared the same way.
+        val e = withoutName(found)
         if (e.kind == TripKind.PULL_OUT) return r.depot?.takeIf { extractor.isSameAddress(it.toExtracted(), e) }
         return r.stops.firstOrNull { sameTrip(it, e) }
     }
@@ -615,8 +617,26 @@ class RouteController(
         return insertByTime(list.filterNot { it.id == fresh.id }, fresh, base.active)
     }
 
-    /** [e] with the town the driver once gave its place ([PlaceMemory]), when it has none. */
-    private fun remembered(e: ExtractedStop): ExtractedStop = places.withTown(e, extractor)
+    /**
+     * [e] with the town the driver once gave its place ([PlaceMemory]), when it has none; never with
+     * its passenger's name before the address ([withoutName]), so the place is remembered by its own
+     * words.
+     */
+    private fun remembered(e: ExtractedStop): ExtractedStop = places.withTown(withoutName(e), extractor)
+
+    /**
+     * [e] without the words of its passenger's name at the start of its address
+     * ([GeoLogic.withoutLeadingNames]): the name is never said, shown to the passengers, sent to
+     * Google or kept in the history, whether the stop is found or not.
+     */
+    private fun withoutName(e: ExtractedStop): ExtractedStop {
+        val names = GeoLogic.nameKeys(e.name)
+        if (names.isEmpty()) return e
+        return e.copy(
+            displayText = GeoLogic.withoutLeadingNames(e.displayText, names),
+            candidates = e.candidates.map { GeoLogic.withoutLeadingNames(it, names) }.distinct(),
+        )
+    }
 
     /** [stop] inserted before the first later trip (after the current trip of an active route). */
     private fun insertByTime(list: List<Stop>, stop: Stop, active: Boolean): List<Stop> {

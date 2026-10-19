@@ -431,6 +431,63 @@ class RouteControllerRoboTest {
     }
 
     /**
+     * A surname glued before a place that is not found is left out too, from the start: never said,
+     * shown to the passengers, sent to Maps or kept in the history (Robolectric's geocoder never
+     * answers, and the register has no Provstugan; invented data).
+     */
+    @Test
+    fun aSurnameBeforeAPlaceNotFoundIsLeftOut() {
+        val tts = readyTts()
+        val lines = listOf(
+            "2026-09-29",
+            "06:55", "Pick-up", "Anna Testsson", "Testsson Provstugan, Karlstad",
+            "07:09", "Drop-off", "Anna Testsson", "Järnvägsgatan 3B, 68830 Storfors",
+        )
+        val c = graph.controller
+        assertEquals(2, c.addExtracted(graph.extractor.extract(lines)))
+        fun assertNoName(stop: Stop) {
+            assertFalse("shown: ${stop.displayText}", stop.displayText.contains("Testsson"))
+            assertFalse("candidates: ${stop.candidates}", stop.candidates.any { it.contains("Testsson") })
+            assertFalse("street: ${c.streetOf(stop)}", c.streetOf(stop).contains("Testsson"))
+        }
+        // Not looked for yet: already without the name.
+        assertEquals(GeoStatus.PENDING, c.route.value!!.stops.first().geoStatus)
+        assertNoName(c.route.value!!.stops.first())
+        idleUntil { c.route.value!!.stops.none { it.geoStatus == GeoStatus.PENDING } }
+        val stop = c.route.value!!.stops.first()
+        assertEquals(GeoStatus.NOT_LOCATED, stop.geoStatus)
+        assertNoName(stop)
+        assertEquals("Anna Testsson", stop.name)
+
+        assertTrue(c.start())
+        idle()
+        assertFalse("spoken: ${tts.lastAnnouncement}", tts.lastAnnouncement.orEmpty().contains("Testsson"))
+        val maps = shadowOf(app).nextStartedActivity?.dataString.orEmpty()
+        assertFalse("Maps: $maps", maps.contains("Testsson"))
+        val next = c.display.value.current
+        assertNotNull(next)
+        assertEquals("Testsson", next!!.lastName)
+        assertFalse("title: ${next.title}", next.title.contains("Testsson"))
+        assertFalse("place: ${next.place}", next.place.orEmpty().contains("Testsson"))
+        c.next()
+        idle()
+        assertTrue(graph.history.entries.value.isNotEmpty())
+        assertFalse("history", graph.history.entries.value.toString().contains("Testsson"))
+        c.end()
+    }
+
+    /** A YouDrive trip with a surname glued before its place is one trip: a second sync changes nothing. */
+    @Test
+    fun aGluedTripSyncedAgainStaysAsItIs() {
+        val c = graph.controller
+        val trips = graph.extractor.extract(listOf("2026-09-29", "06:55", "Pick-up", "Anna Testsson", "Testsson Provstugan, Karlstad"))
+        assertEquals(RouteController.SyncResult(1, 0), c.syncTrips(trips))
+        assertEquals(RouteController.SyncResult(0, 0), c.syncTrips(trips))
+        assertTrue(c.hasTrip(trips.single()))
+        assertFalse(c.route.value!!.stops.single().displayText.contains("Testsson"))
+    }
+
+    /**
      * The passenger's name (first + last) is for the driver's own screens; the passenger display
      * gets only the next stop's last name. A name is never in an announcement, the route
      * notification or the history (invented data).
