@@ -60,8 +60,9 @@ sealed interface WayAccess {
 /**
  * The request for each ask of the tablet's map, by its access ([WayAccess]), the source the driver
  * chose (304) and the stops: the way ([route]) or the travel times between the stops ([matrix]).
- * mapmap is asked only when chosen, when it can be (every stop has its point; with the driver's own
- * mapmap key, or the server has one); otherwise Google. The bodies are [RoutesApi]'s and
+ * mapmap is asked when chosen, or through the company's server when it has no Google key; and only
+ * when every stop has its point and there is a mapmap key (the driver's own, or on the server);
+ * otherwise Google. The bodies are [RoutesApi]'s and
  * [MapmapApi]'s: places only, never a name, a time or a label. The pass goes only in a header, never
  * in an address or a body; the driver's own keys never go to the company's server.
  */
@@ -77,9 +78,10 @@ object WayRequests {
 
     /** Whether mapmap gives this ask's answer (else Google). */
     fun usesMapmap(access: WayAccess, source: WaySource, stops: List<MapWay.Stop>): Boolean =
-        source == WaySource.MAPMAP && MapmapApi.canAsk(stops) && when (access) {
-            is WayAccess.Own -> MapmapApi.isKey(access.mapmapKey)
-            is WayAccess.Company -> access.mapmap
+        MapmapApi.canAsk(stops) && when (access) {
+            is WayAccess.Own -> source == WaySource.MAPMAP && MapmapApi.isKey(access.mapmapKey)
+            // The server's ways: the one chosen, else the one it has a key for.
+            is WayAccess.Company -> access.mapmap && (source == WaySource.MAPMAP || !access.google)
             WayAccess.None -> false
         }
 

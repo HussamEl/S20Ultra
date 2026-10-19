@@ -70,6 +70,20 @@ class WayRequestsTest {
         assertTrue(r.ask.viaServer)
     }
 
+    /** The server without a Google key for the ways: its mapmap answers, whatever the driver chose. */
+    @Test
+    fun withoutGoogleOnTheServerMapmapIsAsked() {
+        val noGoogle = company.copy(google = false)
+        assertEquals(WayService.MAPMAP_ROUTE, WayRequests.route(noGoogle, WaySource.GOOGLE, lat, lng, located)!!.service)
+        assertEquals(CompanyServer.MAPMAP_ROUTE, WayRequests.route(noGoogle, WaySource.GOOGLE, lat, lng, located)!!.ask.url)
+        assertEquals(WayService.MAPMAP_MATRIX, WayRequests.matrix(noGoogle, WaySource.GOOGLE, lat, lng, located)!!.service)
+        // A stop without its point still goes to Google; neither key on the server: Google, whose no-key the note shows.
+        assertEquals(WayService.GOOGLE_ROUTES, WayRequests.routeService(noGoogle, WaySource.GOOGLE, unlocated))
+        assertEquals(WayService.GOOGLE_ROUTES, WayRequests.routeService(noGoogle.copy(mapmap = false), WaySource.GOOGLE, located))
+        // The driver's own keys: his choice as it is.
+        assertEquals(WayService.GOOGLE_ROUTES, WayRequests.routeService(own, WaySource.GOOGLE, located))
+    }
+
     @Test
     fun mapmapThroughTheServerIsAPostOfPointsOnly() {
         val r = WayRequests.route(company, WaySource.MAPMAP, lat, lng, located)!!
