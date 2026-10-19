@@ -540,10 +540,9 @@ class RouteController(
      * is added in time order. A trip that is ([sameTrip]) takes over YouDrive's time, kind and
      * name, and other copies of it are removed. Stops YouDrive
      * does not know (added by hand or from a screenshot) stay. Announces and re-launches Maps at
-     * most once.
+     * most once ([asOneEdit]).
      */
-    fun syncTrips(trips: List<ExtractedStop>): SyncResult {
-        beginEdit()
+    fun syncTrips(trips: List<ExtractedStop>): SyncResult = asOneEdit {
         var added = 0
         var updated = 0
         for (found in trips) {
@@ -587,8 +586,7 @@ class RouteController(
             }
         }
         if (added + updated > 0) ensureGeocoding()
-        finishEdit()
-        return SyncResult(added, updated)
+        SyncResult(added, updated)
     }
 
     /**
@@ -641,14 +639,26 @@ class RouteController(
     /** Removes a trip YouDrive reported as cancelled. Returns false if it is not in the list. */
     fun removeTrip(e: ExtractedStop): Boolean {
         val stop = findTrip(e) ?: return false
-        beginEdit()
-        update { r -> r.copy(stops = r.stops.filterNot { it.id == stop.id }, depot = r.depot?.takeUnless { it.id == stop.id }) }
-        finishEdit()
+        asOneEdit { update { r -> r.copy(stops = r.stops.filterNot { it.id == stop.id }, depot = r.depot?.takeUnless { it.id == stop.id }) } }
         return true
     }
 
     /** Deletes all route data (the "Clear" button). */
     fun clear() = endInternal()
+
+    /**
+     * Runs [block] as one edit: what it changes is said and sent to Maps now ([finishEdit]). While
+     * the review screen is open, its edits so far are compared from when it opened and go with it;
+     * its later edits are compared from here, so nothing is lost or said twice.
+     */
+    private inline fun <T> asOneEdit(block: () -> T): T {
+        val reviewing = editBaseline != null
+        if (!reviewing) beginEdit()
+        val result = block()
+        finishEdit()
+        if (reviewing) beginEdit()
+        return result
+    }
 
     /** Called when the review screen is opened for an active route. */
     fun beginEdit() {

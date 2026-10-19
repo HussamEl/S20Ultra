@@ -340,6 +340,52 @@ class RouteControllerRoboTest {
     }
 
     /**
+     * A YouDrive trip added while the review is open says the review's edits so far and opens Maps
+     * with them; the review's later edits are said when it closes, and a trip added with no review
+     * open is said as before (invented data).
+     */
+    @Test
+    fun aYouDriveTripAddedDuringTheReviewKeepsItsEdits() {
+        val tts = readyTts()
+        val c = graph.controller
+        fun trip(card: String) = YouDriveCards.parse(listOf(card), graph.extractor).mapNotNull { it.stop }.single()
+        val cards = listOf(
+            "08:00\nPick-up\nFrida Maria Uppdiktad\nStrandvägen 3, 66530 Kil",
+            "08:20\nPick-up\nErik Påhittad\nStorgatan 14, 65224 Karlstad",
+            "08:30\nDrop-off\nFrida Maria Uppdiktad\nSkolgatan 5, 66530 Kil",
+        )
+        assertEquals(3, c.importTrips(cards.map(::trip)))
+        idleUntil { c.route.value!!.stops.none { it.geoStatus == GeoStatus.PENDING } }
+        assertTrue(c.start())
+        idle()
+        assertNotNull(shadowOf(app).nextStartedActivity)
+
+        c.beginEdit()
+        c.move(2, 0)
+        assertTrue(c.insertTrip(trip("09:00\nDrop-off\nErik Påhittad\nLindvägen 9, 66430 Grums")))
+        idle()
+        assertEquals("09:00", c.route.value!!.stops[3].time)
+        assertTrue(tts.lastAnnouncement.orEmpty(), tts.lastAnnouncement.orEmpty().startsWith("Nästa stopp: Klockan åtta trettio. Skolgatan 5"))
+        val url = shadowOf(app).nextStartedActivity?.dataString
+        assertTrue("Maps: $url", url != null && url.contains("waypoints=Skolgatan%205"))
+
+        c.move(1, 2)
+        c.finishEdit()
+        idle()
+        assertTrue(tts.lastAnnouncement.orEmpty(), tts.lastAnnouncement.orEmpty().contains("Skolgatan 5, Kil. Klockan åtta tjugo. Storgatan 14"))
+        val again = shadowOf(app).nextStartedActivity?.dataString.orEmpty()
+        val way = again.substringAfter("waypoints=")
+        assertTrue("Maps: $again", way.startsWith("Skolgatan%205") && way.indexOf("Storgatan%2014") in 0 until way.indexOf("Strandv"))
+
+        // No review open: a trip that becomes the one after the next is said and sent to Maps at once.
+        assertTrue(c.insertTrip(trip("08:10\nPick-up\nBengt Provare\nKyrkogatan 2, 65224 Karlstad")))
+        idle()
+        assertTrue(tts.lastAnnouncement.orEmpty(), tts.lastAnnouncement.orEmpty().contains("Skolgatan 5, Kil. Klockan åtta tio. Kyrkogatan 2"))
+        assertNotNull(shadowOf(app).nextStartedActivity)
+        c.end()
+    }
+
+    /**
      * Trips done in YouDrive are added and marked, and stay in the route until Next passes them;
      * a trip already done here is not added again, only its YouDrive mark follows (invented data).
      */
