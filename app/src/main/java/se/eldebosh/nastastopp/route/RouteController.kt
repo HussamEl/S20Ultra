@@ -316,13 +316,15 @@ class RouteController(
      */
     fun editText(id: Long, text: String, time: String? = null): Boolean {
         val current = _route.value?.stops?.firstOrNull { it.id == id } ?: return false
-        if (text.trim() == current.displayText) {
+        // The passenger's name typed before the address is left out as when the stop was added.
+        val typed = GeoLogic.withoutLeadingNames(text.trim(), GeoLogic.nameKeys(current.name))
+        if (typed == current.displayText) {
             update { r -> r.copy(stops = r.stops.map { if (it.id == id) it.copy(time = time) else it }) }
             return true
         }
-        val e = extractor.fromManualText(text) ?: return false
+        val e = extractor.fromManualText(typed) ?: return false
         // A place written without a town, given one by the driver: next time it comes with it.
-        if (current.townUnknown && (e.parsedTown != null || e.parsedPostalCode != null)) places.remember(current.place ?: current.displayText, text)
+        if (current.townUnknown && (e.parsedTown != null || e.parsedPostalCode != null)) places.remember(current.place ?: current.displayText, typed)
         update { r ->
             r.copy(
                 stops = r.stops.map {

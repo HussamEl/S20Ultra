@@ -488,6 +488,33 @@ class RouteControllerRoboTest {
     }
 
     /**
+     * The passenger's name typed before an address the driver corrects is left out as when the stop
+     * was added: from the stop and from the town remembered for its place (invented data).
+     */
+    @Test
+    fun aNameTypedBeforeACorrectedAddressIsLeftOut() {
+        val card = listOf("10:37\nDrop-off\nCecilia Maria Exempel\nSjukhuset huvudentrén,\nHLI\nCompensation 1 KR")
+        val c = graph.controller
+        assertEquals(1, c.importTrips(YouDriveCards.toAdd(YouDriveCards.parse(card, graph.extractor))))
+        val stop = c.route.value!!.stops.single()
+        assertTrue(stop.townUnknown)
+        assertTrue(c.editText(stop.id, "Exempel Sjukhuset Huvudentrén, Karlstad", stop.time))
+        val edited = c.route.value!!.stops.single()
+        assertEquals("Sjukhuset Huvudentrén, Karlstad", edited.displayText)
+        assertFalse("candidates: ${edited.candidates}", edited.candidates.any { it.contains("Exempel") })
+        assertEquals("Cecilia Exempel", edited.name)
+        // Typed again with the name and only a new time: the address is the same.
+        assertTrue(c.editText(stop.id, "Exempel Sjukhuset Huvudentrén, Karlstad", "10:45"))
+        assertEquals("10:45", c.route.value!!.stops.single().time)
+        assertEquals(edited.copy(time = "10:45"), c.route.value!!.stops.single())
+        c.clear()
+        idle()
+        assertEquals(1, c.importTrips(YouDriveCards.toAdd(YouDriveCards.parse(card, graph.extractor))))
+        assertEquals("Sjukhuset Huvudentrén, Karlstad", c.route.value!!.stops.single().candidates.first())
+        c.clear()
+    }
+
+    /**
      * A stop that still holds the surname before its place (a route saved before it was left out as
      * the stop was added, or a line the driver typed) never says, shows or sends it either: the
      * stop's street address leaves it out ([Stop.streetText]). Invented data.
