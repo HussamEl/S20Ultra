@@ -62,6 +62,31 @@ class TripWatchTest {
         assertTrue(TripWatch.diff(listOf(a, b), listOf(b, a), noon).isEmpty())
     }
 
+    /**
+     * A card with one time is keyed by it: YouDrive re-planning it is the same trip, not one added
+     * and one cancelled. Another passenger, or a time moved further, stays two changes.
+     */
+    @Test
+    fun aReplannedOneTimeCardIsTheSameTrip() {
+        val extractor = AddressExtractor(TestLocalities.instance)
+        fun card(time: String, name: String = "Cecilia Maria Exempel") =
+            YouDriveCards.parse(listOf("$time\nDrop-off\n$name\nSjukhuset huvudentrén,\nHLI, RU1, BEN1\nCompensation 42.47 KR"), extractor).single()
+        val pickUp = YouDriveCards.parse(listOf("09:35\n09:30\nPick-up\nBengt Anders Provare\nKyrkogatan 12A, 65224 Karlstad"), extractor).single()
+        val before = listOf(pickUp, card("10:37"))
+        val after = listOf(pickUp, card("10:20"))
+        assertTrue(TripWatch.diff(before, after, noon - 120).isEmpty())
+        val w = TripWatch()
+        w.onReading(before, noon - 120)
+        assertTrue(w.onReading(after, noon - 120).isEmpty())
+        assertTrue("re-planned, no alert", w.onReading(after, noon - 120).isEmpty())
+        assertEquals(after, w.baseline)
+
+        val other = listOf(pickUp, card("10:20", "David Demo"))
+        assertEquals(listOf(true, false), TripWatch.diff(before, other, noon - 120).map { it.added })
+        val far = listOf(pickUp, card("11:37"))
+        assertEquals(listOf(false, true), TripWatch.diff(before, far, noon - 120).map { it.added })
+    }
+
     @Test
     fun readsTimesAndAddressesFromThePageTextOnly() {
         val page = """

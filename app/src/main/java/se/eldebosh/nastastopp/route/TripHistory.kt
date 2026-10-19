@@ -17,11 +17,12 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import se.eldebosh.nastastopp.settings.SettingsStore
 import se.eldebosh.nastastopp.util.DebugLog
+import se.eldebosh.nastastopp.util.writeWhole
 import java.io.File
 
 /**
  * A trip that was part of a route: kept on the Home screen after the route ends. Only what is
- * shown is stored — time, area and address — never names or other text.
+ * shown is stored — time, area, address and its point — never names or other text.
  */
 @Serializable
 data class HistoryEntry(
@@ -35,6 +36,9 @@ data class HistoryEntry(
     val atMs: Long,
     /** False for trips still open when the driver pressed "Avsluta". */
     val done: Boolean = true,
+    /** The trip's point as the route used it (the driver's entrance, else the address's), or null; none in older files. */
+    val lat: Double? = null,
+    val lng: Double? = null,
 )
 
 @Serializable
@@ -70,8 +74,8 @@ class TripHistory(
 
     private fun retentionMs(): Long = settings.current.historyRetentionHours.coerceAtLeast(1) * 3_600_000L
 
-    fun add(time: String?, area: String, displayText: String, done: Boolean, now: Long = System.currentTimeMillis()) {
-        val entry = HistoryEntry(data.nextId, time, area, displayText, now, done)
+    fun add(time: String?, area: String, displayText: String, done: Boolean, point: Pair<Double, Double>? = null, now: Long = System.currentTimeMillis()) {
+        val entry = HistoryEntry(data.nextId, time, area, displayText, now, done, point?.first, point?.second)
         commit(HistoryFile(data.entries + entry, data.nextId + 1))
     }
 
@@ -99,12 +103,7 @@ class TripHistory(
                 if (snapshot.entries.isEmpty()) {
                     file.delete()
                 } else {
-                    val tmp = File(file.parentFile, "$FILE_NAME.tmp")
-                    tmp.writeText(json.encodeToString(HistoryFile.serializer(), snapshot))
-                    if (!tmp.renameTo(file)) {
-                        file.delete()
-                        tmp.renameTo(file)
-                    }
+                    writeWhole(file, json.encodeToString(HistoryFile.serializer(), snapshot))
                 }
             } catch (e: Exception) {
                 DebugLog.w(e) { "history write failed" }

@@ -28,6 +28,7 @@ object Notifications {
     const val EXTRA_OPEN = "se.eldebosh.nastastopp.OPEN"
     const val OPEN_YOUDRIVE = "youdrive"
     const val OPEN_REVIEW = "review"
+    const val OPEN_END = "end"
 
     fun createChannels(context: Context) {
         val nm = context.getSystemService(NotificationManager::class.java) ?: return
@@ -115,7 +116,9 @@ object Notifications {
 
     /**
      * Persistent notification: next stop's spoken name + address, actions Nästa / Upprepa / Avsluta.
-     * On the lock screen only the area name is shown (public version).
+     * Avsluta never ends the route itself: it opens the route screen's confirmation (83 ends it, 84
+     * keeps it), as End (82) does there, since it sits beside Nästa in the shade. On the lock screen
+     * only the area name is shown (public version).
      */
     fun buildRoute(context: Context, spokenName: String, displayText: String, remaining: Int): android.app.Notification {
         val open = PendingIntent.getActivity(
@@ -146,9 +149,22 @@ object Notifications {
             .setContentIntent(open)
             .addAction(0, context.getString(R.string.action_next_sv), RouteActionReceiver.pendingIntent(context, RouteActionReceiver.ACTION_NEXT))
             .addAction(0, context.getString(R.string.action_repeat_sv), RouteActionReceiver.pendingIntent(context, RouteActionReceiver.ACTION_REPEAT))
-            .addAction(0, context.getString(R.string.action_end_sv), RouteActionReceiver.pendingIntent(context, RouteActionReceiver.ACTION_END))
+            .addAction(0, context.getString(R.string.action_end_sv), askEnd(context))
             .build()
     }
+
+    /**
+     * The app's route screen with its "End the route?" question. Its own request code: the content
+     * intent (0) must never carry [OPEN_END]. An activity started from a notification action is
+     * allowed on Android 12 and later; a broadcast that started it would not be.
+     */
+    private fun askEnd(context: Context): PendingIntent = PendingIntent.getActivity(
+        context, 4,
+        Intent(context, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            .putExtra(EXTRA_OPEN, OPEN_END),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
 
     /**
      * Shown while the driver has closed the floating button during a route: one tap brings it

@@ -13,6 +13,7 @@ import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import se.eldebosh.nastastopp.App
+import se.eldebosh.nastastopp.geo.Geocoding
 import se.eldebosh.nastastopp.route.TripHistory
 import se.eldebosh.nastastopp.route.model.GeoStatus
 import java.io.File
@@ -28,6 +29,7 @@ class TripHistoryRoboTest {
     @Before
     fun setUp() {
         app = ApplicationProvider.getApplicationContext()
+        Geocoding.register(app) // read before the stops are looked for, so they wait only in the test's own time
         app.graph.controller.clear()
         app.graph.history.clear()
         idle()
@@ -39,6 +41,7 @@ class TripHistoryRoboTest {
         repeat(2_000) {
             if (app.graph.controller.route.value?.stops?.none { it.geoStatus == GeoStatus.PENDING } != false) return
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
+            Thread.sleep(2) // the address register is asked on a worker thread, in real time
         }
     }
 

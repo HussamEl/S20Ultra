@@ -1,6 +1,8 @@
 package se.eldebosh.nastastopp.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,13 +23,14 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextDirection
@@ -44,15 +47,13 @@ import se.eldebosh.nastastopp.ui.CardDivider
 import se.eldebosh.nastastopp.ui.Chevron
 import se.eldebosh.nastastopp.ui.HelpDot
 import se.eldebosh.nastastopp.ui.ListRow
+import se.eldebosh.nastastopp.ui.PointText
 import se.eldebosh.nastastopp.ui.SectionTitle
 import se.eldebosh.nastastopp.ui.TouchTarget
 import se.eldebosh.nastastopp.ui.explain
 import se.eldebosh.nastastopp.ui.ref
 import se.eldebosh.nastastopp.ui.refCorner
-import se.eldebosh.nastastopp.ui.theme.Brand
-import se.eldebosh.nastastopp.ui.theme.Located
-import se.eldebosh.nastastopp.ui.theme.NotLocated
-import se.eldebosh.nastastopp.ui.theme.TimeColor
+import se.eldebosh.nastastopp.ui.theme.AppTheme
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -84,6 +85,8 @@ fun HomeScreen(
     onClearHistory: () -> Unit,
     /** The YouDrive card (trip-change alerts), number 25. */
     youDrive: @Composable () -> Unit = {},
+    /** Opens the window that finds any address's coordinates (323). */
+    onFindPoint: (() -> Unit)? = null,
 ) {
     var confirmClear by remember { mutableStateOf(false) }
     var confirmClearHistory by remember { mutableStateOf(false) }
@@ -91,11 +94,30 @@ fun HomeScreen(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // Header: name + "?" (what the app does), Settings and Help as small icons.
+        // Header: name + "?" (what the app does), the find tool, Settings and Help as small icons.
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
-            Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineMedium, color = Brand)
-            HelpDot(R.string.home_subtitle, Modifier.refCorner(20), title = stringResource(R.string.app_name))
-            Spacer(Modifier.weight(1f))
+            // Logo mark: the app icon's black pin on taxi yellow.
+            Box(Modifier.size(36.dp).clip(MaterialTheme.shapes.small).background(AppTheme.colors.accent), contentAlignment = Alignment.Center) {
+                Icon(painterResource(R.drawable.ic_pin), contentDescription = null, tint = AppTheme.colors.onAccent, modifier = Modifier.size(22.dp))
+            }
+            Spacer(Modifier.width(10.dp))
+            // The name gives way on a narrow screen: the icons keep their whole size.
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                Text(
+                    stringResource(R.string.app_name),
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = AppTheme.colors.text,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                HelpDot(R.string.home_subtitle, Modifier.refCorner(20), title = stringResource(R.string.app_name))
+            }
+            if (onFindPoint != null) {
+                IconButton(onClick = onFindPoint, modifier = Modifier.refCorner(323).size(TouchTarget)) {
+                    Icon(painterResource(R.drawable.ic_find_point), contentDescription = stringResource(R.string.find_point_open), modifier = Modifier.size(22.dp))
+                }
+            }
             IconButton(onClick = onSettings, modifier = Modifier.refCorner(31).size(TouchTarget)) {
                 Icon(painterResource(R.drawable.ic_settings), contentDescription = stringResource(R.string.home_settings), modifier = Modifier.size(22.dp))
             }
@@ -109,7 +131,7 @@ fun HomeScreen(
                 ListRow(
                     title = stringResource(R.string.tts_missing_banner),
                     icon = R.drawable.ic_speaker,
-                    iconTint = NotLocated,
+                    iconTint = AppTheme.colors.danger,
                     trailing = { Chevron() },
                 )
             }
@@ -165,9 +187,9 @@ fun HomeScreen(
             title = { Text(stringResource(R.string.history_clear)) },
             text = { Text(stringResource(R.string.history_clear_confirm)) },
             confirmButton = {
-                TextButton(onClick = { confirmClearHistory = false; onClearHistory() }) { Text(stringResource(R.string.delete)) }
+                TextButton(onClick = { confirmClearHistory = false; onClearHistory() }, modifier = Modifier.ref(98)) { Text(stringResource(R.string.delete)) }
             },
-            dismissButton = { TextButton(onClick = { confirmClearHistory = false }) { Text(stringResource(R.string.cancel)) } },
+            dismissButton = { TextButton(onClick = { confirmClearHistory = false }, modifier = Modifier.ref(99)) { Text(stringResource(R.string.cancel)) } },
         )
     }
     if (confirmClear) {
@@ -176,9 +198,9 @@ fun HomeScreen(
             title = { Text(stringResource(R.string.confirm_clear_title)) },
             text = { Text(stringResource(R.string.confirm_clear_text)) },
             confirmButton = {
-                TextButton(onClick = { confirmClear = false; onClear() }) { Text(stringResource(R.string.delete)) }
+                TextButton(onClick = { confirmClear = false; onClear() }, modifier = Modifier.ref(96)) { Text(stringResource(R.string.delete)) }
             },
-            dismissButton = { TextButton(onClick = { confirmClear = false }) { Text(stringResource(R.string.cancel)) } },
+            dismissButton = { TextButton(onClick = { confirmClear = false }, modifier = Modifier.ref(97)) { Text(stringResource(R.string.cancel)) } },
         )
     }
 }
@@ -201,9 +223,9 @@ fun LinkCard(link: DisplayLinkServer.State, onToggle: (Boolean) -> Unit, onFix: 
         ListRow(
             title = stringResource(R.string.link_title),
             subtitle = status,
-            subtitleColor = if (needsFix) NotLocated else null,
+            subtitleColor = if (needsFix) AppTheme.colors.danger else null,
             icon = R.drawable.ic_bluetooth,
-            iconTint = if (link.status == DisplayLinkServer.Status.CONNECTED) Located else Brand,
+            iconTint = if (link.status == DisplayLinkServer.Status.CONNECTED) AppTheme.colors.success else AppTheme.colors.info,
             help = if (link.status == DisplayLinkServer.Status.WAITING) R.string.link_waiting_hint else null,
             onClick = { if (needsFix) onFix() else onToggle(!on) },
             trailing = { Switch(checked = on, onCheckedChange = onToggle, modifier = Modifier.refCorner(switchRef)) },
@@ -227,9 +249,9 @@ fun OverlayCard(permission: Boolean, hidden: Boolean, onVisible: (Boolean) -> Un
         ListRow(
             title = stringResource(R.string.home_overlay_title),
             subtitle = status,
-            subtitleColor = if (!permission) NotLocated else null,
+            subtitleColor = if (!permission) AppTheme.colors.danger else null,
             icon = if (shown) R.drawable.ic_visibility else R.drawable.ic_visibility_off,
-            iconTint = if (shown) Located else Brand,
+            iconTint = if (shown) AppTheme.colors.success else AppTheme.colors.info,
             help = if (permission) R.string.home_overlay_restore_hint else R.string.home_overlay_restricted_hint,
             onClick = { if (!permission) onPermission() else onVisible(hidden) },
             trailing = {
@@ -245,7 +267,7 @@ fun OverlayCard(permission: Boolean, hidden: Boolean, onVisible: (Boolean) -> Un
             ListRow(
                 title = stringResource(R.string.home_overlay_add_tile),
                 icon = R.drawable.ic_tile,
-                iconTint = Brand,
+                iconTint = AppTheme.colors.info,
                 onClick = onAddTile,
                 trailing = { Chevron() },
                 ref = 30,
@@ -290,7 +312,7 @@ private fun HistorySection(history: List<HistoryEntry>, retentionHours: Int, onC
                 Text(
                     e.time ?: "--:--",
                     style = MaterialTheme.typography.titleSmall,
-                    color = if (e.time != null) TimeColor else MaterialTheme.colorScheme.outline,
+                    color = if (e.time != null) AppTheme.colors.time else MaterialTheme.colorScheme.outline,
                     modifier = Modifier.ref(37, centered = true),
                 )
                 Spacer(Modifier.width(12.dp))
@@ -303,12 +325,14 @@ private fun HistorySection(history: List<HistoryEntry>, retentionHours: Int, onC
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    // The point the trip went to, kept with it: a tap copies it.
+                    if (e.lat != null && e.lng != null) PointText(e.lat, e.lng)
                 }
                 Spacer(Modifier.width(8.dp))
                 Text(
                     if (e.done) "✓ $finished" else stringResource(R.string.history_not_completed),
                     style = MaterialTheme.typography.labelMedium,
-                    color = if (e.done) Located else NotLocated,
+                    color = if (e.done) AppTheme.colors.success else AppTheme.colors.danger,
                     modifier = Modifier.ref(38, centered = true),
                 )
             }

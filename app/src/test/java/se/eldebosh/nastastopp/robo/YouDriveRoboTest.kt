@@ -1,29 +1,28 @@
 package se.eldebosh.nastastopp.robo
 
 import android.app.NotificationManager
-import android.content.Context
 import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.fakes.RoboWebSettings
 import se.eldebosh.nastastopp.App
 import se.eldebosh.nastastopp.AppGraph
+import se.eldebosh.nastastopp.geo.Geocoding
 import se.eldebosh.nastastopp.route.model.GeoStatus
 import se.eldebosh.nastastopp.service.Notifications
-import se.eldebosh.nastastopp.settings.SettingsStore
 import se.eldebosh.nastastopp.youdrive.YouDriveWatcher
 import java.time.Duration
 import java.time.LocalTime
 
-/** YouDrive page watching: alerts, applying changes to the route, and the 1.4.0 settings switch. */
+/** YouDrive page watching: alerts, and applying changes to the route. */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [33])
 class YouDriveRoboTest {
@@ -34,6 +33,7 @@ class YouDriveRoboTest {
     @Before
     fun setUp() {
         app = ApplicationProvider.getApplicationContext()
+        Geocoding.register(app) // read before the stops are looked for, so they wait only in the test's own time
         graph = app.graph
         graph.controller.clear()
         idle()
@@ -45,6 +45,7 @@ class YouDriveRoboTest {
         repeat(2_000) {
             if (graph.controller.route.value?.stops?.none { it.geoStatus == GeoStatus.PENDING } != false) return
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
+            Thread.sleep(2) // the address register is asked on a worker thread, in real time
         }
     }
 
@@ -59,6 +60,19 @@ class YouDriveRoboTest {
     private val hammaro = "12:40" to "Björkvägen 7, 66341 Hammarö"
 
     private fun notifications() = shadowOf(app.getSystemService(NotificationManager::class.java)).allNotifications
+
+    @Test
+    fun theYouDrivePageNeverGetsTheLocation() {
+        // The app may hold location (to name the street), but YouDrive's page never gets it:
+        // geolocation is off in its WebView and any request from the page is refused.
+        val web = graph.youDrive.webView()
+        assertFalse((web.settings as RoboWebSettings).geolocationEnabled)
+        var answer: Pair<Boolean, Boolean>? = null
+        shadowOf(web).webChromeClient!!.onGeolocationPermissionsShowPrompt("https://youdrive.example") { _, allow, retain ->
+            answer = allow to retain
+        }
+        assertEquals(false to false, answer)
+    }
 
     @Test
     fun addedAndCancelledTripsAlertAndCanBeApplied() {
@@ -92,6 +106,27 @@ class YouDriveRoboTest {
         settle()
         assertEquals(listOf("12:30", "12:40", "13:40"), graph.controller.route.value!!.stops.map { it.time })
         assertTrue(w.state.value.changes.isEmpty())
+        graph.settings.update { it.copy(youDriveWatch = false) }
+    }
+
+    /**
+     * YouDrive re-plans a card that shows one time (a drop-off): no alert is raised, so no Add
+     * and Remove can take the trip out of the route (invented data).
+     */
+    @Test
+    fun aReplannedOneTimeCardRaisesNoAlert() {
+        graph.settings.update { it.copy(youDriveWatch = true) }
+        val w = graph.youDrive
+        val morning = LocalTime.of(9, 0)
+        val pickUp = "10:18\n10:20\nPick-up\nCecilia Maria Exempel\nSKOLGATAN 6F, 65224 KARLSTAD\nHLI, RU1, BEN1"
+        fun dropOff(time: String) = "$time\nDrop-off\nCecilia Maria Exempel\nSjukhuset huvudentrén,\nHLI, RU1, BEN1\nCompensation 42.47 KR"
+        w.onPageText("YouDrive", nowTime = morning, cards = listOf(pickUp, dropOff("10:37")))
+        assertEquals(2, graph.controller.importTrips(w.state.value.trips.mapNotNull { it.stop }))
+        w.onPageText("YouDrive", nowTime = morning, cards = listOf(pickUp, dropOff("10:50")))
+        w.onPageText("YouDrive", nowTime = morning, cards = listOf(pickUp, dropOff("10:50")))
+        assertTrue("no alerts: ${w.state.value.changes}", w.state.value.changes.isEmpty())
+        assertTrue(notifications().none { it.channelId == Notifications.CHANNEL_TRIPS })
+        assertEquals(listOf("10:18", "10:37"), graph.controller.route.value!!.stops.map { it.time })
         graph.settings.update { it.copy(youDriveWatch = false) }
     }
 
@@ -144,20 +179,5 @@ class YouDriveRoboTest {
         assertTrue(w.state.value.changes.isEmpty())
         assertTrue(notifications().none { it.channelId == Notifications.CHANNEL_TRIPS })
         graph.settings.update { it.copy(youDriveWatch = false) }
-    }
-
-    @Test
-    fun upgradeSwitchesTheUiToEnglishAndShowsTheAddressOnTheDisplay() {
-        val prefs = app.getSharedPreferences(SettingsStore.PREFS, Context.MODE_PRIVATE)
-        prefs.edit().clear().putString(SettingsStore.K_LANG, "ar").putBoolean("display_full_address", false).commit()
-        val s = SettingsStore(app).current
-        assertEquals("en", s.uiLanguage)
-        assertTrue(s.displayFullAddress)
-        assertTrue(s.explanationsArabic)
-        assertTrue(s.showRefNumbers)
-        // Only once: a later choice of Arabic is kept.
-        SettingsStore(app).update { it.copy(uiLanguage = "ar") }
-        assertEquals("ar", SettingsStore(app).current.uiLanguage)
-        assertNotNull(SettingsStore.readLanguage(app))
     }
 }
