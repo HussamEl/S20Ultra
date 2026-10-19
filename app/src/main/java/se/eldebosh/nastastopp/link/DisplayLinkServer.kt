@@ -215,14 +215,18 @@ class DisplayLinkServer(
                 }
             },
         )
-        done.await()
-        jobs.forEach { it.cancel() }
-        runCatching { socket.close() }
-        session.close()
-        sessions.remove(session)
-        sockets.remove(socket)
-        if (sessions.isEmpty()) _mapView.value = null
-        publishClients()
+        // Also when stop() cancels the listening job this runs under: the display and its map are forgotten.
+        try {
+            done.await()
+        } finally {
+            jobs.forEach { it.cancel() }
+            runCatching { socket.close() }
+            session.close()
+            sessions.remove(session)
+            sockets.remove(socket)
+            if (sessions.isEmpty()) _mapView.value = null
+            publishClients()
+        }
     }
 
     /** Next, Back or Repeat pressed on a tablet's floating panel: as if pressed on the phone's. */
