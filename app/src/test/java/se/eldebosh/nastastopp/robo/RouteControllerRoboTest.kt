@@ -247,11 +247,6 @@ class RouteControllerRoboTest {
         c.end()
     }
 
-    /**
-     * The passenger's name (first + last) is for the driver's own screens; the passenger display
-     * gets only the next stop's last name. A name is never in an announcement, the route
-     * notification or the history (invented data).
-     */
     /** A passenger's surname glued before a place's name is never read as the place, and never kept with it. */
     @Test
     fun aSurnameBeforeAPlaceIsLeftOut() {
@@ -267,6 +262,11 @@ class RouteControllerRoboTest {
         assertFalse("shown: ${stop.displayText}", stop.displayText.contains("Testsson"))
     }
 
+    /**
+     * The passenger's name (first + last) is for the driver's own screens; the passenger display
+     * gets only the next stop's last name. A name is never in an announcement, the route
+     * notification or the history (invented data).
+     */
     @Test
     fun namesStayOnTheDriversScreens() {
         val tts = readyTts()
@@ -291,18 +291,27 @@ class RouteControllerRoboTest {
         assertFalse("passenger display", display.toString().contains("Anna"))
         assertFalse("middle name", display.toString().contains("Maria"))
         assertTrue("trips done", display.earlier.all { it.lastName == null } && display.previous?.lastName == null)
-        val notification = shadowOf(app.getSystemService(android.app.NotificationManager::class.java))
-            .getNotification(se.eldebosh.nastastopp.service.Notifications.ID_ROUTE)
-        assertNotNull(notification)
-        // Every extra, whatever its type (only the deprecated Bundle.get reads them all).
-        @Suppress("DEPRECATION")
-        val extras = notification.extras.keySet().map { notification.extras.get(it)?.toString().orEmpty() }
-        assertFalse("notification", extras.any { it.contains("Testsson") })
+        assertFalse("notification", routeNotificationTexts().any { it.contains("Testsson") })
         assertTrue(graph.history.entries.value.isNotEmpty())
         assertFalse("history", graph.history.entries.value.toString().contains("Testsson"))
         c.end()
     }
 
+    /** Every extra of the route notification, whatever its type, as text. */
+    private fun routeNotificationTexts(): List<String> {
+        val notification = shadowOf(app.getSystemService(android.app.NotificationManager::class.java))
+            .getNotification(se.eldebosh.nastastopp.service.Notifications.ID_ROUTE)
+        assertNotNull(notification)
+        // Only the deprecated Bundle.get reads every extra, whatever its type.
+        @Suppress("DEPRECATION")
+        return notification.extras.keySet().map { notification.extras.get(it)?.toString().orEmpty() }
+    }
+
+    /**
+     * A surname written before the street is never said, and never reaches the route
+     * notification, Google Maps or the history, also while the stop is not found (Robolectric's
+     * geocoder never answers, and the register has no Storgatan in Karlstad).
+     */
     @Test
     fun fullRouteFlowAnnouncesOnlyAreaNames() {
         val tts = readyTts()
@@ -328,9 +337,21 @@ class RouteControllerRoboTest {
         assertTrue(url, url.startsWith("https://www.google.com/maps/dir/?api=1&destination="))
         assertTrue(url, url.contains("&waypoints="))
         assertTrue(url, url.endsWith("&travelmode=driving&dir_action=navigate"))
+        assertEquals(GeoStatus.NOT_LOCATED, graph.controller.route.value!!.stops.first().geoStatus)
+        assertFalse("Maps: $url", url.contains("Andersson", ignoreCase = true))
+        assertTrue("Maps: $url", url.contains("Storgatan%2014"))
+        assertFalse("notification", routeNotificationTexts().any { it.contains("Andersson", ignoreCase = true) })
 
         graph.controller.next()
         assertEquals("Nästa stopp: Järnvägsgatan 3B, Storfors. Björkvägen 7, Hammarö.", tts.lastAnnouncement)
+        val history = graph.history.entries.value
+        assertEquals(listOf("Storgatan 14, 652 24 Karlstad"), history.map { it.displayText })
+        // Back takes the trip out of the history again; Next writes it there once.
+        assertTrue(graph.controller.back())
+        assertTrue("history after back: ${graph.history.entries.value}", graph.history.entries.value.isEmpty())
+        graph.controller.next()
+        assertEquals(1, graph.history.entries.value.size)
+        assertFalse("history", graph.history.entries.value.toString().contains("Andersson", ignoreCase = true))
         graph.controller.repeat()
         assertEquals("Nästa stopp: Järnvägsgatan 3B, Storfors. Björkvägen 7, Hammarö.", tts.lastAnnouncement)
         // The driver's other choices: district or town only.

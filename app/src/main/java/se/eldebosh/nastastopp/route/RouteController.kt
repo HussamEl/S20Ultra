@@ -712,7 +712,7 @@ class RouteController(
         val r = _route.value ?: return false
         if (!r.active) return false
         val restored = r.completed.lastOrNull() ?: return false
-        history.removeLatest(restored.displayText, restored.time)
+        history.removeLatest(restored.streetText, restored.time)
         val stops = listOf(restored) + r.stops
         val relaunch = r.batchStartStopId != null && r.batchStartStopId == r.stops.firstOrNull()?.id
         val batch = stops.take(MapsUrlBuilder.MAX_STOPS_PER_LAUNCH)
@@ -787,9 +787,12 @@ class RouteController(
         endInternal()
     }
 
-    /** Adds a trip of the active route to the history shown on the Home screen, with its point ([pointOf]). */
+    /**
+     * Adds a trip of the active route to the history shown on the Home screen: its address from the
+     * street (never a surname written before it, [Stop.streetText]) and its point ([pointOf]).
+     */
     private fun record(stop: Stop, completed: Boolean) {
-        history.add(stop.time, spokenName(stop), stop.displayText, done = completed, point = pointOf(stop))
+        history.add(stop.time, spokenName(stop), stop.streetText, done = completed, point = pointOf(stop))
     }
 
     private fun finish() {

@@ -100,9 +100,12 @@ data class Stop(
             return TextNorm.key("$street $area")
         }
 
-    /** Text handed to Google Maps: the geocoder's formatted address when located, else the cleaned text. */
+    /**
+     * Text handed to Google Maps: the geocoder's formatted address when located, else the address
+     * from its street, without a surname written before it ([streetText]).
+     */
     val navigationText: String
-        get() = geo?.addressLine?.takeIf { isLocated && it.isNotBlank() } ?: displayText
+        get() = geo?.addressLine?.takeIf { isLocated && it.isNotBlank() } ?: streetText
 }
 
 /**

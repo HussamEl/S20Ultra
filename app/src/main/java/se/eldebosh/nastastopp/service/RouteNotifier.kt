@@ -28,7 +28,7 @@ class RouteNotifier(
         val r = controller.route.value ?: return null
         if (!r.active) return null
         val current = r.stops.firstOrNull() ?: return null
-        return Notifications.buildRoute(context, controller.spokenName(current), current.displayText, r.stops.size)
+        return Notifications.buildRoute(context, controller.spokenName(current), current.streetText, r.stops.size)
     }
 
     fun refresh() {
