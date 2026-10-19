@@ -160,12 +160,23 @@ internal fun DisplayItem.sameTrip(other: DisplayItem): Boolean =
     if (id != null && other.id != null) id == other.id else trip == other.trip
 
 /**
- * Asks Google for the best order of [shown] ([RouteMap.suggest]). Lateness counts only from the
- * next stop ([fromNext]): a way that starts later skips the trips before it.
+ * Asks Google for the best order of [shown] ([RouteMap.suggest]), with [inCar] in the car before it
+ * ([inCarBefore]). Lateness counts only from the next stop ([fromNext]): a way that starts later
+ * skips the trips before it.
  */
-internal fun suggestOrder(map: RouteMap, shown: List<DisplayItem>, fromNext: Boolean, now: LocalTime) {
+internal fun suggestOrder(map: RouteMap, shown: List<DisplayItem>, fromNext: Boolean, now: LocalTime, inCar: Map<Int, Int>) {
     val trips = plannerTrips(shown)
-    map.suggest(shown.map { it.mapStop }, if (fromNext) trips else trips.map { it.copy(booked = null) }, now.toSecondOfDay())
+    map.suggest(shown.map { it.mapStop }, if (fromNext) trips else trips.map { it.copy(booked = null) }, now.toSecondOfDay(), inCar)
+}
+
+/**
+ * Who is in the car where [way] starts in [ahead] (the trips still to come, the next first; the way
+ * starts at the first of its trips there): a way cut from the route is judged from there, as the
+ * phone judges the whole route ([OrderPlanner.inCarBefore]).
+ */
+internal fun inCarBefore(ahead: List<DisplayItem>, way: List<DisplayItem>): Map<Int, Int> {
+    val at = way.mapNotNull { w -> ahead.indexOfFirst { it.sameTrip(w) }.takeIf { it >= 0 } }.minOrNull() ?: 0
+    return OrderPlanner.inCarBefore(plannerTrips(ahead), at)
 }
 
 /** The trips for [OrderPlanner]: booked time, pick-up or drop-off, passenger's number. */
@@ -194,7 +205,7 @@ internal fun plannerTrips(trips: List<DisplayItem>): List<OrderPlanner.Trip> = t
  * "+" (260) adds the next trip to the way, in its place ([onAdd]). "Suggest" (248) asks Google for
  * the travel times between them all and puts the best order up ([OrderPlanner]); "Undo" (249) goes
  * back; "Use" (250) sends the order to the phone ([onOrder]). An order with a passenger's drop-off
- * before their pick-up cannot be used.
+ * before their pick-up cannot be used: [inCar] are in the car before the way ([inCarBefore]).
  *
  * The list is a window ([FloatingWindow], [place]): its bar moves it (265), its border makes it
  * bigger or smaller from any edge or corner (266), and two fingers on it do both; it opens where and
@@ -208,6 +219,7 @@ internal fun WayList(
     shown: List<DisplayItem>,
     at: Int,
     window: List<DisplayItem>,
+    inCar: Map<Int, Int>,
     fromNext: Boolean,
     now: () -> LocalTime,
     note: String?,
@@ -229,8 +241,8 @@ internal fun WayList(
     }
     val trips = plannerTrips(shown)
     val order = shown.indices.toList()
-    val allowed = OrderPlanner.allowed(order, trips)
-    val clashing = if (allowed) emptySet() else clashes(trips)
+    val allowed = OrderPlanner.allowed(order, trips, inCar)
+    val clashing = if (allowed) emptySet() else clashes(trips, inCar)
     val changed = edit.preview != null
     // Google's best order for the trips shown: put up to be weighed, never taken by itself.
     LaunchedEffect(map.suggestion) {
@@ -395,7 +407,7 @@ internal fun WayList(
                         enabled = map.located && !map.suggesting && shown.size > 1,
                     ) {
                         onUse()
-                        suggestOrder(map, shown, fromNext, now())
+                        suggestOrder(map, shown, fromNext, now(), inCar)
                     }
                 }
                 if (changed) {
@@ -671,15 +683,27 @@ private fun rowKeys(trips: List<DisplayItem>): List<String> {
     }
 }
 
-/** The drop-offs (and their pick-ups) that come before their passenger is picked up. */
-private fun clashes(trips: List<OrderPlanner.Trip>): Set<Int> {
+/**
+ * The drop-offs that come before their passenger is in the car ([inCar] at the list's start), each
+ * with that passenger's next pick-up after it.
+ */
+private fun clashes(trips: List<OrderPlanner.Trip>, inCar: Map<Int, Int>): Set<Int> {
+    val car = HashMap(inCar)
     val out = HashSet<Int>()
     trips.forEachIndexed { i, t ->
-        if (t.pickUp != false || t.rider == null) return@forEachIndexed
-        val pick = trips.indexOfFirst { it.rider == t.rider && it.pickUp == true }
-        if (pick > i) {
-            out += i
-            out += pick
+        val rider = t.rider ?: return@forEachIndexed
+        when (t.pickUp) {
+            true -> car[rider] = (car[rider] ?: 0) + 1
+            false -> {
+                val n = car[rider] ?: 0
+                if (n > 0) {
+                    car[rider] = n - 1
+                } else {
+                    out += i
+                    (i + 1 until trips.size).firstOrNull { trips[it].rider == rider && trips[it].pickUp == true }?.let { out += it }
+                }
+            }
+            null -> Unit
         }
     }
     return out

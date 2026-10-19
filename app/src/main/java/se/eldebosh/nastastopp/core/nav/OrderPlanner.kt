@@ -48,29 +48,50 @@ object OrderPlanner {
     }
 
     /**
-     * Every passenger in [order] is picked up before they are dropped off. A drop-off with no
-     * pick-up of theirs before it is a passenger already in the car: there are as many of those as
-     * the passenger's drop-offs outnumber their pick-ups (two trips of one passenger in a day).
+     * Who is in the car at trip [at] of [route] (the trips still to come, in order): passenger
+     * number → how many of their trips. At the route's start, as many as a passenger's drop-offs
+     * outnumber their pick-ups (two trips of one passenger in a day); then each pick-up before [at]
+     * adds one and each drop-off takes one away.
      */
-    fun allowed(order: List<Int>, trips: List<Trip>): Boolean {
+    fun inCarBefore(route: List<Trip>, at: Int): Map<Int, Int> {
         val inCar = HashMap<Int, Int>()
-        for (k in order) {
-            val rider = trips[k].rider ?: continue
-            when (trips[k].pickUp) {
+        for (t in route) {
+            val rider = t.rider ?: continue
+            when (t.pickUp) {
                 false -> inCar[rider] = (inCar[rider] ?: 0) + 1
                 true -> inCar[rider] = (inCar[rider] ?: 0) - 1
                 null -> Unit
             }
         }
         inCar.replaceAll { _, n -> n.coerceAtLeast(0) }
+        for (t in route.take(at)) {
+            val rider = t.rider ?: continue
+            when (t.pickUp) {
+                true -> inCar[rider] = (inCar[rider] ?: 0) + 1
+                false -> inCar[rider] = ((inCar[rider] ?: 0) - 1).coerceAtLeast(0)
+                null -> Unit
+            }
+        }
+        return inCar
+    }
+
+    /**
+     * Every passenger in [order] is picked up before they are dropped off, from [inCar] at its
+     * start ([inCarBefore]): by default, the trips given are the whole route, so a drop-off with no
+     * pick-up of theirs before it is a passenger already in the car, as many as the passenger's
+     * drop-offs outnumber their pick-ups. A few trips cut from a longer route are judged from who is
+     * in the car where they start.
+     */
+    fun allowed(order: List<Int>, trips: List<Trip>, inCar: Map<Int, Int> = inCarBefore(order.map { trips[it] }, 0)): Boolean {
+        val car = HashMap(inCar)
         for (k in order) {
             val rider = trips[k].rider ?: continue
             when (trips[k].pickUp) {
-                true -> inCar[rider] = (inCar[rider] ?: 0) + 1
+                true -> car[rider] = (car[rider] ?: 0) + 1
                 false -> {
-                    val n = inCar[rider] ?: 0
+                    val n = car[rider] ?: 0
                     if (n == 0) return false
-                    inCar[rider] = n - 1
+                    car[rider] = n - 1
                 }
                 null -> Unit
             }
@@ -81,13 +102,20 @@ object OrderPlanner {
     /**
      * The best allowed order of [trips] (at most [MAX_TRIPS]): the one given ([current]) unless
      * another allowed order is better; another one when [current] drops a passenger off before
-     * picking them up. Null when no allowed order can be timed.
+     * picking them up ([inCar]: who is in the car before them, [allowed]). Null when no allowed
+     * order can be timed.
      */
-    fun best(trips: List<Trip>, seconds: Array<IntArray>, now: Int, current: List<Int> = trips.indices.toList()): Plan? {
-        var best = if (allowed(current, trips)) plan(current, trips, seconds, now) else null
+    fun best(
+        trips: List<Trip>,
+        seconds: Array<IntArray>,
+        now: Int,
+        current: List<Int> = trips.indices.toList(),
+        inCar: Map<Int, Int> = inCarBefore(trips, 0),
+    ): Plan? {
+        var best = if (allowed(current, trips, inCar)) plan(current, trips, seconds, now) else null
         if (trips.size > MAX_TRIPS) return best
         permutations(trips.indices.toList()) { order ->
-            if (!allowed(order, trips)) return@permutations
+            if (!allowed(order, trips, inCar)) return@permutations
             val p = plan(order, trips, seconds, now) ?: return@permutations
             if (best?.let { p.betterThan(it) } != false) best = p
         }

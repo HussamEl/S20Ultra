@@ -73,6 +73,37 @@ class OrderPlannerTest {
         assertFalse(OrderPlanner.allowed(listOf(1, 0), trips.take(2).map { it.copy(pickUp = !it.pickUp!!) }))
     }
 
+    /**
+     * A few trips cut from the route (the tablet's map) are judged from who is in the car where
+     * they start, as the phone judges the whole route: the passenger in the car is dropped off before
+     * their second trip's pick-up, although that trip's drop-off is beyond the trips cut.
+     */
+    @Test
+    fun tripsCutFromTheRouteAreJudgedFromWhoIsInTheCar() {
+        val route = listOf(Trip(null, false, 4), Trip(null, null, null), Trip(null, true, 4), Trip(null, null, null), Trip(null, false, 4))
+        val window = route.take(3)
+        val inCar = OrderPlanner.inCarBefore(route, 0)
+        assertEquals(mapOf(4 to 1), inCar)
+        assertTrue(OrderPlanner.allowed(listOf(0, 1, 2), window, inCar))
+        assertFalse("judged alone, the drop-off has no one in the car", OrderPlanner.allowed(listOf(0, 1, 2), window))
+        assertTrue(OrderPlanner.allowed(route.indices.toList(), route))
+        // The best keeps the drop-off first, the shortest here.
+        val seconds = times(
+            intArrayOf(100, 200, 300),
+            intArrayOf(0, 100, 200),
+            intArrayOf(100, 0, 100),
+            intArrayOf(200, 100, 0),
+        )
+        assertEquals(listOf(0, 1, 2), OrderPlanner.best(window, seconds, eight, inCar = inCar)!!.order)
+        val alone = OrderPlanner.best(window, seconds, eight)!!.order
+        assertTrue("judged alone, the pick-up first: $alone", alone.indexOf(2) < alone.indexOf(0))
+        // Taken further on: picked up before the trips cut, so in the car where they start.
+        val later = listOf(Trip(null, true, 4), Trip(null, false, 4), Trip(null, null, null), Trip(null, true, 4))
+        assertEquals(mapOf(4 to 1), OrderPlanner.inCarBefore(later, 1))
+        assertTrue(OrderPlanner.allowed(listOf(0, 1, 2), later.drop(1), OrderPlanner.inCarBefore(later, 1)))
+        assertFalse(OrderPlanner.allowed(listOf(0, 1, 2), later.drop(1)))
+    }
+
     /** An order that drops a passenger off first is never kept as the best: the best allowed one is. */
     @Test
     fun aForbiddenOrderIsNeverTheBest() {

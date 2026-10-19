@@ -456,9 +456,10 @@ class RouteMap(
 
     /**
      * Asks Google or mapmap ([useWays]) for the travel times between the vehicle and the driver's [stops], and finds the
-     * best order for them ([trips], the same order; [now]: seconds of the day): [suggestion].
+     * best order for them ([trips], the same order; [now]: seconds of the day; [inCar]: who is in the
+     * car before them, [OrderPlanner.inCarBefore]): [suggestion].
      */
-    fun suggest(stops: List<MapWay.Stop>, trips: List<OrderPlanner.Trip>, now: Int) {
+    fun suggest(stops: List<MapWay.Stop>, trips: List<OrderPlanner.Trip>, now: Int, inCar: Map<Int, Int> = OrderPlanner.inCarBefore(trips, 0)) {
         val from = vehicle ?: return
         if (suggesting || stops.size != trips.size) return
         // The driver's tap waits for nothing but a refusal of the server's that still holds; then
@@ -476,8 +477,8 @@ class RouteMap(
             suggesting = false
             seconds ?: return@launch
             // The order shown may have no way (or drop a passenger off first): the best one is still put up.
-            val current = OrderPlanner.plan(stops.indices.toList(), trips, seconds, now)?.takeIf { OrderPlanner.allowed(it.order, trips) }
-            val best = OrderPlanner.best(trips, seconds, now) ?: return@launch
+            val current = OrderPlanner.plan(stops.indices.toList(), trips, seconds, now)?.takeIf { OrderPlanner.allowed(it.order, trips, inCar) }
+            val best = OrderPlanner.best(trips, seconds, now, inCar = inCar) ?: return@launch
             suggestion = Suggestion(keyOf(stops), best, current)
         }
     }

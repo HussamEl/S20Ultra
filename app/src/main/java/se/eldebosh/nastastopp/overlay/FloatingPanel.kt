@@ -105,6 +105,7 @@ import se.eldebosh.nastastopp.ui.screens.ThenLabel
 import se.eldebosh.nastastopp.ui.screens.TimeFace
 import se.eldebosh.nastastopp.ui.screens.WayLetter
 import se.eldebosh.nastastopp.ui.screens.WayTime
+import se.eldebosh.nastastopp.ui.screens.inCarBefore
 import se.eldebosh.nastastopp.ui.screens.plannerTrips
 import se.eldebosh.nastastopp.ui.screens.statusColor
 import se.eldebosh.nastastopp.ui.theme.AppTheme
@@ -204,7 +205,7 @@ internal fun FloatingPanel(source: PanelSource, actions: PanelActions, sayStreet
                 Moves(live, source, actions)
                 val view = mapView
                 AnimatedVisibility(view?.open == true, enter = fadeIn(), exit = fadeOut()) {
-                    if (view != null) MapPart(view, all, source)
+                    if (view != null) MapPart(view, live.ahead, source)
                 }
             }
         }
@@ -597,10 +598,11 @@ private fun Moves(live: DisplaySnapshot, source: PanelSource, actions: PanelActi
  * and its list of trips in order (287–290: each lettered in its colour, its time, street, last
  * name and leg's minutes, moved with ↑ ↓ or taken off with ×; a tap looks at it), "+ Earlier",
  * "+ Trip", "Suggest" (291–293), and, for an order tried, "Undo" and "Use" (294, 295). Each sends
- * the control to the display, which draws it at once and says back what its map shows.
+ * the control to the display, which draws it at once and says back what its map shows. [ahead]:
+ * the trips still to come, the next first.
  */
 @Composable
-private fun MapPart(view: LinkMessage.MapView, all: List<DisplayItem>, source: PanelSource) {
+private fun MapPart(view: LinkMessage.MapView, ahead: List<DisplayItem>, source: PanelSource) {
     val colors = AppTheme.colors
     fun send(action: Action, id: Long? = null, ids: List<Long>? = null, on: Boolean? = null) = source.remote(LinkMessage.Remote(action, id, ids, on))
     Column(
@@ -627,8 +629,9 @@ private fun MapPart(view: LinkMessage.MapView, all: List<DisplayItem>, source: P
             RoundControl(R.drawable.ic_street, R.string.display_map_street, 285, size = MAP_BUTTON) { send(Action.STREET_PHOTOS) }
         }
         Spacer(Modifier.height(6.dp))
-        val way = view.ids.mapNotNull { id -> all.firstOrNull { it.id == id } }
-        val allowed = way.size < 2 || OrderPlanner.allowed(way.indices.toList(), plannerTrips(way))
+        val way = view.ids.mapNotNull { id -> ahead.firstOrNull { it.id == id } }
+        // Judged from who is in the car where the way starts, as on the display and the phone.
+        val allowed = way.size < 2 || OrderPlanner.allowed(way.indices.toList(), plannerTrips(way), inCarBefore(ahead, way))
         way.forEachIndexed { i, t ->
             WayRow(
                 i,

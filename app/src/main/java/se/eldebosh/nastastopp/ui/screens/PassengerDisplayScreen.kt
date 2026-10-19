@@ -438,7 +438,9 @@ fun PassengerDisplayScreen(
     }
     // The way's trips as Google gave their legs, for the phone: the minutes of each.
     val wayLine = routeMap?.route?.takeIf { routeMap.routeKey == RouteMap.keyOf(wayShown.map { it.mapStop }) }?.legs?.takeIf { it.size == wayShown.size }
-    val wayAllowed = OrderPlanner.allowed(wayShown.indices.toList(), plannerTrips(wayShown))
+    // Who is in the car where the way starts: the way is judged from there, as the phone judges the route.
+    val inCar = inCarBefore(ahead, window)
+    val wayAllowed = OrderPlanner.allowed(wayShown.indices.toList(), plannerTrips(wayShown), inCar)
     // What the map shows, told to the phone's floating panel each time it changes.
     if (onMapView != null) {
         val view = LinkMessage.MapView(
@@ -535,7 +537,7 @@ fun PassengerDisplayScreen(
                 LinkMessage.Remote.Action.ADD_EARLIER -> onMap { if (canAddEarlier) earlier++ }
                 LinkMessage.Remote.Action.REMOVE -> onMap { wayShown.firstOrNull { it.id == r.id }?.let(removeTrip) }
                 LinkMessage.Remote.Action.SUGGEST -> onMap { m ->
-                    if (m.located && !m.suggesting && wayShown.size > 1) suggestOrder(m, wayShown, fromNext = wayAt - windowAt == 0, now.value)
+                    if (m.located && !m.suggesting && wayShown.size > 1) suggestOrder(m, wayShown, fromNext = wayAt - windowAt == 0, now.value, inCar)
                 }
                 LinkMessage.Remote.Action.SAY_TIME -> {
                     onSay(Announcements.clock(now.value.hour, now.value.minute))
@@ -838,6 +840,7 @@ fun PassengerDisplayScreen(
                 shown = wayShown,
                 at = wayShownAt,
                 window = window,
+                inCar = inCar,
                 fromNext = wayAt - windowAt == 0,
                 now = { now.value },
                 note = mapNote(routeMap),
