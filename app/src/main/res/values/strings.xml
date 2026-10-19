@@ -227,7 +227,7 @@
     <string name="display_way_suggested">الاقتراح: أقصر بـ %1$d دقيقة، تأخير %2$d دقيقة (كان %3$d)</string>
     <string name="display_way_suggested_instead">المقترح بدلاً منه: تأخير %1$d دقيقة (الترتيب المعروض بلا طريق أو لا يُستعمل)</string>
     <string name="display_way_pickup_first">توصيل راكب قبل استلامه: لا يمكن اعتماده</string>
-    <string name="display_way_too_many_addresses">اقترح: %1$d رحلات على الأكثر ما دامت إحداها بلا نقطة. احذف رحلة (×)</string>
+    <string name="display_way_too_many_addresses">اقترح: 6 رحلات على الأكثر ما دامت إحداها بلا نقطة. احذف رحلة (×)</string>
     <string name="display_way_trip">%1$s: %2$s</string>
     <string name="display_way_earlier">قبل</string>
     <string name="display_way_later">بعد</string>

@@ -75,7 +75,8 @@ object RoutesApi {
 
     /**
      * The most stops whose travel times Google gives while one has no point: the vehicle and each
-     * stop to each stop, [MAX_ADDRESS_ELEMENTS] answers at most.
+     * stop to each stop, [MAX_ADDRESS_ELEMENTS] answers at most (6; the words of
+     * `display_way_too_many_addresses` say it).
      */
     val MOST_WITH_ADDRESSES: Int = generateSequence(1) { it + 1 }.takeWhile { (it + 1) * it <= MAX_ADDRESS_ELEMENTS }.last()
 

@@ -90,6 +90,7 @@ class RoutesApiTest {
         // Places by address: at most 50 answers.
         val many = List(7) { MapWay.Stop(null, null, "Gatan $it") }
         assertNull(RoutesApi.matrixBody(59.38, 13.5, many))
+        // The words of "Suggest" over that (display_way_too_many_addresses) say 6.
         assertEquals(6, RoutesApi.MOST_WITH_ADDRESSES)
         assertTrue(RoutesApi.tooManyAddresses(many))
         assertFalse(RoutesApi.tooManyAddresses(many.drop(1)))

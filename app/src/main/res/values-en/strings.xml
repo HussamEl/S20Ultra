@@ -226,7 +226,7 @@
     <string name="display_way_suggested">Suggested: %1$d min shorter, %2$d min late (was %3$d)</string>
     <string name="display_way_suggested_instead">Suggested instead: %1$d min late (the order shown has no way or cannot be used)</string>
     <string name="display_way_pickup_first">A drop-off before its pick-up: cannot be used</string>
-    <string name="display_way_too_many_addresses">Suggest: at most %1$d trips while one has no point. Take one off (×)</string>
+    <string name="display_way_too_many_addresses">Suggest: at most 6 trips while one has no point. Take one off (×)</string>
     <string name="display_way_trip">%1$s: %2$s</string>
     <string name="display_way_earlier">Earlier</string>
     <string name="display_way_later">Later</string>
