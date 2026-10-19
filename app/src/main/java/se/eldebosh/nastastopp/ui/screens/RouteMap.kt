@@ -139,6 +139,13 @@ class RouteMap(
     var suggesting by mutableStateOf(false)
         private set
 
+    /**
+     * The stops ([keyOf]) whose travel times Google cannot be given ([RoutesApi.tooManyAddresses]),
+     * when "Suggest" was tapped for them; null otherwise.
+     */
+    var tooMany by mutableStateOf<String?>(null)
+        private set
+
     private val main = Handler(Looper.getMainLooper())
     private var askedFor: String? = null
     private var askedAtMs = 0L
@@ -469,6 +476,12 @@ class RouteMap(
             routeAnswer = WayAnswer(0, service.source, viaServer = true, trouble = held)
             return
         }
+        // A stop without a point goes to Google, which takes a few such stops only: the tap says so.
+        if (RoutesApi.tooManyAddresses(stops)) {
+            tooMany = keyOf(stops)
+            return
+        }
+        tooMany = null
         suggesting = true
         suggestion = null
         scope.launch {

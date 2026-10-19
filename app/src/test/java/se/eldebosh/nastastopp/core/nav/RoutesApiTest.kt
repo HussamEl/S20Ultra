@@ -2,6 +2,7 @@ package se.eldebosh.nastastopp.core.nav
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -89,6 +90,12 @@ class RoutesApiTest {
         // Places by address: at most 50 answers.
         val many = List(7) { MapWay.Stop(null, null, "Gatan $it") }
         assertNull(RoutesApi.matrixBody(59.38, 13.5, many))
+        assertEquals(6, RoutesApi.MOST_WITH_ADDRESSES)
+        assertTrue(RoutesApi.tooManyAddresses(many))
+        assertFalse(RoutesApi.tooManyAddresses(many.drop(1)))
+        assertNotNull(RoutesApi.matrixBody(59.38, 13.5, many.drop(1)))
+        // Every stop with its point: no such limit.
+        assertFalse(RoutesApi.tooManyAddresses(List(7) { MapWay.Stop(59.4 + it / 100.0, 13.52, "Gatan $it") }))
     }
 
     @Test

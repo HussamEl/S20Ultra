@@ -12,6 +12,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -211,6 +212,34 @@ class RouteMapServerRoboTest {
         assertEquals(2, transport.asks.size)
         assertFalse(map.suggesting)
         assertEquals(RouteMap.WayAnswer(0, WaySource.GOOGLE, viaServer = true, trouble = limit.trouble), map.routeAnswer)
+        map.destroy()
+    }
+
+    /**
+     * Suggest with more trips than Google takes while one has no point (its address only): nothing
+     * is asked, and the tap is answered with why ([RouteMap.tooMany]); one trip fewer is asked.
+     */
+    @Test
+    fun suggestWithTooManyAddressesSaysWhy() {
+        val transport = FakeTransport { Reply(0, null) }
+        val map = RouteMap(app, mapsKey, true, "#000000", scope, RouteMap.BASE, transport)
+        map.useWays(WaySource.GOOGLE, WayAccess.Own(mapsKey, null))
+        map.show(MapWay(59.3794, 13.503, stops = stops))
+        settle { transport.asks.isNotEmpty() }
+        val located = (1..6).map { i -> MapWay.Stop(59.38 + i / 100.0, 13.50, "Storgatan $i, 652 24 Karlstad", id = 10L + i) }
+        val seven = located + MapWay.Stop(null, null, "Storgatan 14, 652 24 Karlstad", id = 20)
+        val sevenTrips = seven.map { OrderPlanner.Trip(null, null, null) }
+        map.suggest(seven, sevenTrips, 7 * 3600)
+        settle()
+        assertTrue(transport.asks.none { it.url == RoutesApi.MATRIX_URL })
+        assertFalse(map.suggesting)
+        assertEquals(RouteMap.keyOf(seven), map.tooMany)
+
+        val six = seven.drop(1)
+        map.suggest(six, sevenTrips.drop(1), 7 * 3600)
+        assertNull(map.tooMany)
+        settle { transport.asks.any { it.url == RoutesApi.MATRIX_URL } }
+        assertTrue(transport.asks.any { it.url == RoutesApi.MATRIX_URL })
         map.destroy()
     }
 

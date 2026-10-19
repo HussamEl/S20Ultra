@@ -75,6 +75,7 @@ import se.eldebosh.nastastopp.core.display.DisplayItem
 import se.eldebosh.nastastopp.core.display.TimeStatus
 import se.eldebosh.nastastopp.core.nav.OrderPlanner
 import se.eldebosh.nastastopp.core.nav.RouteLine
+import se.eldebosh.nastastopp.core.nav.RoutesApi
 import se.eldebosh.nastastopp.core.parse.TripKind
 import se.eldebosh.nastastopp.core.parse.TripTimes
 import se.eldebosh.nastastopp.ui.PointText
@@ -305,7 +306,12 @@ internal fun WayList(
                 Spacer(Modifier.height(LIST_GAP))
                 Column(Modifier.ref(251)) {
                     WayHeader(map, line, at, changed, base)
-                    val words = adviceText(edit.advice, map.suggesting) ?: if (!allowed) stringResource(R.string.display_way_pickup_first) else null
+                    // "Suggest" tapped for these trips, more than Google takes while one has no point: until the way changes.
+                    val words = if (map.tooMany == key) {
+                        stringResource(R.string.display_way_too_many_addresses, RoutesApi.MOST_WITH_ADDRESSES)
+                    } else {
+                        adviceText(edit.advice, map.suggesting) ?: if (!allowed) stringResource(R.string.display_way_pickup_first) else null
+                    }
                     if (words != null) {
                         Text(
                             words,

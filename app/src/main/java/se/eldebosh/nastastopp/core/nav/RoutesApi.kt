@@ -73,10 +73,20 @@ object RoutesApi {
         }.toString()
     }
 
+    /**
+     * The most stops whose travel times Google gives while one has no point: the vehicle and each
+     * stop to each stop, [MAX_ADDRESS_ELEMENTS] answers at most.
+     */
+    val MOST_WITH_ADDRESSES: Int = generateSequence(1) { it + 1 }.takeWhile { (it + 1) * it <= MAX_ADDRESS_ELEMENTS }.last()
+
+    /** Google cannot give the travel times between the vehicle and [stops]: one has no point, and there are too many. */
+    fun tooManyAddresses(stops: List<MapWay.Stop>): Boolean =
+        stops.any { it.lat == null || it.lng == null } && stops.size > MOST_WITH_ADDRESSES
+
     /** The travel times asked for: from the vehicle and from each stop, to each stop; null when it cannot be asked. */
     fun matrixBody(fromLat: Double, fromLng: Double, stops: List<MapWay.Stop>): String? {
         if (stops.isEmpty() || stops.any { !it.routable }) return null
-        if (stops.any { it.lat == null || it.lng == null } && (stops.size + 1) * stops.size > MAX_ADDRESS_ELEMENTS) return null
+        if (tooManyAddresses(stops)) return null
         return buildJsonObject {
             putJsonArray("origins") {
                 addJsonObject { putJsonObject("waypoint") { point(fromLat, fromLng) } }
